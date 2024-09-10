@@ -71,7 +71,7 @@ export class Awaitable<T, U = T> {
         this.receiver = receiver;
     }
 
-    static isAwaitable(obj: any): obj is Awaitable<any, any> {
+    static isAwaitable(obj: any): obj is Awaitable<any> {
         return obj instanceof Awaitable;
     }
 
@@ -153,7 +153,7 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
 } = T & {
     "event:EventDispatcher.register": [keyof EventTypes, EventListener<any>];
 }> {
-    private events: { [K in keyof Type]: Array<(...args: any[]) => void> } = {} as any;
+    private events: { [K in keyof Type]: Array<EventListener<Type[K]>> } = {} as any;
 
     public on<K extends keyof Type>(event: K, listener: EventListener<Type[K]>): EventListener<Type[K]> {
         if (!this.events[event]) {
@@ -166,7 +166,7 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
 
     public onEvents(events: {
         type: keyof Type;
-        listener: EventListener<Type[keyof Type]>;
+        listener: EventListener<any>;
     }[]): {
         tokens: EventToken[];
         cancel: () => void;
@@ -210,12 +210,12 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         return this.on(event, onceListener);
     }
 
-    public async any<K extends keyof T>(event: K, ...args: T[K]): Promise<any> {
+    public async any<K extends keyof T>(event: K, ...args: Type[K]): Promise<any> {
         if (!this.events[event]) {
             this.events[event] = [];
         }
 
-        const promises = [];
+        const promises: any[] = [];
         for (const listener of this.events[event]) {
             const result = listener(...args) as any;
             if (result && (typeof result === "object" && typeof result["then"] === "function")) {
@@ -229,7 +229,7 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
                 const type = "event:EventDispatcher.register";
                 const listener = this.on(type, (type, fc) => {
                     if (type === event) {
-                        this.off(type, listener);
+                        this.off((type as "event:EventDispatcher.register"), listener);
 
                         let res = fc?.(...args);
                         if (res && res["then"]) {

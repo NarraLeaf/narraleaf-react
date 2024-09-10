@@ -91,7 +91,7 @@ export default function BackgroundTransition({scene, props, state}: {
     function assignTo(arg0: Transform | Record<string, any>) {
         if (transform && transform.getControl()) {
             console.warn("processing transform not completed");
-            transform.getControl().complete();
+            transform.getControl()!.complete();
             transform.setControl(null);
         }
         if (!scope.current) {

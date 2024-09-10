@@ -26,7 +26,7 @@ export class Utils {
 
     public static backgroundToSrc(background: Background["background"]) {
         return Utils.isStaticImageData(background) ? background.src : (
-            background["url"] || null
+            (background as any)?.["url"] || null
         );
     }
 
@@ -90,7 +90,7 @@ export class StaticChecker {
             this.checkAction(action, imageStates, seen);
 
             const child = action.contentNode.child;
-            if (child) {
+            if (child && child.action) {
                 queue.push(child.action);
             }
         }

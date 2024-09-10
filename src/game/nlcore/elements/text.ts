@@ -128,9 +128,7 @@ export class Character extends Actionable<
         const action = new CharacterAction<typeof CharacterAction.ActionTypes.say>(
             this,
             CharacterAction.ActionTypes.say,
-            new ContentNode<Sentence>(
-                Game.getIdManager().getStringId(),
-            ).setContent(sentence)
+            new ContentNode<Sentence>(Game.getIdManager().getStringId()).setContent(sentence)
         );
         this.actions.push(action);
         return this;

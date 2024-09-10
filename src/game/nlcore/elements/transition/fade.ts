@@ -23,7 +23,7 @@ export class Fade extends Base<FadeProps> implements ITransition {
     private state: FadeElementProps = {
         opacity: 1,
     };
-    private src: string;
+    private src: string | undefined;
 
     constructor(duration: number = 1000, src?: Scene | StaticImageData | string) {
         super();

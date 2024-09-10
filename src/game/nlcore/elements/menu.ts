@@ -80,9 +80,7 @@ export class Menu extends Actionable {
             new MenuAction(
                 this,
                 MenuAction.ActionTypes.action,
-                new ContentNode<MenuData>(
-                    Game.getIdManager().getStringId()
-                ).setContent({
+                new ContentNode<MenuData>(Game.getIdManager().getStringId()).setContent({
                     prompt: this.prompt,
                     choices: this.constructChoices()
                 })

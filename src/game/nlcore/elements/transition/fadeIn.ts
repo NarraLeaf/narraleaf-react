@@ -28,7 +28,7 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
         opacity: 0,
         transform: ''
     };
-    private src: string;
+    private src: string | undefined;
 
     constructor(direction: 'left' | 'right' | 'top' | 'bottom', offset: number, duration: number = 1000, src?: Scene | StaticImageData | string) {
         super();

@@ -1,6 +1,6 @@
 import type {CalledActionResult, GameConfig, GameSettings, SavedGame} from "./gameTypes";
 import {Awaitable} from "@lib/util/data";
-import {Namespace, Storable, StorableData} from "./save/storable";
+import {Namespace, Storable} from "./save/storable";
 import {Singleton} from "@lib/util/singleton";
 import {Story} from "./elements/story";
 import {LogicAction} from "@core/action/logicAction";
@@ -72,19 +72,19 @@ export class Game {
         return IdManager.getInstance();
     };
 
-    async init(): Promise<void> {}
+    async init(): Promise<void> {
+    }
 
     /* Live Game */
-    public getLiveGame() {
+    public getLiveGame(): LiveGame {
         if (!this.liveGame) {
-            this.createLiveGame();
+            return this.createLiveGame();
         }
         return this.liveGame;
     }
 
-    public createLiveGame() {
-        this.liveGame = new LiveGame(this);
-        return this.liveGame;
+    private createLiveGame() {
+        return new LiveGame(this);
     }
 }
 
@@ -137,7 +137,7 @@ export class LiveGame {
 
     /* Store */
     initNamespaces() {
-        this.storable.addNamespace(new Namespace<StorableData>(LiveGame.GameSpacesKey.game, LiveGame.DefaultNamespaces.game));
+        this.storable.addNamespace(new Namespace<any>(LiveGame.GameSpacesKey.game, LiveGame.DefaultNamespaces.game));
         return this;
     }
 
@@ -155,7 +155,7 @@ export class LiveGame {
         this.initNamespaces();
 
         this.currentSceneNumber = 0;
-        this.currentAction = this.story?.getActions()[this.currentSceneNumber];
+        this.currentAction = this.story?.getActions()[this.currentSceneNumber] || null;
 
         const newGame = this.getDefaultSavedGame();
         newGame.name = "NewGame-" + Date.now();
@@ -164,18 +164,17 @@ export class LiveGame {
         return this;
     }
 
-    public loadSavedGame(savedGame: SavedGame, {gameState}: { gameState: GameState }) {
+    public deserialize(savedGame: SavedGame, {gameState}: { gameState: GameState }) {
         const story = this.story;
         if (!story) {
-            console.warn("No story loaded");
-            return;
+            throw new Error("No story loaded");
         }
 
         if (savedGame.version !== this.game.config.app.info.version) {
             throw new Error("Saved game version mismatch");
         }
 
-        const actions = this.story.getAllActions();
+        const actions = story.getAllActions();
         const {
             store,
             elementState,
@@ -189,27 +188,30 @@ export class LiveGame {
         this.storable.load(store);
 
         // restore action tree
-        this.story.setAllElementState(elementState, actions);
-        this.story.setNodeChildByMap(nodeChildIdMap, actions);
+        story.setAllElementState(elementState, actions);
+        story.setNodeChildByMap(nodeChildIdMap, actions);
 
         // restore game state
-        this.setCurrentAction(this.story.findActionById(currentAction, actions) || null);
+        if (currentAction) {
+            this.setCurrentAction(story.findActionById(currentAction, actions) || null);
+        } else {
+            this.setCurrentAction(null);
+        }
         this.currentSceneNumber = currentScene;
         this.currentSavedGame = savedGame;
         gameState.loadData(stage, actions);
     }
 
-    public generateSavedGame({gameState}: { gameState: GameState }): SavedGame {
+    public serialize({gameState}: { gameState: GameState }): SavedGame {
         const story = this.story;
         if (!story) {
-            console.warn("No story loaded");
-            return null;
+            throw new Error("No story loaded");
         }
 
-        const actions = this.story.getAllActions();
+        const actions = story.getAllActions();
 
-        const elementState = this.story.getAllElementState(actions);
-        const nodeChildIds = Object.fromEntries(this.story.getNodeChildIdMap(actions));
+        const elementState = story.getAllElementState(actions);
+        const nodeChildIds = Object.fromEntries(story.getNodeChildIdMap(actions));
         const stage = gameState.toData();
 
         return {
@@ -230,16 +232,23 @@ export class LiveGame {
         };
     }
 
-    getCurrentAction(): LogicAction.Actions {
+    getCurrentAction(): LogicAction.Actions | null {
         return this.currentAction;
     }
 
-    setCurrentAction(action: LogicAction.Actions) {
+    setCurrentAction(action: LogicAction.Actions | null) {
         this.currentAction = action;
         return this;
     }
 
     next(state: GameState): CalledActionResult | Awaitable<CalledActionResult, CalledActionResult> | null {
+        if (!this.story) {
+            throw new Error("No story loaded");
+        }
+        if (!this.currentSceneNumber) {
+            this.currentSceneNumber = 0;
+        }
+
         if (this.lockedAwaiting) {
             if (!this.lockedAwaiting.solved) {
                 console.log("Locked awaiting");
@@ -255,9 +264,9 @@ export class LiveGame {
                 return this.lockedAwaiting;
             }
             const next = this.lockedAwaiting.result;
-            this.currentAction = next.node?.action || null;
+            this.currentAction = next?.node?.action || null;
             this.lockedAwaiting = null;
-            return next;
+            return next || null;
         }
 
         this.currentAction = this.currentAction || this.story.getActions()[++this.currentSceneNumber];

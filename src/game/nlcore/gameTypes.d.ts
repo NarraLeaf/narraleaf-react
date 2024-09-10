@@ -1,9 +1,9 @@
 import {ClientGame} from "../game";
-import {ContentNode, RawData} from "./save/actionTree";
-import {StorableData} from "./save/storable";
-import {LogicAction} from "@lib/game/game/logicAction";
-import {ElementStateRaw} from "@lib/game/game/elements/story";
-import {PlayerStateData} from "@lib/ui/components/player/gameState";
+import {ContentNode, RawData} from "@core/action/tree/actionTree";
+import {LogicAction} from "@core/action/logicAction";
+import {ElementStateRaw} from "@core/elements/story";
+import {PlayerStateData} from "@player/gameState";
+import {StorableData} from "@core/save/type";
 
 
 export interface SavedGame {
@@ -37,10 +37,10 @@ export type GameConfig = {
 export type GameSettings = {
     volume: number;
 };
-export type CalledActionResult<T extends keyof LogicAction.ActionContents = undefined> = {
+export type CalledActionResult<T extends keyof LogicAction.ActionContents = any> = {
     [K in keyof LogicAction.ActionContents]: {
         type: T extends undefined ? K : T;
-        node: ContentNode<LogicAction.ActionContents[T extends undefined ? K : T]>;
+        node: ContentNode<LogicAction.ActionContents[T extends undefined ? K : T]> | null;
     }
 }[keyof LogicAction.ActionContents];
 

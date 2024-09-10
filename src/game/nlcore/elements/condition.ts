@@ -128,9 +128,7 @@ export class Condition extends Actionable {
             Reflect.construct(ConditionAction, [
                 this,
                 ConditionAction.ActionTypes.action,
-                new ContentNode<ConditionData>(
-                    Game.getIdManager().getStringId(),
-                ).setContent(this.conditions)
+                new ContentNode<ConditionData>(Game.getIdManager().getStringId()).setContent(this.conditions)
             ]) as ConditionAction<typeof ConditionAction.ActionTypes.action>
         ];
         this.conditions = Condition.getInitialState();

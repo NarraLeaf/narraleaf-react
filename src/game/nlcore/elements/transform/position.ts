@@ -225,7 +225,7 @@ export class Align implements IPosition {
         yoffset?: UnknownAble<number>;
     });
 
-    constructor(arg0: {
+    constructor(arg0?: {
         xalign?: UnknownAble<number>;
         yalign?: UnknownAble<number>;
         xoffset?: UnknownAble<number>;
