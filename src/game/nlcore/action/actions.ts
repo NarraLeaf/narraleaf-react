@@ -90,7 +90,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                     setTimeout(() => {
                         resolve();
                     }, content);
-                } else if (Awaitable.isAwaitable(content)) {
+                } else if (Awaitable.isAwaitable<any, any>(content)) {
                     content.then(resolve);
                 } else {
                     content?.then(resolve);
@@ -355,7 +355,7 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
         const menu = this.contentNode.getContent() as MenuData;
 
         state.createMenu(menu, v => {
-            let lastChild = state.clientGame.game.getLiveGame().getCurrentAction()?.contentNode.getChild() || null;
+            let lastChild = state.game.getLiveGame().getCurrentAction()?.contentNode.getChild() || null;
             if (lastChild) {
                 v.action[v.action.length - 1]?.contentNode.addChild(lastChild);
             }
@@ -455,13 +455,13 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         let exited = false;
         let current: LogicAction.Actions | null = action;
         while (!exited && current) {
-            const next = state.clientGame.game.getLiveGame().executeAction(state, current);
+            const next = state.game.getLiveGame().executeAction(state, current);
             if (!next) {
                 break;
             }
             if (Awaitable.isAwaitable(next)) {
                 const {node} = await new Promise<CalledActionResult>((r) => {
-                    next.then((_) => r(next.result));
+                    next.then((_) => r(next.result as any));
                 });
                 if (!node) {
                     break;
@@ -475,10 +475,10 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
     }
 
     public async executeSingleAction(state: GameState, action: LogicAction.Actions) {
-        const next = state.clientGame.game.getLiveGame().executeAction(state, action);
-        if (Awaitable.isAwaitable(next)) {
+        const next = state.game.getLiveGame().executeAction(state, action);
+        if (Awaitable.isAwaitable<CalledActionResult,CalledActionResult>(next)) {
             const {node} = await new Promise<CalledActionResult>((r) => {
-                next.then((_) => r(next.result));
+                next.then((_) => r(next.result as any));
             });
             return node;
         } else {

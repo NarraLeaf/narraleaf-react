@@ -1,24 +1,19 @@
 "use client";
 
-import {ClientGame} from "@lib/game/game";
 import {createContext, ReactNode, useContext, useState} from "react";
 import {Game} from "@core/game";
 
 type GameContextType = {
-    game: ClientGame;
-    setGame: (update: (prevGame: ClientGame) => ClientGame) => void;
+    game: Game;
+    setGame: (update: (prevGame: Game) => Game) => void;
 };
 
 const GameContext = createContext<GameContextType | null>(null);
 
 export function GameProvider({children}: { children: ReactNode }) {
     "use client";
-    const DefaultValue = new ClientGame({}, {
-        game: new Game({
-
-        }),
-    });
-    const [game, setGame] = useState<ClientGame>(DefaultValue);
+    const DefaultValue = new Game({});
+    const [game, setGame] = useState<Game>(DefaultValue);
 
     return (
         <GameContext.Provider value={{game, setGame}}>

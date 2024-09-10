@@ -1,5 +1,4 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {ClientGame} from "@lib/game/game";
 import {EventDispatcher} from "@lib/util/data";
 import {Character, Sentence} from "@core/elements/text";
 import {Choice, MenuData} from "@core/elements/menu";
@@ -9,7 +8,8 @@ import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
 import {SrcManager} from "@core/elements/srcManager";
 import {LogicAction} from "@core/action/logicAction";
-import {Storable} from "@core/save/storable";
+import {Storable} from "@core/store/storable";
+import {Game} from "@core/game";
 
 type Clickable<T, U = undefined> = {
     action: T;
@@ -69,12 +69,12 @@ export class GameState {
     };
     currentHandling: CalledActionResult | null = null;
     stage: StageUtils;
-    clientGame: ClientGame;
+    game: Game;
     public readonly events: EventDispatcher<GameStateEvents>;
 
-    constructor(clientGame: ClientGame, stage: StageUtils) {
+    constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
-        this.clientGame = clientGame;
+        this.game = game;
         this.events = new EventDispatcher();
     }
 
@@ -225,7 +225,48 @@ export class GameState {
     }
 
     public getStorable(): Storable {
-        return this.clientGame.game.getLiveGame().getStorable();
+        return this.game.getLiveGame().getStorable();
+    }
+
+    toData(): PlayerStateData {
+        return {
+            elements: this.state.elements.map(e => {
+                return {
+                    scene: e.scene.id,
+                    ele: {
+                        images: e.ele.images.map(i => i.id)
+                    }
+                }
+            })
+        };
+    }
+
+    loadData(data: PlayerStateData, actions: LogicAction.Actions[]) {
+        this.state.elements = [];
+
+        const story = this.game.getLiveGame().story;
+        if (!story) {
+            throw new Error("No story loaded");
+        }
+
+        const allElements = story.getAllElements(actions);
+        const {elements} = data;
+        elements.forEach(e => {
+            const [
+                scene,
+                ...images
+            ] = (story.findElementsByIds([e.scene, ...e.ele.images], allElements) as [Scene, ...Image[]]);
+            const element: { scene: Scene, ele: PlayerStateElement } = {
+                scene: scene,
+                ele: {
+                    images: images,
+                    menus: [],
+                    texts: []
+                }
+            };
+            this.state.elements.push(element);
+            this.state.srcManagers.push(element.scene.srcManager);
+        });
     }
 
     private getElementMap() {
@@ -269,46 +310,5 @@ export class GameState {
             }) as T extends undefined ? () => void : (arg0: T) => void
         };
         return item;
-    }
-
-    toData(): PlayerStateData {
-        return {
-            elements: this.state.elements.map(e => {
-                return {
-                    scene: e.scene.id,
-                    ele: {
-                        images: e.ele.images.map(i => i.id)
-                    }
-                }
-            })
-        };
-    }
-
-    loadData(data: PlayerStateData, actions: LogicAction.Actions[]) {
-        this.state.elements = [];
-
-        const story = this.clientGame.game.getLiveGame().story;
-        if (!story) {
-            throw new Error("No story loaded");
-        }
-
-        const allElements = story.getAllElements(actions);
-        const {elements} = data;
-        elements.forEach(e => {
-            const [
-                scene,
-                ...images
-            ] = (story.findElementsByIds([e.scene, ...e.ele.images], allElements) as [Scene, ...Image[]]);
-            const element: { scene: Scene, ele: PlayerStateElement } = {
-                scene: scene,
-                ele: {
-                    images: images,
-                    menus: [],
-                    texts: []
-                }
-            };
-            this.state.elements.push(element);
-            this.state.srcManagers.push(element.scene.srcManager);
-        });
     }
 }

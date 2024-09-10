@@ -25,7 +25,6 @@ import {
 export type ImageConfig = {
     src: string | NextJSStaticImageData;
     display: boolean;
-    cache: boolean;
     disposed?: boolean;
 } & CommonImage;
 
@@ -64,7 +63,6 @@ export class Image extends Actionable<ImageDataRaw> {
         scale: 1,
         rotation: 0,
         opacity: 0,
-        cache: false,
     };
     static ImagePosition = ImagePosition;
     readonly name: string;
