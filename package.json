@@ -5,6 +5,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
+    "prebuild": "rimraf dist",
     "build": "webpack --config webpack.config.js",
     "start": "webpack serve --config webpack.config.js",
     "lint": "eslint './src/**/*.{ts,tsx}'",
@@ -24,9 +25,12 @@
     "jest": "^27.0.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "rimraf": "^6.0.1",
+    "terser-webpack-plugin": "^5.3.10",
     "ts-loader": "^9.5.1",
     "typescript": "^4.9.5",
     "webpack": "^5.94.0",
+    "webpack-bundle-analyzer": "^4.10.2",
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^5.1.0"
   },
@@ -51,7 +55,6 @@
     "clsx": "^2.1.1",
     "framer-motion": "^11.5.4",
     "howler": "^2.2.4",
-    "lodash": "^4.17.21",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   }

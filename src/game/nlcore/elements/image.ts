@@ -1,5 +1,5 @@
-import {CommonImage, ImagePosition, NextJSStaticImageData} from "@core/types";
-import {deepMerge, DeepPartial, EventDispatcher, getCallStack, safeClone} from "@lib/util/data";
+import {CommonImage, ImagePosition, NextJSStaticImageData, StaticImageData} from "@core/types";
+import {deepEqual, deepMerge, DeepPartial, EventDispatcher, getCallStack} from "@lib/util/data";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Game} from "@core/game";
 import {Transform} from "./transform/transform";
@@ -10,9 +10,7 @@ import {Utils} from "@core/common/Utils";
 import React from "react";
 import {Scene} from "@core/elements/scene";
 import {AnimationScope} from "framer-motion";
-import _ from "lodash";
 import {ImageActionContentType} from "@core/action/actionTypes";
-import {StaticImageData} from "@core/types";
 import {ITransition} from "@core/elements/transition/type";
 import {
     CommonPosition,
@@ -97,12 +95,13 @@ export class Image extends Actionable<ImageDataRaw> {
                 return PositionUtils.serializePosition(value);
             }
         };
-        return _.mapValues(state, (value, key) => {
-            if (handlers[key]) {
-                return handlers[key](value);
+        const result: Record<string, any> = {};
+        for (const key in state) {
+            if (state.hasOwnProperty(key)) {
+                result[key] = handlers[key] ? handlers[key](state[key]) : state[key];
             }
-            return value;
-        });
+        }
+        return result;
     };
 
     static deserializeImageState(state: Record<string, any>): ImageConfig {
@@ -111,12 +110,13 @@ export class Image extends Actionable<ImageDataRaw> {
                 return PositionUtils.toCoord2D(value);
             }
         };
-        return _.mapValues(state, (value, key) => {
-            if (handlers[key]) {
-                return handlers[key](value);
+        const result: Record<string, any> = {};
+        for (const key in state) {
+            if (state.hasOwnProperty(key)) {
+                result[key] = handlers[key] ? handlers[key](state[key]) : state[key];
             }
-            return value;
-        }) as ImageConfig;
+        }
+        return result as ImageConfig;
     }
 
     public dispose() {
@@ -277,12 +277,12 @@ export class Image extends Actionable<ImageDataRaw> {
     }
 
     public toData(): ImageDataRaw | null {
-        if (this.state.disposed || _.isEqual(this.state, this.config)) {
+        if (this.state.disposed || deepEqual(this.state, this.config)) {
             return null;
         }
 
         return {
-            state: safeClone(Image.serializeImageState(this.state))
+            state: deepMerge({}, Image.serializeImageState(this.state))
         };
     }
 

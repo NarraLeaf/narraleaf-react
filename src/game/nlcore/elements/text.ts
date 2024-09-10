@@ -1,10 +1,9 @@
 import {Game} from "../game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Color} from "@core/types";
-import {deepMerge, safeClone} from "@lib/util/data";
+import {deepEqual, deepMerge, safeClone} from "@lib/util/data";
 import {CharacterAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
-import _ from "lodash";
 
 export type SentenceConfig = {
     pause?: boolean | number;
@@ -67,7 +66,7 @@ export class Sentence {
     }
 
     toData(): SentenceDataRaw | null {
-        if (_.isEqual(this.state, Sentence.defaultState)) {
+        if (deepEqual(this.state, Sentence.defaultState)) {
             return null;
         }
         return {
