@@ -71,7 +71,7 @@ export class Awaitable<T, U = T> {
         this.receiver = receiver;
     }
 
-    static isAwaitable(obj: any): obj is Awaitable<any> {
+    static isAwaitable<T, U>(obj: any): obj is Awaitable<T, U> {
         return obj instanceof Awaitable;
     }
 

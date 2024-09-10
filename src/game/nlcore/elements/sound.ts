@@ -34,12 +34,12 @@ export type SoundConfig = {
     /**
      * 如果为真，该操作会阻塞直到声音播放完毕
      */
-    sync?: boolean;
+    sync: boolean;
     /**
      * 是否循环播放，如果sync和loop都为真，sync会当作**false**处理
      */
-    loop?: boolean;
-    volume?: number;
+    loop: boolean;
+    volume: number;
     streaming?: boolean;
 };
 

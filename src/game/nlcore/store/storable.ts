@@ -6,7 +6,7 @@ import {
     StorableData,
     StorableType,
     WrappedStorableData
-} from "@core/save/type";
+} from "@core/store/type";
 
 export class Namespace<T extends NameSpaceContent<keyof T>> {
     name: string;

@@ -1,9 +1,8 @@
-import {ClientGame} from "../game";
 import {ContentNode, RawData} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {ElementStateRaw} from "@core/elements/story";
 import {PlayerStateData} from "@player/gameState";
-import {StorableData} from "@core/save/type";
+import {StorableData} from "@core/store/type";
 
 
 export interface SavedGame {
@@ -24,13 +23,20 @@ export interface SavedGame {
 }
 
 export type GameConfig = {
-    clientGame: ClientGame;
-    app: {
-        info: {
-            version: string;
-        },
-        player: {
-            contentContainerId: string;
+    version: string;
+    player: {
+        contentContainerId: string;
+        aspectRatio: number;
+        minWidth: number;
+        minHeight: number;
+    };
+    elements: {
+        say: {
+            /**
+             * See [Key_Values](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values)
+             */
+            skipKeys: string[];
+            textSpeed: number;
         }
     }
 };

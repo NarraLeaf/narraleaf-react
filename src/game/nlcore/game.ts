@@ -1,6 +1,6 @@
 import type {CalledActionResult, GameConfig, GameSettings, SavedGame} from "./gameTypes";
-import {Awaitable} from "@lib/util/data";
-import {Namespace, Storable} from "./save/storable";
+import {Awaitable, deepMerge, DeepPartial} from "@lib/util/data";
+import {Namespace, Storable} from "@core/store/storable";
 import {Singleton} from "@lib/util/singleton";
 import {Story} from "./elements/story";
 import {LogicAction} from "@core/action/logicAction";
@@ -47,33 +47,31 @@ export class Game {
         volume: 1,
     };
     static DefaultConfig: GameConfig = {
-        clientGame: null,
-        app: {
-            info: {
-                version: "v0.0.0",
-            },
-            player: {
-                contentContainerId: "content",
+        version: "v0.0.0",
+        player: {
+            contentContainerId: "__narraleaf_content",
+            aspectRatio: 16 / 9,
+            minWidth: 800,
+            minHeight: 450,
+        },
+        elements: {
+            say: {
+                skipKeys: [" "],
+                textSpeed: 50,
             }
         }
     }
     static GameSettingsNamespace = GameSettingsNamespace;
     config: GameConfig;
     liveGame: LiveGame | null = null;
-    settings: Record<GameSettingsNamespace, Record<string, any>> = {
-        game: {}
-    };
 
-    constructor(config: GameConfig) {
-        this.config = config;
+    constructor(config: DeepPartial<GameConfig>) {
+        this.config = deepMerge<GameConfig>(Game.DefaultConfig, config);
     }
 
     static getIdManager() {
         return IdManager.getInstance();
     };
-
-    async init(): Promise<void> {
-    }
 
     /* Live Game */
     public getLiveGame(): LiveGame {
@@ -117,7 +115,7 @@ export class LiveGame {
     getDefaultSavedGame(): SavedGame {
         return {
             name: "_",
-            version: this.game.config.app.info.version,
+            version: this.game.config.version,
             meta: {
                 created: Date.now(),
                 updated: Date.now(),
@@ -170,7 +168,7 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
-        if (savedGame.version !== this.game.config.app.info.version) {
+        if (savedGame.version !== this.game.config.version) {
             throw new Error("Saved game version mismatch");
         }
 
@@ -216,7 +214,7 @@ export class LiveGame {
 
         return {
             name: this.currentSavedGame?.name || "_",
-            version: this.game.config.app.info.version,
+            version: this.game.config.version,
             meta: {
                 created: this.currentSavedGame?.meta.created || Date.now(),
                 updated: Date.now(),
@@ -276,23 +274,23 @@ export class LiveGame {
         }
 
         const nextAction = this.currentAction.executeAction(state);
-        if (Awaitable.isAwaitable(nextAction)) {
+        if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             this.lockedAwaiting = nextAction;
             return nextAction;
         }
 
         this._lockedCount = 0;
 
-        this.currentAction = nextAction.node.child?.action;
+        this.currentAction = nextAction.node?.child?.action || null;
         return nextAction;
     }
 
     executeAction(state: GameState, action: LogicAction.Actions): LogicAction.Actions | Awaitable<CalledActionResult, CalledActionResult> | null {
         const nextAction = action.executeAction(state);
-        if (Awaitable.isAwaitable(nextAction)) {
+        if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             return nextAction;
         }
-        return nextAction.node.child?.action;
+        return nextAction?.node?.child?.action || null;
     }
 }
 
