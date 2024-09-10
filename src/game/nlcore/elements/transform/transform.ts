@@ -25,7 +25,8 @@ export type Transformers =
     | "display"
     | "src"
     | "backgroundColor"
-    | "backgroundOpacity";
+    | "backgroundOpacity"
+    | "transform";
 export type TransformHandler<T> = (value: T) => DOMKeyframesDefinition;
 export type TransformersMap = {
     "position": CommonImage["position"],
@@ -56,7 +57,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     }
     static CommonImagePositionMap = CommonImagePositionMap;
 
-    private readonly sequenceOptions: Partial<TransformDefinitions.CommonSequenceProps>;
+    private readonly sequenceOptions: TransformDefinitions.CommonSequenceProps;
     private sequences: TransformDefinitions.Sequence<T>[] = [];
     private control: AnimationPlaybackControls | null = null;
     private transformers: { [K in Transformers]?: Function } = {};
@@ -78,12 +79,14 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     constructor(arg0: Sequence<T>[] | DeepPartial<T>, arg1?: Partial<TransformDefinitions.CommonTransformProps> | TransformDefinitions.SequenceOptions) {
         if (Array.isArray(arg0)) {
             this.sequences.push(...arg0);
-            this.sequenceOptions = Object.assign({}, Transform.defaultSequenceOptions, arg1 || {});
+            this.sequenceOptions =
+                Object.assign({}, Transform.defaultSequenceOptions, arg1 || {}) as TransformDefinitions.CommonSequenceProps;
         } else {
             const [props, options] =
                 [arg0, arg1 || Transform.defaultOptions];
             this.sequences.push({props, options: options || {}});
-            this.sequenceOptions = Object.assign({}, Transform.defaultSequenceOptions);
+            this.sequenceOptions =
+                Object.assign({}, Transform.defaultSequenceOptions) as TransformDefinitions.CommonSequenceProps;
         }
     }
 
@@ -92,7 +95,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     }
 
     public static positionToCSS(
-        position: CommonImage["position"],
+        position: IPosition,
         invertY?: boolean | undefined,
         invertX?: boolean | undefined
     ): CSSProps {
@@ -107,14 +110,14 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         if (Utils.isStaticImageData(background)) {
             return {backgroundImage: `url(${background.src})`};
         }
-        const backgroundImage = background?.["url"] ? (
-            "url(" + background?.["url"] + ")"
-        ) : undefined;
-
-        const backgroundColor = (!backgroundImage) ?
-            background ? toHex(background as color) : undefined :
-            undefined;
-        return {backgroundImage, backgroundColor};
+        if (typeof background === "string") {
+            return {backgroundColor: background};
+        }
+        if (["r", "g", "b"].every(key => key in background)) {
+            return {backgroundColor: toHex(background as color)};
+        }
+        const url = (background as {url: string}).url;
+        return {backgroundImage: "url(" + url + ")"};
     }
 
     static mergePosition<T>(a: IPosition | undefined, b: IPosition | undefined): Coord2D {
@@ -122,12 +125,12 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             throw new Error("No position found.");
         }
         if (!a || !b) {
-            return PositionUtils.toCoord2D(a || b);
+            return PositionUtils.toCoord2D((a || b)!);
         }
         return PositionUtils.mergePosition(a, b);
     }
 
-    static mergeState<T>(state: DeepPartial<T>, props: DeepPartial<T>): DeepPartial<T> {
+    static mergeState<T>(state: any, props: any): DeepPartial<T> {
         const position = this.mergePosition(state["position"], props["position"]);
         return {
             ...deepMerge(state, props),
@@ -169,14 +172,14 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
                     if (!scope.current) {
                         throw new Error("No scope found when animating.");
                     }
-                    const current = scope.current as Element;
+                    const current = scope.current as any;
                     Object.assign(current["style"], initState);
 
                     state = Transform.mergeState(state, props);
                     const animation = animate(
                         current,
                         this.propToCSS(gameState, state),
-                        this.optionsToFramerMotionOptions(options)
+                        this.optionsToFramerMotionOptions(options) || {}
                     );
                     this.setControl(animation);
 
@@ -237,14 +240,14 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
      * ```
      */
     public overwrite<T extends keyof TransformersMap = any>(key: T, transformer: TransformHandler<TransformersMap[T]>) {
-        this.transformers[key as any] = transformer;
+        this.transformers[key] = transformer;
         return this;
     }
 
     propToCSS(state: GameState, prop: DeepPartial<T>): DOMKeyframesDefinition {
         const {invertY, invertX} = state.getLastScene()?.config || {}
         const FieldHandlers: Record<string, (v: any) => any> = {
-            "position": (value: CommonImage["position"]) => Transform.positionToCSS(value, invertY, invertX),
+            "position": (value: IPosition) => Transform.positionToCSS(value, invertY, invertX),
             "backgroundColor": (value: Background["background"]) => Transform.backgroundToCSS(value),
             "backgroundOpacity": (value: number) => ({opacity: value}),
             "opacity": (value: number) => ({opacity: value}),
@@ -262,8 +265,8 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
 
         for (const key in prop) {
             if (!prop.hasOwnProperty(key)) continue;
-            if (this.transformers[key as any]) {
-                Object.assign(props, this.transformers[key as any](prop[key]));
+            if (this.transformers[key as keyof TransformersMap]) {
+                Object.assign(props, this.transformers[key as keyof TransformersMap]!(prop[key]));
             } else if (FieldHandlers[key]) {
                 Object.assign(props, FieldHandlers[key](prop[key]));
             }
@@ -271,22 +274,22 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         return props;
     }
 
-    optionsToFramerMotionOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions {
+    optionsToFramerMotionOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions | void {
         if (!options) {
             return options;
         }
         const {duration, ease} = options;
         return {
-            duration: duration / 1000,
+            duration: duration ? (duration / 1000) : 0,
             ease,
         };
     }
 
-    propToCSSTransform(state: GameState, prop: DeepPartial<T>): string {
+    propToCSSTransform(state: GameState, prop: Record<string, any>): string {
         if (!state.getLastScene()) {
             throw new Error("No scene found in state, make sure you called \"scene.activate()\" before this method.");
         }
-        const {invertY, invertX} = state.getLastScene().config || {};
+        const {invertY, invertX} = state.getLastScene()?.config || {};
         const Transforms = [
             `translate(${invertX ? "" : "-"}50%, ${invertY ? "" : "-"}50%)`,
             (prop["scale"] !== undefined) && `scale(${prop["scale"]})`,
@@ -295,7 +298,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         return Transforms.filter(Boolean).join(" ");
     }
 
-    setControl(control: AnimationPlaybackControls) {
+    setControl(control: AnimationPlaybackControls | null) {
         this.control = control;
         return this;
     }

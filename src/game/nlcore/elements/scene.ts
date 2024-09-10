@@ -1,6 +1,6 @@
 import {Constructable} from "../action/constructable";
 import {Game} from "../game";
-import {Awaitable, deepMerge, EventDispatcher, safeClone} from "@lib/util/data";
+import {Awaitable, deepMerge, DeepPartial, EventDispatcher, safeClone} from "@lib/util/data";
 import {Background, CommonImage} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
@@ -19,15 +19,15 @@ import {
     SceneActionTypes
 } from "@core/action/actionTypes";
 import {Image} from "@core/elements/image";
+import {Utils} from "@core/common/core";
 import Actions = LogicAction.Actions;
 import ImageTransformProps = TransformDefinitions.ImageTransformProps;
-import {Utils} from "@core/common/core";
 
 export type SceneConfig = {
-    invertY?: boolean;
-    invertX?: boolean;
-    backgroundMusic?: Sound | null;
-    backgroundMusicFade?: number;
+    invertY: boolean;
+    invertX: boolean;
+    backgroundMusic: Sound | null;
+    backgroundMusicFade: number;
 } & Background;
 export type SceneState = {
     backgroundMusic?: Sound | null;
@@ -79,6 +79,7 @@ export class Scene extends Constructable<
     static defaultConfig: SceneConfig = {
         background: null,
         invertY: false,
+        invertX: false,
         backgroundMusic: null,
         backgroundMusicFade: 0,
     };
@@ -94,10 +95,10 @@ export class Scene extends Constructable<
     _liveState = {
         active: false,
     }
-    _sceneRoot: SceneAction<"scene:action">;
+    _sceneRoot?: SceneAction<"scene:action">;
     private _actions: SceneAction<any>[] = [];
 
-    constructor(name: string, config: SceneConfig = Scene.defaultConfig) {
+    constructor(name: string, config: DeepPartial<SceneConfig> = Scene.defaultConfig) {
         super();
         this.id = Game.getIdManager().getStringId();
         this.name = name;
@@ -130,9 +131,7 @@ export class Scene extends Constructable<
         this._actions.push(new SceneAction(
             this,
             "scene:setBackground",
-            new ContentNode<[Background["background"]]>(
-                Game.getIdManager().getStringId(),
-            ).setContent([
+            new ContentNode<[Background["background"]]>(Game.getIdManager().getStringId()).setContent([
                 background,
             ])
         ));
@@ -147,9 +146,7 @@ export class Scene extends Constructable<
         this._actions.push(new SceneAction(
             this,
             "scene:applyTransform",
-            new ContentNode(
-                Game.getIdManager().getStringId(),
-            ).setContent([transform])
+            new ContentNode(Game.getIdManager().getStringId()).setContent([transform])
         ));
         return this;
     }
@@ -163,9 +160,7 @@ export class Scene extends Constructable<
         this._actions.push(new SceneAction(
             this,
             "scene:preUnmount",
-            new ContentNode(
-                Game.getIdManager().getStringId(),
-            ).setContent([])
+            new ContentNode(Game.getIdManager().getStringId()).setContent([])
         ));
 
         const jumpConfig: Partial<JumpConfig> = config || {};
@@ -189,9 +184,7 @@ export class Scene extends Constructable<
         this._actions.push(new SceneAction(
             this,
             "scene:sleep",
-            new ContentNode(
-                Game.getIdManager().getStringId(),
-            ).setContent(content)
+            new ContentNode(Game.getIdManager().getStringId()).setContent(content)
         ));
         return this;
     }
@@ -202,12 +195,10 @@ export class Scene extends Constructable<
      * @param fade 毫秒数，如果设置，则会将渐出效果应用于上一首音乐，将渐入效果应用于当前音乐，时长为 {@link fade} 毫秒
      */
     public setBackgroundMusic(sound: Sound, fade?: number): this {
-        this._actions.push(new SceneAction(
+        this._actions.push(new SceneAction<typeof SceneActionTypes["setBackgroundMusic"]>(
             this,
-            "scene:setBackgroundMusic",
-            new ContentNode(
-                Game.getIdManager().getStringId(),
-            ).setContent([sound, fade])
+            SceneActionTypes["setBackgroundMusic"],
+            new ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackgroundMusic"]]>(Game.getIdManager().getStringId()).setContent([sound, fade])
         ));
         return this;
     }
@@ -222,7 +213,7 @@ export class Scene extends Constructable<
         return this.state.backgroundMusic;
     }
 
-    toData(): SceneDataRaw {
+    toData(): SceneDataRaw | null {
         if (_.isEqual(this.state, this.config)) {
             return null;
         }
@@ -241,6 +232,8 @@ export class Scene extends Constructable<
         if (data.state.backgroundMusic) {
             this.state.backgroundMusic = new Sound().fromData(data.state.backgroundMusic);
             this.state.background = data.state.background;
+        }
+        if (data.state.backgroundImageState) {
             this.backgroundImageState = Image.deserializeImageState(data.state.backgroundImageState);
         }
         return this;
@@ -250,9 +243,7 @@ export class Scene extends Constructable<
         this._actions.push(new SceneAction(
             this,
             "scene:setTransition",
-            new ContentNode(
-                Game.getIdManager().getStringId(),
-            ).setContent([transition])
+            new ContentNode(Game.getIdManager().getStringId()).setContent([transition])
         ));
         return this;
     }
@@ -261,9 +252,7 @@ export class Scene extends Constructable<
         this._actions.push(new SceneAction(
             this,
             "scene:applyTransition",
-            new ContentNode(
-                Game.getIdManager().getStringId(),
-            ).setContent([transition])
+            new ContentNode(Game.getIdManager().getStringId()).setContent([transition])
         ));
         return this;
     }
@@ -279,10 +268,6 @@ export class Scene extends Constructable<
         ]);
     }
 
-    protected getSceneActions() {
-        return this.toActions();
-    }
-
     registerSrc(seen: Set<Scene> = new Set<Scene>()) {
         if (!this.getActions().length) {
             return;
@@ -293,7 +278,7 @@ export class Scene extends Constructable<
         const futureScene = new Set<Scene>();
 
         while (queue.length) {
-            const action = queue.shift();
+            const action = queue.shift()!;
             if (action instanceof SceneAction) {
                 if (action.type === SceneActionTypes.jumpTo) {
                     const jumpTo = action as SceneAction<typeof SceneActionTypes["jumpTo"]>;
@@ -307,14 +292,14 @@ export class Scene extends Constructable<
                     futureScene.add(scene);
                     seen.add(scene);
                 } else if (action.type === SceneActionTypes.setBackground) {
-                    const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).content[0];
+                    const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
                     this.srcManager.register(new Image({src: Utils.backgroundToSrc(content)}));
                 }
             } else if (action instanceof ImageAction) {
                 const imageAction = action as ImageAction;
                 this.srcManager.register(imageAction.callee);
                 if (action.type === ImageActionTypes.setSrc) {
-                    const content = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setSrc"]]>).content[0];
+                    const content = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setSrc"]]>).getContent()[0];
                     this.srcManager.register(new Image({src: content}));
                 }
             } else if (action instanceof SoundAction) {
@@ -334,13 +319,33 @@ export class Scene extends Constructable<
         });
     }
 
+    public action(actions: (Actions | Actions[])[]): this;
+
+    public action(actions: ((scene: Scene) => Actions[])): this;
+
+    public action(actions: (Actions | Actions[])[] | ((scene: Scene) => Actions[])): this {
+        const userActions = Array.isArray(actions) ? actions.flat(2) : actions(this).flat(2);
+        const images = this.getAllElements(this.getAllActions(false, userActions))
+            .filter(element => element instanceof Image);
+        const futureActions = [
+            ...this.activate().toActions(),
+            ...images.map(image => (image as Image).init().toActions()).flat(2),
+            ...userActions,
+        ];
+
+        this._sceneRoot = this._action(futureActions);
+        return this;
+    }
+
+    protected getSceneActions() {
+        return this.toActions();
+    }
+
     private _jumpTo(scene: Scene) {
         this._actions.push(new SceneAction(
             this,
             "scene:jumpTo",
-            new ContentNode<[Scene]>(
-                Game.getIdManager().getStringId(),
-            ).setContent([
+            new ContentNode<[Scene]>(Game.getIdManager().getStringId()).setContent([
                 scene
             ])
         ));
@@ -351,9 +356,7 @@ export class Scene extends Constructable<
         this._actions.push(new SceneAction(
             this,
             "scene:exit",
-            new ContentNode(
-                Game.getIdManager().getStringId(),
-            ).setContent([])
+            new ContentNode(Game.getIdManager().getStringId()).setContent([])
         ));
         return this;
     }
@@ -361,7 +364,7 @@ export class Scene extends Constructable<
     private _transitionToScene(scene?: Scene, transition?: ITransition): this {
         if (transition) {
             const copy = transition.copy();
-            if(scene) copy.setSrc(Utils.backgroundToSrc(scene.config.background));
+            if (scene) copy.setSrc(Utils.backgroundToSrc(scene.config.background));
             this._setTransition(copy)
                 ._applyTransition(copy);
         }
@@ -377,26 +380,8 @@ export class Scene extends Constructable<
         this._actions.push(new SceneAction(
             this,
             "scene:init",
-            new ContentNode(
-                Game.getIdManager().getStringId(),
-            ).setContent([])
+            new ContentNode(Game.getIdManager().getStringId()).setContent([])
         ));
-        return this;
-    }
-
-    public action(actions: (Actions | Actions[])[]): this;
-    public action(actions: ((scene: Scene) => Actions[])): this;
-    public action(actions: (Actions | Actions[])[] | ((scene: Scene) => Actions[])): this {
-        const userActions = Array.isArray(actions) ? actions.flat(2) : actions(this).flat(2);
-        const images = this.getAllElements(this.getAllActions(false, userActions))
-            .filter(element => element instanceof Image);
-        const futureActions = [
-            ...this.activate().toActions(),
-            ...images.map(image => (image as Image).init().toActions()).flat(2),
-            ...userActions,
-        ];
-
-        this._sceneRoot = this._action(futureActions);
         return this;
     }
 }

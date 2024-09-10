@@ -43,7 +43,7 @@ export type SoundConfig = {
     streaming?: boolean;
 };
 
-export class Sound extends Actionable {
+export class Sound extends Actionable<SoundDataRaw> {
     static defaultConfig: SoundConfig = {
         src: "",
         sync: false,
@@ -99,9 +99,7 @@ export class Sound extends Actionable {
         const action = new SoundAction(
             this,
             type,
-            new ContentNode<T>(
-                Game.getIdManager().getStringId()
-            ).setContent(content)
+            new ContentNode<T>(Game.getIdManager().getStringId()).setContent(content)
         );
         this.actions.push(action);
         return this;
@@ -129,7 +127,7 @@ export class Sound extends Actionable {
         return this.state.token;
     }
 
-    $setHowl(howl: Howler.Howl) {
+    $setHowl(howl: Howler.Howl | null) {
         this.state.playing = howl;
     }
 
@@ -142,7 +140,7 @@ export class Sound extends Actionable {
         this.$setHowl(null);
     }
 
-    public toData(): SoundDataRaw {
+    public toData(): SoundDataRaw | null {
         if (_.isEqual(this.config, Sound.defaultConfig)) {
             return null;
         }

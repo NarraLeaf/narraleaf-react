@@ -48,7 +48,7 @@ export class Constructable<
             queue.push(sceneAction);
 
             while (queue.length > 0) {
-                const action = queue.shift();
+                const action = queue.shift()!;
                 if (action.type === SceneActionTypes.jumpTo) {
                     if (!includeJumpTo || seen.includes(action.getId())) {
                         continue;
@@ -76,7 +76,7 @@ export class Constructable<
         queue.push(...futureActions);
 
         while (queue.length > 0) {
-            const action = queue.shift();
+            const action = queue.shift()!;
             if (action.getId() === id) {
                 return action;
             }
@@ -136,7 +136,7 @@ export class Constructable<
     findElementsByIds(ids: string[], elements: LogicAction.GameElement[]): LogicAction.GameElement[] {
         const map = new Map<string, LogicAction.GameElement>();
         elements.forEach(element => map.set(element.id, element));
-        return ids.map(id => map.get(id)).filter(Boolean);
+        return ids.map(id => map.get(id)).filter(Boolean) as LogicAction.GameElement[];
     }
 
     /**
@@ -153,10 +153,7 @@ export class Constructable<
         const content = actions.flat(2) as TAction[];
         this.actions.push(...content);
         const constructed = this.construct();
-        const sceneRoot = new ContentNode<this>(
-            Game.getIdManager().getStringId(),
-            constructed || void 0
-        ).setContent(this);
+        const sceneRoot = new ContentNode<this>(Game.getIdManager().getStringId(), undefined, undefined, constructed || void 0).setContent(this);
         constructed?.setParent(sceneRoot);
 
         const thisConstructor = this.constructor as T;

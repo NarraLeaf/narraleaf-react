@@ -2,7 +2,9 @@ import {deepMerge} from "@lib/util/data";
 import {Game} from "@core/game";
 
 export type ClientGameConfig = {};
-export type ClientRequirement = {};
+export type ClientRequirement = {
+    game: Game;
+};
 export type ClientGamePreference = {
     afm: boolean;
 };
@@ -37,14 +39,7 @@ export class ClientGame extends BaseGame {
                 return this.preference[key];
             },
         };
+        this.game = requirement.game;
     }
-
-    // init(window: Window) {
-    //     this.game = new Game({
-    //         clientGame: this,
-    //     });
-    //     this.game.createLiveGame();
-    //     return this;
-    // }
 }
 

@@ -17,7 +17,7 @@ type Clickable<T, U = undefined> = {
 };
 
 type TextElement = {
-    character: Character;
+    character: Character | null;
     sentence: Sentence;
     id: string;
 };
@@ -134,7 +134,11 @@ export class GameState {
 
     public createText(id: string, sentence: Sentence, afterClick?: () => void, scene?: Scene) {
         const texts = this.findElementByScene(this._getLastSceneIfNot(scene))?.ele.texts;
-        const action = this.createWaitableAction({
+        if (!texts) {
+            throw new Error("Scene not found");
+        }
+
+        const action = this.createWaitableAction<TextElement, undefined>({
             character: sentence.character,
             sentence,
             id
@@ -150,7 +154,11 @@ export class GameState {
             throw new Error("Menu must have at least one choice");
         }
         const menus = this.findElementByScene(this._getLastSceneIfNot(scene))?.ele.menus;
-        const action = this.createWaitableAction(menu, (choice: Choice) => {
+        if (!menus) {
+            throw new Error("Scene not found");
+        }
+
+        const action = this.createWaitableAction<MenuElement, Choice>(menu, (choice) => {
             menus.splice(menus.indexOf(action as any), 1);
             if (afterChoose) afterChoose(choice);
         });
@@ -168,6 +176,10 @@ export class GameState {
     public disposeImage(image: Image, scene?: Scene) {
         const targetScene = this._getLastSceneIfNot(scene);
         const images = this.findElementByScene(targetScene)?.ele.images;
+        if (!images) {
+            throw new Error("Scene not found");
+        }
+
         const index = images.indexOf(image);
         if (index === -1) {
             throw new Error("Image not found");
@@ -249,12 +261,12 @@ export class GameState {
         return void 0;
     }
 
-    private createWaitableAction(action: Record<string, any>, after?: (...args: unknown[]) => void) {
-        const item: Clickable<any> = {
+    private createWaitableAction<A extends Record<any, any>, T = undefined>(action: A, after?: (arg0: T) => void) {
+        const item: Clickable<A, T> = {
             action,
-            onClick: (...args: unknown[]) => {
-                if (after) after(...args);
-            }
+            onClick: ((arg0: T) => {
+                if (after) after(arg0);
+            }) as T extends undefined ? () => void : (arg0: T) => void
         };
         return item;
     }
@@ -276,6 +288,10 @@ export class GameState {
         this.state.elements = [];
 
         const story = this.clientGame.game.getLiveGame().story;
+        if (!story) {
+            throw new Error("No story loaded");
+        }
+
         const allElements = story.getAllElements(actions);
         const {elements} = data;
         elements.forEach(e => {

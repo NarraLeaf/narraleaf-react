@@ -20,7 +20,7 @@ type ThemeContextType = {
     setRatio: (theme: Ratio) => void;
 };
 
-const DefaultValue = {
+const DefaultValue: Ratio = {
     w: 0,
     h: 0,
     updateStyle: () => void 0,

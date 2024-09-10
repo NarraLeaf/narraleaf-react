@@ -33,12 +33,6 @@ export type ImageDataRaw = {
     state: Record<string, any>;
 };
 
-const ImageTransactionTypes = {
-    set: "set",
-    show: "show",
-    hide: "hide",
-} as const;
-
 export type ImageEventTypes = {
     "event:image.show": [Transform];
     "event:image.hide": [Transform];
@@ -51,7 +45,7 @@ export type ImageEventTypes = {
     "event:image.setTransition": [ITransition | null];
 };
 
-export class Image extends Actionable<typeof ImageTransactionTypes> {
+export class Image extends Actionable<ImageDataRaw> {
     static EventTypes: { [K in keyof ImageEventTypes]: K } = {
         "event:image.show": "event:image.show",
         "event:image.hide": "event:image.hide",
@@ -88,7 +82,7 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
         super(Actionable.IdPrefixes.Image);
         if (typeof arg0 === "string") {
             this.name = arg0;
-            this.config = deepMerge<ImageConfig>(Image.defaultConfig, config);
+            this.config = deepMerge<ImageConfig>(Image.defaultConfig, config || {});
         } else {
             this.name = "";
             this.config = deepMerge<ImageConfig>(Image.defaultConfig, arg0);
@@ -160,9 +154,7 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.setSrc>(
             this,
             ImageAction.ActionTypes.setSrc,
-            new ContentNode<[string]>(
-                Game.getIdManager().getStringId()
-            ).setContent([
+            new ContentNode<[string]>(Game.getIdManager().getStringId()).setContent([
                 typeof src === "string" ? src : Utils.staticImageDataToSrc(src)
             ])
         );
@@ -174,9 +166,7 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
             this,
             ImageAction.ActionTypes.applyTransform,
-            new ContentNode(
-                Game.getIdManager().getStringId()
-            ).setContent([
+            new ContentNode(Game.getIdManager().getStringId()).setContent([
                 void 0,
                 transform,
                 getCallStack()
@@ -208,15 +198,13 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
                     props: {
                         opacity: 1,
                     },
-                    options: options
+                    options: options || {}
                 }
             ]);
         const action = new ImageAction<typeof ImageAction.ActionTypes.show>(
             this,
             ImageAction.ActionTypes.show,
-            new ContentNode<ImageActionContentType["image:show"]>(
-                Game.getIdManager().getStringId()
-            ).setContent([
+            new ContentNode<ImageActionContentType["image:show"]>(Game.getIdManager().getStringId()).setContent([
                 void 0,
                 trans
             ])
@@ -240,20 +228,18 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
 
     public hide(transform: Partial<TransformDefinitions.CommonTransformProps>): this;
 
-    public hide(transform?: Transform | Partial<TransformDefinitions.CommonTransformProps>): this {
+    public hide(arg0?: Transform | Partial<TransformDefinitions.CommonTransformProps>): this {
         const action = new ImageAction<typeof ImageAction.ActionTypes.hide>(
             this,
             ImageAction.ActionTypes.hide,
-            new ContentNode<ImageActionContentType["image:hide"]>(
-                Game.getIdManager().getStringId()
-            ).setContent([
+            new ContentNode<ImageActionContentType["image:hide"]>(Game.getIdManager().getStringId()).setContent([
                 void 0,
-                (transform instanceof Transform) ? transform : new Transform<TransformDefinitions.ImageTransformProps>([
+                (arg0 instanceof Transform) ? arg0 : new Transform<TransformDefinitions.ImageTransformProps>([
                     {
                         props: {
                             opacity: 0,
                         },
-                        options: transform
+                        options: arg0 || {}
                     }
                 ])
             ])
@@ -284,7 +270,7 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
         return this;
     }
 
-    getScope(): React.RefObject<HTMLImageElement> {
+    getScope(): React.RefObject<HTMLImageElement> | undefined {
         return this.ref;
     }
 
@@ -292,7 +278,7 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
         return new Image(this.name, this.config);
     }
 
-    public toData(): ImageDataRaw {
+    public toData(): ImageDataRaw | null {
         if (this.state.disposed || _.isEqual(this.state, this.config)) {
             return null;
         }
@@ -316,9 +302,7 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
         this.actions.push(new ImageAction<typeof ImageAction.ActionTypes.setTransition>(
             this,
             ImageAction.ActionTypes.setTransition,
-            new ContentNode<[ITransition | null]>(
-                Game.getIdManager().getStringId()
-            ).setContent([
+            new ContentNode<[ITransition | null]>(Game.getIdManager().getStringId()).setContent([
                 transition
             ])
         ));
@@ -329,9 +313,7 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
         this.actions.push(new ImageAction<"image:applyTransition">(
             this,
             "image:applyTransition",
-            new ContentNode<[ITransition]>(
-                Game.getIdManager().getStringId()
-            ).setContent([
+            new ContentNode<[ITransition]>(Game.getIdManager().getStringId()).setContent([
                 transition
             ])
         ));
@@ -348,9 +330,7 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
         this.actions.push(new ImageAction<typeof ImageAction.ActionTypes.dispose>(
             this,
             ImageAction.ActionTypes.dispose,
-            new ContentNode(
-                Game.getIdManager().getStringId()
-            )
+            new ContentNode(Game.getIdManager().getStringId())
         ));
         return this;
     }
@@ -359,9 +339,7 @@ export class Image extends Actionable<typeof ImageTransactionTypes> {
         this.actions.push(new ImageAction<typeof ImageAction.ActionTypes.init>(
             this,
             ImageAction.ActionTypes.init,
-            new ContentNode<[Scene?]>(
-                Game.getIdManager().getStringId()
-            ).setContent([
+            new ContentNode<[Scene?]>(Game.getIdManager().getStringId()).setContent([
                 scene
             ])
         ));

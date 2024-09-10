@@ -23,10 +23,6 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
         this._id = Game.getIdManager().prefix("action", Game.getIdManager().getStringId(), "-");
     }
 
-    static isAction(action: any): action is Action {
-        return action instanceof Action;
-    }
-
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         return {
             type: this.type as any,
@@ -38,19 +34,8 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
         return this._id;
     }
 
-    toData() {
-        return {
-            type: this.type,
-            content: this.contentNode.toData(),
-        }
-    }
-
     getFutureActions(): LogicAction.Actions[] {
         const action = this.contentNode.child;
-        return action ? [action.action] : [];
-    }
-
-    undo() {
-        this.contentNode.action.undo();
+        return (action && action.action) ? [action.action] : [];
     }
 }

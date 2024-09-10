@@ -1,5 +1,5 @@
-import {LogicAction} from "@lib/game/game/logicAction";
-import {Game} from "@lib/game/game/game";
+import {LogicAction} from "@core/action/logicAction";
+import {Game} from "@core/game";
 
 export enum NodeType {
     TreeNode = "TreeNode",
@@ -27,8 +27,8 @@ export class Node<C = any> {
         return this;
     }
 
-    getContent() {
-        return this.content;
+    getContent(): C {
+        return this.content!;
     }
 }
 
@@ -43,45 +43,45 @@ export type ContentNodeData = {
 export class ContentNode<T = any> extends Node<T> {
     static forEachParent(node: RenderableNode, callback: (node: RenderableNode) => void) {
         const seen: Set<RenderableNode> = new Set();
-        let current = node;
+        let current: RenderableNode | null = node;
         while (current) {
             if (seen.has(current)) {
                 break;
             }
             seen.add(current);
             callback(current);
-            current = current.parent;
+            current = current.getParent();
         }
     }
 
     static forEachChild(node: RenderableNode, callback: (node: RenderableNode) => void) {
         const seen: Set<RenderableNode> = new Set();
-        let current = node;
+        let current: RenderableNode | null = node;
         while (current) {
             if (seen.has(current)) {
                 break;
             }
             seen.add(current);
             callback(current);
-            current = current.child;
+            current = current.getChild();
         }
     }
 
     child?: RenderableNode | null;
     initChild?: RenderableNode | null;
     parent: RenderableNode | null;
-    action: LogicAction.Actions;
+    action: LogicAction.Actions | null;
 
     constructor(
         id: string,
-        child?: RenderableNode,
+        callee?: LogicAction.Actions,
         parent?: RenderableNode | null,
-        callee?: LogicAction.Actions
+        child?: RenderableNode
     ) {
         super(Game.getIdManager().prefix("node", id, "-"), NodeType.ContentNode);
         this.child = child || null;
         this.parent = parent || null;
-        this.action = callee
+        this.action = callee || null;
     }
 
     setParent(parent: RenderableNode | null) {
@@ -92,7 +92,7 @@ export class ContentNode<T = any> extends Node<T> {
         return this;
     }
 
-    setChild(child: RenderableNode) {
+    setChild(child: RenderableNode | null) {
         if (child === this) {
             throw new Error('Cannot set child to itself');
         }
@@ -101,6 +101,14 @@ export class ContentNode<T = any> extends Node<T> {
             child.remove().setParent(this);
         }
         return this;
+    }
+
+    getChild(): RenderableNode | null {
+        return this.child || null;
+    }
+
+    getParent(): RenderableNode | null {
+        return this.parent || null;
     }
 
     /**
@@ -116,7 +124,7 @@ export class ContentNode<T = any> extends Node<T> {
      * Public method for setting the content of the node
      * should only be called when changing the state in-game
      */
-    public addChild(child: RenderableNode) {
+    public addChild(child: RenderableNode | null) {
         this.setChild(child);
         return this;
     }
@@ -136,31 +144,6 @@ export class ContentNode<T = any> extends Node<T> {
      */
     remove() {
         this.parent?.removeChild(this);
-        return this;
-    }
-
-    toData(): RenderableNodeData {
-        const content = this.getContent();
-        return {
-            id: this.id,
-
-            // use toData if it exists
-            data: (typeof content === 'object' && content !== null) ?
-                (typeof content["toData"] === "function" ? content["toData"] : content) : content,
-        };
-    }
-
-    fromData(data: RenderableNodeData) {
-        const content = this.getContent();
-        if (
-            typeof content === 'object'
-            && content !== null
-            && typeof content["fromData"] === "function"
-        ) {
-            content["fromData"](content);
-        } else {
-            this.setContent(data.data);
-        }
         return this;
     }
 
@@ -195,9 +178,7 @@ export class RootNode extends ContentNode {
             }
             seen.add(node);
             callback(node);
-            if (node instanceof ContentNode) {
-                queue.push(node.child);
-            }
+            queue.push(node.child);
         }
     }
 }

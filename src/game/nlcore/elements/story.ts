@@ -51,7 +51,7 @@ export class Story extends Constructable<
         return allCallee.map(callee => ({
             id: callee.id,
             data: callee.toData()
-        })).filter(data => data.data !== null);
+        })).filter(data => data.data !== null) as RawData<ElementStateRaw>[];
     }
 
     /**
@@ -116,6 +116,10 @@ export class Story extends Constructable<
 
     public entry(scene: Scene): this {
         const actions = scene._sceneRoot;
+        if (!actions) {
+            throw new Error("No actions in scene, please add actions to scene first");
+        }
+
         this.setActions([actions]);
         scene.registerSrc();
         const states = new StaticChecker(scene).start();

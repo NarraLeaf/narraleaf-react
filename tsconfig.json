@@ -2,9 +2,9 @@
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": false,
+    "allowJs": false,
+    "skipLibCheck": false,
+    "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "incremental": true,
@@ -14,6 +14,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
+    "baseUrl": ".",
     "paths": {
       "@lib/*": ["src/*"],
       "@core/*": ["src/game/nlcore/*"],

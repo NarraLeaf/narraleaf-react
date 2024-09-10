@@ -45,9 +45,7 @@ export class Script extends Actionable<typeof ScriptTransactionTypes> {
             new ScriptAction(
                 this,
                 ScriptAction.ActionTypes.action,
-                new ContentNode<Script>(
-                    Game.getIdManager().getStringId()
-                ).setContent(this)
+                new ContentNode<Script>(Game.getIdManager().getStringId()).setContent(this)
             )
         ];
     }

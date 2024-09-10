@@ -94,9 +94,7 @@ export class Control extends Actionable {
         const action = new ControlAction(
             this,
             type,
-            new ContentNode(
-                Game.getIdManager().getStringId()
-            ).setContent([this.construct(flatted), ...args])
+            new ContentNode(Game.getIdManager().getStringId()).setContent([this.construct(flatted), ...args])
         );
         this.actions.push(action);
         return this;

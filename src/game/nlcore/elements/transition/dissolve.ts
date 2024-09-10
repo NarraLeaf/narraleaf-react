@@ -22,13 +22,13 @@ type DissolveProps = {
  * @extends Base
  * @description Dissolve transition effect
  */
-export class Dissolve extends Base<DissolveProps> implements ITransition {
+export class Dissolve extends Base<DissolveProps> implements ITransition<DissolveProps> {
     static Frames: [number, number] = [1, 0]
     private readonly duration: number;
     private state: DissolveElementProps = {
         opacity: 0,
     };
-    private src: string;
+    private src: string | undefined;
 
     constructor(duration: number = 1000, src?: string | NextJSStaticImageData | Scene) {
         super();

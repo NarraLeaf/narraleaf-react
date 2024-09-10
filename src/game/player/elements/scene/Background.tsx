@@ -14,7 +14,12 @@ export default function Background({
     const ratio = aspectRatio.ratio;
     const {game} = useGame();
 
-    const {clientWidth, clientHeight} = document.querySelector("#" + game.game.config.app.player.contentContainerId);
+    const contentContainer = document.querySelector("#" + game.game.config.app.player.contentContainerId);
+    if (!contentContainer) {
+        throw new Error("Content container not found");
+    }
+
+    const {clientWidth, clientHeight} = contentContainer;
 
     return (
         <>

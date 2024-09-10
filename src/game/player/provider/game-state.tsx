@@ -2,6 +2,7 @@
 
 import {ClientGame} from "@lib/game/game";
 import {createContext, ReactNode, useContext, useState} from "react";
+import {Game} from "@core/game";
 
 type GameContextType = {
     game: ClientGame;
@@ -12,7 +13,11 @@ const GameContext = createContext<GameContextType | null>(null);
 
 export function GameProvider({children}: { children: ReactNode }) {
     "use client";
-    const DefaultValue = new ClientGame({}, {});
+    const DefaultValue = new ClientGame({}, {
+        game: new Game({
+
+        }),
+    });
     const [game, setGame] = useState<ClientGame>(DefaultValue);
 
     return (
