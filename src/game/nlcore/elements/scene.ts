@@ -1,6 +1,6 @@
 import {Constructable} from "../action/constructable";
 import {Game} from "../game";
-import {Awaitable, deepMerge, DeepPartial, EventDispatcher, safeClone} from "@lib/util/data";
+import {Awaitable, deepEqual, deepMerge, DeepPartial, EventDispatcher, safeClone} from "@lib/util/data";
 import {Background, CommonImage} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
@@ -9,7 +9,6 @@ import {Transform} from "@core/elements/transform/transform";
 import {ITransition} from "@core/elements/transition/type";
 import {SrcManager} from "@core/elements/srcManager";
 import {Sound, SoundDataRaw} from "@core/elements/sound";
-import _ from "lodash";
 import {TransformDefinitions} from "@core/elements/transform/type";
 import {CommonPosition, CommonPositionType} from "@core/elements/transform/position";
 import {
@@ -214,7 +213,7 @@ export class Scene extends Constructable<
     }
 
     toData(): SceneDataRaw | null {
-        if (_.isEqual(this.state, this.config)) {
+        if (deepEqual(this.state, this.config)) {
             return null;
         }
         return {

@@ -1,9 +1,14 @@
 const path = require('path');
+const TerserPlugin = require('terser-webpack-plugin');
+const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 
 module.exports = {
-    entry: './src/index.tsx',
+    entry: {
+        main: './src/index.ts',
+        vendor: ['react', 'react-dom']
+    },
     output: {
-        filename: 'index.js',
+        filename: '[name].[contenthash].js',
         path: path.resolve(__dirname, 'dist'),
         library: 'NarraleafReact',
         libraryTarget: 'umd',
@@ -14,26 +19,28 @@ module.exports = {
         extensions: ['.ts', '.tsx', '.js', '.jsx'],
         alias: {
             react: path.resolve('./node_modules/react'),
-            'react-dom': path.resolve('./node_modules/react-dom')
-        }
+            'react-dom': path.resolve('./node_modules/react-dom'),
+            '@lib': path.resolve(__dirname, 'src/'),
+            '@core': path.resolve(__dirname, 'src/game/nlcore/'),
+            '@player': path.resolve(__dirname, 'src/game/player/'),
+        },
     },
     module: {
         rules: [
             {
-                test: /\.tsx?$/,
-                use: 'ts-loader',
-                exclude: /node_modules/
-            },
-            {
-                test: /\.js$/,
+                test: /\.(js|jsx|ts|tsx)$/,
                 exclude: /node_modules/,
                 use: {
                     loader: 'babel-loader',
                     options: {
-                        presets: ['@babel/preset-env', '@babel/preset-react']
-                    }
-                }
-            }
+                        presets: [
+                            '@babel/preset-env',
+                            '@babel/preset-react',
+                            ['@babel/preset-typescript', { allowDeclareFields: true }]
+                        ]
+                    },
+                },
+            },
         ]
     },
     externals: {
@@ -50,5 +57,17 @@ module.exports = {
             root: 'ReactDOM'
         }
     },
-    devtool: 'source-map',
+    devtool: false,
+    optimization: {
+        splitChunks: {
+            chunks: 'all',
+        },
+        minimize: true,
+        minimizer: [new TerserPlugin({
+            extractComments: false,
+        })],
+    },
+    plugins: [
+        new BundleAnalyzerPlugin(),
+    ],
 };

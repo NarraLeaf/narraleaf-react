@@ -1,5 +1,4 @@
-import React, {useEffect, useMemo, useReducer, useState} from "react";
-import {cloneDeep} from "lodash";
+import React, {useEffect, useReducer, useState} from "react";
 import {useGame} from "@player/provider/game-state";
 import {Awaitable} from "@lib/util/data";
 import {GameState, PlayerAction} from "@player/gameState";
@@ -33,9 +32,6 @@ export default function Player({
         next,
         dispatch: (action) => dispatch(action),
     }));
-    const _story = useMemo(() => {
-        return cloneDeep(story);
-    }, [story]);
 
     function next() {
         console.time("Next"); // @debug
@@ -58,7 +54,7 @@ export default function Player({
     }
 
     useEffect(() => {
-        game.getLiveGame().loadStory(_story);
+        game.getLiveGame().loadStory(story);
         game.getLiveGame().newGame();
 
         console.debug("Loaded game", game.getLiveGame().currentSavedGame);

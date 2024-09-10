@@ -1,11 +1,10 @@
 import {Actionable} from "@core/action/actionable";
-import {deepMerge, DeepPartial, safeClone} from "@lib/util/data";
+import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
 import {SoundAction} from "@core/action/actions";
 import {Game} from "@core/game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import * as Howler from "howler";
 import {HowlOptions} from "howler";
-import _ from "lodash";
 import {SoundActionContentType} from "@core/action/actionTypes";
 
 export enum SoundType {
@@ -95,16 +94,6 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this.pushAction<SoundActionContentType["sound:setRate"]>(SoundAction.ActionTypes.setRate, [rate]);
     }
 
-    private pushAction<T>(type: string, content: T): this {
-        const action = new SoundAction(
-            this,
-            type,
-            new ContentNode<T>(Game.getIdManager().getStringId()).setContent(content)
-        );
-        this.actions.push(action);
-        return this;
-    }
-
     getHowlOptions(): HowlOptions {
         return {
             src: this.config.src,
@@ -141,7 +130,7 @@ export class Sound extends Actionable<SoundDataRaw> {
     }
 
     public toData(): SoundDataRaw | null {
-        if (_.isEqual(this.config, Sound.defaultConfig)) {
+        if (deepEqual(this.config, Sound.defaultConfig)) {
             return null;
         }
         return {
@@ -151,6 +140,16 @@ export class Sound extends Actionable<SoundDataRaw> {
 
     public fromData(data: SoundDataRaw): this {
         this.config = deepMerge<SoundConfig & SoundDataRaw>(this.config, data.config);
+        return this;
+    }
+
+    private pushAction<T>(type: string, content: T): this {
+        const action = new SoundAction(
+            this,
+            type,
+            new ContentNode<T>(Game.getIdManager().getStringId()).setContent(content)
+        );
+        this.actions.push(action);
         return this;
     }
 }
