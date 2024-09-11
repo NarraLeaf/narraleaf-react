@@ -50,6 +50,14 @@ module.exports = {
                     'ts-loader'
                 ],
             },
+            {
+                test: /\.css$/,
+                use: [
+                    'style-loader',
+                    'css-loader',
+                    'postcss-loader',
+                ],
+            },
         ]
     },
     externals: {

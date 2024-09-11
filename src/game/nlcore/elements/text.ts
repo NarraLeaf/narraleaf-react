@@ -107,10 +107,10 @@ export type CharacterStateData = {};
 export class Character extends Actionable<
     CharacterStateData
 > {
-    name: string;
+    name: string | null;
     config: CharacterConfig;
 
-    constructor(name: string, config: CharacterConfig = {}) {
+    constructor(name: string | null, config: CharacterConfig = {}) {
         super(Actionable.IdPrefixes.Text);
         this.name = name;
         this.config = config;

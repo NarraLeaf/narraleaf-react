@@ -57,9 +57,9 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
     return result as T;
 }
 
-export type DeepPartial<T> = {
+export type DeepPartial<T> = T extends object ? {
     [P in keyof T]?: DeepPartial<T[P]>;
-};
+} : T;
 
 export class Awaitable<T, U = T> {
     receiver: (value: U) => T;

@@ -1,3 +1,4 @@
+import React from "react";
 import {Sentence} from "@core/elements/text";
 import {toHex} from "@lib/util/data";
 

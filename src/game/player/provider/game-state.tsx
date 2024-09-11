@@ -10,13 +10,13 @@ type GameContextType = {
 
 const GameContext = React.createContext<GameContextType | null>(null);
 
-export function GameProvider({children}: { children: ReactNode }) {
+export function GameProvider({children, game}: { children?: ReactNode, game?: Game }) {
     "use client";
     const DefaultValue = new Game({});
-    const [game, setGame] = useState<Game>(DefaultValue);
+    const [_game, setGame] = useState<Game>(game || DefaultValue);
 
     return (
-        <GameContext.Provider value={{game, setGame}}>
+        <GameContext.Provider value={{game: _game, setGame}}>
             {children}
         </GameContext.Provider>
     );

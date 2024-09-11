@@ -51,7 +51,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         sync: true,
         repeat: 1,
     };
-    static defaultOptions: Partial<TransformDefinitions.CommonTransformProps> = {
+    static defaultOptions: TransformDefinitions.SequenceProps<any> = {
         duration: 0,
         ease: "linear",
     }
@@ -75,15 +75,15 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
      * ```
      */
     constructor(sequences: Sequence<T>[], sequenceOptions?: Partial<TransformDefinitions.TransformConfig>);
-    constructor(props: DeepPartial<T>, options?: Partial<TransformDefinitions.CommonTransformProps>);
-    constructor(arg0: Sequence<T>[] | DeepPartial<T>, arg1?: Partial<TransformDefinitions.CommonTransformProps> | TransformDefinitions.SequenceOptions) {
+    constructor(props: SequenceProps<T>, options?: Partial<TransformDefinitions.CommonTransformProps>);
+    constructor(arg0: Sequence<T>[] | SequenceProps<T>, arg1?: Partial<TransformDefinitions.TransformConfig> | Partial<TransformDefinitions.CommonTransformProps>) {
         if (Array.isArray(arg0)) {
             this.sequences.push(...arg0);
             this.sequenceOptions =
                 Object.assign({}, Transform.defaultSequenceOptions, arg1 || {}) as TransformDefinitions.CommonSequenceProps;
         } else {
             const [props, options] =
-                [arg0, arg1 || Transform.defaultOptions];
+                [(arg0 as SequenceProps<T>), (arg1 || Transform.defaultOptions as Partial<TransformDefinitions.CommonTransformProps>)];
             this.sequences.push({props, options: options || {}});
             this.sequenceOptions =
                 Object.assign({}, Transform.defaultSequenceOptions) as TransformDefinitions.CommonSequenceProps;

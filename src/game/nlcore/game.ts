@@ -62,7 +62,7 @@ export class Game {
         }
     }
     static GameSettingsNamespace = GameSettingsNamespace;
-    config: GameConfig;
+    readonly config: Readonly<GameConfig>;
     liveGame: LiveGame | null = null;
 
     constructor(config: DeepPartial<GameConfig>) {

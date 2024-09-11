@@ -1,3 +1,4 @@
+import React from "react";
 import {Choice} from "@core/elements/menu";
 import {Sentence} from "@core/elements/text";
 import ColoredSentence from "./Sentence";
