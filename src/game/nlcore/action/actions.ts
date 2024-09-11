@@ -181,7 +181,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             if (future) current.addChild(future);
 
             return super.executeAction(state);
-        } else if (this.type === SceneActionTypes.setBackgroundMusic) { // @todo: test this
+        } else if (this.type === SceneActionTypes.setBackgroundMusic) {
             const [sound, fade] = (this.contentNode as ContentNode<SceneActionContentType["scene:setBackgroundMusic"]>).getContent();
 
             this.callee.events.emit("event:scene.setBackgroundMusic", sound, fade || 0);
@@ -539,7 +539,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                 }
             })();
             return super.executeAction(state);
-        } else if (this.type === ControlActionTypes.repeat) { // @todo: test this
+        } else if (this.type === ControlActionTypes.repeat) {
             const [actions, times] =
                 (this.contentNode as ContentNode<ControlActionContentType["control:repeat"]>).getContent();
             (async () => {

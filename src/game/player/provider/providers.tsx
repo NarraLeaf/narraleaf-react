@@ -1,3 +1,6 @@
+"use client";
+
+import "client-only";
 import React from "react";
 import {PreloadedProvider} from "@player/provider/preloaded";
 import {AspectRatioProvider} from "@player/provider/ratio";

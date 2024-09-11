@@ -64,11 +64,6 @@ export function Preload({
             return src[p.type].has(preloadedSrcP);
         });
 
-        // @todo: 让屏幕等待required的图片加载完成
-        // 通过事件分发，在每次加载完成后触发事件
-        // srcManager通过检查所有需要的资源都has之后解锁
-
-        // @todo: 更智能的资源分析，尝试找出最有可能需要加载的资源
         const newImages: HTMLImageElement[] = [];
         const promises: Promise<any>[] = [];
         src.image.forEach((src: GameImage) => {

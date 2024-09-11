@@ -1,45 +1,53 @@
+// webpack.config.js
 const path = require('path');
 const TerserPlugin = require('terser-webpack-plugin');
-const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
+const {BundleAnalyzerPlugin} = require('webpack-bundle-analyzer');
+const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
+
+const isProduction = false;
+const useAnalyzer = false;
 
 module.exports = {
     entry: {
-        main: './src/index.ts',
-        vendor: ['react', 'react-dom']
+        main: ['./src/index.ts']
     },
     output: {
-        filename: '[name].[contenthash].js',
+        filename: 'index.js',
         path: path.resolve(__dirname, 'dist'),
         library: 'NarraleafReact',
         libraryTarget: 'umd',
-        globalObject: 'this'
+        globalObject: 'this',
     },
-    mode: 'production',
+    mode: isProduction ? 'production' : 'development',
     resolve: {
         extensions: ['.ts', '.tsx', '.js', '.jsx'],
         alias: {
-            react: path.resolve('./node_modules/react'),
-            'react-dom': path.resolve('./node_modules/react-dom'),
             '@lib': path.resolve(__dirname, 'src/'),
             '@core': path.resolve(__dirname, 'src/game/nlcore/'),
             '@player': path.resolve(__dirname, 'src/game/player/'),
         },
+        plugins: [
+            new TsconfigPathsPlugin({configFile: "./tsconfig.json"})
+        ]
     },
     module: {
         rules: [
             {
-                test: /\.(js|jsx|ts|tsx)$/,
+                test: /\.(ts|tsx)$/,
                 exclude: /node_modules/,
-                use: {
-                    loader: 'babel-loader',
-                    options: {
-                        presets: [
-                            '@babel/preset-env',
-                            '@babel/preset-react',
-                            ['@babel/preset-typescript', { allowDeclareFields: true }]
-                        ]
+                use: [
+                    {
+                        loader: 'babel-loader',
+                        options: {
+                            presets: [
+                                '@babel/preset-env',
+                                '@babel/preset-react',
+                                '@babel/preset-typescript'
+                            ]
+                        }
                     },
-                },
+                    'ts-loader'
+                ],
             },
         ]
     },
@@ -57,17 +65,14 @@ module.exports = {
             root: 'ReactDOM'
         }
     },
-    devtool: false,
+    devtool: isProduction ? false : 'source-map',
     optimization: {
-        splitChunks: {
-            chunks: 'all',
-        },
-        minimize: true,
-        minimizer: [new TerserPlugin({
+        minimize: isProduction,
+        minimizer: isProduction ? [new TerserPlugin({
             extractComments: false,
-        })],
+        })] : [],
     },
     plugins: [
-        new BundleAnalyzerPlugin(),
+        ...(useAnalyzer ? [new BundleAnalyzerPlugin()] : []),
     ],
 };

@@ -35,8 +35,6 @@ export default function BackgroundTransition({scene, props, state}: {
                 listener: scene.events.on(GameScene.EventTypes["event:scene.applyTransform"], async (transform) => {
                     assignTo(transform.propToCSS(state, scene.backgroundImageState));
 
-                    console.debug("[BackgroundTransition] applyTransform", transform.propToCSS(state, scene.backgroundImageState), transform); // @debug
-
                     setTransform(transform);
                     await transform.animate({scope, animate}, state, scene.backgroundImageState, (after) => {
 
@@ -53,7 +51,6 @@ export default function BackgroundTransition({scene, props, state}: {
             {
                 type: GameScene.EventTypes["event:scene.initTransform"],
                 listener: scene.events.on(GameScene.EventTypes["event:scene.initTransform"], async (transform) => {
-                    console.debug("[BackgroundTransition] initTransform", transform); // @debug
                     await transform.animate({scope, animate}, state, scene.backgroundImageState, (after) => {
                         scene.backgroundImageState = deepMerge(scene.backgroundImageState, after);
                     });

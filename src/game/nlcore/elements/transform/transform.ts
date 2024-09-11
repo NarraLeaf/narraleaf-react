@@ -153,8 +153,6 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         state: SequenceProps<T>,
         after?: (state: DeepPartial<T>) => void
     ) {
-        console.debug("Animating", this); // @debug
-
         // unsafe
         state = deepMerge<DeepPartial<T>>(state, {});
 
@@ -182,9 +180,6 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
                         this.optionsToFramerMotionOptions(options) || {}
                     );
                     this.setControl(animation);
-
-                    console.log("animation start", this.propToCSS(gameState, state), state); // @debug
-                    console.debug("animate from", initState, "to", this.propToCSS(gameState, state)); // @debug
 
                     if (options?.sync !== false) {
                         await new Promise<void>(r => animation.then(() => r()));

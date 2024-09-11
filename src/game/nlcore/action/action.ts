@@ -23,7 +23,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
         this._id = Game.getIdManager().prefix("action", Game.getIdManager().getStringId(), "-");
     }
 
-    public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(_state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         return {
             type: this.type as any,
             node: this.contentNode,
