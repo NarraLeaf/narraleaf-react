@@ -76,7 +76,9 @@ export class Game {
     /* Live Game */
     public getLiveGame(): LiveGame {
         if (!this.liveGame) {
-            return this.createLiveGame();
+            const liveGame = this.createLiveGame();
+            this.liveGame = liveGame;
+            return liveGame;
         }
         return this.liveGame;
     }

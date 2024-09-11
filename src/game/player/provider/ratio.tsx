@@ -17,7 +17,7 @@ type Ratio = {
 }
 type ThemeContextType = {
     ratio: Ratio;
-    setRatio: (theme: Ratio) => void;
+    setRatio: (ratio: Ratio) => void;
 };
 
 const DefaultValue: Ratio = {

@@ -9,6 +9,7 @@ import {Transform} from "@core/elements/transform/transform";
 import {Sound} from "@core/elements/sound";
 import {Control} from "@core/elements/control";
 import {Utils} from "./Utils";
+import {Game} from "@core/game";
 
 export {
     Character,
@@ -25,4 +26,5 @@ export {
     Sound,
     Control,
     Utils,
+    Game,
 };

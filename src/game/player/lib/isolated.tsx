@@ -1,5 +1,9 @@
+"use client";
+
+import type {ReactNode} from "react";
+
 import clsx from "clsx";
-import {ReactNode} from "react";
+import React from "react";
 import {useAspectRatio} from "@player/provider/ratio";
 
 export default function Isolated(

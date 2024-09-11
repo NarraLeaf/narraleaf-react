@@ -1,4 +1,3 @@
-// webpack.config.js
 const path = require('path');
 const TerserPlugin = require('terser-webpack-plugin');
 const {BundleAnalyzerPlugin} = require('webpack-bundle-analyzer');
@@ -35,10 +34,12 @@ module.exports = {
             {
                 test: /\.(ts|tsx)$/,
                 exclude: /node_modules/,
+                include: path.resolve(__dirname, 'src'),
                 use: [
                     {
                         loader: 'babel-loader',
                         options: {
+                            cacheDirectory: true,
                             presets: [
                                 '@babel/preset-env',
                                 '@babel/preset-react',
@@ -75,4 +76,7 @@ module.exports = {
     plugins: [
         ...(useAnalyzer ? [new BundleAnalyzerPlugin()] : []),
     ],
+    cache: {
+        type: 'filesystem',
+    },
 };
