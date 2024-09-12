@@ -1,5 +1,9 @@
+"use client";
+
+import type {ReactNode} from "react";
+
 import clsx from "clsx";
-import {ReactNode} from "react";
+import React from "react";
 import {useAspectRatio} from "@player/provider/ratio";
 
 export default function Isolated(
@@ -10,18 +14,18 @@ export default function Isolated(
         <div className={
             clsx("inset-0 flex items-center justify-center", className)
         } style={{
-            width: '100%',
-            height: '100%',
+            width: "100%",
+            height: "100%",
             minWidth: `${ratio.min.w}px`,
             minHeight: `${ratio.min.h}px`,
         }}>
             <div style={{
                 width: `${ratio.w}px`,
                 height: `${ratio.h}px`,
-                position: 'relative'
+                position: "relative"
             }}>
                 {children}
             </div>
         </div>
-    )
+    );
 }

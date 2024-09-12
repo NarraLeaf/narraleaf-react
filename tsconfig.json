@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES6",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": false,
     "skipLibCheck": false,
     "strict": true,
@@ -9,16 +13,32 @@
     "incremental": true,
     "esModuleInterop": true,
     "module": "esnext",
+    "removeComments": false,
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
-      "@lib/*": ["src/*"],
-      "@core/*": ["src/game/nlcore/*"],
-      "@player/*": ["src/game/player/*"],
-    }
+      "@lib/*": [
+        "src/*"
+      ],
+      "@core/*": [
+        "src/game/nlcore/*"
+      ],
+      "@player/*": [
+        "src/game/player/*"
+      ]
+    },
+    "declaration": true,
+    "declarationDir": "dist",
+    "outDir": "dist",
+    "typeRoots": [
+      "node_modules/@types",
+      "src/types"
+    ]
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*"
+  ]
 }

@@ -13,12 +13,7 @@ export interface ScriptCtx {
 
 type ScriptRun = (ctx: ScriptCtx) => ScriptCleaner | void;
 export type ScriptCleaner = () => void;
-
-const ScriptTransactionTypes = {
-    Run: 'run'
-} as const;
-
-export class Script extends Actionable<typeof ScriptTransactionTypes> {
+export class Script extends Actionable<object> {
     handler: ScriptRun;
     cleaner: ScriptCleaner | null = null;
 

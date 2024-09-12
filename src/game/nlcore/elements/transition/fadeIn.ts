@@ -22,15 +22,23 @@ type FadeInProps = {
 export class FadeIn extends Base<FadeInProps> implements ITransition {
     __stack: string;
     private readonly duration: number;
-    private readonly direction: 'left' | 'right' | 'top' | 'bottom';
+    private readonly direction: "left" | "right" | "top" | "bottom";
     private readonly offset: number;
     private state: FadeInElementProps = {
         opacity: 0,
-        transform: ''
+        transform: ""
     };
     private src: string | undefined;
 
-    constructor(direction: 'left' | 'right' | 'top' | 'bottom', offset: number, duration: number = 1000, src?: Scene | StaticImageData | string) {
+    /**
+     * The current image will fade out, and the next image will fade in,
+     * but it will also move in a direction
+     * @param direction The direction the image will move from
+     * @param offset The distance the image will move (in pixels)
+     * @param duration The duration of the transition
+     * @param src The source of the next image
+     */
+    constructor(direction: "left" | "right" | "top" | "bottom", offset: number, duration: number = 1000, src?: Scene | StaticImageData | string) {
         super();
         this.duration = duration;
         this.direction = direction;
@@ -49,7 +57,7 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
 
     public start(onComplete?: () => void): void {
         if (!this.src) {
-            throw new Error('src is required, but not provided\nat:\n' + this.__stack);
+            throw new Error("src is required, but not provided\nat:\n" + this.__stack);
         }
 
         this.state.opacity = 0;
@@ -91,31 +99,31 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
 
     private getInitialTransform(): string {
         switch (this.direction) {
-            case 'left':
+            case "left":
                 return `translateX(-${this.offset}px)`;
-            case 'right':
+            case "right":
                 return `translateX(${this.offset}px)`;
-            case 'top':
+            case "top":
                 return `translateY(-${this.offset}px)`;
-            case 'bottom':
+            case "bottom":
                 return `translateY(${this.offset}px)`;
             default:
-                return '';
+                return "";
         }
     }
 
     private getTransform(progress: number): string {
         switch (this.direction) {
-            case 'left':
+            case "left":
                 return `translateX(${(1 - progress) * -this.offset}px)`;
-            case 'right':
+            case "right":
                 return `translateX(${(1 - progress) * this.offset}px)`;
-            case 'top':
+            case "top":
                 return `translateY(${(1 - progress) * -this.offset}px)`;
-            case 'bottom':
+            case "bottom":
                 return `translateY(${(1 - progress) * this.offset}px)`;
             default:
-                return '';
+                return "";
         }
     }
 }

@@ -58,13 +58,21 @@ export class Game {
             say: {
                 skipKeys: [" "],
                 textSpeed: 50,
+            },
+            img: {
+                slowLoadWarning: true,
+                slowLoadThreshold: 200,
             }
         }
-    }
+    };
     static GameSettingsNamespace = GameSettingsNamespace;
-    config: GameConfig;
+    readonly config: Readonly<GameConfig>;
     liveGame: LiveGame | null = null;
 
+    /**
+     * Create a new game
+     * @param config - Game configuration
+     */
     constructor(config: DeepPartial<GameConfig>) {
         this.config = deepMerge<GameConfig>(Game.DefaultConfig, config);
     }
@@ -76,7 +84,9 @@ export class Game {
     /* Live Game */
     public getLiveGame(): LiveGame {
         if (!this.liveGame) {
-            return this.createLiveGame();
+            const liveGame = this.createLiveGame();
+            this.liveGame = liveGame;
+            return liveGame;
         }
         return this.liveGame;
     }
@@ -149,6 +159,9 @@ export class LiveGame {
         return this;
     }
 
+    /**
+     * Start a new game
+     */
     public newGame() {
         this.initNamespaces();
 
@@ -186,8 +199,8 @@ export class LiveGame {
         this.storable.load(store);
 
         // restore action tree
-        story.setAllElementState(elementState, actions);
-        story.setNodeChildByMap(nodeChildIdMap, actions);
+        story._setAllElementState(elementState, actions);
+        story._setNodeChildByMap(nodeChildIdMap, actions);
 
         // restore game state
         if (currentAction) {
@@ -208,8 +221,8 @@ export class LiveGame {
 
         const actions = story.getAllActions();
 
-        const elementState = story.getAllElementState(actions);
-        const nodeChildIds = Object.fromEntries(story.getNodeChildIdMap(actions));
+        const elementState = story._getAllElementState(actions);
+        const nodeChildIds = Object.fromEntries(story._getNodeChildIdMap(actions));
         const stage = gameState.toData();
 
         return {
@@ -249,7 +262,6 @@ export class LiveGame {
 
         if (this.lockedAwaiting) {
             if (!this.lockedAwaiting.solved) {
-                console.log("Locked awaiting");
                 this._lockedCount++;
 
                 if (this._lockedCount > 1000) {
@@ -297,9 +309,9 @@ export class LiveGame {
 export default {
     Game,
     LiveGame,
-}
+};
 
 export type {
     LogicAction
-}
+};
 

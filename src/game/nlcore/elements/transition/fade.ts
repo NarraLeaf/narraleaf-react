@@ -25,6 +25,9 @@ export class Fade extends Base<FadeProps> implements ITransition {
     };
     private src: string | undefined;
 
+    /**
+     * The current image will fade out, and the next image will fade in
+     */
     constructor(duration: number = 1000, src?: Scene | StaticImageData | string) {
         super();
         this.duration = duration;

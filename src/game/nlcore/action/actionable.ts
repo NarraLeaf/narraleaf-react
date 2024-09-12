@@ -22,7 +22,7 @@ export class Actionable<
     }
 
     toActions() {
-        let actions = this.actions;
+        const actions = this.actions;
         this.actions = [];
         return actions;
     }

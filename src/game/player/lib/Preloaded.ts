@@ -1,4 +1,3 @@
-import React from "react";
 import {Sound} from "@core/elements/sound";
 import {Src} from "@core/elements/srcManager";
 import {EventDispatcher} from "@lib/util/data";
@@ -7,17 +6,19 @@ import {Utils} from "@core/common/Utils";
 
 export type PreloadedSrcTypes = "image" | "audio" | "video";
 export type PreloadedSrc<T extends PreloadedSrcTypes = any> = ({
-    type: "image"; src: Image; preloaded: React.ReactElement;
+    type: "image"; src: Image;
 } | {
     type: "audio"; src: Sound;
 } | {
-    type: "video"; src: string; preloaded: React.ReactElement;
+    type: "video"; src: string;
+    /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
 }) & (T extends undefined ? {} :
     ({
         type: T;
-    } & T extends "image" ? { src: Image; preloaded: React.ReactElement } :
+    } & T extends "image" ? { src: Image; } :
         T extends "audio" ? { src: Sound } :
-            T extends "video" ? { src: string; preloaded: React.ReactElement } : {}));
+            /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
+            T extends "video" ? { src: string; } : {}));
 
 export type PreloadedEventTypes = {
     "event:preloaded.add": [PreloadedSrc | string];
@@ -34,11 +35,11 @@ export class Preloaded {
         "event:preloaded.change": "event:preloaded.change",
         "event:preloaded.mount": "event:preloaded.mount",
         "event:preloaded.ready": "event:preloaded.ready",
-    }
+    };
     preloaded: PreloadedSrc[] = [];
     events: EventDispatcher<PreloadedEventTypes> = new EventDispatcher();
 
-    public add<T extends PreloadedSrcTypes = any>(src: PreloadedSrc<T>): this {
+    public add<T extends PreloadedSrcTypes = PreloadedSrcTypes>(src: PreloadedSrc<T>): this {
         if (this.has(this.getSrc(src))) return this;
         this.preloaded.push(src);
         this.events.emit(Preloaded.EventTypes["event:preloaded.add"], src);

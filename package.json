@@ -1,33 +1,51 @@
 {
   "name": "narraleaf-react",
-  "version": "0.1.0",
+  "version": "0.0.1-beta.1",
   "description": "A React visual novel player framework",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "webpack --config webpack.config.js",
+    "postbuild": "tsc-alias -p tsconfig.json",
     "start": "webpack serve --config webpack.config.js",
-    "lint": "eslint './src/**/*.{ts,tsx}'",
-    "test": "jest"
+    "lint": "eslint \"./src/**/*.{ts,tsx,js,jsx}\"",
+    "lint:fix": "eslint --fix \"./src/**/*.{ts,tsx,js,jsx}\"",
+    "test": "jest",
+    "publish": "npm run lint && npm run build && npm publish",
+    "typedoc": "typedoc src/index.ts --out docs"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@babel/preset-env": "^7.25.4",
     "@babel/preset-react": "^7.24.7",
     "@babel/preset-typescript": "^7.14.5",
+    "@eslint/eslintrc": "^3.1.0",
+    "@eslint/js": "^9.10.0",
     "@types/howler": "^2.2.11",
     "@types/lodash": "^4.17.7",
     "@types/react": "^18.3.5",
+    "@typescript-eslint/eslint-plugin": "^8.5.0",
+    "@typescript-eslint/parser": "^8.5.0",
+    "autoprefixer": "^10.4.20",
     "babel-loader": "^8.3.0",
-    "eslint": "^7.29.0",
-    "eslint-plugin-react": "^7.24.0",
+    "css-loader": "^7.1.2",
+    "eslint": "^9.10.0",
+    "eslint-plugin-react": "^7.35.2",
+    "globals": "^15.9.0",
     "jest": "^27.0.6",
+    "postcss-loader": "^8.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "rimraf": "^6.0.1",
+    "style-loader": "^4.0.0",
+    "tailwindcss": "^3.4.11",
     "terser-webpack-plugin": "^5.3.10",
     "ts-loader": "^9.5.1",
+    "tsc-alias": "^1.8.10",
+    "tsconfig-paths": "^4.2.0",
+    "tsconfig-paths-webpack-plugin": "^4.1.0",
+    "typedoc": "^0.26.7",
     "typescript": "^4.9.5",
     "webpack": "^5.94.0",
     "webpack-bundle-analyzer": "^4.10.2",
@@ -35,8 +53,8 @@
     "webpack-dev-server": "^5.1.0"
   },
   "peerDependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "^17.0.0 || ^18.0.0",
+    "react-dom": "^17.0.0 || ^18.0.0"
   },
   "files": [
     "dist"
@@ -52,10 +70,9 @@
   "author": "helloyork@icloud.com",
   "license": "MIT",
   "dependencies": {
+    "client-only": "^0.0.1",
     "clsx": "^2.1.1",
     "framer-motion": "^11.5.4",
-    "howler": "^2.2.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "howler": "^2.2.4"
   }
 }

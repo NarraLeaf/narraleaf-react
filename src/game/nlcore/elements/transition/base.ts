@@ -6,14 +6,14 @@ import {animate, AnimationPlaybackControls, ValueAnimationTransition} from "fram
 export class Base<T extends ElementProp> implements ITransition<T> {
     public events: EventDispatcher<EventTypes<[T[]]>> = new EventDispatcher();
 
-    public start(onComplete?: () => void): void {
+    public start(_onComplete?: () => void): void {
     }
 
     public toElementProps(): T[] {
         return [] as T[];
     }
 
-    setSrc(src: string) {}
+    setSrc(_src: string) {}
 
     protected requestAnimation(
         {

@@ -26,7 +26,7 @@ export class Sentence {
     };
     static defaultState: SentenceState = {
         display: true
-    }
+    };
     id: string;
     character: Character | null;
     text: Word[];
@@ -101,21 +101,43 @@ export class Word {
     }
 }
 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type CharacterConfig = {}
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type CharacterStateData = {};
 
 export class Character extends Actionable<
     CharacterStateData
 > {
-    name: string;
+    name: string | null;
     config: CharacterConfig;
 
-    constructor(name: string, config: CharacterConfig = {}) {
+    constructor(name: string | null, config: CharacterConfig = {}) {
         super(Actionable.IdPrefixes.Text);
         this.name = name;
         this.config = config;
     }
 
+    /**
+     * Say something
+     * @example
+     * ```typescript
+     * character.say("Hello, world!").toActions();
+     * ```
+     * @example
+     * ```typescript
+     * character
+     *     .say("Hello, world!")
+     *     .say("Hello, world!")
+     *     .toActions();
+     * ```
+     * @example
+     * ```typescript
+     * character.say(new Sentence(character, [
+     *     "Hello, ",
+     *     new Word("world", {color: "#f00"}), // Some words can be colored
+     * ])).toActions();
+     */
     public say(content: string): Character;
     public say(content: Sentence): Character;
     public say(content: (string | Word)[]): Character;

@@ -1,4 +1,4 @@
-import React, {useEffect} from "react";
+import {useEffect} from "react";
 import {GameState} from "@player/gameState";
 import {Sound} from "@core/elements/sound";
 import {SrcManager} from "@core/elements/srcManager";
@@ -6,7 +6,6 @@ import {usePreloaded} from "@player/provider/preloaded";
 import {Preloaded, PreloadedSrc} from "@player/lib/Preloaded";
 import {Image as GameImage} from "@core/elements/image";
 import {Utils} from "@core/common/Utils";
-import {Img} from "./Img";
 
 export function Preload({
                             state,
@@ -18,7 +17,7 @@ export function Preload({
     const {preloaded} = usePreloaded();
 
     useEffect(() => {
-        if (typeof window === 'undefined') {
+        if (typeof window === "undefined") {
             console.warn("Window is not supported in this environment");
             return;
         }
@@ -64,25 +63,14 @@ export function Preload({
             return src[p.type].has(preloadedSrcP);
         });
 
-        // @todo: 让屏幕等待required的图片加载完成
-        // 通过事件分发，在每次加载完成后触发事件
-        // srcManager通过检查所有需要的资源都has之后解锁
-
-        // @todo: 更智能的资源分析，尝试找出最有可能需要加载的资源
         const newImages: HTMLImageElement[] = [];
         const promises: Promise<any>[] = [];
         src.image.forEach((src: GameImage) => {
-            let resolve: () => void;
-
             const htmlImg = new Image();
             htmlImg.src = Utils.srcToString(src.state.src);
             newImages.push(htmlImg);
 
-            const img = (<Img image={src} state={state} onLoad={() => {
-                resolve();
-                console.info("[Preload] Image loaded", src); // @debug
-            }}/>);
-            preloaded.add({type: "image", src, preloaded: img});
+            preloaded.add({type: "image", src});
         });
 
         Promise.all(promises).then(() => {
@@ -101,10 +89,8 @@ export function Preload({
             }
         });
 
-        console.log("[Preload] Preloaded", preloaded.preloaded, src.image); // @debug
         preloaded.events.emit(Preloaded.EventTypes["event:preloaded.mount"]);
 
-        // @todo: better src manager, smart preload
         // maybe video preload here
 
         return () => {

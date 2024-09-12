@@ -1,21 +1,14 @@
-import type {
-    Background,
-    color,
-    CommonImage,
-    CommonImagePosition,
-} from "@core/types";
-import {
-    ImagePosition,
-} from "@core/types";
+import type {Background, color, CommonImage, CommonImagePosition,} from "@core/types";
+import {ImagePosition,} from "@core/types";
 import type {AnimationPlaybackControls, DOMKeyframesDefinition, DynamicAnimationOptions} from "framer-motion";
 import {deepMerge, DeepPartial, sleep, toHex} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {TransformDefinitions} from "./type";
-import Sequence = TransformDefinitions.Sequence;
-import SequenceProps = TransformDefinitions.SequenceProps;
 import {Align, CommonPosition, Coord2D, IPosition, PositionUtils} from "./position";
 import {CSSProps} from "@core/elements/transition/type";
 import {Utils} from "@core/common/Utils";
+import Sequence = TransformDefinitions.Sequence;
+import SequenceProps = TransformDefinitions.SequenceProps;
 
 export type Transformers =
     "position"
@@ -51,16 +44,16 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         sync: true,
         repeat: 1,
     };
-    static defaultOptions: Partial<TransformDefinitions.CommonTransformProps> = {
+    static defaultOptions: TransformDefinitions.SequenceProps<any> = {
         duration: 0,
         ease: "linear",
-    }
+    };
     static CommonImagePositionMap = CommonImagePositionMap;
 
     private readonly sequenceOptions: TransformDefinitions.CommonSequenceProps;
     private sequences: TransformDefinitions.Sequence<T>[] = [];
     private control: AnimationPlaybackControls | null = null;
-    private transformers: { [K in Transformers]?: Function } = {};
+    private transformers: { [K in Transformers]?: TransformHandler<any> } = {};
 
     /**
      * @example
@@ -75,15 +68,15 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
      * ```
      */
     constructor(sequences: Sequence<T>[], sequenceOptions?: Partial<TransformDefinitions.TransformConfig>);
-    constructor(props: DeepPartial<T>, options?: Partial<TransformDefinitions.CommonTransformProps>);
-    constructor(arg0: Sequence<T>[] | DeepPartial<T>, arg1?: Partial<TransformDefinitions.CommonTransformProps> | TransformDefinitions.SequenceOptions) {
+    constructor(props: SequenceProps<T>, options?: Partial<TransformDefinitions.CommonTransformProps>);
+    constructor(arg0: Sequence<T>[] | SequenceProps<T>, arg1?: Partial<TransformDefinitions.TransformConfig> | Partial<TransformDefinitions.CommonTransformProps>) {
         if (Array.isArray(arg0)) {
             this.sequences.push(...arg0);
             this.sequenceOptions =
                 Object.assign({}, Transform.defaultSequenceOptions, arg1 || {}) as TransformDefinitions.CommonSequenceProps;
         } else {
             const [props, options] =
-                [arg0, arg1 || Transform.defaultOptions];
+                [(arg0 as SequenceProps<T>), (arg1 || Transform.defaultOptions as Partial<TransformDefinitions.CommonTransformProps>)];
             this.sequences.push({props, options: options || {}});
             this.sequenceOptions =
                 Object.assign({}, Transform.defaultSequenceOptions) as TransformDefinitions.CommonSequenceProps;
@@ -116,11 +109,11 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         if (["r", "g", "b"].every(key => key in background)) {
             return {backgroundColor: toHex(background as color)};
         }
-        const url = (background as {url: string}).url;
+        const url = (background as { url: string }).url;
         return {backgroundImage: "url(" + url + ")"};
     }
 
-    static mergePosition<T>(a: IPosition | undefined, b: IPosition | undefined): Coord2D {
+    static mergePosition(a: IPosition | undefined, b: IPosition | undefined): Coord2D {
         if (!a && !b) {
             throw new Error("No position found.");
         }
@@ -153,76 +146,67 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         state: SequenceProps<T>,
         after?: (state: DeepPartial<T>) => void
     ) {
-        console.debug("Animating", this); // @debug
-
-        // unsafe
         state = deepMerge<DeepPartial<T>>(state, {});
 
-        return new Promise<void>(async (resolve) => {
-            if (!this.sequenceOptions.sync) {
-                resolve();
-                if (after) {
-                    after(state);
-                }
-            }
-            for (let i = 0; i < this.sequenceOptions.repeat; i++) {
-                for (const {props, options} of this.sequences) {
-                    const initState = deepMerge({}, this.propToCSS(gameState, state));
-
-                    if (!scope.current) {
-                        throw new Error("No scope found when animating.");
+        return new Promise<void>((resolve) => {
+            (async () => {
+                if (!this.sequenceOptions.sync) {
+                    resolve();
+                    if (after) {
+                        after(state);
                     }
-                    const current = scope.current as any;
-                    Object.assign(current["style"], initState);
+                }
+                for (let i = 0; i < this.sequenceOptions.repeat; i++) {
+                    for (const {props, options} of this.sequences) {
+                        const initState = deepMerge({}, this.propToCSS(gameState, state));
 
-                    state = Transform.mergeState(state, props);
-                    const animation = animate(
-                        current,
-                        this.propToCSS(gameState, state),
-                        this.optionsToFramerMotionOptions(options) || {}
-                    );
-                    this.setControl(animation);
+                        if (!scope.current) {
+                            throw new Error("No scope found when animating.");
+                        }
+                        const current = scope.current as any;
+                        Object.assign(current["style"], initState);
 
-                    console.log("animation start", this.propToCSS(gameState, state), state); // @debug
-                    console.debug("animate from", initState, "to", this.propToCSS(gameState, state)); // @debug
+                        state = Transform.mergeState(state, props);
+                        const animation = animate(
+                            current,
+                            this.propToCSS(gameState, state),
+                            this.optionsToFramerMotionOptions(options) || {}
+                        );
+                        this.setControl(animation);
 
-                    if (options?.sync !== false) {
-                        await new Promise<void>(r => animation.then(() => r()));
-                        Object.assign(current["style"], this.propToCSS(gameState, state));
-                        this.setControl(null);
-                    } else {
-                        animation.then(() => {
+                        if (options?.sync !== false) {
+                            await new Promise<void>(r => animation.then(() => r()));
                             Object.assign(current["style"], this.propToCSS(gameState, state));
                             this.setControl(null);
-                        });
+                        } else {
+                            animation.then(() => {
+                                Object.assign(current["style"], this.propToCSS(gameState, state));
+                                this.setControl(null);
+                            });
+                        }
                     }
                 }
-            }
 
-            // I don't understand
-            // but if we don't wait for a while, something will go wrong
-            await sleep(2);
-            this.setControl(null);
-            console.log("animation done")
+                await sleep(2);
+                this.setControl(null);
 
-            if (this.sequenceOptions.sync) {
-                resolve();
-                if (after) {
-                    after(state);
+                if (this.sequenceOptions.sync) {
+                    resolve();
+                    if (after) {
+                        after(state);
+                    }
                 }
-            }
+            })();
         });
     }
 
     /**
-     * 将动画的重复次数乘以n
-     * 会受到传入Config的影响
      * @example
      * ```ts
      * transform
      *   .repeat(2)
      *   .repeat(3)
-     * // 重复6次
+     * // repeat 6 times
      * ```
      */
     public repeat(n: number) {
@@ -232,6 +216,8 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
 
     /**
      * overwrite a transformer
+     *
+     * **we don't recommend using this method**
      * @example
      * ```ts
      * transform.overwrite("position", (value) => {
@@ -245,7 +231,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     }
 
     propToCSS(state: GameState, prop: DeepPartial<T>): DOMKeyframesDefinition {
-        const {invertY, invertX} = state.getLastScene()?.config || {}
+        const {invertY, invertX} = state.getLastScene()?.config || {};
         const FieldHandlers: Record<string, (v: any) => any> = {
             "position": (value: IPosition) => Transform.positionToCSS(value, invertY, invertX),
             "backgroundColor": (value: Background["background"]) => Transform.backgroundToCSS(value),
@@ -264,7 +250,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         }
 
         for (const key in prop) {
-            if (!prop.hasOwnProperty(key)) continue;
+            if (!Object.prototype.hasOwnProperty.call(prop, key)) continue;
             if (this.transformers[key as keyof TransformersMap]) {
                 Object.assign(props, this.transformers[key as keyof TransformersMap]!(prop[key]));
             } else if (FieldHandlers[key]) {

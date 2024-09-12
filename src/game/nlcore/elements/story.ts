@@ -6,6 +6,7 @@ import {RawData, RenderableNode} from "@core/action/tree/actionTree";
 import {Scene} from "@core/elements/scene";
 import {StaticChecker} from "@core/common/Utils";
 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type StoryConfig = {};
 export type ElementStateRaw = Record<string, any>;
 export type NodeChildIdMap = Map<string, string>;
@@ -29,7 +30,7 @@ export class Story extends Constructable<
     }
 
     /**@internal */
-    setAllElementState(data: RawData<ElementStateRaw>[], actions?: LogicAction.Actions[]): void {
+    _setAllElementState(data: RawData<ElementStateRaw>[], actions?: LogicAction.Actions[]): void {
         const action = actions || this.getAllActions();
         const map = new Map<string, any>();
 
@@ -45,7 +46,7 @@ export class Story extends Constructable<
     }
 
     /**@internal */
-    getAllElementState(actions?: LogicAction.Actions[]): RawData<ElementStateRaw>[] {
+    _getAllElementState(actions?: LogicAction.Actions[]): RawData<ElementStateRaw>[] {
         const action = actions || this.getAllActions();
         const allCallee = this.getAllElements(action);
         return allCallee.map(callee => ({
@@ -56,10 +57,10 @@ export class Story extends Constructable<
 
     /**
      * @internal
-     * 生成节点子辈ID映射
-     * 键是节点ID，值是子节点ID
+     * Generate node descendant ID mapping
+     * The key is the node ID, and the value is the child node ID
      */
-    getNodeChildIdMap(actions?: LogicAction.Actions[]): NodeChildIdMap {
+    _getNodeChildIdMap(actions?: LogicAction.Actions[]): NodeChildIdMap {
         const action = actions || this.getAllActions();
         const map: NodeChildIdMap = new Map<string, string>();
         action.forEach(action => {
@@ -76,16 +77,16 @@ export class Story extends Constructable<
 
     /**
      * @internal
-     * 使用指定的映射表还原节点子辈
+     * Use the specified mapping table to restore the node descendants
      */
-    setNodeChildByMap(map: NodeChildIdMap | Record<string, string>, actions?: LogicAction.Actions[]): void {
+    _setNodeChildByMap(map: NodeChildIdMap | Record<string, string>, actions?: LogicAction.Actions[]): void {
         if (!map) {
             return;
         }
         const childMap = map instanceof Map ? map : new Map(Object.entries(map));
 
         const action = actions || this.getAllActions();
-        const mappedNodes = this.getMappedNodes(this.getAllNodes(action));
+        const mappedNodes = this._getMappedNodes(this.getAllNodes(action));
         action.forEach(action => {
             const node = action.contentNode;
             const childId = childMap.get(node.id);
@@ -98,9 +99,9 @@ export class Story extends Constructable<
 
     /**
      * @internal
-     * 生成节点ID映射
+     * Generate node ID mapping
      */
-    getMappedNodes(nodes: RenderableNode[]): Map<string, RenderableNode> {
+    _getMappedNodes(nodes: RenderableNode[]): Map<string, RenderableNode> {
         const map = new Map<string, RenderableNode>();
         nodes.forEach(node => map.set(node.id, node));
         return map;
@@ -114,6 +115,15 @@ export class Story extends Constructable<
         return this;
     }
 
+    /**
+     * Set the entry scene of the story
+     * @example
+     * ```typescript
+     * const story = new Story("story");
+     * const scene = new Scene("scene");
+     * story.entry(scene); // The story will start from this scene
+     * ```
+     */
     public entry(scene: Scene): this {
         const actions = scene._sceneRoot;
         if (!actions) {
@@ -122,8 +132,7 @@ export class Story extends Constructable<
 
         this.setActions([actions]);
         scene.registerSrc();
-        const states = new StaticChecker(scene).start();
-        console.log("check result", states);
+        new StaticChecker(scene).start();
         return this;
     }
 }

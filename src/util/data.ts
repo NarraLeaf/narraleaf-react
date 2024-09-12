@@ -10,15 +10,15 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
     const result: Record<string, any> = {};
 
     const mergeValue = (key: string, value1: any, value2: any) => {
-        if (typeof value1 === 'object' && value1 !== null && !Array.isArray(value1) &&
-            typeof value2 === 'object' && value2 !== null && !Array.isArray(value2)) {
+        if (typeof value1 === "object" && value1 !== null && !Array.isArray(value1) &&
+            typeof value2 === "object" && value2 !== null && !Array.isArray(value2)) {
             if (value1.constructor !== Object || value2.constructor !== Object) {
                 return value2 || value1;
             }
             return deepMerge(value1, value2);
         } else if (Array.isArray(value1) && Array.isArray(value2)) {
             return value1.map((item, index) => {
-                if (typeof item === 'object' && item !== null && !Array.isArray(item) && value2[index]) {
+                if (typeof item === "object" && item !== null && !Array.isArray(item) && value2[index]) {
                     return deepMerge(item, value2[index]);
                 }
                 return item;
@@ -37,7 +37,7 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
     for (const key in obj2) {
         if (hasOwnProperty(obj2, key) && !hasOwnProperty(result, key)) {
             // If the value in obj2 is an object, perform a deep copy
-            if (typeof obj2[key] === 'object' && obj2[key] !== null) {
+            if (typeof obj2[key] === "object" && obj2[key] !== null) {
                 if (obj2[key].constructor !== Object) {
                     result[key] = obj2[key];
                 } else {
@@ -57,9 +57,9 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
     return result as T;
 }
 
-export type DeepPartial<T> = {
+export type DeepPartial<T> = T extends object ? {
     [P in keyof T]?: DeepPartial<T[P]>;
-};
+} : T;
 
 export class Awaitable<T, U = T> {
     receiver: (value: U) => T;
@@ -99,7 +99,7 @@ export function safeClone<T>(obj: T): T {
     const seen = new WeakSet();
 
     function clone<T>(obj: T): T {
-        if (obj === null || typeof obj !== 'object') {
+        if (obj === null || typeof obj !== "object") {
             return obj;
         }
 
@@ -119,7 +119,7 @@ export function safeClone<T>(obj: T): T {
 
         const objCopy = {} as any;
         for (const key in obj) {
-            if (obj.hasOwnProperty(key)) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
                 objCopy[key] = clone((obj as any)[key]);
             }
         }
@@ -132,10 +132,10 @@ export function safeClone<T>(obj: T): T {
 export type Values<T> = T[keyof T];
 
 export function toHex(hex: { r: number; g: number; b: number; a?: number } | string): string {
-    if (typeof hex === 'string') {
+    if (typeof hex === "string") {
         return hex;
     }
-    return `#${(hex.r || 0).toString(16).padStart(2, '0')}${(hex.g || 0).toString(16).padStart(2, '0')}${(hex.b || 0).toString(16).padStart(2, '0')}${(hex.a !== undefined ? hex.a.toString(16).padStart(2, '0') : '')}`;
+    return `#${(hex.r || 0).toString(16).padStart(2, "0")}${(hex.g || 0).toString(16).padStart(2, "0")}${(hex.b || 0).toString(16).padStart(2, "0")}${(hex.a !== undefined ? hex.a.toString(16).padStart(2, "0") : "")}`;
 }
 
 export type EventTypes = {
@@ -231,7 +231,7 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
                     if (type === event) {
                         this.off((type as "event:EventDispatcher.register"), listener);
 
-                        let res = fc?.(...args);
+                        const res = fc?.(...args);
                         if (res && res["then"]) {
                             res["then"](resolve);
                         } else {
@@ -257,7 +257,7 @@ export function getCallStack(n: number = 1, s: number = 0): string {
         return "";
     }
     // return stack.split('\n').slice(n + 1).join('\n').trim();
-    return stack.split('\n').slice(n + 1, -s).join('\n').trim();
+    return stack.split("\n").slice(n + 1, -s).join("\n").trim();
 }
 
 export function sleep(ms: number): Promise<void> {
@@ -266,7 +266,7 @@ export function sleep(ms: number): Promise<void> {
 
 export function deepEqual(obj1: any, obj2: any): boolean {
     if (obj1 === obj2) return true;
-    if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 === null || obj2 === null) return false;
+    if (typeof obj1 !== "object" || typeof obj2 !== "object" || obj1 === null || obj2 === null) return false;
 
     const keys1 = Object.keys(obj1);
     const keys2 = Object.keys(obj2);

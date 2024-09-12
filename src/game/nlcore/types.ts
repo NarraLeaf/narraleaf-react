@@ -25,13 +25,20 @@ export type CommonText = {
     text: string;
 } & Color;
 
-export type NextJSStaticImageData = Record<string, any> & {src: string};
-export type StaticImageData = NextJSStaticImageData;
+export type NextJSStaticImageData = StaticImageData;
+export interface StaticImageData {
+    src: string;
+    height: number;
+    width: number;
+    blurDataURL?: string;
+    blurWidth?: number;
+    blurHeight?: number;
+}
 
 export type Background = {
     background: {
         url: string;
-    } | color | null | undefined | NextJSStaticImageData;
+    } | color | null | undefined | StaticImageData;
 }
 
 export type CommonImagePosition = "left" | "center" | "right";

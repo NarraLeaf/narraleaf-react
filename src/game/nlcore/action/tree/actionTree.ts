@@ -86,7 +86,7 @@ export class ContentNode<T = any> extends Node<T> {
 
     setParent(parent: RenderableNode | null) {
         if (parent === this) {
-            throw new Error('Cannot set parent to itself');
+            throw new Error("Cannot set parent to itself");
         }
         this.parent = parent;
         return this;
@@ -94,7 +94,7 @@ export class ContentNode<T = any> extends Node<T> {
 
     setChild(child: RenderableNode | null) {
         if (child === this) {
-            throw new Error('Cannot set child to itself');
+            throw new Error("Cannot set child to itself");
         }
         this.child = child;
         if (child && child.parent !== this) {
@@ -154,15 +154,15 @@ export class ContentNode<T = any> extends Node<T> {
 
 export class RootNode extends ContentNode {
     constructor() {
-        super('root');
+        super("root");
     }
 
     setParent(_: RenderableNode | null): this {
-        throw new Error('Cannot set parent of root node');
+        throw new Error("Cannot set parent of root node");
     }
 
     remove(): this {
-        throw new Error('Cannot remove root node');
+        throw new Error("Cannot remove root node");
     }
 
     forEach(callback: (node: RenderableNode) => void) {

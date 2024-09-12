@@ -12,15 +12,15 @@ export const CommonPositions = {
     [CommonPositionType.Right]: "66.66%",
 } as {
     [key in CommonPositionType]: `${number}%`;
-}
+};
 
 export interface IPosition {
     toCSS(): D2Position;
 }
 
 export type Coord2DPosition = {
-    x: number | `${'-' | ''}${number}%`;
-    y: number | `${'-' | ''}${number}%`;
+    x: number | `${"-" | ""}${number}%`;
+    y: number | `${"-" | ""}${number}%`;
 } & OffsetPosition;
 
 export type AlignPosition = {
@@ -68,7 +68,7 @@ export class PositionUtils {
         return this.wrap({
             ...yRes,
             ...xRes,
-        })
+        });
     }
 
     static calc(pos: number | string, offset?: UnknownAble<number>): string {
@@ -116,11 +116,19 @@ export class PositionUtils {
 }
 
 export class CommonPosition implements IPosition {
-    public static positions = CommonPositionType;
+    public static Positions = CommonPositionType;
     readonly position: CommonPositionType;
 
-    constructor(position: CommonPositionType) {
-        this.position = position;
+    /**
+     * Create a new CommonPosition instance
+     * @example
+     * ```ts
+     * new CommonPosition(CommonPosition.Positions.Center);
+     * new CommonPosition("Center");
+     * ```
+     */
+    constructor(position: CommonPositionType | keyof typeof CommonPositionType) {
+        this.position = typeof position === "number" ? position : CommonPositionType[position];
     }
 
     static isCommonPositionType(arg: any): arg is CommonPosition {
@@ -143,6 +151,15 @@ export class Coord2D implements IPosition {
     readonly xoffset: UnknownAble<number>;
     readonly yoffset: UnknownAble<number>;
 
+    /**
+     * Create a new Coord2D instance
+     * @example
+     * ```ts
+     * new Coord2D("50%", "50%");
+     * new Coord2D({x: 1280, y: "50%"});
+     * new Coord2D({x: 1280, y: "-50%", xoffset: 10, yoffset: 20});
+     * ```
+     */
     constructor(arg0: {
         x?: UnknownAble<Coord2DPosition["x"]>;
         y?: UnknownAble<Coord2DPosition["y"]>;
@@ -216,6 +233,15 @@ export class Align implements IPosition {
     readonly xoffset: UnknownAble<number>;
     readonly yoffset: UnknownAble<number>;
 
+    /**
+     * Create a new Align instance
+     * @example
+     * ```ts
+     * new Align(0.5, 0.5);
+     * new Align({xalign: 0.25, yalign: 0.5});
+     * new Align({xalign: 0.25, yalign: 0.5, xoffset: 10, yoffset: 20});
+     * ```
+     */
     constructor(xalign?: UnknownAble<number>, yalign?: UnknownAble<number>);
 
     constructor(arg0: {
@@ -239,8 +265,8 @@ export class Align implements IPosition {
         } else {
             this.xalign = arg0 || PositionUtils.Unknown;
             this.yalign = yalign || PositionUtils.Unknown;
-            this.xoffset = 0 || PositionUtils.Unknown;
-            this.yoffset = 0 || PositionUtils.Unknown;
+            this.xoffset = PositionUtils.Unknown;
+            this.yoffset = PositionUtils.Unknown;
         }
     }
 

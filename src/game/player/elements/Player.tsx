@@ -1,11 +1,16 @@
+import "client-only";
+import "@player/lib/styles/style.css";
+
+import clsx from "clsx";
 import React, {useEffect, useReducer, useState} from "react";
-import {useGame} from "@player/provider/game-state";
 import {Awaitable} from "@lib/util/data";
-import {GameState, PlayerAction} from "@player/gameState";
 import {Story} from "@core/elements/story";
+import {Game} from "@core/game";
 import {CalledActionResult} from "@core/gameTypes";
 import {SceneEventTypes} from "@core/elements/scene";
 
+import Main from "@player/lib/main";
+import Isolated from "@player/lib/isolated";
 import Say from "@player/elements/say/Say";
 import Menu from "@player/elements/menu/Menu";
 import {default as StageScene} from "@player/elements/scene/Scene";
@@ -13,15 +18,25 @@ import {default as StageImage} from "@player/elements/image/Image";
 import {usePreloaded} from "@player/provider/preloaded";
 import {Preload} from "@player/elements/preload/Preload";
 import {Preloaded} from "@player/lib/Preloaded";
+import {GameState, PlayerAction} from "@player/gameState";
+import {useGame} from "@player/provider/game-state";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
 }
 
 export default function Player({
-                                   story
+                                   story,
+                                   onReady,
+                                   width,
+                                   height,
+                                   className,
                                }: Readonly<{
     story: Story;
+    onReady?: (game: Game) => void;
+    width?: string | number;
+    height?: string | number;
+    className?: clsx.ClassValue;
 }>) {
     const [, forceUpdate] = useReducer((x) => x + 1, 0);
     const {game} = useGame();
@@ -34,8 +49,6 @@ export default function Player({
     }));
 
     function next() {
-        console.time("Next"); // @debug
-
         let exited = false;
         while (!exited) {
             const next = game.getLiveGame().next(state);
@@ -49,16 +62,17 @@ export default function Player({
             dispatch(next);
         }
         state.stage.forceUpdate();
-
-        console.timeEnd("Next");
     }
 
     useEffect(() => {
-        game.getLiveGame().loadStory(story);
-        game.getLiveGame().newGame();
+        if (!story) {
+            return;
+        }
 
-        console.debug("Loaded game", game.getLiveGame().currentSavedGame);
-        console.debug(state);
+        game.getLiveGame().loadStory(story);
+        if (onReady) {
+            onReady(game);
+        }
 
         const lastScene = state.getLastScene();
         const events: {
@@ -85,67 +99,76 @@ export default function Player({
                 });
             }
         };
-    }, []);
+    }, [story]);
 
     function handlePreloadLoaded() {
         state.stage.forceUpdate();
-        next();
+        if (story) {
+            next();
+        }
     }
 
     return (
-        <>
-            {
-                state.state.srcManagers.map((srcManager, i) => {
-                    return (
-                        <Preload key={i} state={state} srcManager={srcManager}/>
-                    )
-                })
-            }
-            <OnlyPreloaded onLoaded={handlePreloadLoaded}>
-                {
-                    state.getSceneElements().map(({scene, ele}) => {
-                        return (
-                            <StageScene key={"scene-" + scene.id} state={state} scene={scene}>
-                                {
-                                    (ele.images.map((image) => {
-                                        return (
-                                            <StageImage key={"image-" + image.id} image={image} state={state}/>
-                                        )
-                                    }))
-                                }
-                                {
-                                    ele.texts.map(({action, onClick}) => {
-                                        return (
-                                            <Say key={"say-" + action.id} action={action} onClick={() => {
-                                                onClick();
-                                                next();
-                                            }}/>
-                                        )
-                                    })
-                                }
-                                {
-                                    ele.menus.map((action, i) => {
-                                        return (
-                                            <div key={"menu-" + i}>
-                                                {
-                                                    <Menu prompt={action.action.prompt}
-                                                          choices={action.action.choices}
-                                                          afterChoose={(choice) => {
-                                                              action.onClick(choice);
-                                                              next();
-                                                          }}/>
-                                                }
-                                            </div>
-                                        )
-                                    })
-                                }
-                            </StageScene>
-                        )
-                    })
-                }
-            </OnlyPreloaded>
-        </>
-    )
+        <div style={{
+            width: typeof width === "number" ? `${width}px` : width,
+            height: typeof height === "number" ? `${height}px` : height,
+        }} className={clsx(className)}>
+            <Main className={clsx("flex-grow overflow-auto")}>
+                <Isolated className="relative">
+                    {
+                        state.state.srcManagers.map((srcManager, i) => {
+                            return (
+                                <Preload key={i} state={state} srcManager={srcManager}/>
+                            );
+                        })
+                    }
+                    <OnlyPreloaded onLoaded={handlePreloadLoaded}>
+                        {
+                            state.getSceneElements().map(({scene, ele}) => {
+                                return (
+                                    <StageScene key={"scene-" + scene.id} state={state} scene={scene}>
+                                        {
+                                            (ele.images.map((image) => {
+                                                return (
+                                                    <StageImage key={"image-" + image.id} image={image} state={state}/>
+                                                );
+                                            }))
+                                        }
+                                        {
+                                            ele.texts.map(({action, onClick}) => {
+                                                return (
+                                                    <Say key={"say-" + action.id} action={action} onClick={() => {
+                                                        onClick();
+                                                        next();
+                                                    }}/>
+                                                );
+                                            })
+                                        }
+                                        {
+                                            ele.menus.map((action, i) => {
+                                                return (
+                                                    <div key={"menu-" + i}>
+                                                        {
+                                                            <Menu prompt={action.action.prompt}
+                                                                  choices={action.action.choices}
+                                                                  afterChoose={(choice) => {
+                                                                      action.onClick(choice);
+                                                                      next();
+                                                                  }}/>
+                                                        }
+                                                    </div>
+                                                );
+                                            })
+                                        }
+                                    </StageScene>
+                                );
+                            })
+                        }
+                    </OnlyPreloaded>
+                </Isolated>
+            </Main>
+        </div>
+    );
 }
 
 function OnlyPreloaded({children, onLoaded}: Readonly<{ children: React.ReactNode, onLoaded: () => void }>) {
@@ -158,11 +181,11 @@ function OnlyPreloaded({children, onLoaded}: Readonly<{ children: React.ReactNod
         });
         return () => {
             preloaded.events.off(Preloaded.EventTypes["event:preloaded.ready"], listener);
-        }
+        };
     }, [preloadedReady]);
     return (
         <>
             {preloadedReady ? children : null}
         </>
-    )
+    );
 }

@@ -43,7 +43,7 @@ export default function Say({
 
     useEffect(() => {
         if (!window) {
-            console.warn("Failed to add event listener, window is not available\nat Say.tsx: onElementClick")
+            console.warn("Failed to add event listener, window is not available\nat Say.tsx: onElementClick");
             return;
         }
 
@@ -59,7 +59,7 @@ export default function Say({
         window.addEventListener("keydown", handleKeyDown);
         return () => {
             window.removeEventListener("keydown", handleKeyDown);
-        }
+        };
     }, [isFinished]);
 
     return (

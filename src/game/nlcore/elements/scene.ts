@@ -74,7 +74,7 @@ export class Scene extends Constructable<
         "event:scene.initTransform": "event:scene.initTransform",
         "event:scene.setBackgroundMusic": "event:scene.setBackgroundMusic",
         "event:scene.applyTransform": "event:scene.applyTransform",
-    }
+    };
     static defaultConfig: SceneConfig = {
         background: null,
         invertY: false,
@@ -93,7 +93,7 @@ export class Scene extends Constructable<
     backgroundImageState: Partial<CommonImage>;
     _liveState = {
         active: false,
-    }
+    };
     _sceneRoot?: SceneAction<"scene:action">;
     private _actions: SceneAction<any>[] = [];
 
@@ -117,9 +117,7 @@ export class Scene extends Constructable<
     }
 
     /**
-     * 设置背景图片，如果提供了 {@link transition} 参数，则会应用过渡效果
-     * @param background 目标背景
-     * @param transition 过渡效果
+     * Set background, if {@link transition} is provided, it will be applied
      */
     public setBackground(background: Background["background"], transition?: ITransition) {
         if (transition) {
@@ -138,8 +136,9 @@ export class Scene extends Constructable<
     }
 
     /**
-     * 为背景图片应用变换
-     * @param transform
+     * Apply a transform to the scene
+     *
+     * for example, you can shake the scene by applying a transform with a shake effect
      */
     public applyTransform(transform: Transform<ImageTransformProps>) {
         this._actions.push(new SceneAction(
@@ -151,9 +150,11 @@ export class Scene extends Constructable<
     }
 
     /**
-     * 跳转到指定的场景
-     * 调用方法后，将无法回到当前调用该跳转的场景上下文，因此该场景会被卸载
-     * 任何在跳转操作之后的操作都不会被执行
+     * Jump to the specified scene
+     *
+     * After calling the method, you **will not be able to return to the context of the scene** that called the jump, so the scene will be unloaded
+     *
+     * Any operations after the jump operation will not be executed
      */
     public jumpTo(arg0: Scene, config?: JumpConfig): this {
         this._actions.push(new SceneAction(
@@ -174,7 +175,7 @@ export class Scene extends Constructable<
     }
 
     /**
-     * 等待一段时间，参数可以是毫秒数、Promise、或者一个未解析的{@link Awaitable}
+     * Wait for a period of time, the parameter can be the number of milliseconds, a Promise, or an unresolved {@link Awaitable}
      */
     public sleep(ms: number): this;
     public sleep(promise: Promise<any>): this;
@@ -189,9 +190,9 @@ export class Scene extends Constructable<
     }
 
     /**
-     * 设置背景音乐
-     * @param sound 目标音乐
-     * @param fade 毫秒数，如果设置，则会将渐出效果应用于上一首音乐，将渐入效果应用于当前音乐，时长为 {@link fade} 毫秒
+     * Set background music
+     * @param sound Target music
+     * @param fade If set, the fade-out effect will be applied to the previous music, and the fade-in effect will be applied to the current music, with a duration of {@link fade} milliseconds
      */
     public setBackgroundMusic(sound: Sound, fade?: number): this {
         this._actions.push(new SceneAction<typeof SceneActionTypes["setBackgroundMusic"]>(
@@ -203,7 +204,7 @@ export class Scene extends Constructable<
     }
 
     public toActions(): SceneAction<any>[] {
-        let actions = this._actions;
+        const actions = this._actions;
         this._actions = [];
         return actions;
     }
@@ -223,7 +224,7 @@ export class Scene extends Constructable<
                 background: this.state.background,
                 backgroundImageState: Image.serializeImageState(this.backgroundImageState),
             },
-        }
+        };
     }
 
     fromData(data: SceneDataRaw): this {
@@ -256,7 +257,7 @@ export class Scene extends Constructable<
         return this;
     }
 
-    toTransform(): Transform<ImageTransformProps> {
+    _toTransform(): Transform<ImageTransformProps> {
         return new Transform<ImageTransformProps>([
             {
                 props: this.backgroundImageState,

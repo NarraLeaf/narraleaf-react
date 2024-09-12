@@ -76,7 +76,6 @@ export default function Scene({
 
         nextMusic.$getHowl()?.volume(0);
         nextMusic.$setToken(nextMusic.$getHowl()?.play(nextMusic.$getToken() || undefined));
-        console.log("[fadeTo]", nextMusic.$getToken(), nextMusic.config.src, nextMusic.$getHowl());
         if (fade) {
             nextMusic.$getHowl()?.fade(0, nextMusic.config.volume, fade, nextMusic.$getToken());
         } else {
@@ -116,7 +115,7 @@ export default function Scene({
             listeners.forEach(({type, listener}) => {
                 scene.events.off(type, listener);
             });
-        }
+        };
     }, []);
 
     useEffect(() => {
@@ -124,7 +123,7 @@ export default function Scene({
 
         return () => {
             scene.events.emit(GameScene.EventTypes["event:scene.unmount"]);
-        }
+        };
     }, []);
 
     return (
@@ -136,5 +135,5 @@ export default function Scene({
             }} state={state}/>
             {children}
         </div>
-    )
+    );
 };

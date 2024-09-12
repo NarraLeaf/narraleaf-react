@@ -21,7 +21,7 @@ export class Utils {
     }
 
     public static isStaticImageData(src: any): src is NextJSStaticImageData {
-        return src.src !== undefined;
+        return src?.src !== undefined;
     }
 
     public static backgroundToSrc(background: Background["background"]) {
