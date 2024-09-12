@@ -116,7 +116,7 @@ export type MenuActionContentType = {
 export const SoundActionTypes = {
     action: "sound:action",
     play: "sound:play",
-    stop: "sound:stop", // @todo: add pause and resume
+    stop: "sound:stop",
     fade: "sound:fade",
     setVolume: "sound:setVolume",
     setRate: "sound:setRate",

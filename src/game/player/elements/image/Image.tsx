@@ -9,8 +9,6 @@ import {CSSElementProp, ImgElementProp, ITransition, TransitionEventTypes} from 
 import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
 
-// @todo: add a11y support
-
 export default function Image({
                                   image,
                                   state,

@@ -1,17 +1,17 @@
 {
   "name": "narraleaf-react",
-  "version": "0.0.1-beta.1",
+  "version": "0.0.1-beta.2",
   "description": "A React visual novel player framework",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "webpack --config webpack.config.js",
+    "build:prod": "rimraf dist && webpack --config webpack.config.js",
+    "build:analyze": "rimraf dist && webpack --config webpack.config.js",
     "postbuild": "tsc-alias -p tsconfig.json",
-    "start": "webpack serve --config webpack.config.js",
     "lint": "eslint \"./src/**/*.{ts,tsx,js,jsx}\"",
     "lint:fix": "eslint --fix \"./src/**/*.{ts,tsx,js,jsx}\"",
-    "test": "jest",
     "publish": "npm run lint && npm run build && npm publish",
     "typedoc": "typedoc src/index.ts --out docs"
   },

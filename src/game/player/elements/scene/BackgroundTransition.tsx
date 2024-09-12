@@ -116,16 +116,17 @@ export default function BackgroundTransition({scene, props, state}: {
                         return (
                             <Background key={index}>
                                 <img alt={mergedProps.alt} {...mergedProps} onLoad={handleImageOnload}
-                                     ref={index === (arr.length - 1) ? scope : undefined}/>
+                                     ref={index === (arr.length - 1) ? scope : undefined} className={"absolute"}/>
                             </Background>
                         );
                     });
                 })() : (() => {
                     const mergedProps =
-                        deepMerge<ImgElementProp>(defaultProps, props, transformProps);
+                        deepMerge<ImgElementProp>(defaultProps, props, transitionProps, transformProps);
                     return (
                         <Background>
-                            <img alt={mergedProps.alt} {...mergedProps} onLoad={handleImageOnload} ref={scope}/>
+                            <img alt={mergedProps.alt} {...mergedProps} onLoad={handleImageOnload} ref={scope}
+                                 className={"absolute"}/>
                         </Background>
                     );
                 })()

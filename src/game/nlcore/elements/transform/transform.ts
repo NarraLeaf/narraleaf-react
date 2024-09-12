@@ -140,8 +140,12 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
      * ```
      */
     public async animate<U extends Element = any>(
-        {scope, animate}:
-            { scope: TransformDefinitions.FramerAnimationScope<U>, animate: TransformDefinitions.FramerAnimate },
+        {scope, animate, overwrites}:
+            {
+                scope: TransformDefinitions.FramerAnimationScope<U>,
+                animate: TransformDefinitions.FramerAnimate,
+                overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>
+            },
         gameState: GameState,
         state: SequenceProps<T>,
         after?: (state: DeepPartial<T>) => void
@@ -169,18 +173,18 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
                         state = Transform.mergeState(state, props);
                         const animation = animate(
                             current,
-                            this.propToCSS(gameState, state),
+                            this.propToCSS(gameState, state, overwrites),
                             this.optionsToFramerMotionOptions(options) || {}
                         );
                         this.setControl(animation);
 
                         if (options?.sync !== false) {
                             await new Promise<void>(r => animation.then(() => r()));
-                            Object.assign(current["style"], this.propToCSS(gameState, state));
+                            Object.assign(current["style"], this.propToCSS(gameState, state, overwrites));
                             this.setControl(null);
                         } else {
                             animation.then(() => {
-                                Object.assign(current["style"], this.propToCSS(gameState, state));
+                                Object.assign(current["style"], this.propToCSS(gameState, state, overwrites));
                                 this.setControl(null);
                             });
                         }
@@ -230,7 +234,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         return this;
     }
 
-    propToCSS(state: GameState, prop: DeepPartial<T>): DOMKeyframesDefinition {
+    propToCSS(state: GameState, prop: DeepPartial<T>, overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>): DOMKeyframesDefinition {
         const {invertY, invertX} = state.getLastScene()?.config || {};
         const FieldHandlers: Record<string, (v: any) => any> = {
             "position": (value: IPosition) => Transform.positionToCSS(value, invertY, invertX),
@@ -248,10 +252,15 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         if (this.transformers["transform"]) {
             Object.assign(props, this.transformers["transform"](prop));
         }
+        if (overwrites && overwrites["transform"]) {
+            Object.assign(props, overwrites["transform"](prop));
+        }
 
         for (const key in prop) {
             if (!Object.prototype.hasOwnProperty.call(prop, key)) continue;
-            if (this.transformers[key as keyof TransformersMap]) {
+            if (overwrites && overwrites[key as keyof TransformersMap]) {
+                Object.assign(props, overwrites[key as keyof TransformersMap]!(prop[key]));
+            } else if (this.transformers[key as keyof TransformersMap]) {
                 Object.assign(props, this.transformers[key as keyof TransformersMap]!(prop[key]));
             } else if (FieldHandlers[key]) {
                 Object.assign(props, FieldHandlers[key](prop[key]));

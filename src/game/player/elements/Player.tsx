@@ -20,6 +20,7 @@ import {Preload} from "@player/elements/preload/Preload";
 import {Preloaded} from "@player/lib/Preloaded";
 import {GameState, PlayerAction} from "@player/gameState";
 import {useGame} from "@player/provider/game-state";
+import Motion from "@player/lib/Motion";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -109,65 +110,68 @@ export default function Player({
     }
 
     return (
-        <div style={{
-            width: typeof width === "number" ? `${width}px` : width,
-            height: typeof height === "number" ? `${height}px` : height,
-        }} className={clsx(className)}>
-            <Main className={clsx("flex-grow overflow-auto")}>
-                <Isolated className="relative">
-                    {
-                        state.state.srcManagers.map((srcManager, i) => {
-                            return (
-                                <Preload key={i} state={state} srcManager={srcManager}/>
-                            );
-                        })
-                    }
-                    <OnlyPreloaded onLoaded={handlePreloadLoaded}>
+        <Motion>
+            <div style={{
+                width: typeof width === "number" ? `${width}px` : width,
+                height: typeof height === "number" ? `${height}px` : height,
+            }} className={clsx(className)}>
+                <Main className={clsx("flex-grow overflow-auto")}>
+                    <Isolated className="relative">
                         {
-                            state.getSceneElements().map(({scene, ele}) => {
+                            state.state.srcManagers.map((srcManager, i) => {
                                 return (
-                                    <StageScene key={"scene-" + scene.id} state={state} scene={scene}>
-                                        {
-                                            (ele.images.map((image) => {
-                                                return (
-                                                    <StageImage key={"image-" + image.id} image={image} state={state}/>
-                                                );
-                                            }))
-                                        }
-                                        {
-                                            ele.texts.map(({action, onClick}) => {
-                                                return (
-                                                    <Say key={"say-" + action.id} action={action} onClick={() => {
-                                                        onClick();
-                                                        next();
-                                                    }}/>
-                                                );
-                                            })
-                                        }
-                                        {
-                                            ele.menus.map((action, i) => {
-                                                return (
-                                                    <div key={"menu-" + i}>
-                                                        {
-                                                            <Menu prompt={action.action.prompt}
-                                                                  choices={action.action.choices}
-                                                                  afterChoose={(choice) => {
-                                                                      action.onClick(choice);
-                                                                      next();
-                                                                  }}/>
-                                                        }
-                                                    </div>
-                                                );
-                                            })
-                                        }
-                                    </StageScene>
+                                    <Preload key={i} state={state} srcManager={srcManager}/>
                                 );
                             })
                         }
-                    </OnlyPreloaded>
-                </Isolated>
-            </Main>
-        </div>
+                        <OnlyPreloaded onLoaded={handlePreloadLoaded}>
+                            {
+                                state.getSceneElements().map(({scene, ele}) => {
+                                    return (
+                                        <StageScene key={"scene-" + scene.id} state={state} scene={scene}>
+                                            {
+                                                (ele.images.map((image) => {
+                                                    return (
+                                                        <StageImage key={"image-" + image.id} image={image}
+                                                                    state={state}/>
+                                                    );
+                                                }))
+                                            }
+                                            {
+                                                ele.texts.map(({action, onClick}) => {
+                                                    return (
+                                                        <Say key={"say-" + action.id} action={action} onClick={() => {
+                                                            onClick();
+                                                            next();
+                                                        }}/>
+                                                    );
+                                                })
+                                            }
+                                            {
+                                                ele.menus.map((action, i) => {
+                                                    return (
+                                                        <div key={"menu-" + i}>
+                                                            {
+                                                                <Menu prompt={action.action.prompt}
+                                                                      choices={action.action.choices}
+                                                                      afterChoose={(choice) => {
+                                                                          action.onClick(choice);
+                                                                          next();
+                                                                      }}/>
+                                                            }
+                                                        </div>
+                                                    );
+                                                })
+                                            }
+                                        </StageScene>
+                                    );
+                                })
+                            }
+                        </OnlyPreloaded>
+                    </Isolated>
+                </Main>
+            </div>
+        </Motion>
     );
 }
 

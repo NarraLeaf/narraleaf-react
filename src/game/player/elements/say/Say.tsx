@@ -6,7 +6,6 @@ import clsx from "clsx";
 import React, {useEffect, useState} from "react";
 import {useGame} from "@player/provider/game-state";
 
-// @todo: 增加其他模式的say支持
 
 export default function Say({
                                 action,
