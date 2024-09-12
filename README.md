@@ -36,6 +36,7 @@ export default function App() {
         src: "https://placehold.it/200x200",
     })
 
+    // Add actions to the scene
     scene1.action([
         // Show image1 for 1 second
         image1.show({
@@ -53,9 +54,8 @@ export default function App() {
     story.entry(scene1);
 
     function handleOnReady(game: Game) {
-        game.getLiveGame().loadStory(story);
         game.getLiveGame().newGame();
-        console.log("Game is ready!", game);
+        console.log("Game is ready!");
     }
 
     return (
