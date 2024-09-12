@@ -147,7 +147,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             });
 
             this.callee.events.once("event:scene.imageLoaded", () => {
-                const initTransform = this.callee.toTransform();
+                const initTransform = this.callee._toTransform();
                 this.callee.events.any("event:scene.initTransform", initTransform).then(() => {
                     awaitable.resolve({
                         type: this.type,

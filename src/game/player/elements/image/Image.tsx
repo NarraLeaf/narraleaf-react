@@ -1,19 +1,15 @@
 import {Image as GameImage} from "@core/elements/image";
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {DOMKeyframesDefinition, useAnimate} from "framer-motion";
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
 import {Transform} from "@core/elements/transform/transform";
 import {Utils} from "@core/common/core";
-import {
-    CSSElementProp,
-    ImgElementProp,
-    ITransition,
-    TransitionEventTypes
-} from "@core/elements/transition/type";
+import {CSSElementProp, ImgElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";
 import Isolated from "@player/lib/isolated";
+import {useGame} from "@player/provider/game-state";
 
-// @todo: 增加无障碍支持
+// @todo: add a11y support
 
 export default function Image({
                                   image,
@@ -33,6 +29,8 @@ export default function Image({
         useState<null | ITransition>(null);
     const [transitionProps, setTransitionProps] =
         useState<ImgElementProp[]>([]);
+    const startTime = useRef<number>(0);
+    const {game} = useGame();
 
     useEffect(() => {
         image.setScope(scope);
@@ -118,6 +116,24 @@ export default function Image({
         };
     }, [transition, image]);
 
+    useEffect(() => {
+        startTime.current = Date.now();
+    }, []);
+
+    const handleLoad = () => {
+        const endTime = Date.now();
+        const loadTime = endTime - startTime.current;
+        const threshold = game.config.elements.img.slowLoadThreshold;
+
+        if (loadTime > threshold && game.config.elements.img.slowLoadWarning) {
+            console.warn(
+                `Image took ${loadTime}ms to load, which exceeds the threshold of ${threshold}ms. ` +
+                "Consider enable cache for the image, so Preloader can preload it before it's used. " +
+                "To disable this warning, set `elements.img.slowLoadWarning` to false in the game config."
+            );
+        }
+    };
+
     function assignTo(arg0: Transform | Record<string, any>) {
         if (transform && transform.getControl()) {
             console.warn("processing transform not completed");
@@ -139,9 +155,6 @@ export default function Image({
         src: Utils.staticImageDataToSrc(image.state.src),
         width: image.state.width,
         height: image.state.height,
-        style: {
-            border: "dashed 5px red",
-        }
     };
 
     return (
@@ -151,10 +164,12 @@ export default function Image({
                     deepMerge<ImgElementProp>(defaultProps, transformProps, elementProps, transitionProps[index] || {});
                 return (
                     <img key={index} alt={mergedProps.alt} {...mergedProps}
-                         ref={index === (arr.length - 1) ? scope : undefined}/>
+                         ref={index === (arr.length - 1) ? scope : undefined}
+                         onLoad={handleLoad}/>
                 );
             }) : (
-                <img ref={scope} alt={"image"} {...deepMerge(defaultProps, transformProps)} />
+                <img ref={scope} alt={"image"} {...deepMerge(defaultProps, transformProps)}
+                     onLoad={handleLoad}/>
             )}
         </Isolated>
     );

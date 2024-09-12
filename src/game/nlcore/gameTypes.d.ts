@@ -37,6 +37,13 @@ export type GameConfig = {
              */
             skipKeys: string[];
             textSpeed: number;
+        },
+        img: {
+            /**
+             * If true, the game will show a warning when loading takes longer than `elements.img.slowLoadThreshold`
+             */
+            slowLoadWarning: boolean;
+            slowLoadThreshold: number;
         }
     }
 };

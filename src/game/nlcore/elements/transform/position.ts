@@ -116,11 +116,19 @@ export class PositionUtils {
 }
 
 export class CommonPosition implements IPosition {
-    public static positions = CommonPositionType;
+    public static Positions = CommonPositionType;
     readonly position: CommonPositionType;
 
-    constructor(position: CommonPositionType) {
-        this.position = position;
+    /**
+     * Create a new CommonPosition instance
+     * @example
+     * ```ts
+     * new CommonPosition(CommonPosition.Positions.Center);
+     * new CommonPosition("Center");
+     * ```
+     */
+    constructor(position: CommonPositionType | keyof typeof CommonPositionType) {
+        this.position = typeof position === "number" ? position : CommonPositionType[position];
     }
 
     static isCommonPositionType(arg: any): arg is CommonPosition {
@@ -143,6 +151,15 @@ export class Coord2D implements IPosition {
     readonly xoffset: UnknownAble<number>;
     readonly yoffset: UnknownAble<number>;
 
+    /**
+     * Create a new Coord2D instance
+     * @example
+     * ```ts
+     * new Coord2D("50%", "50%");
+     * new Coord2D({x: 1280, y: "50%"});
+     * new Coord2D({x: 1280, y: "-50%", xoffset: 10, yoffset: 20});
+     * ```
+     */
     constructor(arg0: {
         x?: UnknownAble<Coord2DPosition["x"]>;
         y?: UnknownAble<Coord2DPosition["y"]>;
@@ -216,6 +233,15 @@ export class Align implements IPosition {
     readonly xoffset: UnknownAble<number>;
     readonly yoffset: UnknownAble<number>;
 
+    /**
+     * Create a new Align instance
+     * @example
+     * ```ts
+     * new Align(0.5, 0.5);
+     * new Align({xalign: 0.25, yalign: 0.5});
+     * new Align({xalign: 0.25, yalign: 0.5, xoffset: 10, yoffset: 20});
+     * ```
+     */
     constructor(xalign?: UnknownAble<number>, yalign?: UnknownAble<number>);
 
     constructor(arg0: {

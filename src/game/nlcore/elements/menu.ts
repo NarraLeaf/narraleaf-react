@@ -40,6 +40,13 @@ export class Menu extends Actionable {
         this.config = deepMerge<MenuConfig>(Menu.defaultConfig, config);
     }
 
+    /**
+     * Add a choice to the menu
+     * @example
+     * menu.choose("Go left", [
+     *     character.say("I went left").toActions()
+     * ]);
+     */
     public choose(choice: MenuChoice): this;
     public choose(prompt: Sentence, action: (Actions | Actions[])[]): this;
     public choose(prompt: UnSentencePrompt, action: (Actions | Actions[])[]): this;

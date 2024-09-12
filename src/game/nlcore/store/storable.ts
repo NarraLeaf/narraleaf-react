@@ -38,7 +38,7 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return false;
     }
 
-    set<Key extends keyof T>(key: Key, value: T[Key]): this {
+    public set<Key extends keyof T>(key: Key, value: T[Key]): this {
         if (!Namespace.isSerializable(value)) {
             console.warn(`Value "${value}" in key "${String(key)}" is not serializable, and will not be set\nat namespace "${this.name}"`);
             this.content[key] = value;
@@ -48,7 +48,7 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return this;
     }
 
-    get<Key extends keyof T>(key: Key): T[Key] {
+    public get<Key extends keyof T>(key: Key): T[Key] {
         return this.content[key] as T[Key];
     }
 

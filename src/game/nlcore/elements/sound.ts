@@ -22,20 +22,20 @@ export type SoundConfig = {
     // @todo: 速读模式
     // @todo: 速读模式中忽略voice和soundEffect
     /**
-     * 声音类型
-     * - **soundEffect**：音效
-     * - **music**：音乐
-     * - **voice**：语音
-     * - **backgroundMusic**：背景音乐
+     * Sound type
+     * - **soundEffect**: Sound effect
+     * - **music**: Music
+     * - **voice**: Voice
+     * - **backgroundMusic**: Background music
      */
     type?: SoundType;
     src: string;
     /**
-     * 如果为真，该操作会阻塞直到声音播放完毕
+     * If true, the operation will wait until the sound is played
      */
     sync: boolean;
     /**
-     * 是否循环播放，如果sync和loop都为真，sync会当作**false**处理
+     * Whether to loop, if sync and loop are both true, sync will be treated as **false**
      */
     loop: boolean;
     volume: number;

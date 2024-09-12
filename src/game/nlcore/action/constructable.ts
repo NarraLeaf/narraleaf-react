@@ -131,7 +131,7 @@ export class Constructable<
 
     /**
      * @internal
-     * 通过多个ID查找多个元素
+     * Find multiple elements by multiple IDs
      */
     findElementsByIds(ids: string[], elements: LogicAction.GameElement[]): LogicAction.GameElement[] {
         const map = new Map<string, LogicAction.GameElement>();
@@ -140,7 +140,7 @@ export class Constructable<
     }
 
     /**
-     * 将动作添加到当前指定上下文实例中
+     * Adds an action to the current specified context instance
      */
     protected _action(actions: (callee: this) => (TAction | TAction[])[]): CAction;
 

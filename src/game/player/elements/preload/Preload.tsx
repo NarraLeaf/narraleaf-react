@@ -1,4 +1,4 @@
-import React, {useEffect} from "react";
+import {useEffect} from "react";
 import {GameState} from "@player/gameState";
 import {Sound} from "@core/elements/sound";
 import {SrcManager} from "@core/elements/srcManager";
@@ -6,7 +6,6 @@ import {usePreloaded} from "@player/provider/preloaded";
 import {Preloaded, PreloadedSrc} from "@player/lib/Preloaded";
 import {Image as GameImage} from "@core/elements/image";
 import {Utils} from "@core/common/Utils";
-import {Img} from "./Img";
 
 export function Preload({
                             state,
@@ -67,17 +66,11 @@ export function Preload({
         const newImages: HTMLImageElement[] = [];
         const promises: Promise<any>[] = [];
         src.image.forEach((src: GameImage) => {
-            let resolve: () => void;
-
             const htmlImg = new Image();
             htmlImg.src = Utils.srcToString(src.state.src);
             newImages.push(htmlImg);
 
-            const img = (<Img image={src} state={state} onLoad={() => {
-                resolve();
-                console.info("[Preload] Image loaded", src); // @debug
-            }}/>);
-            preloaded.add({type: "image", src, preloaded: img});
+            preloaded.add({type: "image", src});
         });
 
         Promise.all(promises).then(() => {

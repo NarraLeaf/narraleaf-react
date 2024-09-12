@@ -104,10 +104,6 @@ export default function BackgroundTransition({scene, props, state}: {
     const defaultProps = {
         width: scene.backgroundImageState.width,
         height: scene.backgroundImageState.height,
-        style: {
-            border: "dashed 3px red",
-            position: "absolute",
-        },
     };
 
     return (

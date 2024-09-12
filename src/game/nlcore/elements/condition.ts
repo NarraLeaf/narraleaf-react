@@ -122,9 +122,6 @@ export class Condition extends Actionable {
     }
 
     toActions(): LogicAction.Actions[] {
-        // 为了确保所有操作的行为一致，修改为一次性toActions，调用之后状态恢复到初始状态
-        // 防止多次调用toActions导致状态混乱
-
         const output = [
             Reflect.construct(ConditionAction, [
                 this,

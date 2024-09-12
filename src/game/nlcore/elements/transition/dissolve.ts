@@ -30,6 +30,9 @@ export class Dissolve extends Base<DissolveProps> implements ITransition<Dissolv
     };
     private src: string | undefined;
 
+    /**
+     * Image will dissolve from one image to another
+     */
     constructor(duration: number = 1000, src?: string | NextJSStaticImageData | Scene) {
         super();
         this.duration = duration;

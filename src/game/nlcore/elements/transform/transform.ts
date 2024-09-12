@@ -201,14 +201,12 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     }
 
     /**
-     * 将动画的重复次数乘以n
-     * 会受到传入Config的影响
      * @example
      * ```ts
      * transform
      *   .repeat(2)
      *   .repeat(3)
-     * // 重复6次
+     * // repeat 6 times
      * ```
      */
     public repeat(n: number) {
@@ -218,6 +216,8 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
 
     /**
      * overwrite a transformer
+     *
+     * **we don't recommend using this method**
      * @example
      * ```ts
      * transform.overwrite("position", (value) => {

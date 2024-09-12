@@ -118,6 +118,26 @@ export class Character extends Actionable<
         this.config = config;
     }
 
+    /**
+     * Say something
+     * @example
+     * ```typescript
+     * character.say("Hello, world!").toActions();
+     * ```
+     * @example
+     * ```typescript
+     * character
+     *     .say("Hello, world!")
+     *     .say("Hello, world!")
+     *     .toActions();
+     * ```
+     * @example
+     * ```typescript
+     * character.say(new Sentence(character, [
+     *     "Hello, ",
+     *     new Word("world", {color: "#f00"}), // Some words can be colored
+     * ])).toActions();
+     */
     public say(content: string): Character;
     public say(content: Sentence): Character;
     public say(content: (string | Word)[]): Character;

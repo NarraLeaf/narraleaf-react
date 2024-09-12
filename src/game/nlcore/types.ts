@@ -38,7 +38,7 @@ export interface StaticImageData {
 export type Background = {
     background: {
         url: string;
-    } | color | null | undefined | NextJSStaticImageData;
+    } | color | null | undefined | StaticImageData;
 }
 
 export type CommonImagePosition = "left" | "center" | "right";

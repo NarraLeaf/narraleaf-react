@@ -30,11 +30,13 @@ export default function Player({
                                    onReady,
                                    width,
                                    height,
+                                   className,
                                }: Readonly<{
     story: Story;
     onReady?: (game: Game) => void;
     width?: string | number;
     height?: string | number;
+    className?: clsx.ClassValue;
 }>) {
     const [, forceUpdate] = useReducer((x) => x + 1, 0);
     const {game} = useGame();
@@ -110,7 +112,7 @@ export default function Player({
         <div style={{
             width: typeof width === "number" ? `${width}px` : width,
             height: typeof height === "number" ? `${height}px` : height,
-        }}>
+        }} className={clsx(className)}>
             <Main className={clsx("flex-grow overflow-auto")}>
                 <Isolated className="relative">
                     {

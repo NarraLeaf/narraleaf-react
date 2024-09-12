@@ -138,10 +138,18 @@ export class Image extends Actionable<ImageDataRaw> {
     }
 
     /**
-     * 设置图片源
-     * @param src 可以是public目录下的文件
+     * Set the source of the image
+     *
+     * Src could be a string, StaticImageData, or Scene
+     *
+     * If transition is provided, the image will transition to the new src
+     * @param src
      * @param transition
-     * 例如 **%root%/public/static/image.png** 在这里应该填入 **"/static/image.png"**
+     * @example
+     * ```ts
+     * import yourImage from "path/to/image.png";
+     * image.setSrc(yourImage, new Fade(1000));
+     * ```
      */
     public setSrc(src: string | StaticImageData, transition?: ITransition): this {
         if (transition) {
@@ -160,6 +168,37 @@ export class Image extends Actionable<ImageDataRaw> {
         return this;
     }
 
+    /**
+     * Apply a transform to the image
+     * @example
+     * ```ts
+     * // shake the image
+     * image.applyTransform(
+     *     new Transform([
+     *         {
+     *             props: {
+     *                 position: new Coord2D({
+     *                     xoffset: 10,
+     *                 })
+     *             },
+     *             options: {
+     *                 duration: 100,
+     *             }
+     *         },
+     *         {
+     *             props: {
+     *                 position: new Coord2D({
+     *                     xoffset: -10,
+     *                 })
+     *             },
+     *             options: {
+     *                 duration: 100,
+     *             }
+     *         }
+     *     ]).repeat(3);
+     * );
+     * ```
+     */
     public applyTransform(transform: Transform): this {
         const action = new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
             this,
@@ -175,16 +214,18 @@ export class Image extends Actionable<ImageDataRaw> {
     }
 
     /**
-     * 让图片显示，如果图片已显示，则不会有任何效果
+     * Show the image
+     *
+     * if options is provided, the image will show with the provided transform options
+     * @example
+     * ```ts
+     * image.show({
+     *     duration: 1000,
+     * });
+     * ```
      */
     public show(): this;
 
-    /**
-     * 让图片显示，如果图片已显示，则不会有任何效果
-     *
-     * 如果使用自定义Transform，需要在变换时设置opacity为1
-     * @param options
-     */
     public show(options: Transform): this;
 
     public show(options: Partial<TransformDefinitions.CommonTransformProps>): this;
@@ -212,16 +253,10 @@ export class Image extends Actionable<ImageDataRaw> {
     }
 
     /**
-     * 让图片隐藏，如果图片已隐藏，则不会有任何效果
+     * Hide the image
      */
     public hide(): this;
 
-    /**
-     * 让图片隐藏，如果图片已隐藏，则不会有任何效果
-     *
-     * 如果使用自定义Transform，需要在变换时设置opacity为0
-     * @param transform
-     */
     public hide(transform: Transform): this;
 
     public hide(transform: Partial<TransformDefinitions.CommonTransformProps>): this;

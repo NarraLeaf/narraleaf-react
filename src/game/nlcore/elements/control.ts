@@ -9,42 +9,42 @@ import Actions = LogicAction.Actions;
 
 export class Control extends Actionable {
     /**
-     * 按顺序执行操作，并且等待执行完成
+     * Execute actions in order, waiting for each action to complete
      */
     public static do(actions: (Actions | Actions[])[]): Control {
         return new Control().do(actions);
     }
 
     /**
-     * 按顺序执行操作，不等待执行完成
+     * Execute actions in order, do not wait for this action to complete
      */
     public static doAsync(actions: (Actions | Actions[])[]): Control {
         return new Control().doAsync(actions);
     }
 
     /**
-     * 同时执行所有操作，等待任意一个操作执行完成
+     * Execute all actions at the same time, waiting for any one action to complete
      */
     public static any(actions: (Actions | Actions[])[]): Control {
         return new Control().any(actions);
     }
 
     /**
-     * 同时执行所有操作，等待所有操作执行完成
+     * Execute all actions at the same time, waiting for all actions to complete
      */
     public static all(actions: (Actions | Actions[])[]): Control {
         return new Control().all(actions);
     }
 
     /**
-     * 同时执行所有操作，不等待所有操作执行完成
+     * Execute all actions at the same time, do not wait for all actions to complete
      */
     public static allAsync(actions: (Actions | Actions[])[]): Control {
         return new Control().allAsync(actions);
     }
 
     /**
-     * 重复执行操作
+     * Execute actions multiple times
      */
     public static repeat(times: number, actions: (Actions | Actions[])[]): Control {
         return new Control().repeat(times, actions);
