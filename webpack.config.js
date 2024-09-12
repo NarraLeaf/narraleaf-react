@@ -107,7 +107,4 @@ module.exports = {
     plugins: [
         ...(useAnalyzer ? [new BundleAnalyzerPlugin()] : []),
     ],
-    cache: {
-        type: "filesystem",
-    },
 };

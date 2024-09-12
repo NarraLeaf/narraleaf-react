@@ -6,3 +6,5 @@ export * from "@core/common/player";
 // @todo: add pause and resume to sound
 // @todo: skip mode
 // @todo: add other modes to "say" element
+// @todo: add story end event
+// @fixme: tap space will trigger unexpected behavior

@@ -11,8 +11,6 @@ import {SceneEventTypes} from "@core/elements/scene";
 
 import Main from "@player/lib/main";
 import Isolated from "@player/lib/isolated";
-import Say from "@player/elements/say/Say";
-import Menu from "@player/elements/menu/Menu";
 import {default as StageScene} from "@player/elements/scene/Scene";
 import {default as StageImage} from "@player/elements/image/Image";
 import {usePreloaded} from "@player/provider/preloaded";
@@ -48,6 +46,9 @@ export default function Player({
         next,
         dispatch: (action) => dispatch(action),
     }));
+
+    const Say = game.config.elements.say.use;
+    const Menu = game.config.elements.menu.use;
 
     function next() {
         let exited = false;

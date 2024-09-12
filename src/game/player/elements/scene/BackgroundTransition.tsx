@@ -15,8 +15,6 @@ export default function BackgroundTransition({scene, props, state}: {
     const [scope, animate] = useAnimate();
     const [transition, setTransition] =
         useState<null | ITransition>(null);
-    const [transitionProps, setTransitionProps] =
-        useState<ElementProp[]>([]);
     const [transform, setTransform] =
         useState<null | Transform>(null);
     const [transformProps, setTransformProps] =
@@ -60,12 +58,6 @@ export default function BackgroundTransition({scene, props, state}: {
 
         const transitionEventTokens = transition ? transition.events.onEvents([
             {
-                type: TransitionEventTypes.update,
-                listener: transition.events.on(TransitionEventTypes.update, (progress) => {
-                    setTransitionProps(progress);
-                })
-            },
-            {
                 type: TransitionEventTypes.end,
                 listener: transition.events.on(TransitionEventTypes.end, () => {
                     setTransition(null);
@@ -101,9 +93,11 @@ export default function BackgroundTransition({scene, props, state}: {
         }
     }
 
+    const emptyImage = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
     const defaultProps = {
         width: scene.backgroundImageState.width,
         height: scene.backgroundImageState.height,
+        src: emptyImage,
     };
 
     return (
@@ -112,20 +106,22 @@ export default function BackgroundTransition({scene, props, state}: {
                 transition ? (() => {
                     return transition.toElementProps().map((elementProps, index, arr) => {
                         const mergedProps =
-                            deepMerge<ImgElementProp>(defaultProps, props, elementProps, transitionProps, transformProps);
+                            deepMerge<ImgElementProp>(defaultProps, props, elementProps, transformProps);
                         return (
                             <Background key={index}>
                                 <img alt={mergedProps.alt} {...mergedProps} onLoad={handleImageOnload}
+                                     src={mergedProps.src || emptyImage}
                                      ref={index === (arr.length - 1) ? scope : undefined} className={"absolute"}/>
                             </Background>
                         );
                     });
                 })() : (() => {
                     const mergedProps =
-                        deepMerge<ImgElementProp>(defaultProps, props, transitionProps, transformProps);
+                        deepMerge<ImgElementProp>(defaultProps, props, transformProps);
                     return (
                         <Background>
                             <img alt={mergedProps.alt} {...mergedProps} onLoad={handleImageOnload} ref={scope}
+                                 src={mergedProps.src || emptyImage}
                                  className={"absolute"}/>
                         </Background>
                     );

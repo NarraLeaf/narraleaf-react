@@ -3,6 +3,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {ElementStateRaw} from "@core/elements/story";
 import {PlayerStateData} from "@player/gameState";
 import {StorableData} from "@core/store/type";
+import {MenuComponent, SayComponent} from "@player/elements/type";
 
 
 export interface SavedGame {
@@ -37,6 +38,7 @@ export type GameConfig = {
              */
             skipKeys: string[];
             textSpeed: number;
+            use: SayComponent;
         },
         img: {
             /**
@@ -44,6 +46,26 @@ export type GameConfig = {
              */
             slowLoadWarning: boolean;
             slowLoadThreshold: number;
+        },
+        menu: {
+            use: MenuComponent;
+        }
+    },
+    elementStyles: {
+        say: {
+            /**
+             * Custom class for the say container
+             * Ex: "rounded-md shadow-md" for rounded and shadowed container
+             */
+            container: string;
+            nameText: string;
+            textContainer: string;
+            textSpan: string;
+        },
+        menu: {
+            container: string;
+            choiceButton: string;
+            choiceButtonText: string;
         }
     }
 };

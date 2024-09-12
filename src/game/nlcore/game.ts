@@ -5,6 +5,7 @@ import {Singleton} from "@lib/util/singleton";
 import {Story} from "./elements/story";
 import {LogicAction} from "@core/action/logicAction";
 import {GameState} from "@player/gameState";
+import {DefaultElements} from "@player/elements/elements";
 
 class IdManager extends Singleton<IdManager>() {
     private id = 0;
@@ -58,10 +59,27 @@ export class Game {
             say: {
                 skipKeys: [" "],
                 textSpeed: 50,
+                use: DefaultElements.say,
             },
             img: {
                 slowLoadWarning: true,
                 slowLoadThreshold: 200,
+            },
+            menu: {
+                use: DefaultElements.menu,
+            }
+        },
+        elementStyles: {
+            say: {
+                container: "",
+                nameText: "",
+                textContainer: "",
+                textSpan: "",
+            },
+            menu: {
+                container: "",
+                choiceButton: "",
+                choiceButtonText: "",
             }
         }
     };

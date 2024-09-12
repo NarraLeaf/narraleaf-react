@@ -1,6 +1,6 @@
 import {CalledActionResult} from "@core/gameTypes";
 import {EventDispatcher} from "@lib/util/data";
-import {Character, Sentence} from "@core/elements/text";
+import {Sentence} from "@core/elements/text";
 import {Choice, MenuData} from "@core/elements/menu";
 import {Image, ImageEventTypes} from "@core/elements/image";
 import {Scene} from "@core/elements/scene";
@@ -10,22 +10,7 @@ import {SrcManager} from "@core/elements/srcManager";
 import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/store/storable";
 import {Game} from "@core/game";
-
-type Clickable<T, U = undefined> = {
-    action: T;
-    onClick: U extends undefined ? () => void : (arg0: U) => void;
-};
-
-type TextElement = {
-    character: Character | null;
-    sentence: Sentence;
-    id: string;
-};
-
-type MenuElement = {
-    prompt: Sentence;
-    choices: Choice[];
-};
+import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
