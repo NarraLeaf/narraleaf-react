@@ -53,7 +53,7 @@ export class Image extends Actionable<ImageDataRaw> {
         "event:image.ready": "event:image.ready",
         "event:image.elementLoaded": "event:image.elementLoaded",
         "event:image.setTransition": "event:image.setTransition",
-    }
+    };
     static defaultConfig: ImageConfig = {
         src: "",
         display: false,
@@ -97,7 +97,7 @@ export class Image extends Actionable<ImageDataRaw> {
         };
         const result: Record<string, any> = {};
         for (const key in state) {
-            if (state.hasOwnProperty(key)) {
+            if (Object.prototype.hasOwnProperty.call(state, key)) {
                 result[key] = handlers[key] ? handlers[key](state[key]) : state[key];
             }
         }
@@ -112,7 +112,7 @@ export class Image extends Actionable<ImageDataRaw> {
         };
         const result: Record<string, any> = {};
         for (const key in state) {
-            if (state.hasOwnProperty(key)) {
+            if (Object.prototype.hasOwnProperty.call(state, key)) {
                 result[key] = handlers[key] ? handlers[key](state[key]) : state[key];
             }
         }
@@ -171,7 +171,7 @@ export class Image extends Actionable<ImageDataRaw> {
             ])
         );
         this.actions.push(action);
-        return this
+        return this;
     }
 
     /**
@@ -258,7 +258,7 @@ export class Image extends Actionable<ImageDataRaw> {
             width: this.state.width,
             height: this.state.height,
             style: {
-                position: 'absolute',
+                position: "absolute",
             }
         };
     }

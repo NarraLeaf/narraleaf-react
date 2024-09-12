@@ -12,15 +12,15 @@ export const CommonPositions = {
     [CommonPositionType.Right]: "66.66%",
 } as {
     [key in CommonPositionType]: `${number}%`;
-}
+};
 
 export interface IPosition {
     toCSS(): D2Position;
 }
 
 export type Coord2DPosition = {
-    x: number | `${'-' | ''}${number}%`;
-    y: number | `${'-' | ''}${number}%`;
+    x: number | `${"-" | ""}${number}%`;
+    y: number | `${"-" | ""}${number}%`;
 } & OffsetPosition;
 
 export type AlignPosition = {
@@ -68,7 +68,7 @@ export class PositionUtils {
         return this.wrap({
             ...yRes,
             ...xRes,
-        })
+        });
     }
 
     static calc(pos: number | string, offset?: UnknownAble<number>): string {
@@ -239,8 +239,8 @@ export class Align implements IPosition {
         } else {
             this.xalign = arg0 || PositionUtils.Unknown;
             this.yalign = yalign || PositionUtils.Unknown;
-            this.xoffset = 0 || PositionUtils.Unknown;
-            this.yoffset = 0 || PositionUtils.Unknown;
+            this.xoffset = PositionUtils.Unknown;
+            this.yoffset = PositionUtils.Unknown;
         }
     }
 

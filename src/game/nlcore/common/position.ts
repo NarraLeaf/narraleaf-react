@@ -4,4 +4,4 @@ export {
     CommonPosition,
     Coord2D,
     CommonPositionType
-}
+};

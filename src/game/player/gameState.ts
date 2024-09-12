@@ -128,7 +128,6 @@ export class GameState {
             case "condition:action":
                 break;
         }
-        console.log("[handle]", action); // @debug
         return this;
     }
 
@@ -221,7 +220,7 @@ export class GameState {
 
     public offSrcManager(srcManager: SrcManager) {
         this.state.srcManagers = this.state.srcManagers.filter(s => s !== srcManager);
-        return this
+        return this;
     }
 
     public getStorable(): Storable {
@@ -236,7 +235,7 @@ export class GameState {
                     ele: {
                         images: e.ele.images.map(i => i.id)
                     }
-                }
+                };
             })
         };
     }

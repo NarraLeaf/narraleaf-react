@@ -74,7 +74,7 @@ export class Scene extends Constructable<
         "event:scene.initTransform": "event:scene.initTransform",
         "event:scene.setBackgroundMusic": "event:scene.setBackgroundMusic",
         "event:scene.applyTransform": "event:scene.applyTransform",
-    }
+    };
     static defaultConfig: SceneConfig = {
         background: null,
         invertY: false,
@@ -93,7 +93,7 @@ export class Scene extends Constructable<
     backgroundImageState: Partial<CommonImage>;
     _liveState = {
         active: false,
-    }
+    };
     _sceneRoot?: SceneAction<"scene:action">;
     private _actions: SceneAction<any>[] = [];
 
@@ -203,7 +203,7 @@ export class Scene extends Constructable<
     }
 
     public toActions(): SceneAction<any>[] {
-        let actions = this._actions;
+        const actions = this._actions;
         this._actions = [];
         return actions;
     }
@@ -223,7 +223,7 @@ export class Scene extends Constructable<
                 background: this.state.background,
                 backgroundImageState: Image.serializeImageState(this.backgroundImageState),
             },
-        }
+        };
     }
 
     fromData(data: SceneDataRaw): this {

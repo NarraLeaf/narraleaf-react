@@ -11,6 +11,7 @@ export type ImgElementProp = ElementProp<HTMLImageElement, React.ImgHTMLAttribut
 export type CSSElementProp<T extends React.CSSProperties | DOMKeyframesDefinition> = ElementProp & { style: T };
 export type CSSProps = React.CSSProperties;
 
+/* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
 export interface ITransition<T extends ElementProp = {}> {
     events: EventDispatcher<EventTypes<[T[]]>>;
 

@@ -6,7 +6,7 @@ export {
     Fade,
     FadeIn,
     Dissolve
-}
+};
 export type {
     ITransition
-}
+};

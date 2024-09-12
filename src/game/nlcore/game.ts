@@ -60,7 +60,7 @@ export class Game {
                 textSpeed: 50,
             }
         }
-    }
+    };
     static GameSettingsNamespace = GameSettingsNamespace;
     readonly config: Readonly<GameConfig>;
     liveGame: LiveGame | null = null;
@@ -251,7 +251,6 @@ export class LiveGame {
 
         if (this.lockedAwaiting) {
             if (!this.lockedAwaiting.solved) {
-                console.log("Locked awaiting");
                 this._lockedCount++;
 
                 if (this._lockedCount > 1000) {
@@ -299,9 +298,9 @@ export class LiveGame {
 export default {
     Game,
     LiveGame,
-}
+};
 
 export type {
     LogicAction
-}
+};
 

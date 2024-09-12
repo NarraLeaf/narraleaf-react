@@ -6,6 +6,7 @@ import {ConditionAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import {GameState} from "@player/gameState";
 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type ConditionConfig = {};
 
 interface LambdaCtx {
@@ -80,7 +81,7 @@ export class Condition extends Actionable {
             Else: {
                 action: null
             }
-        }
+        };
     }
 
     public If(condition: Lambda | LambdaHandler<boolean>, action: LogicAction.Actions | LogicAction.Actions[]): this {
@@ -137,8 +138,8 @@ export class Condition extends Actionable {
 
     construct(actions: LogicAction.Actions[], lastChild?: RenderableNode, parentChild?: RenderableNode): LogicAction.Actions[] {
         for (let i = 0; i < actions.length; i++) {
-            let node = actions[i].contentNode;
-            let child = actions[i + 1]?.contentNode;
+            const node = actions[i].contentNode;
+            const child = actions[i + 1]?.contentNode;
             if (child) {
                 node.setInitChild(child);
             }

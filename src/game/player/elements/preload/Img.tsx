@@ -29,4 +29,5 @@ export const Img = React.memo(function ({
     return (
         <img {...props} alt={""} onLoad={onLoad}/>
     );
-})
+});
+Img.displayName = "Img";

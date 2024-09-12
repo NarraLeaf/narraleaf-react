@@ -6,6 +6,7 @@ import {RawData, RenderableNode} from "@core/action/tree/actionTree";
 import {Scene} from "@core/elements/scene";
 import {StaticChecker} from "@core/common/Utils";
 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type StoryConfig = {};
 export type ElementStateRaw = Record<string, any>;
 export type NodeChildIdMap = Map<string, string>;
@@ -122,8 +123,7 @@ export class Story extends Constructable<
 
         this.setActions([actions]);
         scene.registerSrc();
-        const states = new StaticChecker(scene).start();
-        console.log("check result", states);
+        new StaticChecker(scene).start();
         return this;
     }
 }

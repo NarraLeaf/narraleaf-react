@@ -156,7 +156,7 @@ export class Storable {
 
     public load(data: { [key: string]: StorableData }) {
         if (!data) {
-            console.warn('No data to load');
+            console.warn("No data to load");
             return;
         }
         Object.entries(data).forEach(([key, content]) => {

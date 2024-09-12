@@ -18,7 +18,7 @@ export function Preload({
     const {preloaded} = usePreloaded();
 
     useEffect(() => {
-        if (typeof window === 'undefined') {
+        if (typeof window === "undefined") {
             console.warn("Window is not supported in this environment");
             return;
         }
@@ -96,10 +96,8 @@ export function Preload({
             }
         });
 
-        console.log("[Preload] Preloaded", preloaded.preloaded, src.image); // @debug
         preloaded.events.emit(Preloaded.EventTypes["event:preloaded.mount"]);
 
-        // @todo: better src manager, smart preload
         // maybe video preload here
 
         return () => {

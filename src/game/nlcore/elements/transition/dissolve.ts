@@ -23,7 +23,7 @@ type DissolveProps = {
  * @description Dissolve transition effect
  */
 export class Dissolve extends Base<DissolveProps> implements ITransition<DissolveProps> {
-    static Frames: [number, number] = [1, 0]
+    static Frames: [number, number] = [1, 0];
     private readonly duration: number;
     private state: DissolveElementProps = {
         opacity: 0,
@@ -55,7 +55,7 @@ export class Dissolve extends Base<DissolveProps> implements ITransition<Dissolv
             onUpdate: (value) => {
                 this.state.opacity = value;
             }
-        })
+        });
 
     }
 

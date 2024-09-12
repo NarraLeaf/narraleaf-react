@@ -7,6 +7,7 @@ import {MenuAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import Actions = LogicAction.Actions;
 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type MenuConfig = {};
 export type MenuChoice = {
     action: Actions[];
@@ -60,8 +61,8 @@ export class Menu extends Actionable {
 
     construct(actions: Actions[], lastChild?: RenderableNode, parentChild?: RenderableNode): Actions[] {
         for (let i = 0; i < actions.length; i++) {
-            let node = actions[i].contentNode;
-            let child = actions[i + 1]?.contentNode;
+            const node = actions[i].contentNode;
+            const child = actions[i + 1]?.contentNode;
             if (child) {
                 node.setInitChild(child);
             }

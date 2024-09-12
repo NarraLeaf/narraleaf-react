@@ -117,7 +117,7 @@ export default function Player({
                         state.state.srcManagers.map((srcManager, i) => {
                             return (
                                 <Preload key={i} state={state} srcManager={srcManager}/>
-                            )
+                            );
                         })
                     }
                     <OnlyPreloaded onLoaded={handlePreloadLoaded}>
@@ -129,7 +129,7 @@ export default function Player({
                                             (ele.images.map((image) => {
                                                 return (
                                                     <StageImage key={"image-" + image.id} image={image} state={state}/>
-                                                )
+                                                );
                                             }))
                                         }
                                         {
@@ -139,7 +139,7 @@ export default function Player({
                                                         onClick();
                                                         next();
                                                     }}/>
-                                                )
+                                                );
                                             })
                                         }
                                         {
@@ -155,18 +155,18 @@ export default function Player({
                                                                   }}/>
                                                         }
                                                     </div>
-                                                )
+                                                );
                                             })
                                         }
                                     </StageScene>
-                                )
+                                );
                             })
                         }
                     </OnlyPreloaded>
                 </Isolated>
             </Main>
         </div>
-    )
+    );
 }
 
 function OnlyPreloaded({children, onLoaded}: Readonly<{ children: React.ReactNode, onLoaded: () => void }>) {
@@ -179,11 +179,11 @@ function OnlyPreloaded({children, onLoaded}: Readonly<{ children: React.ReactNod
         });
         return () => {
             preloaded.events.off(Preloaded.EventTypes["event:preloaded.ready"], listener);
-        }
+        };
     }, [preloadedReady]);
     return (
         <>
             {preloadedReady ? children : null}
         </>
-    )
+    );
 }

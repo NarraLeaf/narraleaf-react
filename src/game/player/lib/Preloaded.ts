@@ -12,11 +12,13 @@ export type PreloadedSrc<T extends PreloadedSrcTypes = any> = ({
     type: "audio"; src: Sound;
 } | {
     type: "video"; src: string; preloaded: React.ReactElement;
+    /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
 }) & (T extends undefined ? {} :
     ({
         type: T;
     } & T extends "image" ? { src: Image; preloaded: React.ReactElement } :
         T extends "audio" ? { src: Sound } :
+            /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
             T extends "video" ? { src: string; preloaded: React.ReactElement } : {}));
 
 export type PreloadedEventTypes = {
@@ -34,7 +36,7 @@ export class Preloaded {
         "event:preloaded.change": "event:preloaded.change",
         "event:preloaded.mount": "event:preloaded.mount",
         "event:preloaded.ready": "event:preloaded.ready",
-    }
+    };
     preloaded: PreloadedSrc[] = [];
     events: EventDispatcher<PreloadedEventTypes> = new EventDispatcher();
 

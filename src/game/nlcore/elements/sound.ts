@@ -101,7 +101,7 @@ export class Sound extends Actionable<SoundDataRaw> {
             volume: this.config.volume,
             html5: this.config.streaming,
             autoplay: false,
-        }
+        };
     }
 
     getSrc() {

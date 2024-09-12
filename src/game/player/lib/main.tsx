@@ -3,13 +3,14 @@ import React, {useEffect, useState} from "react";
 import {useAspectRatio} from "@player/provider/ratio";
 import {useGame} from "@player/provider/game-state";
 
-export default function Main({
-                                 children,
-                                 className
-                             }: {
-    children: React.ReactNode,
-    className?: string;
-}) {
+export default function Main(
+    {
+        children,
+        className
+    }: {
+        children: React.ReactNode,
+        className?: string;
+    }) {
     const [style, setStyle] = useState({});
     const {setRatio} = useAspectRatio();
     const {game} = useGame();
@@ -89,7 +90,8 @@ export default function Main({
     }, [setRatio]);
 
     return (
-        <div id={game.config.player.contentContainerId} style={{position: "relative", width: "100%", height: "100%", overflow: "hidden"}}>
+        <div id={game.config.player.contentContainerId}
+             style={{position: "relative", width: "100%", height: "100%", overflow: "hidden"}}>
             <div className={clsx(className)} style={style}>
                 {children}
             </div>

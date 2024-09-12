@@ -26,7 +26,7 @@ export class Sentence {
     };
     static defaultState: SentenceState = {
         display: true
-    }
+    };
     id: string;
     character: Character | null;
     text: Word[];
@@ -101,7 +101,9 @@ export class Word {
     }
 }
 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type CharacterConfig = {}
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type CharacterStateData = {};
 
 export class Character extends Actionable<

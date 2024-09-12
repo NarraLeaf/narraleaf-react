@@ -6,4 +6,4 @@ export {
     GameProviders,
     Player,
     GameState,
-}
+};

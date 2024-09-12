@@ -161,7 +161,7 @@ export class Constructable<
             this,
             thisConstructor.targetAction.ActionTypes.action,
             sceneRoot
-        ])
+        ]);
     }
 
     /**
@@ -176,7 +176,7 @@ export class Constructable<
                 (this.actions[i - 1].contentNode)?.setInitChild(action.contentNode);
             }
         }
-        return (!!this.actions.length) ? this.actions[0].contentNode : null;
+        return (this.actions.length) ? this.actions[0].contentNode : null;
     }
 }
 
