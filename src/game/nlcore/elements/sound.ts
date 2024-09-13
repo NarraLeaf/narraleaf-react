@@ -19,8 +19,6 @@ export type SoundDataRaw = {
 };
 
 export type SoundConfig = {
-    // @todo: 速读模式
-    // @todo: 速读模式中忽略voice和soundEffect
     /**
      * Sound type
      * - **soundEffect**: Sound effect

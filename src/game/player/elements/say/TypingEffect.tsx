@@ -4,9 +4,10 @@ interface TypingEffectProps {
     text: string;
     speed: number;
     onComplete?: () => void;
+    className?: string;
 }
 
-const TypingEffect: React.FC<TypingEffectProps> = ({text, speed, onComplete}) => {
+const TypingEffect: React.FC<TypingEffectProps> = ({text, speed, onComplete, className}) => {
     const [displayedText, setDisplayedText] = useState("");
     const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -27,7 +28,7 @@ const TypingEffect: React.FC<TypingEffectProps> = ({text, speed, onComplete}) =>
         }
     }, [currentIndex, text, speed, onComplete]);
 
-    return <span>{displayedText}</span>;
+    return <span className={className}>{displayedText}</span>;
 };
 
 export default TypingEffect;

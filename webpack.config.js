@@ -6,15 +6,21 @@ const TerserPlugin = require("terser-webpack-plugin");
 const {BundleAnalyzerPlugin} = require("webpack-bundle-analyzer");
 const TsconfigPathsPlugin = require("tsconfig-paths-webpack-plugin");
 
-const isProduction = process.env.npm_lifecycle_event === "publish";
-const useAnalyzer = false;
+const isProduction = process.env.npm_lifecycle_event === "publish" || process.env.npm_lifecycle_event === "build:prod";
+const useAnalyzer = process.env.npm_lifecycle_event === "build:analyze";
+
+console.log(`
+${new Date().toLocaleString()}
+> Webpack is in ${isProduction ? "production" : "development"} mode.
+> Bundle analyzer is ${useAnalyzer ? "enabled" : "disabled"}.
+`);
 
 module.exports = {
     entry: {
         main: ["./src/index.ts"]
     },
     output: {
-        filename: "index.js",
+        filename: (!useAnalyzer) ? "index.js" : "[name].[contenthash].js",
         path: path.resolve(__dirname, "dist"),
         library: "NarraleafReact",
         libraryTarget: "umd",
@@ -83,11 +89,22 @@ module.exports = {
         minimizer: isProduction ? [new TerserPlugin({
             extractComments: false,
         })] : [],
+        ...(
+            (!useAnalyzer) ? {} : {
+                splitChunks: {
+                    chunks: "all",
+                    cacheGroups: {
+                        vendor: {
+                            test: /[\\/]node_modules[\\/]/,
+                            name: "vendors",
+                            chunks: "all",
+                        },
+                    },
+                },
+            }
+        )
     },
     plugins: [
         ...(useAnalyzer ? [new BundleAnalyzerPlugin()] : []),
     ],
-    cache: {
-        type: "filesystem",
-    },
 };

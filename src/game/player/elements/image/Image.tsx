@@ -9,8 +9,6 @@ import {CSSElementProp, ImgElementProp, ITransition, TransitionEventTypes} from 
 import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
 
-// @todo: add a11y support
-
 export default function Image({
                                   image,
                                   state,
@@ -117,11 +115,11 @@ export default function Image({
     }, [transition, image]);
 
     useEffect(() => {
-        startTime.current = Date.now();
+        startTime.current = performance.now();
     }, []);
 
     const handleLoad = () => {
-        const endTime = Date.now();
+        const endTime = performance.now();
         const loadTime = endTime - startTime.current;
         const threshold = game.config.elements.img.slowLoadThreshold;
 
