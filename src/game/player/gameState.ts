@@ -41,11 +41,13 @@ interface StageUtils {
 
 type GameStateEvents = {
     "event:state.ready": [];
+    "event:state.end": [];
 };
 
 export class GameState {
     static EventTypes: { [K in keyof GameStateEvents]: K } = {
-        "event:state.ready": "event:state.ready"
+        "event:state.ready": "event:state.ready",
+        "event:state.end": "event:state.end",
     };
     state: PlayerState = {
         sounds: [],

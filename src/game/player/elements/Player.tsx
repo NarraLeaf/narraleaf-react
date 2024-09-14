@@ -4,11 +4,10 @@ import "@player/lib/styles/style.css";
 import clsx from "clsx";
 import React, {useEffect, useReducer, useState} from "react";
 import {Awaitable} from "@lib/util/data";
-import {Story} from "@core/elements/story";
-import {Game} from "@core/game";
 import {CalledActionResult} from "@core/gameTypes";
 import {SceneEventTypes} from "@core/elements/scene";
 
+import Motion from "@player/lib/Motion";
 import Main from "@player/lib/main";
 import Isolated from "@player/lib/isolated";
 import {default as StageScene} from "@player/elements/scene/Scene";
@@ -18,25 +17,21 @@ import {Preload} from "@player/elements/preload/Preload";
 import {Preloaded} from "@player/lib/Preloaded";
 import {GameState, PlayerAction} from "@player/gameState";
 import {useGame} from "@player/provider/game-state";
-import Motion from "@player/lib/Motion";
+import {PlayerProps} from "@player/elements/type";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
 }
 
-export default function Player({
-                                   story,
-                                   onReady,
-                                   width,
-                                   height,
-                                   className,
-                               }: Readonly<{
-    story: Story;
-    onReady?: (game: Game) => void;
-    width?: string | number;
-    height?: string | number;
-    className?: clsx.ClassValue;
-}>) {
+export default function Player(
+    {
+        story,
+        width,
+        height,
+        className,
+        onReady,
+        onEnd,
+    }: Readonly<PlayerProps>) {
     const [, forceUpdate] = useReducer((x) => x + 1, 0);
     const {game} = useGame();
     const [state, dispatch] = useReducer(handleAction, new GameState(game, {
@@ -72,11 +67,15 @@ export default function Player({
         }
 
         game.getLiveGame().loadStory(story);
+    }, [story, game]);
+
+    useEffect(() => {
         if (onReady) {
             onReady(game);
         }
 
         const lastScene = state.getLastScene();
+
         const events: {
             type: keyof SceneEventTypes;
             listener: () => void;
@@ -92,6 +91,17 @@ export default function Player({
             state.stage.next();
         }
 
+        const gameStateEvents = state.events.onEvents([
+            {
+                type: GameState.EventTypes["event:state.end"],
+                listener: () => {
+                    if (onEnd) {
+                        onEnd(game);
+                    }
+                }
+            }
+        ]);
+
         state.stage.forceUpdate();
 
         return () => {
@@ -100,8 +110,9 @@ export default function Player({
                     lastScene.events.off(event.type, event.listener);
                 });
             }
+            gameStateEvents.cancel();
         };
-    }, [story]);
+    }, []);
 
     function handlePreloadLoaded() {
         state.stage.forceUpdate();

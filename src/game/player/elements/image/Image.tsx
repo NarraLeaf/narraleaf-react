@@ -161,13 +161,21 @@ export default function Image({
                 const mergedProps =
                     deepMerge<ImgElementProp>(defaultProps, transformProps, elementProps, transitionProps[index] || {});
                 return (
-                    <img key={index} alt={mergedProps.alt} {...mergedProps}
-                         ref={index === (arr.length - 1) ? scope : undefined}
-                         onLoad={handleLoad}/>
+                    <img
+                        key={index}
+                        alt={mergedProps.alt}
+                        {...mergedProps}
+                        ref={index === (arr.length - 1) ? scope : undefined}
+                        onLoad={handleLoad}
+                    />
                 );
             }) : (
-                <img ref={scope} alt={"image"} {...deepMerge(defaultProps, transformProps)}
-                     onLoad={handleLoad}/>
+                <img
+                    ref={scope}
+                    alt={"image"}
+                    {...deepMerge(defaultProps, transformProps)}
+                    onLoad={handleLoad}
+                />
             )}
         </Isolated>
     );

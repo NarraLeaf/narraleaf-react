@@ -39,7 +39,7 @@ export default function Say({
             return;
         }
 
-        const handleKeyDown = (e: KeyboardEvent) => {
+        const handleKeyUp = (e: KeyboardEvent) => {
             if (game.config.elements.say.skipKeys.includes(e.key)) {
                 if (isFinished) {
                     if (onClick) onClick();
@@ -48,9 +48,11 @@ export default function Say({
                 }
             }
         };
-        window.addEventListener("keydown", handleKeyDown);
+
+        window.addEventListener("keyup", handleKeyUp);
+
         return () => {
-            window.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener("keyup", handleKeyUp);
         };
     }, [isFinished]);
 

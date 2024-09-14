@@ -102,6 +102,9 @@ export default nextConfig;
 
 ## Documentation
 
+- [Quick Start](./docs/quick-start.md)  
+- [Customization](./docs/customization.md)
+
 in progress...
 
 ## License
