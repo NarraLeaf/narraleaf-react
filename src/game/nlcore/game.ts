@@ -6,6 +6,7 @@ import {Story} from "./elements/story";
 import {LogicAction} from "@core/action/logicAction";
 import {GameState} from "@player/gameState";
 import {DefaultElements} from "@player/elements/elements";
+import {ComponentsTypes} from "@player/elements/type";
 
 class IdManager extends Singleton<IdManager>() {
     private id = 0;
@@ -46,6 +47,12 @@ enum GameSettingsNamespace {
 export class Game {
     static defaultSettings: GameSettings = {
         volume: 1,
+    };
+    static ComponentTypes: {
+        [K in keyof ComponentsTypes]: K;
+    } = {
+        say: "say",
+        menu: "menu",
     };
     static DefaultConfig: GameConfig = {
         version: "v0.0.0",
@@ -98,6 +105,17 @@ export class Game {
     static getIdManager() {
         return IdManager.getInstance();
     };
+
+    public useComponent<T extends keyof ComponentsTypes>(key: T, components: ComponentsTypes[T]): this {
+        if (!Object.keys(DefaultElements).includes(key)) {
+            throw new Error(`Invalid key ${key}`);
+        }
+        if (typeof components !== "function") {
+            throw new Error(`Invalid component for key ${key}`);
+        }
+        this.config.elements[key].use = components;
+        return this;
+    }
 
     /* Live Game */
     public getLiveGame(): LiveGame {

@@ -72,6 +72,9 @@ export default function Player({
         }
 
         game.getLiveGame().loadStory(story);
+    }, [story, game]);
+
+    useEffect(() => {
         if (onReady) {
             onReady(game);
         }
@@ -101,7 +104,7 @@ export default function Player({
                 });
             }
         };
-    }, [story]);
+    }, []);
 
     function handlePreloadLoaded() {
         state.stage.forceUpdate();

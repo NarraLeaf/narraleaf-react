@@ -58,7 +58,8 @@ Animation
 Not to be confused, there are some difference between other engines and NarraLeaf:
 
 - Image **only display the image**, character **only say the text**, they are separated.
-- Scene represents "label" in Ren'Py or procedure in other engines. **It is not a scene in the traditional sense.** So you should use `Scene` to represent a procedure, not a scene.
+- Scene represents "label" in Ren'Py or procedure in other engines. **It is not a scene in the traditional sense.** So
+  you should use `Scene` to represent a procedure, not a scene.
 - Transform and Transition can be used on both Image and Scene.
 
 ## Set up Player
@@ -68,12 +69,12 @@ To set up a player, you have to place the `GameProvider` to the parent component
 Here is an example:
 
 ```tsx
-import { GameProvider, Player } from "narraleaf-react";
+import {GameProvider, Player} from "narraleaf-react";
 
 export default function Parent() {
     return (
         <GameProvider>
-            <Player />
+            <Player/>
         </GameProvider>
     );
 }
@@ -82,7 +83,7 @@ export default function Parent() {
 If you want to initialize the game manually, you can use the `useGame` hook:
 
 ```tsx
-import { useGame } from "narraleaf-react";
+import {useGame} from "narraleaf-react";
 
 export default function Child() {
     // this have to be called in a child component of the `GameProvider`
@@ -91,7 +92,7 @@ export default function Child() {
     useEffect(() => {
         game.getLiveGame().newGame(); // create new game
     }, []);
-    
+
     // or instantiate the game manually
     useEffect(() => {
         setGame(new Game({
@@ -103,7 +104,7 @@ export default function Child() {
         }));
     }, []);
 
-    return <Player />;
+    return <Player/>;
 }
 
 ```
@@ -148,7 +149,7 @@ You need to create a `src/story.ts` file _(or somewhere else you like)_:
 // src/story.ts
 
 // First, import the necessary classes
-import { Story, Scene, Character, Image } from "narraleaf-react";
+import {Story, Scene, Character, Image} from "narraleaf-react";
 
 // Create a new story
 // The name of the story is human-readable and is used for debugging purposes
@@ -198,13 +199,20 @@ Replace the content with the following code:
 ```tsx
 // src/App.tsx
 
-import { GameProvider, Player } from "narraleaf-react";
-import { story } from "./story";
+import {GameProvider, Player} from "narraleaf-react";
+import {story} from "./story";
 
 export default function App() {
     return (
         <GameProvider>
-            <Player story={story} width="100vw" height="100vh"/>
+            <Player
+                story={story}
+                width="100vw"
+                height="100vh"
+                onReady={(game: Game) => {
+                    game.getLiveGame().newGame();
+                }}
+            />
         </GameProvider>
     );
 }
