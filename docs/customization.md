@@ -39,6 +39,11 @@ export default function App() {
 
 ### Use your own components (advanced)
 
+You can use your own components to render the elements.  
+You can copy the default components from the [source code](/src/game/player/elements) and modify them.
+
+For example, you can create a custom `say` component using [Say.tsx](/src/game/player/elements/say/Say.tsx)
+
 ```tsx
 "use client";
 

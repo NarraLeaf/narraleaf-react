@@ -75,7 +75,7 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this.pushAction<SoundActionContentType["sound:stop"]>(SoundAction.ActionTypes.stop, [void 0]);
     }
 
-    public fade(start: number, end: number, duration: number): this {
+    public fade(start: number | undefined, end: number, duration: number): this {
         if (this.config.type === SoundType.backgroundMusic) {
             throw new Error("Background music cannot be faded directly");
         }
@@ -90,6 +90,20 @@ export class Sound extends Actionable<SoundDataRaw> {
 
     public setRate(rate: number): this {
         return this.pushAction<SoundActionContentType["sound:setRate"]>(SoundAction.ActionTypes.setRate, [rate]);
+    }
+
+    public pause(fade?: number): this {
+        if (fade !== undefined) {
+            return this.fade(undefined, 0, fade);
+        }
+        return this.pushAction<SoundActionContentType["sound:pause"]>(SoundAction.ActionTypes.pause, [void 0]);
+    }
+
+    public resume(fade?: number): this {
+        if (fade !== undefined) {
+            return this.fade(0, this.config.volume, fade);
+        }
+        return this.pushAction<SoundActionContentType["sound:resume"]>(SoundAction.ActionTypes.resume, [void 0]);
     }
 
     getHowlOptions(): HowlOptions {

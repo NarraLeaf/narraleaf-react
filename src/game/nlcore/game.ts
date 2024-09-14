@@ -317,6 +317,7 @@ export class LiveGame {
 
         this.currentAction = this.currentAction || this.story.getActions()[++this.currentSceneNumber];
         if (!this.currentAction) {
+            state.events.emit(GameState.EventTypes["event:state.end"]);
             console.warn("No current action"); // Congrats, you've reached the end of the story
             return null;
         }

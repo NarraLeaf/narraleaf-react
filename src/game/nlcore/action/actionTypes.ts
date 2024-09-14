@@ -120,19 +120,23 @@ export const SoundActionTypes = {
     fade: "sound:fade",
     setVolume: "sound:setVolume",
     setRate: "sound:setRate",
+    pause: "sound:pause",
+    resume: "sound:resume",
 } as const;
 export type SoundActionContentType = {
     [K in typeof SoundActionTypes[keyof typeof SoundActionTypes]]:
     K extends "sound:play" ? [void] :
         K extends "sound:stop" ? [void] :
             K extends "sound:fade" ? [{
-                    start: number;
+                    start?: number;
                     end: number;
                     duration: number;
                 }] :
                 K extends "sound:setVolume" ? [number] :
                     K extends "sound:setRate" ? [number] :
-                        any;
+                        K extends "sound:pause" ? [void] :
+                            K extends "sound:resume" ? [void] :
+                                any;
 }
 export const ControlActionTypes = {
     action: "control:action",

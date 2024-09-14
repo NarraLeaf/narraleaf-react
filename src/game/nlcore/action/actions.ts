@@ -422,7 +422,8 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
                 duration
             }] = (this.contentNode as ContentNode<SoundActionContentType["sound:fade"]>).getContent();
             if (this.callee.$getHowl()) {
-                this.callee.$getHowl()!.fade(start, end, duration, this.callee.$getToken());
+                const startValue = start === undefined ? this.callee.$getHowl()!.volume() : start;
+                this.callee.$getHowl()!.fade(startValue, end, duration, this.callee.$getToken());
             }
             return super.executeAction(state);
         } else if (this.type === SoundActionTypes.setVolume) {
@@ -435,6 +436,16 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             const [rate] = (this.contentNode as ContentNode<SoundActionContentType["sound:setRate"]>).getContent();
             if (this.callee.$getHowl()) {
                 this.callee.$getHowl()!.rate(rate, this.callee.$getToken());
+            }
+            return super.executeAction(state);
+        } else if (this.type === SoundActionTypes.pause) {
+            if (this.callee.$getHowl()) {
+                this.callee.$getHowl()!.pause(this.callee.$getToken());
+            }
+            return super.executeAction(state);
+        } else if (this.type === SoundActionTypes.resume) {
+            if (this.callee.$getHowl()) {
+                this.callee.$getHowl()!.play(this.callee.$getToken());
             }
             return super.executeAction(state);
         }

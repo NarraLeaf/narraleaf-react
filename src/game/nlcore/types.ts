@@ -48,7 +48,8 @@ export type CommonImage = {
     scale?: number;
     rotation?: number;
     position?: IPosition;
-    opacity: number;
+    opacity?: number;
+    alt?: string;
 }
 
 export const ImagePosition: {
