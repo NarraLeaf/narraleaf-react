@@ -1,16 +1,15 @@
-import {CommonImage, ImagePosition, NextJSStaticImageData, StaticImageData} from "@core/types";
-import {deepEqual, deepMerge, DeepPartial, EventDispatcher, getCallStack} from "@lib/util/data";
+import React from "react";
+import type {TransformDefinitions} from "@core/elements/transform/type";
+import {AnimationScope} from "framer-motion";
 import {ContentNode} from "@core/action/tree/actionTree";
-import {Game} from "@core/game";
-import {Transform} from "./transform/transform";
 import {ImageAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
-import type {TransformDefinitions} from "@core/elements/transform/type";
 import {Utils} from "@core/common/Utils";
-import React from "react";
 import {Scene} from "@core/elements/scene";
-import {AnimationScope} from "framer-motion";
+import {Transform} from "./transform/transform";
+import {CommonImage, ImagePosition, NextJSStaticImageData, StaticImageData} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
+import {Game} from "@core/game";
 import {ITransition} from "@core/elements/transition/type";
 import {
     CommonPosition,
@@ -19,6 +18,7 @@ import {
     IPosition,
     PositionUtils
 } from "@core/elements/transform/position";
+import {deepEqual, deepMerge, DeepPartial, EventDispatcher, getCallStack} from "@lib/util/data";
 
 export type ImageConfig = {
     src: string | NextJSStaticImageData;
