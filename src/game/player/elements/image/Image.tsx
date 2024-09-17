@@ -1,6 +1,6 @@
 import {Image as GameImage} from "@core/elements/image";
 import React, {useEffect, useRef, useState} from "react";
-import {DOMKeyframesDefinition} from "framer-motion";
+import type {DOMKeyframesDefinition} from "framer-motion";
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
 import {Transform} from "@core/elements/transform/transform";
@@ -32,6 +32,9 @@ export default function Image({
     const {ratio} = useRatio();
     const {game} = useGame();
     const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+    const [transformRecState, setTransformRecState] = useState<any>({});
+    
+    let dynamic_transform: Transform<any> | null = null;
 
     useEffect(() => {
         return ratio.onUpdate(() => {
@@ -55,8 +58,9 @@ export default function Image({
                     assignTo(transform.propToCSS(state, image.state));
 
                     setTransform(transform);
+                    dynamic_transform = transform;
 
-                    const locker = ratio.lock();
+                    // const locker = ratio.lock();
 
                     state.logger.debug("transform", transform, transform.propToCSS(state, image.state));
                     await transform.animate({scope}, state, image.state, (after) => {
@@ -70,7 +74,8 @@ export default function Image({
                         }
 
                         setTransform(null);
-                        ratio.unlock(locker);
+                        dynamic_transform = null;
+                        // ratio.unlock(locker);
                     });
                     return true;
                 }),
@@ -88,22 +93,36 @@ export default function Image({
         }]);
 
         const ratioEventToken = ratio.events.onEvents([
-            // {
-            //     type: "event:aspectRatio.pause",
-            //     listener: ratio.events.on("event:aspectRatio.pause", () => {
-            //         if (transform && transform.getControl()) {
-            //             transform.getControl()!.pause();
-            //         }
-            //     })
-            // },
-            // {
-            //     type: "event:aspectRatio.resume",
-            //     listener: ratio.events.on("event:aspectRatio.resume", () => {
-            //         if (transform && transform.getControl()) {
-            //             transform.getControl()!.play();
-            //         }
-            //     })
-            // }
+            {
+                type: "event:aspectRatio.pause",
+                listener: ratio.events.on("event:aspectRatio.pause", () => {
+                    const t = dynamic_transform || transform;
+                    if (t && t.getControl()) {
+                        // t.getControl()!.pause();
+                        // assignTo(t.propToCSS(state, image.state));
+                        if (scope.current) Object.assign(scope.current.style, t.propToCSS(state, image.state));
+                        const recState = {
+                            time: t.getControl()!.time,
+                        };
+                        setTransformRecState(recState);
+                        t.getControl()!.pause();
+                    }
+                })
+            },
+            {
+                type: "event:aspectRatio.resume",
+                listener: ratio.events.on("event:aspectRatio.resume", () => {
+                    const t = dynamic_transform || transform;
+                    if (t && t.getControl()) {
+                        // t.getControl()!.play();
+                        transform?.animate({scope}, state, image.state, (after) => {});
+                        if (transformRecState.time) {
+                            t.getControl()!.time = transformRecState.time;
+                        }
+
+                    }
+                })
+            }
         ]);
 
         assignTo(image.toTransform().propToCSS(state, image.state));
@@ -186,6 +205,8 @@ export default function Image({
         className: "absolute",
         src: Utils.staticImageDataToSrc(image.state.src),
     };
+
+    // @fixme: 图片在动画过程中缩放窗口会产生问题
 
     return (
         <Isolated className={"absolute overflow-hidden"}>

@@ -1,6 +1,7 @@
 import {EventDispatcher} from "@lib/util/data";
 import {ElementProp, EventTypes, ITransition, TransitionEventTypes} from "./type";
-import {animate, AnimationPlaybackControls, ValueAnimationTransition} from "framer-motion";
+import {animate} from "framer-motion/dom";
+import type {AnimationPlaybackControls, ValueAnimationTransition} from "framer-motion";
 
 
 export class Base<T extends ElementProp> implements ITransition<T> {

@@ -1,4 +1,4 @@
-![](./docs/nlr-logo-md.png)
+![](./docs/nlr-logo-banner.png)
 
 # NarraLeaf-React
 

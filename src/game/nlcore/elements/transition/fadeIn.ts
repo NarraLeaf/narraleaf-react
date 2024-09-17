@@ -1,6 +1,6 @@
 import {ElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";
 import {Base} from "@core/elements/transition/base";
-import {animate} from "framer-motion";
+import {animate} from "framer-motion/dom";
 import {Scene} from "@core/elements/scene";
 import {StaticImageData} from "@core/types";
 import {Utils} from "@core/common/Utils";

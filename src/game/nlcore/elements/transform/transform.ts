@@ -7,7 +7,7 @@ import {TransformDefinitions} from "./type";
 import {Align, CommonPosition, Coord2D, IPosition, PositionUtils, RawPosition} from "./position";
 import {CSSProps} from "@core/elements/transition/type";
 import {Utils} from "@core/common/Utils";
-import { animate } from "framer-motion";
+import { animate } from "framer-motion/dom";
 import Sequence = TransformDefinitions.Sequence;
 import SequenceProps = TransformDefinitions.SequenceProps;
 import React from "react";
