@@ -1,7 +1,7 @@
 import clsx from "clsx";
-import {useAspectRatio} from "@player/provider/ratio";
-import React, {useRef, useEffect, useState} from "react";
+import {useRatio} from "@player/provider/ratio";
 import type {ReactNode} from "react";
+import React, {useEffect, useRef} from "react";
 import {useGame} from "@player/provider/game-state";
 
 export default function Background({
@@ -9,16 +9,16 @@ export default function Background({
                                    }: Readonly<{
     children: ReactNode;
 }>) {
-    const aspectRatio = useAspectRatio();
-    const ratio = aspectRatio.ratio;
+    const {ratio} = useRatio();
     const {game} = useGame();
     const contentContainerRef = useRef<HTMLDivElement | null>(null);
-    const [{
-        clientWidth,
-        clientHeight,
-    }, setW] = useState({
-        clientWidth: 0,
-        clientHeight: 0,
+
+    const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+
+    useEffect(() => {
+        return ratio.onUpdate(() => {
+            forceUpdate();
+        });
     });
 
     useEffect(() => {
@@ -26,10 +26,6 @@ export default function Background({
         if (!contentContainer) {
             throw new Error("Content container not found");
         }
-        setW({
-            clientWidth: contentContainer.clientWidth,
-            clientHeight: contentContainer.clientHeight,
-        });
     }, [game.config.player.contentContainerId]);
 
     return (
@@ -38,15 +34,14 @@ export default function Background({
                 ref={contentContainerRef}
                 className={clsx("absolute inset-0 flex items-center justify-center bg-cover bg-center overflow-hidden")}
                 style={{
-                    width: `${ratio.w}px`,
-                    height: `${ratio.h}px`,
-                    ...(clientWidth > ratio.min.w ? {
-                        left: "50%",
-                    } : {}),
-                    ...(clientHeight > ratio.min.h ? {
-                        top: "50%",
-                    } : {}),
-                    transform: `translate(${clientWidth > ratio.min.w ? "-50%" : "0"}, ${clientHeight > ratio.min.h ? "-50%" : "0"})`,
+                    ...ratio.getStyle(),
+                    // ...(clientWidth > ratio.state.minWidth ? {
+                    //     left: "50%",
+                    // } : {}),
+                    // ...(clientHeight > ratio.state.minHeight ? {
+                    //     top: "50%",
+                    // } : {}),
+                    // transform: `translate(${clientWidth > ratio.state.minWidth ? "-50%" : "0"}, ${clientHeight > ratio.state.minHeight ? "-50%" : "0"})`,
                 }}
             >
                 {children}

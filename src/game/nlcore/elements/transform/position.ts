@@ -1,9 +1,9 @@
 import {CSSProps} from "@core/elements/transition/type";
 
 export enum CommonPositionType {
-    Left,
-    Center,
-    Right,
+    Left = "left",
+    Center = "center",
+    Right = "right",
 }
 
 export const CommonPositions = {
@@ -39,6 +39,10 @@ export type D2Position<X = any, Y = any> = {
     xoffset: UnknownAble<number>;
     yoffset: UnknownAble<number>;
 }
+
+export type RawPosition = CommonPositionType
+    | (Coord2DPosition & {xalign?: never; yalign?: never})
+    | (AlignPosition & {x: never; y: never});
 
 export type Unknown = typeof PositionUtils.Unknown;
 export type UnknownAble<T> = T | Unknown;
@@ -113,6 +117,51 @@ export class PositionUtils {
             yoffset: PositionUtils.isUnknown(coord.yoffset) ? 0 : coord.yoffset,
         };
     }
+
+    static isRawCommonPositionType(arg: any): arg is CommonPositionType {
+        return Object.values(CommonPositionType).includes(arg);
+    }
+
+    static isRawCoord2DPosition(arg: any): arg is Coord2DPosition {
+        return typeof arg === "object" && (
+            "x" in arg || "y" in arg || "xoffset" in arg || "yoffset" in arg
+        );
+    }
+
+    static isRawAlignPosition(arg: any): arg is AlignPosition {
+        return typeof arg === "object" && (
+            "xalign" in arg || "yalign" in arg || "xoffset" in arg || "yoffset" in arg
+        );
+    }
+
+    static isRawPosition(arg: any): arg is IPosition {
+        return this.isRawCommonPositionType(arg) || this.isRawCoord2DPosition(arg) || this.isRawAlignPosition(arg);
+    }
+
+    static isPosition(arg: any): arg is IPosition {
+        return arg instanceof CommonPosition || arg instanceof Coord2D || arg instanceof Align;
+    }
+
+    static rawPositionToCoord2D(arg: any): Coord2D {
+        if (this.isRawCommonPositionType(arg)) {
+            return Coord2D.fromCommonPosition(new CommonPosition(arg));
+        } else if (this.isRawCoord2DPosition(arg)) {
+            return new Coord2D(arg);
+        } else if (this.isRawAlignPosition(arg)) {
+            return Coord2D.fromAlignPosition(arg);
+        }
+        throw new Error("Invalid position type");
+    }
+
+    static tryParsePosition(arg: any): IPosition {
+        if (this.isPosition(arg)) {
+            return arg;
+        }
+        if (this.isRawPosition(arg)) {
+            return this.rawPositionToCoord2D(arg);
+        }
+        throw new Error("Invalid position type");
+    }
 }
 
 export class CommonPosition implements IPosition {
@@ -124,11 +173,11 @@ export class CommonPosition implements IPosition {
      * @example
      * ```ts
      * new CommonPosition(CommonPosition.Positions.Center);
-     * new CommonPosition("Center");
+     * new CommonPosition("center");
      * ```
      */
-    constructor(position: CommonPositionType | keyof typeof CommonPositionType) {
-        this.position = typeof position === "number" ? position : CommonPositionType[position];
+    constructor(position: CommonPositionType) {
+        this.position = position;
     }
 
     static isCommonPositionType(arg: any): arg is CommonPosition {

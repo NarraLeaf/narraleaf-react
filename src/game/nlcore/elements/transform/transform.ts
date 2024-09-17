@@ -4,11 +4,13 @@ import type {AnimationPlaybackControls, DOMKeyframesDefinition, DynamicAnimation
 import {deepMerge, DeepPartial, sleep, toHex} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {TransformDefinitions} from "./type";
-import {Align, CommonPosition, Coord2D, IPosition, PositionUtils} from "./position";
+import {Align, CommonPosition, Coord2D, IPosition, PositionUtils, RawPosition} from "./position";
 import {CSSProps} from "@core/elements/transition/type";
 import {Utils} from "@core/common/Utils";
+import { animate } from "framer-motion";
 import Sequence = TransformDefinitions.Sequence;
 import SequenceProps = TransformDefinitions.SequenceProps;
+import React from "react";
 
 export type Transformers =
     "position"
@@ -113,14 +115,17 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         return {backgroundImage: "url(" + url + ")"};
     }
 
-    static mergePosition(a: IPosition | undefined, b: IPosition | undefined): Coord2D {
+    static mergePosition(a: RawPosition | undefined, b: RawPosition | undefined): Coord2D {
         if (!a && !b) {
             throw new Error("No position found.");
         }
         if (!a || !b) {
-            return PositionUtils.toCoord2D((a || b)!);
+            return PositionUtils.toCoord2D(PositionUtils.tryParsePosition(a || b)!);
         }
-        return PositionUtils.mergePosition(a, b);
+        return PositionUtils.mergePosition(
+            PositionUtils.tryParsePosition(a),
+            PositionUtils.tryParsePosition(b)
+        );
     }
 
     static mergeState<T>(state: any, props: any): DeepPartial<T> {
@@ -139,11 +144,10 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
      * return <div ref={scope} />
      * ```
      */
-    public async animate<U extends Element = any>(
-        {scope, animate, overwrites}:
+    public async animate(
+        {scope, overwrites}:
             {
-                scope: TransformDefinitions.FramerAnimationScope<U>,
-                animate: TransformDefinitions.FramerAnimate,
+                scope:  React.MutableRefObject<HTMLImageElement | null>,
                 overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>
             },
         gameState: GameState,
@@ -171,6 +175,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
                         Object.assign(current["style"], initState);
 
                         state = Transform.mergeState(state, props);
+
                         const animation = animate(
                             current,
                             this.propToCSS(gameState, state, overwrites),
@@ -241,7 +246,12 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             "backgroundColor": (value: Background["background"]) => Transform.backgroundToCSS(value),
             "backgroundOpacity": (value: number) => ({opacity: value}),
             "opacity": (value: number) => ({opacity: value}),
-            "scale": () => ({}),
+            "scale": () => {
+                if (!("scale" in prop)) return {};
+                return {
+                    width: `${(prop as any)["scale"] * 100}%`,
+                };
+            },
             "rotation": () => ({}),
             "display": () => ({}),
             "src": () => ({}),
@@ -277,7 +287,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         return {
             duration: duration ? (duration / 1000) : 0,
             ease,
-        };
+        } satisfies DynamicAnimationOptions;
     }
 
     propToCSSTransform(state: GameState, prop: Record<string, any>): string {
@@ -287,7 +297,6 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         const {invertY, invertX} = state.getLastScene()?.config || {};
         const Transforms = [
             `translate(${invertX ? "" : "-"}50%, ${invertY ? "" : "-"}50%)`,
-            (prop["scale"] !== undefined) && `scale(${prop["scale"]})`,
             (prop["rotation"] !== undefined) && `rotate(${prop["rotation"]}deg)`,
         ];
         return Transforms.filter(Boolean).join(" ");

@@ -8,7 +8,7 @@ import {CalledActionResult} from "@core/gameTypes";
 import {SceneEventTypes} from "@core/elements/scene";
 
 import Motion from "@player/lib/Motion";
-import Main from "@player/lib/main";
+import AspectRatio from "@player/lib/AspectRatio";
 import Isolated from "@player/lib/isolated";
 import {default as StageScene} from "@player/elements/scene/Scene";
 import {default as StageImage} from "@player/elements/image/Image";
@@ -127,7 +127,7 @@ export default function Player(
                 width: typeof width === "number" ? `${width}px` : width,
                 height: typeof height === "number" ? `${height}px` : height,
             }} className={clsx(className)}>
-                <Main className={clsx("flex-grow overflow-auto")}>
+                <AspectRatio className={clsx("flex-grow overflow-auto")}>
                     <Isolated className="relative">
                         {
                             state.state.srcManagers.map((srcManager, i) => {
@@ -181,7 +181,7 @@ export default function Player(
                             }
                         </OnlyPreloaded>
                     </Isolated>
-                </Main>
+                </AspectRatio>
             </div>
         </Motion>
     );

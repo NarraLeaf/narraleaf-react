@@ -1,4 +1,4 @@
-import {IPosition} from "@core/elements/transform/position";
+import {IPosition, RawPosition} from "@core/elements/transform/position";
 
 export type color = string | {
     r: number;
@@ -43,11 +43,9 @@ export type Background = {
 
 export type CommonImagePosition = "left" | "center" | "right";
 export type CommonImage = {
-    height?: number;
-    width?: number;
     scale?: number;
     rotation?: number;
-    position?: IPosition;
+    position?: RawPosition | IPosition;
     opacity?: number;
     alt?: string;
 }

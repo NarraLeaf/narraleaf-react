@@ -1,6 +1,5 @@
 import React from "react";
 import type {TransformDefinitions} from "@core/elements/transform/type";
-import {AnimationScope} from "framer-motion";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {ImageAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
@@ -37,7 +36,7 @@ export type ImageEventTypes = {
     "event:image.applyTransform": [Transform];
     "event:image.mount": [];
     "event:image.unmount": [];
-    "event:image.ready": [AnimationScope];
+    "event:image.ready": [React.MutableRefObject<HTMLImageElement | null>];
     "event:image.elementLoaded": [];
     "event:image.setTransition": [ITransition | null];
 };
@@ -79,9 +78,11 @@ export class Image extends Actionable<ImageDataRaw> {
         if (typeof arg0 === "string") {
             this.name = arg0;
             this.config = deepMerge<ImageConfig>(Image.defaultConfig, config || {});
+            if (this.config.position) this.config.position = PositionUtils.tryParsePosition(this.config.position);
         } else {
             this.name = "";
             this.config = deepMerge<ImageConfig>(Image.defaultConfig, arg0);
+            if (this.config.position) this.config.position = PositionUtils.tryParsePosition(this.config.position);
         }
         this.state = deepMerge<ImageConfig>({}, this.config);
         this.actions = [];
@@ -287,17 +288,6 @@ export class Image extends Actionable<ImageDataRaw> {
         });
     }
 
-    toHTMLElementProps(): React.DetailedHTMLProps<React.ImgHTMLAttributes<HTMLImageElement>, HTMLImageElement> {
-        return {
-            src: Utils.srcToString(this.config.src),
-            width: this.state.width,
-            height: this.state.height,
-            style: {
-                position: "absolute",
-            }
-        };
-    }
-
     setScope(scope: React.RefObject<HTMLImageElement>): this {
         this.ref = scope;
         return this;
@@ -307,7 +297,7 @@ export class Image extends Actionable<ImageDataRaw> {
         return this.ref;
     }
 
-    copy(): Image {
+    public copy(): Image {
         return new Image(this.name, this.config);
     }
 

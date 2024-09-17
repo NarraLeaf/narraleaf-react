@@ -279,3 +279,37 @@ export function deepEqual(obj1: any, obj2: any): boolean {
 
     return true;
 }
+
+export class Logger {
+    private _log(tag: string, ...args: any[]) {
+        if (args.length === 0) {
+            return tag;
+        } else {
+            return [`[${tag}]`, ...args];
+        }
+    }
+
+    log(tag: string, ...args: any[]) {
+        console.log(...this._log(tag, ...args));
+    }
+
+    info(tag: string, ...args: any[]) {
+        console.info(...this._log(tag, ...args));
+    }
+
+    warn(tag: string, ...args: any[]) {
+        console.warn(...this._log(tag, ...args));
+    }
+
+    error(tag: string, ...args: any[]) {
+        console.error(...this._log(tag, ...args));
+    }
+
+    debug(tag: string, ...args: any[]) {
+        console.debug(this._log(tag, ...args));
+    }
+
+    trace(tag: string, ...args: any[]) {
+        console.trace(this._log(tag, ...args));
+    }
+}

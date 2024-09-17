@@ -1,9 +1,9 @@
 import clsx from "clsx";
-import React, {useEffect, useState} from "react";
-import {useAspectRatio} from "@player/provider/ratio";
+import React, {useEffect, useReducer, useState} from "react";
+import {useRatio} from "@player/provider/ratio";
 import {useGame} from "@player/provider/game-state";
 
-export default function Main(
+export default function AspectRatio(
     {
         children,
         className
@@ -12,8 +12,9 @@ export default function Main(
         className?: string;
     }) {
     const [style, setStyle] = useState({});
-    const {setRatio} = useAspectRatio();
+    const {ratio} = useRatio();
     const {game} = useGame();
+    const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
 
     const MIN_WIDTH = 1600 * 0.5;
@@ -21,8 +22,12 @@ export default function Main(
 
     useEffect(() => {
         let resizeTimeout: NodeJS.Timeout;
-
         const updateStyle = () => {
+            if (ratio.isLocked()) {
+                console.warn("Ratio is locked, skipping update");
+                return;
+            }
+
             const container = document.getElementById(game.config.player.contentContainerId);
             if (container) {
                 const containerWidth = container.clientWidth;
@@ -54,40 +59,33 @@ export default function Main(
                     alignItems: "center",
                     justifyContent: "center"
                 });
-                setRatio({
-                    w: width,
-                    h: height,
-                    updateStyle,
-                    style: {
-                        width: `${width}px`,
-                        height: `${height}px`,
-                    },
-                    s: {
-                        style: {
-                            width: `${width}px`,
-                            height: `${height}px`,
-                        }
-                    },
-                    min: {
-                        w: MIN_WIDTH,
-                        h: MIN_HEIGHT
-                    }
-                });
+
+                ratio.update(width, height);
+                ratio.updateMin(MIN_WIDTH, MIN_HEIGHT);
+                forceUpdate();
             }
         };
 
+        ratio.setUpdate(updateStyle);
+
         const handleResize = () => {
-            clearTimeout(resizeTimeout);
             updateStyle();
+            clearTimeout(resizeTimeout);
+
+            ratio.pause();
+            resizeTimeout = setTimeout(() => {
+                ratio.resume();
+            }, 100);
         };
 
         updateStyle();
         window.addEventListener("resize", handleResize);
+
         return () => {
             window.removeEventListener("resize", handleResize);
             clearTimeout(resizeTimeout);
         };
-    }, [setRatio]);
+    }, [ratio]);
 
     return (
         <div id={game.config.player.contentContainerId}
