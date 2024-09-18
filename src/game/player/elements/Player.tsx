@@ -121,11 +121,14 @@ export default function Player(
         }
     }
 
+    const playerWidth = width || game.config.player.width;
+    const playerHeight = height || game.config.player.height;
+
     return (
         <Motion>
             <div style={{
-                width: typeof width === "number" ? `${width}px` : width,
-                height: typeof height === "number" ? `${height}px` : height,
+                width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
+                height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
             }} className={clsx(className)}>
                 <AspectRatio className={clsx("flex-grow overflow-auto")}>
                     <Isolated className="relative">
