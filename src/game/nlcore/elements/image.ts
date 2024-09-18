@@ -174,6 +174,7 @@ export class Image extends Actionable<ImageDataRaw> {
      * @example
      * ```ts
      * // shake the image
+     *
      * image.applyTransform(
      *     new Transform([
      *         {

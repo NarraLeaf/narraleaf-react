@@ -1,3 +1,5 @@
+// noinspection SpellCheckingInspection
+
 import React, {useEffect, useRef, useState} from "react";
 import {Scene as GameScene} from "@core/elements/scene";
 import {ElementProp, ImgElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";

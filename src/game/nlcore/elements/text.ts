@@ -102,6 +102,7 @@ export class Word {
 }
 
 export enum CharacterMode {
+    // noinspection SpellCheckingInspection
     "adv" = "adv",
     "nvl" = "nvl"
 }
