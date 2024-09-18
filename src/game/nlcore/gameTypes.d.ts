@@ -30,6 +30,8 @@ export type GameConfig = {
         aspectRatio: number;
         minWidth: number;
         minHeight: number;
+        width: number | string;
+        height: number | string;
     };
     elements: {
         say: {
