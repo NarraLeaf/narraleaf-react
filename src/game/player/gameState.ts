@@ -58,12 +58,13 @@ export class GameState {
     stage: StageUtils;
     game: Game;
     public readonly events: EventDispatcher<GameStateEvents>;
-    public readonly logger = new Logger();
+    public readonly logger: Logger;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
         this.game = game;
         this.events = new EventDispatcher();
+        this.logger = new Logger(game);
     }
 
     public findElementByScene(scene: Scene): { scene: Scene, ele: PlayerStateElement } | null {

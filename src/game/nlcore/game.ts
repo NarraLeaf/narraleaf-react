@@ -90,6 +90,16 @@ export class Game {
                 choiceButton: "",
                 choiceButtonText: "",
             }
+        },
+        app: {
+            logger: {
+                log: false,
+                info: false,
+                warn: true,
+                error: true,
+                debug: false,
+                trace: false,
+            }
         }
     };
     static GameSettingsNamespace = GameSettingsNamespace;
@@ -213,6 +223,11 @@ export class LiveGame {
         return this;
     }
 
+    /**
+     * Load a saved game
+     *
+     * Note: Different versions of the game won't be able to load each other's saved games
+     */
     public deserialize(savedGame: SavedGame, {gameState}: { gameState: GameState }) {
         const story = this.story;
         if (!story) {
@@ -251,6 +266,13 @@ export class LiveGame {
         gameState.loadData(stage, actions);
     }
 
+    /**
+     * Serialize the current game state
+     *
+     * You can use this to save the game state to a file or a database
+     *
+     * Note: Different versions of the game won't be able to load each other's saved games
+     */
     public serialize({gameState}: { gameState: GameState }): SavedGame {
         const story = this.story;
         if (!story) {

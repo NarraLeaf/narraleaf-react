@@ -71,7 +71,10 @@ export default function Player(
 
     useEffect(() => {
         if (onReady) {
-            onReady(game);
+            onReady({
+                game,
+                state,
+            });
         }
 
         const lastScene = state.getLastScene();
@@ -96,7 +99,10 @@ export default function Player(
                 type: GameState.EventTypes["event:state.end"],
                 listener: () => {
                     if (onEnd) {
-                        onEnd(game);
+                        onEnd({
+                            game,
+                            state,
+                        });
                     }
                 }
             }
@@ -129,7 +135,7 @@ export default function Player(
             <div style={{
                 width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
                 height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
-            }} className={clsx(className)}>
+            }} className={clsx(className, "__narraleaf_content-player")}>
                 <AspectRatio className={clsx("flex-grow overflow-auto")}>
                     <Isolated className="relative">
                         {

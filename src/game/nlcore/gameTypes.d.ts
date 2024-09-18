@@ -69,7 +69,17 @@ export type GameConfig = {
             choiceButton: string;
             choiceButtonText: string;
         }
-    }
+    };
+    app: {
+        logger: {
+            log: boolean;
+            info: boolean;
+            warn: boolean;
+            error: boolean;
+            debug: boolean;
+            trace: boolean;
+        }
+    };
 };
 export type GameSettings = {
     volume: number;

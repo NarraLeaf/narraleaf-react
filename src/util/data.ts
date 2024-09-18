@@ -1,3 +1,5 @@
+import type {Game} from "@core/game";
+
 /**
  * @param obj1 source object
  * @param obj2 this object will overwrite the source object
@@ -281,6 +283,11 @@ export function deepEqual(obj1: any, obj2: any): boolean {
 }
 
 export class Logger {
+    private game: Game;
+    constructor(game: Game) {
+        this.game = game;
+    }
+
     private _log(tag: string, ...args: any[]) {
         if (args.length === 0) {
             return tag;
@@ -290,26 +297,38 @@ export class Logger {
     }
 
     log(tag: string, ...args: any[]) {
-        console.log(...this._log(tag, ...args));
+        if (this.game.config.app.logger.log) {
+            console.log(...this._log(tag, ...args));
+        }
     }
 
     info(tag: string, ...args: any[]) {
-        console.info(...this._log(tag, ...args));
+        if (this.game.config.app.logger.info) {
+            console.info(...this._log(tag, ...args));
+        }
     }
 
     warn(tag: string, ...args: any[]) {
-        console.warn(...this._log(tag, ...args));
+        if (this.game.config.app.logger.warn) {
+            console.warn(...this._log(tag, ...args));
+        }
     }
 
     error(tag: string, ...args: any[]) {
-        console.error(...this._log(tag, ...args));
+        if (this.game.config.app.logger.error) {
+            console.error(...this._log(tag, ...args));
+        }
     }
 
     debug(tag: string, ...args: any[]) {
-        console.debug(this._log(tag, ...args));
+        if (this.game.config.app.logger.debug) {
+            console.debug(...this._log(tag, ...args));
+        }
     }
 
     trace(tag: string, ...args: any[]) {
-        console.trace(this._log(tag, ...args));
+        if (this.game.config.app.logger.trace) {
+            console.trace(this._log(tag, ...args));
+        }
     }
 }
