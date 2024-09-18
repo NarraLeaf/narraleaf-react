@@ -61,6 +61,8 @@ export class Game {
             aspectRatio: 16 / 9,
             minWidth: 800,
             minHeight: 450,
+            width: "100%",
+            height: "100%",
         },
         elements: {
             say: {
@@ -70,7 +72,7 @@ export class Game {
             },
             img: {
                 slowLoadWarning: true,
-                slowLoadThreshold: 200,
+                slowLoadThreshold: 2000,
             },
             menu: {
                 use: DefaultElements.menu,

@@ -46,6 +46,8 @@ export function Preload({
             }
         });
 
+        state.logger.debug("Preloading", src, futureSceneSrc);
+
         preloaded.preloaded = preloaded.preloaded.filter(p => {
             if (p.type === SrcManager.SrcTypes.audio) {
                 let has = src[p.type].has((p as PreloadedSrc<"audio">).src);
@@ -68,6 +70,9 @@ export function Preload({
         src.image.forEach((src: GameImage) => {
             const htmlImg = new Image();
             htmlImg.src = Utils.srcToString(src.state.src);
+            htmlImg.onload = () => {
+                state.logger.debug("Image loaded", src.state.src);
+            };
             newImages.push(htmlImg);
 
             preloaded.add({type: "image", src});

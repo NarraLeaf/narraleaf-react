@@ -1,5 +1,5 @@
 import {Scene as GameScene, SceneEventTypes} from "@core/elements/scene";
-import {useAspectRatio} from "@player/provider/ratio";
+import {useRatio} from "@player/provider/ratio";
 import React, {useEffect, useState} from "react";
 import BackgroundTransition from "./BackgroundTransition";
 import {GameState} from "@player/gameState";
@@ -17,12 +17,19 @@ export default function Scene({
     children?: React.ReactNode;
     className?: string;
 }>) {
-    const {ratio} = useAspectRatio();
+    const {ratio} = useRatio();
     const [backgroundMusic, setBackgroundMusic] =
         useState<Sound | null>(() => scene._$getBackgroundMusic());
     const [settingProgress, setSettingProgress] =
         useState<NodeJS.Timeout | null>(null);
     const [resolve, setResolve] = useState<(() => void) | null>(null);
+    const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+
+    useEffect(() => {
+        return ratio.onUpdate(() => {
+            forceUpdate();
+        });
+    });
 
     async function stopWithFade(music: Sound, fade: number) {
         if (!music.$getHowl() || !music.$getHowl()!.playing(music.$getToken())) {
@@ -129,8 +136,8 @@ export default function Scene({
     return (
         <div className={className}>
             <BackgroundTransition scene={scene} props={{
-                width: ratio.w,
-                height: ratio.h,
+                width: ratio.state.width,
+                height: ratio.state.height,
                 src: Utils.backgroundToSrc(scene.state.background),
             }} state={state}/>
             {children}

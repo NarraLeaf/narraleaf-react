@@ -1,6 +1,6 @@
 import type {EventDispatcher} from "@lib/util/data";
 import React from "react";
-import {DOMKeyframesDefinition} from "framer-motion";
+import type {DOMKeyframesDefinition} from "framer-motion";
 
 export type ElementProp<T extends Element = Element, U extends React.HTMLAttributes<T> = React.HTMLAttributes<T>> =
     React.JSX.IntrinsicAttributes

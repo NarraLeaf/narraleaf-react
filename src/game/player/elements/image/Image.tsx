@@ -1,6 +1,7 @@
 import {Image as GameImage} from "@core/elements/image";
 import React, {useEffect, useRef, useState} from "react";
-import {DOMKeyframesDefinition, useAnimate} from "framer-motion";
+import type {DOMKeyframesDefinition} from "framer-motion";
+import {m} from "framer-motion";
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
 import {Transform} from "@core/elements/transform/transform";
@@ -8,6 +9,7 @@ import {Utils} from "@core/common/core";
 import {CSSElementProp, ImgElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";
 import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
+import {useRatio} from "@player/provider/ratio";
 
 export default function Image({
                                   image,
@@ -18,17 +20,25 @@ export default function Image({
     state: GameState;
     onAnimationEnd?: () => any;
 }>) {
-    const [scope, animate] = useAnimate();
+    const scope = useRef<HTMLImageElement | null>(null);
     const [transform, setTransform] =
         useState<Transform<any> | null>(null);
     const [transformProps, setTransformProps] =
         useState<CSSElementProp<DOMKeyframesDefinition>>({style: {}});
     const [transition, setTransition] =
         useState<null | ITransition>(null);
-    const [transitionProps, setTransitionProps] =
+    const [, setTransitionProps] =
         useState<ImgElementProp[]>([]);
     const startTime = useRef<number>(0);
+    const {ratio} = useRatio();
     const {game} = useGame();
+    const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+
+    useEffect(() => {
+        return ratio.onUpdate(() => {
+            forceUpdate();
+        });
+    });
 
     useEffect(() => {
         image.setScope(scope);
@@ -46,7 +56,9 @@ export default function Image({
                     assignTo(transform.propToCSS(state, image.state));
 
                     setTransform(transform);
-                    await transform.animate({scope, animate}, state, image.state, (after) => {
+
+                    state.logger.debug("transform", transform, transform.propToCSS(state, image.state));
+                    await transform.animate({scope}, state, image.state, (after) => {
                         image.state = deepMerge(image.state, after);
                         setTransformProps({
                             style: transform.propToCSS(state, image.state) as any,
@@ -64,7 +76,7 @@ export default function Image({
         }), {
             type: GameImage.EventTypes["event:image.init"],
             listener: image.events.on(GameImage.EventTypes["event:image.init"], async () => {
-                await image.toTransform().animate({scope, animate}, state, image.state, (after) => {
+                await image.toTransform().animate({scope}, state, image.state, (after) => {
                     image.state = deepMerge(image.state, after);
                     setTransformProps({
                         style: image.toTransform().propToCSS(state, image.state) as any,
@@ -151,26 +163,25 @@ export default function Image({
     const defaultProps = {
         className: "absolute",
         src: Utils.staticImageDataToSrc(image.state.src),
-        width: image.state.width,
-        height: image.state.height,
     };
 
     return (
         <Isolated className={"absolute overflow-hidden"}>
             {transition ? transition.toElementProps().map((elementProps, index, arr) => {
                 const mergedProps =
-                    deepMerge<ImgElementProp>(defaultProps, transformProps, elementProps, transitionProps[index] || {});
+                    deepMerge<ImgElementProp>(defaultProps, transformProps, elementProps) as any;
                 return (
-                    <img
+                    <m.img
                         key={index}
                         alt={mergedProps.alt}
                         {...mergedProps}
                         ref={index === (arr.length - 1) ? scope : undefined}
                         onLoad={handleLoad}
+                        layout
                     />
                 );
             }) : (
-                <img
+                <m.img
                     ref={scope}
                     alt={"image"}
                     {...deepMerge(defaultProps, transformProps)}

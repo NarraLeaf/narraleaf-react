@@ -23,7 +23,7 @@ export default function Menu({
         <>
             <Isolated className={"absolute"}>
                 <div className="absolute flex flex-col items-center justify-center min-w-full w-full h-full">
-                    {prompt && <Say action={{sentence: prompt}} useTypeEffect={false} className="z-10"/>}
+                    {prompt && <Say action={{sentence: prompt, character: null}} useTypeEffect={false} className="z-10"/>}
                 </div>
             </Isolated>
             <Isolated className={"absolute"}>

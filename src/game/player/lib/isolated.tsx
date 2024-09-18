@@ -1,27 +1,35 @@
 "use client";
 
-import type {ReactNode} from "react";
+import React, {ReactNode, useEffect} from "react";
 
 import clsx from "clsx";
-import React from "react";
-import {useAspectRatio} from "@player/provider/ratio";
+import {useRatio} from "@player/provider/ratio";
 
 export default function Isolated(
     {children, className}: Readonly<{ children: ReactNode, className?: string }>
 ) {
-    const {ratio} = useAspectRatio();
+    const {ratio} = useRatio();
+    const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+
+    useEffect(() => {
+        return ratio.onUpdate(() => {
+            forceUpdate();
+        });
+    });
+
+    const styles = ratio.getStyle();
+
     return (
         <div className={
             clsx("inset-0 flex items-center justify-center", className)
         } style={{
             width: "100%",
             height: "100%",
-            minWidth: `${ratio.min.w}px`,
-            minHeight: `${ratio.min.h}px`,
+            minWidth: `${ratio.state.minWidth}px`,
+            minHeight: `${ratio.state.minHeight}px`,
         }}>
             <div style={{
-                width: `${ratio.w}px`,
-                height: `${ratio.h}px`,
+                ...styles,
                 position: "relative"
             }}>
                 {children}

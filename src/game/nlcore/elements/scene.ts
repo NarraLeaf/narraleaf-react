@@ -277,10 +277,14 @@ export class Scene extends Constructable<
         const queue: Actions[] = [this.getActions()[0]];
         const futureScene = new Set<Scene>();
 
+        if (Utils.backgroundToSrc(this.config.background)) {
+            this.srcManager.register(new Image({src: Utils.backgroundToSrc(this.config.background)}));
+        }
+
         while (queue.length) {
             const action = queue.shift()!;
             if (action instanceof SceneAction) {
-                if (action.type === SceneActionTypes.jumpTo) {
+                 if (action.type === SceneActionTypes.jumpTo) {
                     const jumpTo = action as SceneAction<typeof SceneActionTypes["jumpTo"]>;
                     const scene = jumpTo.contentNode.getContent()[0];
 
