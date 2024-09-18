@@ -1,7 +1,7 @@
 import {Game} from "../game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Color} from "@core/types";
-import {deepEqual, deepMerge, safeClone} from "@lib/util/data";
+import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
 import {CharacterAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 
@@ -101,21 +101,31 @@ export class Word {
     }
 }
 
-/* eslint-disable @typescript-eslint/no-empty-object-type */
-export type CharacterConfig = {}
+export enum CharacterMode {
+    // noinspection SpellCheckingInspection
+    "adv" = "adv",
+    "nvl" = "nvl"
+}
+export type CharacterConfig = {
+    mode: CharacterMode;
+}
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type CharacterStateData = {};
 
 export class Character extends Actionable<
     CharacterStateData
 > {
+    static Modes = CharacterMode;
+    static defaultConfig: CharacterConfig = {
+        mode: CharacterMode.adv,
+    };
     name: string | null;
     config: CharacterConfig;
 
-    constructor(name: string | null, config: CharacterConfig = {}) {
+    constructor(name: string | null, config: DeepPartial<CharacterConfig> = {}) {
         super(Actionable.IdPrefixes.Text);
         this.name = name;
-        this.config = config;
+        this.config = deepMerge<CharacterConfig>({}, Character.defaultConfig, config);
     }
 
     /**

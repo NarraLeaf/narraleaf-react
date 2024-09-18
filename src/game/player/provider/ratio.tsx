@@ -1,56 +1,123 @@
 "use client";
 
 import React, {createContext, useContext, useState} from "react";
+import {EventDispatcher} from "@lib/util/data";
 
-type Ratio = {
-    w: number;
-    h: number;
-    updateStyle: () => void;
-    style: React.CSSProperties;
-    s: {
-        style: React.CSSProperties;
+export type AspectRatioState = {
+    width: number;
+    height: number;
+    minWidth: number;
+    minHeight: number;
+    paused: boolean;
+};
+
+type AspectRatioEvents = {
+    "event:aspectRatio.update": [width: number, height: number];
+    "event:aspectRatio.pause": [];
+    "event:aspectRatio.resume": [];
+};
+
+class AspectRatio {
+    static EventTypes: { [K in keyof AspectRatioEvents]: K } = {
+        "event:aspectRatio.update": "event:aspectRatio.update",
+        "event:aspectRatio.pause": "event:aspectRatio.pause",
+        "event:aspectRatio.resume": "event:aspectRatio.resume",
     };
-    min: {
-        w: number;
-        h: number;
+    state: AspectRatioState = {
+        width: 0,
+        height: 0,
+        minWidth: 800,
+        minHeight: 450,
+        paused: false,
     };
+
+    public readonly events = new EventDispatcher<AspectRatioEvents>();
+    private lockers: symbol[] = [];
+    private updater: (() => void) | null = null;
+
+    constructor() {
+    }
+
+    update(width: number, height: number) {
+        this.state.width = width;
+        this.state.height = height;
+        this.events.emit(AspectRatio.EventTypes["event:aspectRatio.update"], width, height);
+    }
+
+    updateMin(width: number, height: number) {
+        this.state.minWidth = width;
+        this.state.minHeight = height;
+    }
+
+    lock() {
+        const locker = Symbol();
+        this.lockers.push(locker);
+        return locker;
+    }
+
+    unlock(locker: symbol | null | undefined) {
+        if (locker && (!this.lockers.includes(locker))) {
+            throw new Error("Locker not found");
+        }
+        this.lockers = this.lockers.filter((l) => l !== locker);
+        this.triggerUpdate();
+        return null;
+    }
+
+    isLocked() {
+        return !!this.lockers.length;
+    }
+
+    getStyle() {
+        return {
+            width: `${this.state.width}px`,
+            height: `${this.state.height}px`,
+        };
+    }
+
+    setUpdate(updater: () => void) {
+        this.updater = updater;
+    }
+
+    pause() {
+        this.state.paused = true;
+        this.events.emit(AspectRatio.EventTypes["event:aspectRatio.pause"]);
+    }
+
+    resume() {
+        this.state.paused = false;
+        this.events.emit(AspectRatio.EventTypes["event:aspectRatio.resume"]);
+    }
+
+    onUpdate(callback: (width: number, height: number) => void) {
+        this.events.on(AspectRatio.EventTypes["event:aspectRatio.update"], callback);
+        return () => {
+            this.events.off(AspectRatio.EventTypes["event:aspectRatio.update"], callback);
+        };
+    }
+
+    private triggerUpdate() {
+        if (this.updater) {
+            this.updater();
+        }
+    }
 }
-type ThemeContextType = {
-    ratio: Ratio;
-    setRatio: (ratio: Ratio) => void;
-};
 
-const DefaultValue: Ratio = {
-    w: 0,
-    h: 0,
-    updateStyle: () => void 0,
-    style: {},
-    s: {
-        style: {}
-    },
-    min: {
-        w: 800,
-        h: 450
-    },
-};
-const Context = createContext<null | ThemeContextType>(null);
+const RatioContext = createContext<null | { ratio: AspectRatio }>(null);
 
-export function AspectRatioProvider({children}: {
+export function RatioProvider({children}: {
     children: React.ReactNode
 }) {
-    const [ratio, setRatio] = useState(DefaultValue);
-
+    const [ratio] = useState(new AspectRatio());
     return (
-        <>
-            <Context.Provider value={{ratio: ratio, setRatio: setRatio}}>
-                {children}
-            </Context.Provider>
-        </>
+        <RatioContext.Provider value={{ratio}}>
+            {children}
+        </RatioContext.Provider>
     );
 }
 
-export function useAspectRatio(): ThemeContextType {
-    if (!Context) throw new Error("useAspectRatio must be used within a AspectRatioProvider");
-    return useContext(Context) as ThemeContextType;
+export function useRatio(): { ratio: AspectRatio } {
+    if (!RatioContext) throw new Error("useRatio must be used within a RatioProvider");
+    return useContext(RatioContext) as { ratio: AspectRatio };
 }
 

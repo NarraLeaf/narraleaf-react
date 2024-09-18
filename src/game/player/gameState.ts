@@ -1,5 +1,5 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher} from "@lib/util/data";
+import {EventDispatcher, Logger} from "@lib/util/data";
 import {Sentence} from "@core/elements/text";
 import {Choice, MenuData} from "@core/elements/menu";
 import {Image, ImageEventTypes} from "@core/elements/image";
@@ -58,6 +58,7 @@ export class GameState {
     stage: StageUtils;
     game: Game;
     public readonly events: EventDispatcher<GameStateEvents>;
+    public readonly logger = new Logger();
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;

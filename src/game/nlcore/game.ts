@@ -70,7 +70,7 @@ export class Game {
             },
             img: {
                 slowLoadWarning: true,
-                slowLoadThreshold: 200,
+                slowLoadThreshold: 2000,
             },
             menu: {
                 use: DefaultElements.menu,
