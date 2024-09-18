@@ -20,7 +20,7 @@ module.exports = {
         main: ["./src/index.ts"]
     },
     output: {
-        filename: (!useAnalyzer) ? "index.js" : "[name].[contenthash].js",
+        filename: (!useAnalyzer) ? "main.js" : "[name].[contenthash].js",
         path: path.resolve(__dirname, "dist"),
         library: "NarraleafReact",
         libraryTarget: "umd",
