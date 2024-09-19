@@ -4,7 +4,6 @@ import clsx from "clsx";
 import {Choice} from "@core/elements/menu";
 import {MenuElementProps} from "@player/elements/menu/type";
 import ColoredSentence from "./Sentence";
-import Say from "@player/elements/say/Say";
 import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
 
@@ -17,6 +16,8 @@ export default function Menu(
     }: Readonly<MenuElementProps>) {
     const {game} = useGame();
 
+    const Say = game.config.elements.say.use;
+
     function choose(choice: Choice) {
         afterChoose(choice);
     }
@@ -25,8 +26,12 @@ export default function Menu(
         <>
             <Isolated className={"absolute"}>
                 <div className="absolute flex flex-col items-center justify-center min-w-full w-full h-full">
-                    {prompt && <Say state={state} action={{sentence: prompt, character: null}} useTypeEffect={false}
-                                    className="z-10"/>}
+                    {prompt && <Say
+                        state={state}
+                        action={{sentence: prompt, character: null}}
+                        useTypeEffect={false}
+                        className="z-10"
+                    />}
                 </div>
             </Isolated>
             <Isolated className={"absolute"}>

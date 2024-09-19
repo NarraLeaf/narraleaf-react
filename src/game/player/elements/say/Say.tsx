@@ -107,7 +107,7 @@ export default function Say({
                                         return (
                                             <span key={index} style={{
                                                 color: toHex(word.config.color)
-                                            }}>
+                                            }} className={clsx(game.config.elementStyles.say.textSpan)}>
                                         {
                                             useTypeEffect ?
                                                 <TypingEffect
