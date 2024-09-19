@@ -1,4 +1,5 @@
-import {Character, Sentence} from "@core/elements/text";
+import type {Character, Sentence} from "@core/elements/text";
+import type {GameState} from "@player/gameState";
 
 export interface SayElementProps {
     action: {
@@ -11,5 +12,6 @@ export interface SayElementProps {
     onClick?: () => void;
     useTypeEffect?: boolean;
     className?: string;
+    state: GameState;
 }
 

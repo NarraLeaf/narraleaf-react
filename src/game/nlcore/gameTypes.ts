@@ -27,19 +27,48 @@ export type GameConfig = {
     version: string;
     player: {
         contentContainerId: string;
+        /**
+         * The aspect ratio of the game
+         * Ex: 16/9, 4/3, 1/1
+         */
         aspectRatio: number;
+        /**
+         * The minimum width and height of the player in pixels
+         */
         minWidth: number;
+        /**
+         * The minimum width and height of the player in pixels
+         */
         minHeight: number;
         width: number | string;
         height: number | string;
+        /**
+         * When player presses one of these keys, the game will skip the current action
+         *
+         * See [Key_Values](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values)
+         */
+        skipKey: string[];
+        /**
+         * The interval in milliseconds between each skip action.
+         * ex: 100ms means the player can skip 10 actions per second.
+         * higher value means faster skipping.
+         */
+        skipInterval: number;
     };
     elements: {
         say: {
             /**
+             * When the player presses one of these keys, the game will show the next sentence
+             *
              * See [Key_Values](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values)
              */
-            skipKeys: string[];
-            textSpeed: number;
+            nextKey: string[];
+            /**
+             * The speed of the text effect in milliseconds.
+             * higher value means slower text effect.
+             * default: 50
+             */
+            textInterval: number;
             use: SayComponent;
         },
         img: {
@@ -71,6 +100,9 @@ export type GameConfig = {
         }
     };
     app: {
+        /**
+         * Log level for the logger
+         */
         logger: {
             log: boolean;
             info: boolean;

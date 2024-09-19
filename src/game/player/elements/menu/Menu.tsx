@@ -8,11 +8,13 @@ import Say from "@player/elements/say/Say";
 import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
 
-export default function Menu({
-                                 prompt,
-                                 choices,
-                                 afterChoose,
-                             }: Readonly<MenuElementProps>) {
+export default function Menu(
+    {
+        prompt,
+        choices,
+        afterChoose,
+        state,
+    }: Readonly<MenuElementProps>) {
     const {game} = useGame();
 
     function choose(choice: Choice) {
@@ -23,7 +25,8 @@ export default function Menu({
         <>
             <Isolated className={"absolute"}>
                 <div className="absolute flex flex-col items-center justify-center min-w-full w-full h-full">
-                    {prompt && <Say action={{sentence: prompt, character: null}} useTypeEffect={false} className="z-10"/>}
+                    {prompt && <Say state={state} action={{sentence: prompt, character: null}} useTypeEffect={false}
+                                    className="z-10"/>}
                 </div>
             </Isolated>
             <Isolated className={"absolute"}>

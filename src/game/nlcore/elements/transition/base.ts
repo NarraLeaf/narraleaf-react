@@ -5,6 +5,8 @@ import type {AnimationPlaybackControls, ValueAnimationTransition} from "framer-m
 
 
 export class Base<T extends ElementProp> implements ITransition<T> {
+    public controller: AnimationPlaybackControls | null | undefined;
+
     public events: EventDispatcher<EventTypes<[T[]]>> = new EventDispatcher();
 
     public start(_onComplete?: () => void): void {
@@ -34,7 +36,7 @@ export class Base<T extends ElementProp> implements ITransition<T> {
     ): AnimationPlaybackControls {
         this.events.emit(TransitionEventTypes.start, null);
 
-        return animate(start, end, {
+        this.controller = animate(start, end, {
             duration: duration / 1000,
             onUpdate: (value) => {
                 if (onUpdate) {
@@ -47,9 +49,11 @@ export class Base<T extends ElementProp> implements ITransition<T> {
                 if (onComplete) {
                     onComplete();
                 }
+                this.controller = undefined;
             },
             ...options,
         });
+        return this.controller;
     }
 
     copy(): ITransition<T> {

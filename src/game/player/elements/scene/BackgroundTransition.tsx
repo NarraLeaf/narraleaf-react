@@ -84,6 +84,24 @@ export default function BackgroundTransition({scene, props, state}: {
         };
     }, [transition, scene]);
 
+    useEffect(() => {
+        const gameEvents = state.events.onEvents([
+            {
+                type: GameState.EventTypes["event:state.player.skip"],
+                listener: state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+                    if (transform && transform.getControl()) {
+                        transform.getControl()!.complete();
+                        transform.setControl(null);
+                    }
+                }),
+            }
+        ]);
+
+        return () => {
+            gameEvents.cancel();
+        };
+    }, [transform]);
+
     function handleImageOnload() {
         scene.events.emit(GameScene.EventTypes["event:scene.imageLoaded"]);
     }

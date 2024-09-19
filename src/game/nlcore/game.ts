@@ -63,11 +63,13 @@ export class Game {
             minHeight: 450,
             width: "100%",
             height: "100%",
+            skipKey: ["Control"],
+            skipInterval: 100,
         },
         elements: {
             say: {
-                skipKeys: [" "],
-                textSpeed: 50,
+                nextKey: [" "],
+                textInterval: 50,
                 use: DefaultElements.say,
             },
             img: {
@@ -342,7 +344,7 @@ export class LiveGame {
         this.currentAction = this.currentAction || this.story.getActions()[++this.currentSceneNumber];
         if (!this.currentAction) {
             state.events.emit(GameState.EventTypes["event:state.end"]);
-            console.warn("No current action"); // Congrats, you've reached the end of the story
+            state.logger.warn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
             return null;
         }
 
@@ -356,6 +358,14 @@ export class LiveGame {
 
         this.currentAction = nextAction.node?.child?.action || null;
         return nextAction;
+    }
+
+    abortAwaiting() {
+        if (this.lockedAwaiting) {
+            const next = this.lockedAwaiting.abort();
+            this.currentAction = next?.node?.action || null;
+            this.lockedAwaiting = null;
+        }
     }
 
     executeAction(state: GameState, action: LogicAction.Actions): LogicAction.Actions | Awaitable<CalledActionResult, CalledActionResult> | null {

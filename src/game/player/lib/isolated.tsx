@@ -1,6 +1,6 @@
 "use client";
 
-import React, {ReactNode, useEffect} from "react";
+import React, {ReactNode} from "react";
 
 import clsx from "clsx";
 import {useRatio} from "@player/provider/ratio";
@@ -9,13 +9,6 @@ export default function Isolated(
     {children, className}: Readonly<{ children: ReactNode, className?: string }>
 ) {
     const {ratio} = useRatio();
-    const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
-
-    useEffect(() => {
-        return ratio.onUpdate(() => {
-            forceUpdate();
-        });
-    });
 
     const styles = ratio.getStyle();
 

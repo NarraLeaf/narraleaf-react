@@ -42,12 +42,14 @@ interface StageUtils {
 type GameStateEvents = {
     "event:state.ready": [];
     "event:state.end": [];
+    "event:state.player.skip": [];
 };
 
 export class GameState {
     static EventTypes: { [K in keyof GameStateEvents]: K } = {
         "event:state.ready": "event:state.ready",
         "event:state.end": "event:state.end",
+        "event:state.player.skip": "event:state.player.skip",
     };
     state: PlayerState = {
         sounds: [],
@@ -64,7 +66,7 @@ export class GameState {
         this.stage = stage;
         this.game = game;
         this.events = new EventDispatcher();
-        this.logger = new Logger(game);
+        this.logger = new Logger(game, "NarraLeaf-React");
     }
 
     public findElementByScene(scene: Scene): { scene: Scene, ele: PlayerStateElement } | null {

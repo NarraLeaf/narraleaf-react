@@ -9,7 +9,6 @@ import {Utils} from "@core/common/core";
 import {CSSElementProp, ImgElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";
 import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
-import {useRatio} from "@player/provider/ratio";
 
 export default function Image({
                                   image,
@@ -30,15 +29,7 @@ export default function Image({
     const [, setTransitionProps] =
         useState<ImgElementProp[]>([]);
     const [startTime, setStartTime] = useState<number>(0);
-    const {ratio} = useRatio();
     const {game} = useGame();
-    const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
-
-    useEffect(() => {
-        return ratio.onUpdate(() => {
-            forceUpdate();
-        });
-    });
 
     useEffect(() => {
         image.setScope(scope);
@@ -105,6 +96,12 @@ export default function Image({
             }
         ]);
 
+        return () => {
+            imageEventToken.cancel();
+        };
+    }, [transition, image]);
+
+    useEffect(() => {
         const transitionEventTokens = transition ? transition.events.onEvents([
             {
                 type: TransitionEventTypes.update,
@@ -117,18 +114,41 @@ export default function Image({
                 listener: transition.events.on(TransitionEventTypes.end, () => {
                     setTransition(null);
                 })
-            }
+            },
         ]) : null;
 
         return () => {
-            imageEventToken.cancel();
             transitionEventTokens?.cancel?.();
         };
-    }, [transition, image]);
+    }, [transition]);
 
     useEffect(() => {
         setStartTime(performance.now());
     }, []);
+
+    useEffect(() => {
+        const gameEvents = state.events.onEvents([
+            {
+                type: GameState.EventTypes["event:state.player.skip"],
+                listener: state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+                    if (transform && transform.getControl()) {
+                        transform.getControl()!.complete();
+                        transform.setControl(null);
+                        state.logger.debug("transform skip");
+                    }
+                    if (transition && transition.controller) {
+                        transition.controller.complete();
+                        setTransition(null);
+                        state.logger.debug("transition skip");
+                    }
+                }),
+            }
+        ]);
+
+        return () => {
+            gameEvents.cancel();
+        };
+    }, [transition, transform]);
 
     const handleLoad = () => {
         const endTime = performance.now();

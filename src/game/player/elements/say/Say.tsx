@@ -6,6 +6,7 @@ import {toHex} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {SayElementProps} from "@player/elements/say/type";
 import {Character} from "@core/elements/text";
+import {GameState} from "@core/common/game";
 
 
 export default function Say({
@@ -13,6 +14,7 @@ export default function Say({
                                 onClick,
                                 useTypeEffect = true,
                                 className,
+                                state,
                             }: Readonly<SayElementProps>) {
     const {sentence, character} = action;
     const [currentWordIndex, setCurrentWordIndex] = useState(0);
@@ -41,7 +43,7 @@ export default function Say({
         }
 
         const handleKeyUp = (e: KeyboardEvent) => {
-            if (game.config.elements.say.skipKeys.includes(e.key)) {
+            if (game.config.elements.say.nextKey.includes(e.key)) {
                 if (isFinished) {
                     if (onClick) onClick();
                 } else {
@@ -52,58 +54,76 @@ export default function Say({
 
         window.addEventListener("keyup", handleKeyUp);
 
+
         return () => {
             window.removeEventListener("keyup", handleKeyUp);
         };
     }, [isFinished]);
 
+    useEffect(() => {
+        const gameEvents = state.events.onEvents([
+            {
+                type: GameState.EventTypes["event:state.player.skip"],
+                listener: state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+                    state.logger.log("NarraLeaf-React: Say", "Skipped");
+                    setIsFinished(true);
+                    if (onClick) onClick();
+                }),
+            }
+        ]);
+
+        return () => {
+            gameEvents.cancel();
+        };
+    });
+
     return (
         <Isolated className={"absolute"}>
             {sentence.state.display &&
                 ((!character || character.config.mode === Character.Modes.adv) ?
-                    (<div className={
-                        clsx(
-                            "absolute flex items-center justify-center bottom-0 w-[calc(100%-40px)] h-[calc(33%-40px)] m-4 bg-white",
-                            game.config.elementStyles.say.container,
-                            className
-                        )
-                    } onClick={onElementClick}>
-                        <div
-                            className={clsx("absolute top-0 left-0 p-1.25 rounded-br-md m-4", game.config.elementStyles.say.nameText)}>
-                            {sentence.character?.name || ""}
-                        </div>
-                        <div
-                            className={clsx("text-center max-w-[80%] mx-auto", game.config.elementStyles.say.textContainer)}>
-                            {
-                                sentence.text.map((word, index) => {
-                                    if (isFinished) return (
-                                        <span key={index} style={{
-                                            color: typeof word.config.color === "string" ? word.config.color : toHex(word.config.color)
-                                        }} className={clsx(game.config.elementStyles.say.textSpan)}>
+                        (<div className={
+                            clsx(
+                                "absolute flex items-center justify-center bottom-0 w-[calc(100%-40px)] h-[calc(33%-40px)] m-4 bg-white",
+                                game.config.elementStyles.say.container,
+                                className
+                            )
+                        } onClick={onElementClick}>
+                            <div
+                                className={clsx("absolute top-0 left-0 p-1.25 rounded-br-md m-4", game.config.elementStyles.say.nameText)}>
+                                {sentence.character?.name || ""}
+                            </div>
+                            <div
+                                className={clsx("text-center max-w-[80%] mx-auto", game.config.elementStyles.say.textContainer)}>
+                                {
+                                    sentence.text.map((word, index) => {
+                                        if (isFinished) return (
+                                            <span key={index} style={{
+                                                color: typeof word.config.color === "string" ? word.config.color : toHex(word.config.color)
+                                            }} className={clsx(game.config.elementStyles.say.textSpan)}>
                                         {word.text}
                                     </span>
-                                    );
-                                    if (index > currentWordIndex) return null;
-                                    return (
-                                        <span key={index} style={{
-                                            color: toHex(word.config.color)
-                                        }}>
+                                        );
+                                        if (index > currentWordIndex) return null;
+                                        return (
+                                            <span key={index} style={{
+                                                color: toHex(word.config.color)
+                                            }}>
                                         {
                                             useTypeEffect ?
                                                 <TypingEffect
                                                     text={word.text}
                                                     onComplete={index === currentWordIndex ? handleComplete : undefined}
-                                                    speed={game.config.elements.say.textSpeed}
+                                                    speed={game.config.elements.say.textInterval}
                                                     className={clsx(game.config.elementStyles.say.textSpan)}
                                                 /> :
                                                 word.text
                                         }
                                     </span>
-                                    );
-                                })
-                            }
-                        </div>
-                    </div>) : (<> </>)
+                                        );
+                                    })
+                                }
+                            </div>
+                        </div>) : (<> </>)
                 )
             }
         </Isolated>
