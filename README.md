@@ -11,6 +11,14 @@ NL focuses on visual novel playing, so the user interface can be customized very
 
 It doesn't use any rendering libraries and can be used on any web platform (e.g. Electron)
 
+## Why NarraLeaf-React?
+
+- **Lightweight**: NarraLeaf-React is a front-end framework, and it doesn't use any rendering libraries.
+- **Customizable**: You can customize the UI as you like, even replace the whole components.
+- **Easy to use**: It is easy to use and has a simple API that is built for developers. Based on OOP principles.
+- **Built for React**: It is built for React!
+- **Cross-platform**: It can be used on any web platform (e.g. Electron)
+
 ## Get Started
 
 ### Install
@@ -24,38 +32,33 @@ npm install narraleaf-react
 ```tsx
 "use client";
 
-import { Character, Scene, Story, Image, Game, Player, GameProviders } from "narraleaf-react";
+import {Character, Scene, Story, Image, Player, GameProviders} from "narraleaf-react";
 
 export default function App() {
-    const story = new Story("My First NarraLeaf Story");
-
-    const scene1 = new Scene("scene1");
 
     const character1 = new Character("character1");
     const image1 = new Image({
         src: "https://placehold.it/200x200",
     })
 
-    // Add actions to the scene
-    scene1.action([
-        // Show image1 for 1 second
-        image1.show({
-            duration: 1000,
-        }).toActions(),
+    const story = new Story("My First NarraLeaf Story").entry(
+        new Scene("scene1").action([
+            // Show image1 for 1 second
+            image1.show({
+                duration: 1000,
+            }).toActions(),
 
-        // Say something
-        character1
-            .say("Hello, world!")
-            .say("This is my first NarraLeaf story.")
-            .say("Start editing this file and enjoy the journey!")
-            .toActions(),
-    ]);
+            // Say something
+            character1
+                .say("Hello, world!")
+                .say("This is my first NarraLeaf story.")
+                .say("Start editing this file and enjoy the journey!")
+                .toActions(),
+        ])
+    );
 
-    story.entry(scene1);
-
-    function handleOnReady(game: Game) {
+    function handleOnReady({game}) {
         game.getLiveGame().newGame();
-        console.log("Game is ready!");
     }
 
     return (
@@ -75,34 +78,35 @@ Read more in [Quick Start](./docs/quick-start.md)
 
 ### Performance
 
-Please enable image cache for a better performance.
+Please enable image cache for a better performance.  
+Narraleaf-React tries to cache the images before showing them, but it is recommended to enable cache on your server.
 
 for NextJS, add this to your `next.config.js`:
 
 ```js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    async headers() {
-        return [
-            {
-                source: '/YOUR_IMAGE_ENDPOINT/(.*)', // ex: /static/images/(.*)
-                headers: [
-                    {
-                        key: 'Cache-Control',
-                        value: 'public, max-age=31536000, immutable',
-                    },
-                ],
-            }
-        ]
-    }
-};
+        async headers() {
+            return [
+                {
+                    source: '/YOUR_IMAGE_ENDPOINT/(.*)', // ex: /static/images/(.*)
+                    headers: [
+                        {
+                            key: 'Cache-Control',
+                            value: 'public, max-age=31536000, immutable',
+                        },
+                    ],
+                }
+            ]
+        }
+    };
 
 export default nextConfig;
 ```
 
 ## Documentation
 
-- [Quick Start](./docs/quick-start.md)  
+- [Quick Start](./docs/quick-start.md)
 - [Customization](./docs/customization.md)
 
 in progress...

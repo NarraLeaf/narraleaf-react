@@ -36,6 +36,9 @@ export default function Image({
 
         image.events.emit(GameImage.EventTypes["event:image.mount"]);
 
+        /**
+         * Listen to image events
+         */
         const imageEventToken = image.events.onEvents([...[
             GameImage.EventTypes["event:image.show"],
             GameImage.EventTypes["event:image.hide"],
@@ -86,6 +89,9 @@ export default function Image({
         };
     }, []);
 
+    /**
+     * Listen to image transition events
+     */
     useEffect(() => {
         const imageEventToken = image.events.onEvents([
             {
@@ -126,6 +132,9 @@ export default function Image({
         setStartTime(performance.now());
     }, []);
 
+    /**
+     * Listen to player events
+     */
     useEffect(() => {
         const gameEvents = state.events.onEvents([
             {
@@ -150,6 +159,9 @@ export default function Image({
         };
     }, [transition, transform]);
 
+    /**
+     * Slow load warning
+     */
     const handleLoad = () => {
         const endTime = performance.now();
         const loadTime = endTime - startTime;

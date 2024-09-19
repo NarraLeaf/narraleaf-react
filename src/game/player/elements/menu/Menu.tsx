@@ -42,15 +42,19 @@ export default function Menu(
                     <div className="p-4 rounded-lg w-full z-20">
                         <div className="flex flex-col items-center mt-4 w-full">
                             {choices.map((choice, i) => (
-                                <button key={i}
-                                        className={clsx(
-                                            "bg-white text-black p-2 rounded-lg mt-2 shadow-md w-1/2 hover:bg-gray-100 active:bg-gray-200 transition-colors",
-                                            game.config.elementStyles.menu.choiceButton
-                                        )}
-                                        onClick={() => choose(choice)}>
-                                    <ColoredSentence key={i} sentence={choice.prompt} className={clsx(
-                                        game.config.elementStyles.menu.choiceButtonText
-                                    )}/>
+                                <button
+                                    key={i}
+                                    className={clsx(
+                                        "bg-white text-black p-2 mt-2 w-1/2",
+                                        game.config.elementStyles.menu.choiceButton
+                                    )}
+                                    onClick={() => choose(choice)}
+                                >
+                                    <ColoredSentence
+                                        key={i}
+                                        sentence={choice.prompt}
+                                        className={clsx(game.config.elementStyles.menu.choiceButtonText)}
+                                    />
                                 </button>
                             ))}
                         </div>
