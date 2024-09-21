@@ -4,9 +4,11 @@ import {Color} from "@core/types";
 import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
 import {CharacterAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
+import type {Sound} from "@core/elements/sound";
 
 export type SentenceConfig = {
     pause?: boolean | number;
+    voice: Sound | string | null | undefined;
 } & Color;
 export type WordConfig = {} & Color;
 
@@ -23,6 +25,7 @@ export class Sentence {
     static defaultConfig: SentenceConfig = {
         color: "#fff",
         pause: true,
+        voice: null,
     };
     static defaultState: SentenceState = {
         display: true

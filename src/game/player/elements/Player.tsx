@@ -18,6 +18,7 @@ import {Preloaded} from "@player/lib/Preloaded";
 import {GameState, PlayerAction} from "@player/gameState";
 import {useGame} from "@player/provider/game-state";
 import {PlayerProps} from "@player/elements/type";
+import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -71,7 +72,10 @@ export default function Player(
 
     useEffect(() => {
         if (onReady) {
-            onReady(game);
+            onReady({
+                game,
+                state,
+            });
         }
 
         const lastScene = state.getLastScene();
@@ -96,8 +100,21 @@ export default function Player(
                 type: GameState.EventTypes["event:state.end"],
                 listener: () => {
                     if (onEnd) {
-                        onEnd(game);
+                        onEnd({
+                            game,
+                            state,
+                        });
                     }
+                }
+            }
+        ]);
+
+        const gameKeyEvents = state.events.onEvents([
+            {
+                type: GameState.EventTypes["event:state.player.skip"],
+                listener: () => {
+                    game.getLiveGame().abortAwaiting();
+                    next();
                 }
             }
         ]);
@@ -111,6 +128,7 @@ export default function Player(
                 });
             }
             gameStateEvents.cancel();
+            gameKeyEvents.cancel();
         };
     }, []);
 
@@ -129,7 +147,7 @@ export default function Player(
             <div style={{
                 width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
                 height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
-            }} className={clsx(className)}>
+            }} className={clsx(className, "__narraleaf_content-player")}>
                 <AspectRatio className={clsx("flex-grow overflow-auto")}>
                     <Isolated className="relative">
                         {
@@ -140,47 +158,57 @@ export default function Player(
                             })
                         }
                         <OnlyPreloaded onLoaded={handlePreloadLoaded}>
+                            <KeyEventAnnouncer state={state}/>
                             {
-                                state.getSceneElements().map(({scene, ele}) => {
-                                    return (
-                                        <StageScene key={"scene-" + scene.id} state={state} scene={scene}>
-                                            {
-                                                (ele.images.map((image) => {
-                                                    return (
-                                                        <StageImage key={"image-" + image.id} image={image}
-                                                                    state={state}/>
-                                                    );
-                                                }))
-                                            }
-                                            {
-                                                ele.texts.map(({action, onClick}) => {
-                                                    return (
-                                                        <Say key={"say-" + action.id} action={action} onClick={() => {
+                                state.getSceneElements().map(({scene, ele}) => (
+                                    <StageScene key={"scene-" + scene.id} state={state} scene={scene}>
+                                        {
+                                            (ele.images.map((image) => {
+                                                return (
+                                                    <StageImage
+                                                        key={"image-" + image.id}
+                                                        image={image}
+                                                        state={state}
+                                                    />
+                                                );
+                                            }))
+                                        }
+                                        {
+                                            ele.texts.map(({action, onClick}) => {
+                                                return (
+                                                    <Say
+                                                        state={state}
+                                                        key={"say-" + action.id}
+                                                        action={action}
+                                                        onClick={() => {
                                                             onClick();
                                                             next();
-                                                        }}/>
-                                                    );
-                                                })
-                                            }
-                                            {
-                                                ele.menus.map((action, i) => {
-                                                    return (
-                                                        <div key={"menu-" + i}>
-                                                            {
-                                                                <Menu prompt={action.action.prompt}
-                                                                      choices={action.action.choices}
-                                                                      afterChoose={(choice) => {
-                                                                          action.onClick(choice);
-                                                                          next();
-                                                                      }}/>
-                                                            }
-                                                        </div>
-                                                    );
-                                                })
-                                            }
-                                        </StageScene>
-                                    );
-                                })
+                                                        }}
+                                                    />
+                                                );
+                                            })
+                                        }
+                                        {
+                                            ele.menus.map((action, i) => {
+                                                return (
+                                                    <div key={"menu-" + i}>
+                                                        {
+                                                            <Menu
+                                                                state={state}
+                                                                prompt={action.action.prompt}
+                                                                choices={action.action.choices}
+                                                                afterChoose={(choice) => {
+                                                                    action.onClick(choice);
+                                                                    next();
+                                                                }}
+                                                            />
+                                                        }
+                                                    </div>
+                                                );
+                                            })
+                                        }
+                                    </StageScene>
+                                ))
                             }
                         </OnlyPreloaded>
                     </Isolated>

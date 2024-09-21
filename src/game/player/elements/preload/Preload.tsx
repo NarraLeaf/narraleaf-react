@@ -79,6 +79,7 @@ export function Preload({
         });
 
         Promise.all(promises).then(() => {
+            state.logger.log("Preloaded", `Preloaded ${src.image.size} images`);
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
         });
 

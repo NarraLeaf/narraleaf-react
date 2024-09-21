@@ -345,8 +345,9 @@ export class Image extends Actionable<ImageDataRaw> {
     }
 
     private _transitionSrc(transition: ITransition): this {
-        this._setTransition(transition)
-            ._applyTransition(transition);
+        const t = transition.copy();
+        this._setTransition(t)
+            ._applyTransition(t);
         return this;
     }
 

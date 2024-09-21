@@ -1,5 +1,5 @@
 import {ContentNode} from "@core/action/tree/actionTree";
-import {Awaitable} from "@lib/util/data";
+import {Awaitable, SkipController} from "@lib/util/data";
 import {Image as GameImage, Image} from "@core/elements/image";
 import {LogicAction} from "@core/action/logicAction";
 import {Action} from "@core/action/action";
@@ -58,12 +58,17 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
 
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === CharacterActionTypes.say) {
-            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
+            const awaitable =
+                new Awaitable<CalledActionResult, CalledActionResult>(v => v)
+                    .registerSkipController(new SkipController(() => ({
+                        type: this.type as any,
+                        node: this.contentNode.getChild()
+                    })));
             const sentence = (this.contentNode as ContentNode<Sentence>).getContent();
             state.createText(this.contentNode.id, sentence, () => {
                 awaitable.resolve({
-                    type: this.type as any,
-                    node: this.contentNode.child
+                    type: this.type,
+                    node: this.contentNode.getChild()
                 });
             });
             return awaitable;
@@ -111,12 +116,18 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             );
             return super.executeAction(state);
         } else if (this.type === SceneActionTypes.applyTransition) {
-            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
+            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
+                .registerSkipController(new SkipController(() => {
+                    return {
+                        type: this.type,
+                        node: this.contentNode.getChild()
+                    };
+                }));
             const transition = (this.contentNode as ContentNode<SceneActionContentType["scene:applyTransition"]>).getContent()[0];
             transition.start(() => {
                 awaitable.resolve({
                     type: this.type,
-                    node: this.contentNode.child
+                    node: this.contentNode.getChild()
                 });
                 state.stage.next();
             });
@@ -192,12 +203,18 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             return super.executeAction(state);
         } else if (this.type === SceneActionTypes.applyTransform) {
             const [transform] = (this.contentNode as ContentNode<SceneActionContentType["scene:applyTransform"]>).getContent();
-            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
+            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
+                .registerSkipController(new SkipController(() => {
+                    return {
+                        type: this.type,
+                        node: this.contentNode.getChild()
+                    };
+                }));
             this.callee.events.any("event:scene.applyTransform", transform)
                 .then(() => {
                     awaitable.resolve({
                         type: this.type,
-                        node: this.contentNode.child
+                        node: this.contentNode.getChild()
                     });
                     state.stage.next();
                 });
@@ -263,7 +280,17 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             ImageActionTypes.hide,
             ImageActionTypes.applyTransform
         ].includes(this.type)) {
-            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
+            const awaitable =
+                new Awaitable<CalledActionResult, CalledActionResult>(v => v)
+                    .registerSkipController(new SkipController(() => {
+                        if (this.type === ImageActionTypes.hide) {
+                            this.callee.state.display = false;
+                        }
+                        return {
+                            type: this.type,
+                            node: this.contentNode.getChild()
+                        };
+                    }));
             const transform = (this.contentNode as ContentNode<ImageActionContentType["image:show"]>).getContent()[1];
 
             if (this.type === ImageActionTypes.show) {
@@ -294,12 +321,21 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             );
             return super.executeAction(state);
         } else if (this.type === ImageActionTypes.applyTransition) {
-            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
+            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
+                .registerSkipController(new SkipController(() => {
+                    if (this.type === ImageActionTypes.hide) {
+                        this.callee.state.display = false;
+                    }
+                    return {
+                        type: this.type,
+                        node: this.contentNode.getChild()
+                    };
+                }));
             const transition = (this.contentNode as ContentNode<ImageActionContentType["image:applyTransition"]>).getContent()[0];
             transition.start(() => {
                 awaitable.resolve({
                     type: this.type,
-                    node: this.contentNode.child
+                    node: this.contentNode.getChild()
                 });
                 state.stage.next();
             });
@@ -487,7 +523,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
 
     public async executeSingleAction(state: GameState, action: LogicAction.Actions) {
         const next = state.game.getLiveGame().executeAction(state, action);
-        if (Awaitable.isAwaitable<CalledActionResult,CalledActionResult>(next)) {
+        if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(next)) {
             const {node} = await new Promise<CalledActionResult>((r) => {
                 next.then((_) => r(next.result as any));
             });

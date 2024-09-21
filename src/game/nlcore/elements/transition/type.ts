@@ -1,6 +1,6 @@
 import type {EventDispatcher} from "@lib/util/data";
 import React from "react";
-import type {DOMKeyframesDefinition} from "framer-motion";
+import type {DOMKeyframesDefinition, AnimationPlaybackControls} from "framer-motion";
 
 export type ElementProp<T extends Element = Element, U extends React.HTMLAttributes<T> = React.HTMLAttributes<T>> =
     React.JSX.IntrinsicAttributes
@@ -14,6 +14,8 @@ export type CSSProps = React.CSSProperties;
 /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
 export interface ITransition<T extends ElementProp = {}> {
     events: EventDispatcher<EventTypes<[T[]]>>;
+
+    controller: AnimationPlaybackControls | null | undefined;
 
     start(onComplete?: () => void): void;
 

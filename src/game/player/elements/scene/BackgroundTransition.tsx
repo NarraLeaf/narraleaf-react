@@ -7,6 +7,7 @@ import {deepMerge} from "@lib/util/data";
 import Background from "./Background";
 import {Transform} from "@core/elements/transform/transform";
 import {GameState} from "@player/gameState";
+import {useGame} from "@player/provider/game-state";
 
 export default function BackgroundTransition({scene, props, state}: {
     scene: GameScene,
@@ -14,6 +15,7 @@ export default function BackgroundTransition({scene, props, state}: {
     state: GameState
 }) {
     const scope = useRef<HTMLImageElement | null>(null);
+    const {game} = useGame();
     const [transition, setTransition] =
         useState<null | ITransition>(null);
     const [, setTransitionProps] =
@@ -84,6 +86,24 @@ export default function BackgroundTransition({scene, props, state}: {
         };
     }, [transition, scene]);
 
+    useEffect(() => {
+        const gameEvents = state.events.onEvents([
+            {
+                type: GameState.EventTypes["event:state.player.skip"],
+                listener: state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+                    if (transform && transform.getControl()) {
+                        transform.getControl()!.complete();
+                        transform.setControl(null);
+                    }
+                }),
+            }
+        ]);
+
+        return () => {
+            gameEvents.cancel();
+        };
+    }, [transform]);
+
     function handleImageOnload() {
         scene.events.emit(GameScene.EventTypes["event:scene.imageLoaded"]);
     }
@@ -107,6 +127,12 @@ export default function BackgroundTransition({scene, props, state}: {
     const emptyImage = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
     const defaultProps = {
         src: emptyImage,
+        style: {
+            opacity: 0,
+            ...(game.config.app.debug ? {
+                border: "1px solid red",
+            } : {})
+        }
     };
 
     return (

@@ -1,6 +1,5 @@
-import {ElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";
+import {ElementProp, ITransition} from "@core/elements/transition/type";
 import {Base} from "@core/elements/transition/base";
-import {animate} from "framer-motion/dom";
 import {Scene} from "@core/elements/scene";
 import {StaticImageData} from "@core/types";
 import {Utils} from "@core/common/Utils";
@@ -62,21 +61,17 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
 
         this.state.opacity = 0;
         this.state.transform = this.getInitialTransform();
-        this.events.emit(TransitionEventTypes.start, null);
 
-        animate(0, 1, {
-            duration: this.duration / 1000,
+        this.requestAnimation({
+            start: 0,
+            end: 1,
+            duration: this.duration
+        }, {
+            onComplete,
             onUpdate: (value) => {
                 this.state.opacity = value;
                 this.state.transform = this.getTransform(value);
-                this.events.emit(TransitionEventTypes.update, this.toElementProps());
-            },
-            onComplete: () => {
-                this.events.emit(TransitionEventTypes.end, null);
-                if (onComplete) {
-                    onComplete();
-                }
-            },
+            }
         });
     }
 

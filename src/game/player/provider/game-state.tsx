@@ -22,6 +22,10 @@ export function GameProvider({children, game}: { children?: ReactNode, game?: Ga
     );
 }
 
+/**
+ * use {@link Game} context
+ * @returns {GameContextType}
+ */
 export function useGame(): GameContextType {
     const context = useContext(GameContext);
     if (!context) throw new Error("useGame must be used within a GameProvider");
