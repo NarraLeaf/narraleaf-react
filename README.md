@@ -27,6 +27,13 @@ It doesn't use any rendering libraries and can be used on any web platform (e.g.
 npm install narraleaf-react
 ```
 
+### Documentation
+
+- [Quick Start](./docs/quick-start.md)
+- [Customization](./docs/customization.md)
+
+Read more in [🛠React.NarraLeaf.com](https://react.narraleaf.com)
+
 ### Example
 
 ```tsx
@@ -103,13 +110,6 @@ const nextConfig = {
 
 export default nextConfig;
 ```
-
-## Documentation
-
-- [Quick Start](./docs/quick-start.md)
-- [Customization](./docs/customization.md)
-
-in progress...
 
 ## License
 
