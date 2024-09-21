@@ -100,6 +100,7 @@ export type GameConfig = {
         }
     };
     app: {
+        debug: boolean;
         /**
          * Log level for the logger
          */

@@ -198,7 +198,10 @@ export default function Image({
         src: Utils.staticImageDataToSrc(image.state.src),
         style: {
             opacity: 0,
-        }
+            ...(game.config.app.debug ? {
+                border: "1px solid red",
+            } : {})
+        },
     };
 
     return (

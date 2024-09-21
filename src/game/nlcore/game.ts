@@ -94,6 +94,7 @@ export class Game {
             }
         },
         app: {
+            debug: false,
             logger: {
                 log: false,
                 info: false,
@@ -101,7 +102,7 @@ export class Game {
                 error: true,
                 debug: false,
                 trace: false,
-            }
+            },
         }
     };
     static GameSettingsNamespace = GameSettingsNamespace;
