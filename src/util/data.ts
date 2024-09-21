@@ -1,3 +1,5 @@
+import type {Game} from "@core/game";
+
 /**
  * @param obj1 source object
  * @param obj2 this object will overwrite the source object
@@ -65,14 +67,24 @@ export class Awaitable<T, U = T> {
     receiver: (value: U) => T;
     result: T | undefined;
     solved = false;
-    listeners: ((value: T) => void)[] = [];
+    private readonly listeners: ((value: T) => void)[] = [];
+    private skipController: SkipController<T, []> | undefined;
 
-    constructor(receiver: (value: U) => T = (value) => value as any) {
+    constructor(
+        receiver: (value: U) => T = ((value) => value as any),
+        skipController?: SkipController<T, []>
+    ) {
         this.receiver = receiver;
+        this.skipController = skipController;
     }
 
     static isAwaitable<T, U>(obj: any): obj is Awaitable<T, U> {
         return obj instanceof Awaitable;
+    }
+
+    registerSkipController(skipController: SkipController<T, []>) {
+        this.skipController = skipController;
+        return this;
     }
 
     resolve(value: U) {
@@ -81,6 +93,10 @@ export class Awaitable<T, U = T> {
         }
         this.result = this.receiver(value);
         this.solved = true;
+        if (this.skipController) {
+            this.skipController.cancel();
+        }
+
         for (const listener of this.listeners) {
             listener(this.result);
         }
@@ -92,6 +108,13 @@ export class Awaitable<T, U = T> {
         } else {
             this.listeners.push(callback);
         }
+    }
+
+    abort() {
+        if (this.skipController) {
+            return this.skipController.abort();
+        }
+        return this.result;
     }
 }
 
@@ -281,35 +304,100 @@ export function deepEqual(obj1: any, obj2: any): boolean {
 }
 
 export class Logger {
-    private _log(tag: string, ...args: any[]) {
-        if (args.length === 0) {
-            return tag;
-        } else {
-            return [`[${tag}]`, ...args];
-        }
+    private game: Game;
+    private prefix: string | undefined;
+
+    constructor(game: Game, prefix?: string) {
+        this.game = game;
+        this.prefix = prefix;
     }
 
     log(tag: string, ...args: any[]) {
-        console.log(...this._log(tag, ...args));
+        if (this.game.config.app.logger.log) {
+            console.log(...this._log(tag, ...args));
+        }
     }
 
     info(tag: string, ...args: any[]) {
-        console.info(...this._log(tag, ...args));
+        if (this.game.config.app.logger.info) {
+            console.info(...this._log(tag, ...args));
+        }
     }
 
     warn(tag: string, ...args: any[]) {
-        console.warn(...this._log(tag, ...args));
+        if (this.game.config.app.logger.warn) {
+            console.warn(...this._log(tag, ...args));
+        }
     }
 
     error(tag: string, ...args: any[]) {
-        console.error(...this._log(tag, ...args));
+        if (this.game.config.app.logger.error) {
+            console.error(...this._log(tag, ...args));
+        }
     }
 
     debug(tag: string, ...args: any[]) {
-        console.debug(this._log(tag, ...args));
+        if (this.game.config.app.logger.debug) {
+            console.debug(...this._log(tag, ...args));
+        }
     }
 
     trace(tag: string, ...args: any[]) {
-        console.trace(this._log(tag, ...args));
+        if (this.game.config.app.logger.trace) {
+            console.trace(this._log(tag, ...args));
+        }
     }
+
+    private _log(tag: string, ...args: any[]) {
+        if (args.length === 0) {
+            return [this.prefix || "", tag];
+        } else {
+            return [`${this.prefix || ""} [${tag}]`, ...args];
+        }
+    }
+}
+
+type SkipControllerEvents = {
+    "event:skipController.abort": [];
+}
+
+export class SkipController<T = any, U extends Array<any> = any[]> {
+    static EventTypes: { [K in keyof SkipControllerEvents]: K } = {
+        "event:skipController.abort": "event:skipController.abort",
+    };
+    public readonly events: EventDispatcher<SkipControllerEvents> = new EventDispatcher();
+    private aborted = false;
+    private result: T | undefined;
+
+    constructor(private readonly abortHandler: (...args: U) => T) {
+    };
+
+    public abort(...args: U) {
+        if (this.aborted) {
+            return this.result;
+        }
+        this.aborted = true;
+        this.result = this.abortHandler(...args);
+        return this.result;
+    }
+
+    public isAborted() {
+        return this.aborted;
+    }
+
+    public cancel() {
+        this.aborted = true;
+    }
+}
+
+export function throttle<T extends (...args: any[]) => any>(fn: T, delay: number): T {
+    let last = 0;
+    return function (...args: Parameters<T>) {
+        const now = Date.now();
+        if (now - last < delay) {
+            return;
+        }
+        last = now;
+        return fn(...args);
+    } as T;
 }

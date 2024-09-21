@@ -66,62 +66,21 @@ Not to be confused, there are some difference between other engines and NarraLea
 
 To set up a player, you have to place the `GameProvider` to the parent component of the player.
 
-Here is an example:
+The easiest way to set up a player is to use the `Player` component and the `onReady` callback.
 
 ```tsx
-import {GameProvider, Player} from "narraleaf-react";
-
-export default function Parent() {
-    return (
-        <GameProvider>
-            <Player/>
-        </GameProvider>
-    );
-}
-```
-
-If you want to initialize the game manually, you can use the `useGame` hook:
-
-```tsx
-import {useGame} from "narraleaf-react";
-
 export default function Child() {
-    // this have to be called in a child component of the `GameProvider`
-    const {game, setGame} = useGame();
-
-    useEffect(() => {
-        game.getLiveGame().newGame(); // create new game
-    }, []);
-
-    // or instantiate the game manually
-    useEffect(() => {
-        setGame(new Game({
-            elements: {
-                say: {
-                    textSpeed: 100.
-                }
-            }
-        }));
-    }, []);
-
-    return <Player/>;
-}
-
-```
-
-If you don't want to use the hook, you can also use the `onReady` callback of the `Player` component:
-
-```tsx
-import {Game} from "narraleaf-react";
-
-export default function Child() {
-    const handleOnReady = (game: Game) => {
+    const handleOnReady = ({game}) => {
         game.getLiveGame().newGame();
     }
 
     return (
         <GameProvider>
-            <Player onReady={handleOnReady}/>
+            <Player
+                onReady={handleOnReady}
+                width="100vw"
+                height="100vh"
+            />
         </GameProvider>
     );
 }
@@ -209,7 +168,7 @@ export default function App() {
                 story={story}
                 width="100vw"
                 height="100vh"
-                onReady={(game: Game) => {
+                onReady={({game}) => {
                     game.getLiveGame().newGame();
                 }}
             />
@@ -223,7 +182,7 @@ export default function App() {
 Now you can run the story:
 
 ```bash
-npm dev
+npm run dev
 ```
 
 and open your browser to `http://localhost:3000`.

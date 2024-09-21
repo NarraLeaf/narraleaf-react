@@ -7,6 +7,7 @@ import {
     StorableType,
     WrappedStorableData
 } from "@core/store/type";
+import {deepMerge} from "@lib/util/data";
 
 export class Namespace<T extends NameSpaceContent<keyof T>> {
     name: string;
@@ -16,7 +17,7 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
     constructor(name: string, initContent: T, key?: string) {
         this.name = name;
         this.key = key || name;
-        this.content = initContent;
+        this.content = deepMerge({}, initContent);
     }
 
     static isSerializable(value: any): boolean {
@@ -48,7 +49,7 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return this;
     }
 
-    public get<Key extends keyof T>(key: Key): T[Key] {
+    public get<Key extends keyof T = any>(key: Key): T[Key] {
         return this.content[key] as T[Key];
     }
 
@@ -122,11 +123,11 @@ export class Storable {
         return this;
     }
 
-    getNamespace<T extends NameSpaceContent<keyof T>>(key: string): Namespace<T> {
+    getNamespace<T extends NameSpaceContent<keyof T> = any>(key: string): Namespace<T> {
         return this.namespaces[key];
     }
 
-    setNamespace<T extends NameSpaceContent<keyof T>>(key: string, namespace: Namespace<T>) {
+    setNamespace<T extends NameSpaceContent<keyof T> = any>(key: string, namespace: Namespace<T>) {
         this.namespaces[key] = namespace;
         return this;
     }

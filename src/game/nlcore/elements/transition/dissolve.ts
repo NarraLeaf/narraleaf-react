@@ -49,6 +49,7 @@ export class Dissolve extends Base<DissolveProps> implements ITransition<Dissolv
 
     public start(onComplete?: () => void): void {
         this.state.opacity = Dissolve.Frames[0];
+
         this.requestAnimation({
             start: Dissolve.Frames[0],
             end: Dissolve.Frames[1],
@@ -59,7 +60,6 @@ export class Dissolve extends Base<DissolveProps> implements ITransition<Dissolv
                 this.state.opacity = value;
             }
         });
-
     }
 
     public toElementProps(): (DissolveProps & ElementProp)[] {

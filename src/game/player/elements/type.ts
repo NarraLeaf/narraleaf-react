@@ -4,6 +4,7 @@ import {MenuElementProps} from "@player/elements/menu/type";
 import {Story} from "@core/elements/story";
 import clsx from "clsx";
 import {Game} from "@core/game";
+import {GameState} from "@player/gameState";
 
 export type Components<T extends Record<string, any>> = (props: Readonly<T>) => React.JSX.Element;
 export type SayComponent = Components<SayElementProps>;
@@ -18,6 +19,11 @@ export type {
     MenuElementProps,
 };
 
+export type PlayerEventContext = {
+    game: Game;
+    state: GameState;
+}
+
 export interface PlayerProps {
     story: Story;
     width?: string | number;
@@ -28,11 +34,11 @@ export interface PlayerProps {
      *
      * only called once each lifecycle
      */
-    onReady?: (game: Game) => void;
+    onReady?: (ctx: PlayerEventContext) => void;
     /**
      * Once the game is ended
      *
      * only called once each lifecycle
      */
-    onEnd?: (game: Game) => void;
+    onEnd?: (ctx: PlayerEventContext) => void;
 }

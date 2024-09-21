@@ -13,14 +13,6 @@ export default function Background({
     const {game} = useGame();
     const contentContainerRef = useRef<HTMLDivElement | null>(null);
 
-    const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
-
-    useEffect(() => {
-        return ratio.onUpdate(() => {
-            forceUpdate();
-        });
-    });
-
     useEffect(() => {
         const contentContainer = contentContainerRef.current;
         if (!contentContainer) {

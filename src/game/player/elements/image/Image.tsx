@@ -9,7 +9,6 @@ import {Utils} from "@core/common/core";
 import {CSSElementProp, ImgElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";
 import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
-import {useRatio} from "@player/provider/ratio";
 
 export default function Image({
                                   image,
@@ -29,22 +28,17 @@ export default function Image({
         useState<null | ITransition>(null);
     const [, setTransitionProps] =
         useState<ImgElementProp[]>([]);
-    const startTime = useRef<number>(0);
-    const {ratio} = useRatio();
+    const [startTime, setStartTime] = useState<number>(0);
     const {game} = useGame();
-    const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
-
-    useEffect(() => {
-        return ratio.onUpdate(() => {
-            forceUpdate();
-        });
-    });
 
     useEffect(() => {
         image.setScope(scope);
 
         image.events.emit(GameImage.EventTypes["event:image.mount"]);
 
+        /**
+         * Listen to image events
+         */
         const imageEventToken = image.events.onEvents([...[
             GameImage.EventTypes["event:image.show"],
             GameImage.EventTypes["event:image.hide"],
@@ -95,6 +89,9 @@ export default function Image({
         };
     }, []);
 
+    /**
+     * Listen to image transition events
+     */
     useEffect(() => {
         const imageEventToken = image.events.onEvents([
             {
@@ -105,6 +102,12 @@ export default function Image({
             }
         ]);
 
+        return () => {
+            imageEventToken.cancel();
+        };
+    }, [transition, image]);
+
+    useEffect(() => {
         const transitionEventTokens = transition ? transition.events.onEvents([
             {
                 type: TransitionEventTypes.update,
@@ -117,26 +120,56 @@ export default function Image({
                 listener: transition.events.on(TransitionEventTypes.end, () => {
                     setTransition(null);
                 })
-            }
+            },
         ]) : null;
 
         return () => {
-            imageEventToken.cancel();
             transitionEventTokens?.cancel?.();
         };
-    }, [transition, image]);
+    }, [transition]);
 
     useEffect(() => {
-        startTime.current = performance.now();
+        setStartTime(performance.now());
     }, []);
 
+    /**
+     * Listen to player events
+     */
+    useEffect(() => {
+        const gameEvents = state.events.onEvents([
+            {
+                type: GameState.EventTypes["event:state.player.skip"],
+                listener: state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+                    if (transform && transform.getControl()) {
+                        transform.getControl()!.complete();
+                        transform.setControl(null);
+                        state.logger.debug("transform skip");
+                    }
+                    if (transition && transition.controller) {
+                        transition.controller.complete();
+                        setTransition(null);
+                        state.logger.debug("transition skip");
+                    }
+                }),
+            }
+        ]);
+
+        return () => {
+            gameEvents.cancel();
+        };
+    }, [transition, transform]);
+
+    /**
+     * Slow load warning
+     */
     const handleLoad = () => {
         const endTime = performance.now();
-        const loadTime = endTime - startTime.current;
+        const loadTime = endTime - startTime;
         const threshold = game.config.elements.img.slowLoadThreshold;
 
         if (loadTime > threshold && game.config.elements.img.slowLoadWarning) {
-            console.warn(
+            state.logger.warn(
+                "NarraLeaf-React",
                 `Image took ${loadTime}ms to load, which exceeds the threshold of ${threshold}ms. ` +
                 "Consider enable cache for the image, so Preloader can preload it before it's used. " +
                 "To disable this warning, set `elements.img.slowLoadWarning` to false in the game config."
@@ -160,9 +193,15 @@ export default function Image({
         }
     }
 
-    const defaultProps = {
+    const defaultProps: ImgElementProp = {
         className: "absolute",
         src: Utils.staticImageDataToSrc(image.state.src),
+        style: {
+            opacity: 0,
+            ...(game.config.app.debug ? {
+                border: "1px solid red",
+            } : {})
+        },
     };
 
     return (

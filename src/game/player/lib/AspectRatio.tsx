@@ -17,8 +17,8 @@ export default function AspectRatio(
     const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
 
-    const MIN_WIDTH = 1600 * 0.5;
-    const MIN_HEIGHT = 900 * 0.5;
+    const MIN_WIDTH = game.config.player.minWidth;
+    const MIN_HEIGHT = game.config.player.minHeight;
 
     useEffect(() => {
         let resizeTimeout: NodeJS.Timeout;
@@ -32,7 +32,7 @@ export default function AspectRatio(
             if (container) {
                 const containerWidth = container.clientWidth;
                 const containerHeight = container.clientHeight;
-                const aspectRatio = 16 / 9;
+                const aspectRatio = game.config.player.aspectRatio;
 
                 let width: number, height: number;
                 if (containerWidth / containerHeight > aspectRatio) {

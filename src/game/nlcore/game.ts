@@ -63,11 +63,13 @@ export class Game {
             minHeight: 450,
             width: "100%",
             height: "100%",
+            skipKey: ["Control"],
+            skipInterval: 100,
         },
         elements: {
             say: {
-                skipKeys: [" "],
-                textSpeed: 50,
+                nextKey: [" "],
+                textInterval: 50,
                 use: DefaultElements.say,
             },
             img: {
@@ -90,6 +92,17 @@ export class Game {
                 choiceButton: "",
                 choiceButtonText: "",
             }
+        },
+        app: {
+            debug: false,
+            logger: {
+                log: false,
+                info: false,
+                warn: true,
+                error: true,
+                debug: false,
+                trace: false,
+            },
         }
     };
     static GameSettingsNamespace = GameSettingsNamespace;
@@ -213,6 +226,11 @@ export class LiveGame {
         return this;
     }
 
+    /**
+     * Load a saved game
+     *
+     * Note: Different versions of the game won't be able to load each other's saved games
+     */
     public deserialize(savedGame: SavedGame, {gameState}: { gameState: GameState }) {
         const story = this.story;
         if (!story) {
@@ -251,6 +269,13 @@ export class LiveGame {
         gameState.loadData(stage, actions);
     }
 
+    /**
+     * Serialize the current game state
+     *
+     * You can use this to save the game state to a file or a database
+     *
+     * Note: Different versions of the game won't be able to load each other's saved games
+     */
     public serialize({gameState}: { gameState: GameState }): SavedGame {
         const story = this.story;
         if (!story) {
@@ -320,7 +345,7 @@ export class LiveGame {
         this.currentAction = this.currentAction || this.story.getActions()[++this.currentSceneNumber];
         if (!this.currentAction) {
             state.events.emit(GameState.EventTypes["event:state.end"]);
-            console.warn("No current action"); // Congrats, you've reached the end of the story
+            state.logger.warn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
             return null;
         }
 
@@ -334,6 +359,14 @@ export class LiveGame {
 
         this.currentAction = nextAction.node?.child?.action || null;
         return nextAction;
+    }
+
+    abortAwaiting() {
+        if (this.lockedAwaiting) {
+            const next = this.lockedAwaiting.abort();
+            this.currentAction = next?.node?.action || null;
+            this.lockedAwaiting = null;
+        }
     }
 
     executeAction(state: GameState, action: LogicAction.Actions): LogicAction.Actions | Awaitable<CalledActionResult, CalledActionResult> | null {

@@ -26,6 +26,11 @@ export default function App() {
                 // container: "my-say-container",
                 // textSpan: "my-say-text",
             },
+            menu: {
+                // make sure you have tailwindcss installed to use these classes
+                // for customizing the menu element
+                choiceButton: "bg-[url(/static/images/choice.png)] bg-no-repeat bg-cover"
+            }
         }
     }));
 
@@ -83,7 +88,7 @@ function myMenuComponent(
 }
 
 export default function App() {
-    function handlePlayerReady(game: Game) {
+    function handlePlayerReady({game}) {
         game.useComponent<"menu">(Game.ComponentTypes.say, myMenuComponent);
     }
 

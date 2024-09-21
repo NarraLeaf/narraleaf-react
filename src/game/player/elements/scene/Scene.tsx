@@ -23,13 +23,6 @@ export default function Scene({
     const [settingProgress, setSettingProgress] =
         useState<NodeJS.Timeout | null>(null);
     const [resolve, setResolve] = useState<(() => void) | null>(null);
-    const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
-
-    useEffect(() => {
-        return ratio.onUpdate(() => {
-            forceUpdate();
-        });
-    });
 
     async function stopWithFade(music: Sound, fade: number) {
         if (!music.$getHowl() || !music.$getHowl()!.playing(music.$getToken())) {
