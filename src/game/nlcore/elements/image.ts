@@ -6,7 +6,7 @@ import {Actionable} from "@core/action/actionable";
 import {Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
 import {Transform} from "./transform/transform";
-import {CommonImage, ImagePosition, NextJSStaticImageData, StaticImageData} from "@core/types";
+import {CommonImage, ImagePosition, StaticImageData} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
 import {Game} from "@core/game";
 import {ITransition} from "@core/elements/transition/type";
@@ -20,7 +20,7 @@ import {
 import {deepEqual, deepMerge, DeepPartial, EventDispatcher, getCallStack} from "@lib/util/data";
 
 export type ImageConfig = {
-    src: string | NextJSStaticImageData;
+    src: string | StaticImageData;
     display: boolean;
     disposed?: boolean;
 } & CommonImage;
