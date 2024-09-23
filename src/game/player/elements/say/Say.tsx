@@ -5,7 +5,7 @@ import TypingEffect from "./TypingEffect";
 import {toHex} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {SayElementProps} from "@player/elements/say/type";
-import {Character} from "@core/elements/text";
+import {Character, Word} from "@core/elements/text";
 import {GameState} from "@core/common/game";
 
 
@@ -96,29 +96,33 @@ export default function Say({
                                 className={clsx("text-center max-w-[80%] mx-auto", game.config.elementStyles.say.textContainer)}>
                                 {
                                     sentence.text.map((word, index) => {
+                                        const color = word.config.color || sentence.config.color || Word.defaultColor;
                                         if (isFinished) return (
-                                            <span key={index} style={{
-                                                color: typeof word.config.color === "string" ? word.config.color : toHex(word.config.color)
-                                            }} className={clsx(game.config.elementStyles.say.textSpan)}>
-                                        {word.text}
-                                    </span>
+                                            <span
+                                                key={index}
+                                                style={{
+                                                    color: typeof color === "string" ? color : toHex(color)
+                                                }}
+                                                className={clsx(game.config.elementStyles.say.textSpan)}
+                                            >{word.text}</span>
                                         );
                                         if (index > currentWordIndex) return null;
                                         return (
-                                            <span key={index} style={{
-                                                color: toHex(word.config.color)
-                                            }} className={clsx(game.config.elementStyles.say.textSpan)}>
-                                        {
-                                            useTypeEffect ?
-                                                <TypingEffect
-                                                    text={word.text}
-                                                    onComplete={index === currentWordIndex ? handleComplete : undefined}
-                                                    speed={game.config.elements.say.textInterval}
-                                                    className={clsx(game.config.elementStyles.say.textSpan)}
-                                                /> :
-                                                word.text
-                                        }
-                                    </span>
+                                            <span
+                                                key={index}
+                                                style={{
+                                                    color: toHex(color)
+                                                }} className={clsx(game.config.elementStyles.say.textSpan)}
+                                            >{
+                                                useTypeEffect ?
+                                                    <TypingEffect
+                                                        text={word.text}
+                                                        onComplete={index === currentWordIndex ? handleComplete : undefined}
+                                                        speed={game.config.elements.say.textInterval}
+                                                        className={clsx(game.config.elementStyles.say.textSpan)}
+                                                    /> :
+                                                    word.text
+                                            }</span>
                                         );
                                     })
                                 }
