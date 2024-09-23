@@ -1,6 +1,6 @@
 import {Game} from "../game";
 import {ContentNode} from "@core/action/tree/actionTree";
-import {Color} from "@core/types";
+import {color, Color} from "@core/types";
 import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
 import {CharacterAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
@@ -23,7 +23,7 @@ type UnSentencePrompt = (string | Word)[] | (string | Word);
 
 export class Sentence {
     static defaultConfig: SentenceConfig = {
-        color: "#fff",
+        color: "#000",
         pause: true,
         voice: null,
     };
@@ -88,15 +88,14 @@ export class Sentence {
 }
 
 export class Word {
-    static defaultConfig: WordConfig = {
-        color: "#000"
-    };
+    static defaultConfig: Partial<WordConfig> = {};
+    static defaultColor: color = "#000";
     text: string;
-    config: WordConfig;
+    config: Partial<WordConfig>;
 
     constructor(text: string, config: Partial<WordConfig> = {}) {
         this.text = text;
-        this.config = deepMerge<WordConfig>(Word.defaultConfig, config);
+        this.config = deepMerge<Partial<WordConfig>>(Word.defaultConfig, config);
     }
 
     static isWord(obj: any): obj is Word {

@@ -156,7 +156,7 @@ export class Scene extends Constructable<
      *
      * Any operations after the jump operation will not be executed
      */
-    public jumpTo(arg0: Scene, config?: JumpConfig): this {
+    public jumpTo(arg0: Scene, config?: Partial<JumpConfig>): this {
         this._actions.push(new SceneAction(
             this,
             "scene:preUnmount",

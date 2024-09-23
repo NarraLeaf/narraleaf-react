@@ -6,7 +6,8 @@ const TerserPlugin = require("terser-webpack-plugin");
 const {BundleAnalyzerPlugin} = require("webpack-bundle-analyzer");
 const TsconfigPathsPlugin = require("tsconfig-paths-webpack-plugin");
 
-const isProduction = process.env.npm_lifecycle_event === "publish" || process.env.npm_lifecycle_event === "build:prod";
+const isProduction =
+    ["publish", "build:prod", "prepublish", "publish"].includes(process.env.npm_lifecycle_event);
 const useAnalyzer = process.env.npm_lifecycle_event === "build:analyze";
 
 console.log(`
