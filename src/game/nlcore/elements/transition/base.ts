@@ -10,13 +10,16 @@ export class Base<T extends ElementProp> implements ITransition<T> {
     public events: EventDispatcher<EventTypes<[T[]]>> = new EventDispatcher();
 
     public start(_onComplete?: () => void): void {
+        throw new Error("Method not implemented.");
     }
 
     public toElementProps(): T[] {
-        return [] as T[];
+        throw new Error("Method not implemented.");
     }
 
-    setSrc(_src: string) {}
+    setSrc(_src: string) {
+        throw new Error("Method not implemented.");
+    }
 
     protected requestAnimation(
         {
@@ -57,7 +60,7 @@ export class Base<T extends ElementProp> implements ITransition<T> {
     }
 
     copy(): ITransition<T> {
-        return new Base<T>();
+        throw new Error("Method not implemented.");
     }
 }
 

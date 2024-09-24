@@ -5,6 +5,8 @@ import {LogicAction} from "@core/action/logicAction";
 import {ConditionAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import {GameState} from "@player/gameState";
+import {Chained, ChainedActions, Proxied} from "@core/action/chain";
+import Actions = LogicAction.Actions;
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type ConditionConfig = {};
@@ -54,6 +56,20 @@ export type ConditionData = {
 
 export class Condition extends Actionable {
     static defaultConfig: ConditionConfig = {};
+
+    static getInitialState(): ConditionData {
+        return {
+            If: {
+                condition: null,
+                action: null
+            },
+            ElseIf: [],
+            Else: {
+                action: null
+            }
+        };
+    }
+
     readonly config: ConditionConfig;
     conditions: ConditionData = {
         If: {
@@ -71,36 +87,29 @@ export class Condition extends Actionable {
         this.config = deepMerge<ConditionConfig>(Condition.defaultConfig, config);
     }
 
-    static getInitialState(): ConditionData {
-        return {
-            If: {
-                condition: null,
-                action: null
-            },
-            ElseIf: [],
-            Else: {
-                action: null
-            }
-        };
-    }
-
-    public If(condition: Lambda | LambdaHandler<boolean>, action: LogicAction.Actions | LogicAction.Actions[]): this {
+    public If(
+        condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
+    ): Proxied<Condition, Chained<LogicAction.Actions>> {
         this.conditions.If.condition = condition instanceof Lambda ? condition : new Lambda(condition);
         this.conditions.If.action = this.construct(Array.isArray(action) ? action : [action]);
-        return this;
+        return this.chain();
     }
 
-    public ElseIf(condition: Lambda | LambdaHandler<boolean>, action: (LogicAction.Actions | LogicAction.Actions[])): this {
+    public ElseIf(
+        condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
+    ): Proxied<Condition, Chained<LogicAction.Actions>> {
         this.conditions.ElseIf.push({
             condition: condition instanceof Lambda ? condition : new Lambda(condition),
             action: this.construct(Array.isArray(action) ? action : [action])
         });
-        return this;
+        return this.chain();
     }
 
-    public Else(action: (LogicAction.Actions | LogicAction.Actions[])): this {
+    public Else(
+        action: ChainedActions
+    ): Proxied<Condition, Chained<LogicAction.Actions>> {
         this.conditions.Else.action = this.construct(Array.isArray(action) ? action : [action]);
-        return this;
+        return this.chain();
     }
 
     evaluate(conditions: ConditionData, {gameState}: { gameState: GameState }): LogicAction.Actions[] | null {
@@ -121,6 +130,9 @@ export class Condition extends Actionable {
         return conditions.Else.action || null;
     }
 
+    /**
+     * @deprecated
+     */
     toActions(): LogicAction.Actions[] {
         const output = [
             Reflect.construct(ConditionAction, [
@@ -133,7 +145,18 @@ export class Condition extends Actionable {
         return output;
     }
 
-    construct(actions: LogicAction.Actions[], lastChild?: RenderableNode, parentChild?: RenderableNode): LogicAction.Actions[] {
+    override fromChained(chained: Proxied<Condition, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
+        return [
+            Reflect.construct(ConditionAction, [
+                this,
+                ConditionAction.ActionTypes.action,
+                new ContentNode<ConditionData>(Game.getIdManager().getStringId()).setContent(chained.conditions)
+            ]) as ConditionAction<typeof ConditionAction.ActionTypes.action>
+        ];
+    }
+
+    construct(chainedActions: ChainedActions, lastChild?: RenderableNode, parentChild?: RenderableNode): LogicAction.Actions[] {
+        const actions: Actions[] = Chained.toActions(chainedActions);
         for (let i = 0; i < actions.length; i++) {
             const node = actions[i].contentNode;
             const child = actions[i + 1]?.contentNode;

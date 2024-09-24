@@ -5,6 +5,7 @@ import {ScriptAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import {GameState} from "@player/gameState";
 import Actions = LogicAction.Actions;
+import {Chained, Proxied} from "@core/action/chain";
 
 export interface ScriptCtx {
     script: Script;
@@ -20,6 +21,7 @@ export class Script extends Actionable<object> {
     constructor(handler: ScriptRun) {
         super(Actionable.IdPrefixes.Script);
         this.handler = handler;
+        return this.chain() satisfies Proxied<Script, Chained<LogicAction.Actions>>;
     }
 
     execute({gameState}: { gameState: GameState }): void {
@@ -35,12 +37,25 @@ export class Script extends Actionable<object> {
         };
     }
 
+    /**
+     * @deprecated
+     */
     toActions(): Actions[] {
         return [
             new ScriptAction(
                 this,
                 ScriptAction.ActionTypes.action,
                 new ContentNode<Script>(Game.getIdManager().getStringId()).setContent(this)
+            )
+        ];
+    }
+
+    override fromChained(chained: Proxied<Script, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
+        return [
+            new ScriptAction(
+                this,
+                ScriptAction.ActionTypes.action,
+                new ContentNode<Script>(Game.getIdManager().getStringId()).setContent(chained)
             )
         ];
     }

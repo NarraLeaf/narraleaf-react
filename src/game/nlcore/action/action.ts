@@ -13,6 +13,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
     type: ContentNodeType;
     contentNode: ContentNode<ContentNodeType>;
     _id: string;
+
     readonly __stack: string;
 
     constructor(callee: Callee, type: ContentNodeType, contentNode: ContentNode<ContentNodeType>) {

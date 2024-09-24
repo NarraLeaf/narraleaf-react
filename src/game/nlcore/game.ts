@@ -106,6 +106,11 @@ export class Game {
         }
     };
     static GameSettingsNamespace = GameSettingsNamespace;
+
+    static getIdManager() {
+        return IdManager.getInstance();
+    };
+
     readonly config: Readonly<GameConfig>;
     liveGame: LiveGame | null = null;
 
@@ -116,10 +121,6 @@ export class Game {
     constructor(config: DeepPartial<GameConfig>) {
         this.config = deepMerge<GameConfig>(Game.DefaultConfig, config);
     }
-
-    static getIdManager() {
-        return IdManager.getInstance();
-    };
 
     public useComponent<T extends keyof ComponentsTypes>(key: T, components: ComponentsTypes[T]): this {
         if (!Object.keys(DefaultElements).includes(key)) {
@@ -157,6 +158,9 @@ export class LiveGame {
 
     game: Game;
     storable: Storable;
+    /**
+     * @deprecated
+     */
     currentSceneNumber: number | null = null;
     currentSavedGame: SavedGame | null = null;
     story: Story | null = null;
@@ -216,8 +220,7 @@ export class LiveGame {
     public newGame() {
         this.initNamespaces();
 
-        this.currentSceneNumber = 0;
-        this.currentAction = this.story?.getActions()[this.currentSceneNumber] || null;
+        this.currentAction = this.story?.entryScene?.sceneRoot || null;
 
         const newGame = this.getDefaultSavedGame();
         newGame.name = "NewGame-" + Date.now();
@@ -230,6 +233,8 @@ export class LiveGame {
      * Load a saved game
      *
      * Note: Different versions of the game won't be able to load each other's saved games
+     *
+     * @internal - DO NOT USE IT, it's not ready yet
      */
     public deserialize(savedGame: SavedGame, {gameState}: { gameState: GameState }) {
         const story = this.story;
@@ -275,6 +280,8 @@ export class LiveGame {
      * You can use this to save the game state to a file or a database
      *
      * Note: Different versions of the game won't be able to load each other's saved games
+     *
+     * @internal - DO NOT USE IT, it's not ready yet
      */
     public serialize({gameState}: { gameState: GameState }): SavedGame {
         const story = this.story;
@@ -319,9 +326,6 @@ export class LiveGame {
         if (!this.story) {
             throw new Error("No story loaded");
         }
-        if (!this.currentSceneNumber) {
-            this.currentSceneNumber = 0;
-        }
 
         if (this.lockedAwaiting) {
             if (!this.lockedAwaiting.solved) {
@@ -342,7 +346,6 @@ export class LiveGame {
             return next || null;
         }
 
-        this.currentAction = this.currentAction || this.story.getActions()[++this.currentSceneNumber];
         if (!this.currentAction) {
             state.events.emit(GameState.EventTypes["event:state.end"]);
             state.logger.warn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
@@ -354,6 +357,8 @@ export class LiveGame {
             this.lockedAwaiting = nextAction;
             return nextAction;
         }
+
+        state.logger.debug("next action", nextAction);
 
         this._lockedCount = 0;
 

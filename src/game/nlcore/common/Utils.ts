@@ -73,7 +73,7 @@ export class StaticChecker {
         this.scene = target;
     }
 
-    public start() {
+    public run() {
         const imageStates = new Map<Image, ImageState>();
 
         const queue: LogicAction.Actions[] = [];

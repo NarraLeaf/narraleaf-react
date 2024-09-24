@@ -401,3 +401,9 @@ export function throttle<T extends (...args: any[]) => any>(fn: T, delay: number
         return fn(...args);
     } as T;
 }
+
+export type PublicProperties<T> = {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+    [K in keyof T]: T[K] extends Function ? never : K;
+}[keyof T];
+export type PublicOnly<T> = Pick<T, PublicProperties<T>>;

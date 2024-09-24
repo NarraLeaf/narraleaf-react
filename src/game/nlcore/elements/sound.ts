@@ -1,11 +1,14 @@
 import {Actionable} from "@core/action/actionable";
 import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
 import {SoundAction} from "@core/action/actions";
-import {Game} from "@core/game";
+import {Game, LogicAction} from "@core/game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import * as Howler from "howler";
 import {HowlOptions} from "howler";
 import {SoundActionContentType} from "@core/action/actionTypes";
+import {Chained, Proxied} from "@core/action/chain";
+
+type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
 
 export enum SoundType {
     soundEffect = "soundEffect",
@@ -61,21 +64,21 @@ export class Sound extends Actionable<SoundDataRaw> {
         this.config = deepMerge<SoundConfig>(Sound.defaultConfig, config);
     }
 
-    public play(): this {
+    public play(): ChainedSound {
         if (this.config.type === SoundType.backgroundMusic) {
             throw new Error("Background music cannot be played directly");
         }
         return this.pushAction<SoundActionContentType["sound:play"]>(SoundAction.ActionTypes.play, [void 0]);
     }
 
-    public stop(): this {
+    public stop(): ChainedSound {
         if (this.config.type === SoundType.backgroundMusic) {
             throw new Error("Background music cannot be stopped directly");
         }
         return this.pushAction<SoundActionContentType["sound:stop"]>(SoundAction.ActionTypes.stop, [void 0]);
     }
 
-    public fade(start: number | undefined, end: number, duration: number): this {
+    public fade(start: number | undefined, end: number, duration: number): ChainedSound {
         if (this.config.type === SoundType.backgroundMusic) {
             throw new Error("Background music cannot be faded directly");
         }
@@ -84,22 +87,22 @@ export class Sound extends Actionable<SoundDataRaw> {
         }]);
     }
 
-    public setVolume(volume: number): this {
+    public setVolume(volume: number): ChainedSound {
         return this.pushAction<SoundActionContentType["sound:setVolume"]>(SoundAction.ActionTypes.setVolume, [volume]);
     }
 
-    public setRate(rate: number): this {
+    public setRate(rate: number): ChainedSound {
         return this.pushAction<SoundActionContentType["sound:setRate"]>(SoundAction.ActionTypes.setRate, [rate]);
     }
 
-    public pause(fade?: number): this {
+    public pause(fade?: number): ChainedSound {
         if (fade !== undefined) {
             return this.fade(undefined, 0, fade);
         }
         return this.pushAction<SoundActionContentType["sound:pause"]>(SoundAction.ActionTypes.pause, [void 0]);
     }
 
-    public resume(fade?: number): this {
+    public resume(fade?: number): ChainedSound {
         if (fade !== undefined) {
             return this.fade(0, this.config.volume, fade);
         }
@@ -155,13 +158,11 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this;
     }
 
-    private pushAction<T>(type: string, content: T): this {
-        const action = new SoundAction(
+    private pushAction<T>(type: string, content: T): ChainedSound {
+        return this.chain(new SoundAction(
             this,
             type,
             new ContentNode<T>(Game.getIdManager().getStringId()).setContent(content)
-        );
-        this.actions.push(action);
-        return this;
+        ));
     }
 }

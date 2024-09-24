@@ -8,7 +8,7 @@ import {Scene} from "@core/elements/scene";
 import {Transform} from "./transform/transform";
 import {CommonImage, ImagePosition, StaticImageData} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
-import {Game} from "@core/game";
+import {Game, LogicAction} from "@core/game";
 import {ITransition} from "@core/elements/transition/type";
 import {
     CommonPosition,
@@ -18,6 +18,7 @@ import {
     PositionUtils
 } from "@core/elements/transform/position";
 import {deepEqual, deepMerge, DeepPartial, EventDispatcher, getCallStack} from "@lib/util/data";
+import {Chained, Proxied} from "@core/action/chain";
 
 export type ImageConfig = {
     src: string | StaticImageData;
@@ -62,33 +63,6 @@ export class Image extends Actionable<ImageDataRaw> {
         opacity: 0,
     };
     static ImagePosition = ImagePosition;
-    readonly name: string;
-    readonly config: ImageConfig;
-    state: ImageConfig;
-    declare actions: ImageAction<any>[];
-    events: EventDispatcher<ImageEventTypes> = new EventDispatcher();
-    ref: React.RefObject<HTMLImageElement> | undefined = undefined;
-
-    constructor(name: string, config: DeepPartial<ImageConfig>);
-
-    constructor(config: DeepPartial<ImageConfig>);
-
-    constructor(arg0: string | DeepPartial<ImageConfig>, config?: DeepPartial<ImageConfig>) {
-        super(Actionable.IdPrefixes.Image);
-        if (typeof arg0 === "string") {
-            this.name = arg0;
-            this.config = deepMerge<ImageConfig>(Image.defaultConfig, config || {});
-            if (this.config.position) this.config.position = PositionUtils.tryParsePosition(this.config.position);
-        } else {
-            this.name = "";
-            this.config = deepMerge<ImageConfig>(Image.defaultConfig, arg0);
-            if (this.config.position) this.config.position = PositionUtils.tryParsePosition(this.config.position);
-        }
-        this.state = deepMerge<ImageConfig>({}, this.config);
-        this.actions = [];
-
-        this.checkConfig();
-    }
 
     static serializeImageState(state: Record<string, any>): Record<string, any> {
         const handlers: Record<string, ((value: any) => any)> = {
@@ -118,6 +92,32 @@ export class Image extends Actionable<ImageDataRaw> {
             }
         }
         return result as ImageConfig;
+    }
+
+    readonly name: string;
+    readonly config: ImageConfig;
+    state: ImageConfig;
+    readonly events: EventDispatcher<ImageEventTypes> = new EventDispatcher();
+    ref: React.RefObject<HTMLImageElement> | undefined = undefined;
+
+    constructor(name: string, config: DeepPartial<ImageConfig>);
+
+    constructor(config: DeepPartial<ImageConfig>);
+
+    constructor(arg0: string | DeepPartial<ImageConfig>, config?: DeepPartial<ImageConfig>) {
+        super(Actionable.IdPrefixes.Image);
+        if (typeof arg0 === "string") {
+            this.name = arg0;
+            this.config = deepMerge<ImageConfig>(Image.defaultConfig, config || {});
+            if (this.config.position) this.config.position = PositionUtils.tryParsePosition(this.config.position);
+        } else {
+            this.name = "";
+            this.config = deepMerge<ImageConfig>(Image.defaultConfig, arg0);
+            if (this.config.position) this.config.position = PositionUtils.tryParsePosition(this.config.position);
+        }
+        this.state = deepMerge<ImageConfig>({}, this.config);
+
+        this.checkConfig();
     }
 
     public dispose() {
@@ -152,7 +152,7 @@ export class Image extends Actionable<ImageDataRaw> {
      * image.setSrc(yourImage, new Fade(1000));
      * ```
      */
-    public setSrc(src: string | StaticImageData, transition?: ITransition): this {
+    public setSrc(src: string | StaticImageData, transition?: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
         if (transition) {
             const copy = transition.copy();
             copy.setSrc(Utils.srcToString(src));
@@ -165,8 +165,7 @@ export class Image extends Actionable<ImageDataRaw> {
                 typeof src === "string" ? src : Utils.staticImageDataToSrc(src)
             ])
         );
-        this.actions.push(action);
-        return this;
+        return this.chain(action);
     }
 
     /**
@@ -201,7 +200,7 @@ export class Image extends Actionable<ImageDataRaw> {
      * );
      * ```
      */
-    public applyTransform(transform: Transform): this {
+    public applyTransform(transform: Transform): Proxied<Image, Chained<LogicAction.Actions>> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
             this,
             ImageAction.ActionTypes.applyTransform,
@@ -211,8 +210,7 @@ export class Image extends Actionable<ImageDataRaw> {
                 getCallStack()
             ])
         );
-        this.actions.push(action);
-        return this;
+        return this.chain(action);
     }
 
     /**
@@ -226,13 +224,13 @@ export class Image extends Actionable<ImageDataRaw> {
      * });
      * ```
      */
-    public show(): this;
+    public show(): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public show(options: Transform): this;
+    public show(options: Transform): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public show(options: Partial<TransformDefinitions.CommonTransformProps>): this;
+    public show(options: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public show(options?: Transform | Partial<TransformDefinitions.CommonTransformProps>): this {
+    public show(options?: Transform | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>> {
         const trans =
             (options instanceof Transform) ? options : new Transform<TransformDefinitions.ImageTransformProps>([
                 {
@@ -250,20 +248,19 @@ export class Image extends Actionable<ImageDataRaw> {
                 trans
             ])
         );
-        this.actions.push(action);
-        return this;
+        return this.chain(action);
     }
 
     /**
      * Hide the image
      */
-    public hide(): this;
+    public hide(): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public hide(transform: Transform): this;
+    public hide(transform: Transform): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public hide(transform: Partial<TransformDefinitions.CommonTransformProps>): this;
+    public hide(transform: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public hide(arg0?: Transform | Partial<TransformDefinitions.CommonTransformProps>): this {
+    public hide(arg0?: Transform | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.hide>(
             this,
             ImageAction.ActionTypes.hide,
@@ -279,8 +276,7 @@ export class Image extends Actionable<ImageDataRaw> {
                 ])
             ])
         );
-        this.actions.push(action);
-        return this;
+        return this.chain(action);
     }
 
     toTransform(): Transform {
@@ -322,26 +318,24 @@ export class Image extends Actionable<ImageDataRaw> {
         return this;
     }
 
-    _setTransition(transition: ITransition | null): this {
-        this.actions.push(new ImageAction<typeof ImageAction.ActionTypes.setTransition>(
+    _setTransition(transition: ITransition | null): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.chain(new ImageAction<typeof ImageAction.ActionTypes.setTransition>(
             this,
             ImageAction.ActionTypes.setTransition,
             new ContentNode<[ITransition | null]>(Game.getIdManager().getStringId()).setContent([
                 transition
             ])
         ));
-        return this;
     }
 
-    _applyTransition(transition: ITransition): this {
-        this.actions.push(new ImageAction<"image:applyTransition">(
+    _applyTransition(transition: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.chain(new ImageAction<"image:applyTransition">(
             this,
             "image:applyTransition",
             new ContentNode<[ITransition]>(Game.getIdManager().getStringId()).setContent([
                 transition
             ])
         ));
-        return this;
     }
 
     private _transitionSrc(transition: ITransition): this {
@@ -351,23 +345,21 @@ export class Image extends Actionable<ImageDataRaw> {
         return this;
     }
 
-    private _dispose() {
-        this.actions.push(new ImageAction<typeof ImageAction.ActionTypes.dispose>(
+    private _dispose(): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.chain(new ImageAction<typeof ImageAction.ActionTypes.dispose>(
             this,
             ImageAction.ActionTypes.dispose,
             new ContentNode(Game.getIdManager().getStringId())
         ));
-        return this;
     }
 
-    private _init(scene?: Scene) {
-        this.actions.push(new ImageAction<typeof ImageAction.ActionTypes.init>(
+    private _init(scene?: Scene): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.chain(new ImageAction<typeof ImageAction.ActionTypes.init>(
             this,
             ImageAction.ActionTypes.init,
             new ContentNode<[Scene?]>(Game.getIdManager().getStringId()).setContent([
                 scene
             ])
         ));
-        return this;
     }
 }
