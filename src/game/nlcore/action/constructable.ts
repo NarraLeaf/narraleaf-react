@@ -34,7 +34,7 @@ export class Constructable<
     /**
      * @deprecated
      */
-    getActions() {
+    _getActions() {
         return this.actions;
     }
 
@@ -49,7 +49,7 @@ export class Constructable<
     /**@internal */
     forEachAction(callback: (action: LogicAction.Actions) => void, includeJumpTo = true, actions?: LogicAction.Actions[]): void {
         const seen: string[] = [];
-        (actions || this.getActions()).forEach(sceneAction => {
+        (actions || this._getActions()).forEach(sceneAction => {
             const queue: LogicAction.Actions[] = [];
             queue.push(sceneAction);
 
@@ -76,7 +76,7 @@ export class Constructable<
             return action || null;
         }
 
-        const futureActions = this.getActions();
+        const futureActions = this._getActions();
         const queue: LogicAction.Actions[] = [];
         const seen: string[] = [];
         queue.push(...futureActions);

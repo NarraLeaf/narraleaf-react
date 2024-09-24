@@ -20,7 +20,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
         this.callee = callee;
         this.type = type;
         this.contentNode = contentNode;
-        this.__stack = getCallStack(4, 4);
+        this.__stack = getCallStack();
         this._id = Game.getIdManager().prefix("action", Game.getIdManager().getStringId(), "-");
     }
 

@@ -45,18 +45,16 @@ export class Chained<T> {
  */
 export class Chainable<T, U extends Record<any, any>> {
     public chain(arg0?: T[] | T): Proxied<U, Chained<T>> {
+        const chained: Proxied<U, Chained<T>> =
+            Chained.isChained(this) ? (this as unknown as Proxied<U, Chained<T>>) : this.proxy<U, Chained<T>>(this as any, new Chained<T>());
+
         if (!arg0) {
-            return (this instanceof Chained) ? this : this.proxy(this as any, new Chained<T>());
+            return chained;
         }
 
         const actions = Array.isArray(arg0) ? arg0 : [arg0];
-        if (Chained.isChained(this)) {
-            this.push(...actions);
-            return this as any;
-        }
-        const chained = new Chained<T>();
         chained.push(...actions);
-        return this.proxy<U, Chained<T>>(this as any, chained);
+        return chained;
     }
 
     public proxy<T extends Record<any, any>, U extends Record<any, any>>(target: T, chained: U): Proxied<T, U> {

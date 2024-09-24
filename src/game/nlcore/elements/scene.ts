@@ -37,7 +37,7 @@ export type JumpConfig = {
     transition: ITransition;
 }
 
-type ChainableAction = Proxied<GameElement, Chained<LogicAction.Actions>>;
+type ChainableAction = Proxied<GameElement, Chained<LogicAction.Actions>> | Actions;
 type ChainedScene = Proxied<Scene, Chained<LogicAction.Actions>>;
 
 export type SceneDataRaw = {
@@ -155,16 +155,19 @@ export class Scene extends Constructable<
      * After calling the method, you **will not be able to return to the context of the scene** that called the jump, so the scene will be unloaded
      *
      * Any operations after the jump operation will not be executed
+     * @chainable
      */
     public jumpTo(arg0: Scene, config?: Partial<JumpConfig>): ChainedScene {
-        this.chain(new SceneAction(
+        const chain = this.chain(new SceneAction(
             this,
             "scene:preUnmount",
             new ContentNode(Game.getIdManager().getStringId()).setContent([])
         ));
 
         const jumpConfig: Partial<JumpConfig> = config || {};
-        return this._transitionToScene(arg0, jumpConfig.transition)
+        return chain
+            ._transitionToScene(arg0, jumpConfig.transition)
+            .chain(arg0._init())
             .chain(this._exit())
             ._jumpTo(arg0);
     }
@@ -175,6 +178,7 @@ export class Scene extends Constructable<
 
     /**
      * Wait for a period of time, the parameter can be the number of milliseconds, a Promise, or an unresolved {@link Awaitable}
+     * @chainable
      */
     public sleep(ms: number): ChainedScene;
     public sleep(promise: Promise<any>): ChainedScene;
@@ -257,6 +261,20 @@ export class Scene extends Constructable<
         ]);
     }
 
+    _initTransform(): Transform<ImageTransformProps> {
+        return new Transform<ImageTransformProps>([
+            {
+                props: {
+                    ...this.backgroundImageState,
+                    opacity: 1,
+                },
+                options: {
+                    duration: 0,
+                }
+            },
+        ]);
+    }
+
     registerSrc(seen: Set<Scene> = new Set<Scene>()) {
         if (!this.sceneRoot) {
             return;
@@ -318,12 +336,17 @@ export class Scene extends Constructable<
 
     public action(actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[])): this {
         const userChainedActions: ChainableAction[] = Array.isArray(actions) ? actions.flat(2) : actions(this).flat(2);
-        const userActions = userChainedActions.map(v => v.fromChained(v as any)).flat(2);
+        const userActions = userChainedActions.map(v => {
+            if (Chained.isChained(v)) {
+                return v.fromChained(v as any);
+            }
+            return v;
+        }).flat(2);
         const images = this.getAllElements(this.getAllActions(false, userActions))
-            .filter(element => element instanceof Image);
+            .filter(element => (element instanceof Image) && !Chained.isChained(element));
         const futureActions = [
             this._init(this),
-            ...images.map(image => (image as Image).init().getActions()).flat(2),
+            ...images.map(image => (image as Image)._init()),
             ...userActions,
         ];
 
@@ -344,7 +367,7 @@ export class Scene extends Constructable<
         return this;
     }
 
-    private _jumpTo(scene: Scene): ChainedScene {
+    _jumpTo(scene: Scene): ChainedScene {
         return this.chain(new SceneAction(
             this,
             "scene:jumpTo",
@@ -363,20 +386,14 @@ export class Scene extends Constructable<
     }
 
     private _transitionToScene(scene?: Scene, transition?: ITransition): ChainedScene {
+        const chain = this.chain();
         if (transition) {
             const copy = transition.copy();
-            if (scene) copy.setSrc(Utils.backgroundToSrc(scene.config.background));
-            this._setTransition(copy)
+            if (scene) copy.setSrc(Utils.backgroundToSrc(scene.state.background));
+            chain._setTransition(copy)
                 ._applyTransition(copy);
         }
-        if (scene) {
-            this.chain(new SceneAction(
-                scene,
-                "scene:init",
-                new ContentNode(Game.getIdManager().getStringId()).setContent([])
-            ));
-        }
-        return this.chain();
+        return chain;
     }
 
     private _init(target = this): SceneAction<"scene:init"> {

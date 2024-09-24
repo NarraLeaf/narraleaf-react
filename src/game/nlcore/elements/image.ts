@@ -42,7 +42,7 @@ export type ImageEventTypes = {
     "event:image.setTransition": [ITransition | null];
 };
 
-export class Image extends Actionable<ImageDataRaw> {
+export class Image extends Actionable<ImageDataRaw, Image> {
     static EventTypes: { [K in keyof ImageEventTypes]: K } = {
         "event:image.show": "event:image.show",
         "event:image.hide": "event:image.hide",
@@ -124,8 +124,8 @@ export class Image extends Actionable<ImageDataRaw> {
         return this._dispose();
     }
 
-    init() {
-        return this._init();
+    init(): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.chain(this._init());
     }
 
     checkConfig() {
@@ -153,10 +153,11 @@ export class Image extends Actionable<ImageDataRaw> {
      * ```
      */
     public setSrc(src: string | StaticImageData, transition?: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
+        const chain = this.chain();
         if (transition) {
             const copy = transition.copy();
             copy.setSrc(Utils.srcToString(src));
-            this._transitionSrc(copy);
+            chain._transitionSrc(copy);
         }
         const action = new ImageAction<typeof ImageAction.ActionTypes.setSrc>(
             this,
@@ -165,7 +166,7 @@ export class Image extends Actionable<ImageDataRaw> {
                 typeof src === "string" ? src : Utils.staticImageDataToSrc(src)
             ])
         );
-        return this.chain(action);
+        return chain.chain(action);
     }
 
     /**
@@ -353,13 +354,13 @@ export class Image extends Actionable<ImageDataRaw> {
         ));
     }
 
-    private _init(scene?: Scene): Proxied<Image, Chained<LogicAction.Actions>> {
-        return this.chain(new ImageAction<typeof ImageAction.ActionTypes.init>(
+    _init(scene?: Scene): ImageAction<typeof ImageAction.ActionTypes.init> {
+        return new ImageAction<typeof ImageAction.ActionTypes.init>(
             this,
             ImageAction.ActionTypes.init,
             new ContentNode<[Scene?]>(Game.getIdManager().getStringId()).setContent([
                 scene
             ])
-        ));
+        );
     }
 }

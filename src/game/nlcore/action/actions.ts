@@ -158,7 +158,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             });
 
             this.callee.events.once("event:scene.imageLoaded", () => {
-                const initTransform = this.callee._toTransform();
+                const initTransform = this.callee._initTransform();
                 this.callee.events.any("event:scene.initTransform", initTransform).then(() => {
                     awaitable.resolve({
                         type: this.type,
@@ -188,7 +188,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             const scene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
             const current = this.contentNode;
 
-            const future = scene.getActions()?.[0]?.contentNode;
+            const future = scene.sceneRoot?.contentNode || null;
             if (future) current.addChild(future);
 
             return super.executeAction(state);
@@ -228,7 +228,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         if (this.type === SceneActionTypes.jumpTo) {
             // We don't care about the actions after jumpTo
             // because they won't be executed
-            return (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0]?.getActions();
+            const sceneRootNode = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0]?.sceneRoot?.contentNode;
+            return sceneRootNode?.action ? [sceneRootNode.action] : [];
         }
         const action = this.contentNode.child?.action;
         return action ? [action] : [];

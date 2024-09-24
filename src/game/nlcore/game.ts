@@ -342,6 +342,9 @@ export class LiveGame {
             }
             const next = this.lockedAwaiting.result;
             this.currentAction = next?.node?.action || null;
+
+            state.logger.debug("next action", next);
+
             this.lockedAwaiting = null;
             return next || null;
         }
