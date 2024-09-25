@@ -73,7 +73,9 @@ export default nextConfig;
 
 ## License
 
-> NarraLeaf-React is licensed under the MIT License.
+> NarraLeaf-React is licensed under the GPL License.
+> 
+> We updated the license to GPL on 2024-9-24. 
 
 ## Contributing
 
