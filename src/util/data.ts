@@ -392,7 +392,7 @@ export class SkipController<T = any, U extends Array<any> = any[]> {
 
 export function throttle<T extends (...args: any[]) => any>(fn: T, delay: number): T {
     let last = 0;
-    return function (...args: Parameters<T>) {
+    return function (...args: T extends ((...args: infer P) => any) ? P : never[]) {
         const now = Date.now();
         if (now - last < delay) {
             return;

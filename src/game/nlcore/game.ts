@@ -251,7 +251,6 @@ export class LiveGame {
             store,
             elementState,
             nodeChildIdMap,
-            currentScene,
             currentAction,
             stage,
         } = savedGame.game;
@@ -269,7 +268,6 @@ export class LiveGame {
         } else {
             this.setCurrentAction(null);
         }
-        this.currentSceneNumber = currentScene;
         this.currentSavedGame = savedGame;
         gameState.loadData(stage, actions);
     }
@@ -307,7 +305,7 @@ export class LiveGame {
                 elementState: elementState,
                 stage: stage,
                 nodeChildIdMap: nodeChildIds,
-                currentScene: this.currentSceneNumber || 0,
+                currentScene: 0,
                 currentAction: this.getCurrentAction()?.getId() || null,
             }
         };

@@ -49,7 +49,7 @@ export type SceneDataRaw = {
 }
 
 export type SceneEventTypes = {
-    "event:scene.setTransition": [ITransition | null];
+    "event:scene.applyTransition": [ITransition | null];
     "event:scene.remove": [];
     "event:scene.load": [],
     "event:scene.unload": [],
@@ -66,7 +66,7 @@ export class Scene extends Constructable<
     Actions
 > {
     static EventTypes: { [K in keyof SceneEventTypes]: K } = {
-        "event:scene.setTransition": "event:scene.setTransition",
+        "event:scene.applyTransition": "event:scene.applyTransition",
         "event:scene.remove": "event:scene.remove",
         "event:scene.load": "event:scene.load",
         "event:scene.unload": "event:scene.unload",
@@ -390,8 +390,7 @@ export class Scene extends Constructable<
         if (transition) {
             const copy = transition.copy();
             if (scene) copy.setSrc(Utils.backgroundToSrc(scene.state.background));
-            chain._setTransition(copy)
-                ._applyTransition(copy);
+            chain._applyTransition(copy);
         }
         return chain;
     }

@@ -130,21 +130,6 @@ export class Condition extends Actionable {
         return conditions.Else.action || null;
     }
 
-    /**
-     * @deprecated
-     */
-    toActions(): LogicAction.Actions[] {
-        const output = [
-            Reflect.construct(ConditionAction, [
-                this,
-                ConditionAction.ActionTypes.action,
-                new ContentNode<ConditionData>(Game.getIdManager().getStringId()).setContent(this.conditions)
-            ]) as ConditionAction<typeof ConditionAction.ActionTypes.action>
-        ];
-        this.conditions = Condition.getInitialState();
-        return output;
-    }
-
     override fromChained(chained: Proxied<Condition, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return [
             Reflect.construct(ConditionAction, [

@@ -18,12 +18,6 @@ export class Actionable<
         Menu: "$6",
     } as const;
     readonly id: string;
-    /**
-     * @deprecated
-     * @protected
-     * use `this.chain` instead
-     */
-    protected actions: LogicAction.Actions[] = [];
 
     constructor(idPrefix: string = Actionable.IdPrefixes.Actionable) {
         super();
@@ -34,9 +28,7 @@ export class Actionable<
      * @deprecated
      */
     toActions() {
-        const actions = this.actions;
-        this.actions = [];
-        return actions;
+        return [];
     }
 
     public toData(): StateData | null {

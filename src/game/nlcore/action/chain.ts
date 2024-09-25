@@ -8,11 +8,11 @@ export type Proxied<T extends Record<any, any>, U extends Record<any, any>> =
 export type ChainedAction = Proxied<GameElement, Chained<LogicAction.Actions>>;
 export type ChainedActions = (ChainedAction | ChainedAction[] | Actions | Actions[])[];
 
-const _Chained = Symbol("_Chained");
+const ChainedFlag = Symbol("_Chained");
 
 export class Chained<T> {
     static isChained<T>(value: any): value is Chained<T> {
-        return value && value[_Chained];
+        return value && value[ChainedFlag];
     }
 
     static toActions(chainedActions: ChainedActions): Actions[] {
@@ -27,7 +27,7 @@ export class Chained<T> {
             .flat(2) satisfies Actions[];
     }
 
-    [_Chained]: boolean = true;
+    [ChainedFlag]: boolean = true;
     private __actions: T[] = [];
 
     public push(...actions: T[]) {

@@ -4,7 +4,6 @@ import {LogicAction} from "@core/action/logicAction";
 import {ScriptAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import {GameState} from "@player/gameState";
-import Actions = LogicAction.Actions;
 import {Chained, Proxied} from "@core/action/chain";
 
 export interface ScriptCtx {
@@ -14,6 +13,7 @@ export interface ScriptCtx {
 
 type ScriptRun = (ctx: ScriptCtx) => ScriptCleaner | void;
 export type ScriptCleaner = () => void;
+
 export class Script extends Actionable<object> {
     handler: ScriptRun;
     cleaner: ScriptCleaner | null = null;
@@ -35,19 +35,6 @@ export class Script extends Actionable<object> {
             script: this,
             gameState
         };
-    }
-
-    /**
-     * @deprecated
-     */
-    toActions(): Actions[] {
-        return [
-            new ScriptAction(
-                this,
-                ScriptAction.ActionTypes.action,
-                new ContentNode<Script>(Game.getIdManager().getStringId()).setContent(this)
-            )
-        ];
     }
 
     override fromChained(chained: Proxied<Script, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
