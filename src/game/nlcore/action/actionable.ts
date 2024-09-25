@@ -1,9 +1,12 @@
 import {LogicAction} from "@core/action/logicAction";
 import {Game} from "@core/game";
+import {Chainable, Chained, Proxied} from "@core/action/chain";
+import GameElement = LogicAction.GameElement;
 
 export class Actionable<
-    StateData extends Record<string, any> = Record<string, any>
-> {
+    StateData extends Record<string, any> = Record<string, any>,
+    Self extends Actionable = any
+> extends Chainable<LogicAction.Actions, Self> {
     static IdPrefixes = {
         Actionable: "actionable",
         Condition: "$0",
@@ -15,16 +18,17 @@ export class Actionable<
         Menu: "$6",
     } as const;
     readonly id: string;
-    protected actions: LogicAction.Actions[] = [];
 
     constructor(idPrefix: string = Actionable.IdPrefixes.Actionable) {
+        super();
         this.id = Game.getIdManager().prefix(idPrefix, Game.getIdManager().getStringId(), "-");
     }
 
+    /**
+     * @deprecated
+     */
     toActions() {
-        const actions = this.actions;
-        this.actions = [];
-        return actions;
+        return [];
     }
 
     public toData(): StateData | null {
@@ -33,5 +37,9 @@ export class Actionable<
 
     public fromData(_: StateData): this {
         return this;
+    }
+
+    public fromChained(chained: Proxied<GameElement, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
+        return chained.getActions();
     }
 }

@@ -1,10 +1,11 @@
-import {Game} from "../game";
+import {Game, LogicAction} from "../game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {color, Color} from "@core/types";
 import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
 import {CharacterAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import type {Sound} from "@core/elements/sound";
+import {Chained, Proxied} from "@core/action/chain";
 
 export type SentenceConfig = {
     pause?: boolean | number;
@@ -30,6 +31,15 @@ export class Sentence {
     static defaultState: SentenceState = {
         display: true
     };
+
+    static isSentence(obj: any): obj is Sentence {
+        return obj instanceof Sentence;
+    }
+
+    static toSentence(prompt: UnSentencePrompt | Sentence): Sentence {
+        return Sentence.isSentence(prompt) ? prompt : new Sentence(null, prompt);
+    }
+
     id: string;
     character: Character | null;
     text: Word[];
@@ -42,14 +52,6 @@ export class Sentence {
         this.config = deepMerge<SentenceConfig>(Sentence.defaultConfig, config);
         this.id = Game.getIdManager().getStringId();
         this.state = safeClone(Sentence.defaultState);
-    }
-
-    static isSentence(obj: any): obj is Sentence {
-        return obj instanceof Sentence;
-    }
-
-    static toSentence(prompt: UnSentencePrompt | Sentence): Sentence {
-        return Sentence.isSentence(prompt) ? prompt : new Sentence(null, prompt);
     }
 
     format(text: (string | Word)[] | (string | Word)): Word[] {
@@ -90,16 +92,17 @@ export class Sentence {
 export class Word {
     static defaultConfig: Partial<WordConfig> = {};
     static defaultColor: color = "#000";
+
+    static isWord(obj: any): obj is Word {
+        return obj instanceof Word;
+    }
+
     text: string;
     config: Partial<WordConfig>;
 
     constructor(text: string, config: Partial<WordConfig> = {}) {
         this.text = text;
         this.config = deepMerge<Partial<WordConfig>>(Word.defaultConfig, config);
-    }
-
-    static isWord(obj: any): obj is Word {
-        return obj instanceof Word;
     }
 }
 
@@ -108,6 +111,7 @@ export enum CharacterMode {
     "adv" = "adv",
     "nvl" = "nvl"
 }
+
 export type CharacterConfig = {
     mode: CharacterMode;
 }
@@ -115,14 +119,15 @@ export type CharacterConfig = {
 export type CharacterStateData = {};
 
 export class Character extends Actionable<
-    CharacterStateData
+    CharacterStateData,
+    Character
 > {
     static Modes = CharacterMode;
     static defaultConfig: CharacterConfig = {
         mode: CharacterMode.adv,
     };
-    name: string | null;
-    config: CharacterConfig;
+    readonly name: string | null;
+    readonly config: CharacterConfig;
 
     constructor(name: string | null, config: DeepPartial<CharacterConfig> = {}) {
         super(Actionable.IdPrefixes.Text);
@@ -134,26 +139,25 @@ export class Character extends Actionable<
      * Say something
      * @example
      * ```typescript
-     * character.say("Hello, world!").toActions();
+     * character.say("Hello, world!");
      * ```
      * @example
      * ```typescript
      * character
      *     .say("Hello, world!")
-     *     .say("Hello, world!")
-     *     .toActions();
+     *     .say("Hello, world!");
      * ```
      * @example
      * ```typescript
      * character.say(new Sentence(character, [
      *     "Hello, ",
      *     new Word("world", {color: "#f00"}), // Some words can be colored
-     * ])).toActions();
+     * ]));
      */
-    public say(content: string): Character;
-    public say(content: Sentence): Character;
-    public say(content: (string | Word)[]): Character;
-    public say(content: string | Sentence | (string | Word)[]): Character {
+    public say(content: string): Proxied<Character, Chained<LogicAction.Actions>>;
+    public say(content: Sentence): Proxied<Character, Chained<LogicAction.Actions>>;
+    public say(content: (string | Word)[]): Proxied<Character, Chained<LogicAction.Actions>>;
+    public say(content: string | Sentence | (string | Word)[]): Proxied<Character, Chained<LogicAction.Actions>> {
         const sentence: Sentence =
             Array.isArray(content) ?
                 new Sentence(this, content, {}) :
@@ -163,7 +167,8 @@ export class Character extends Actionable<
             CharacterAction.ActionTypes.say,
             new ContentNode<Sentence>(Game.getIdManager().getStringId()).setContent(sentence)
         );
-        this.actions.push(action);
-        return this;
+        return this.chain(action);
     }
 }
+
+

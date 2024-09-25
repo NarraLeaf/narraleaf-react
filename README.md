@@ -42,7 +42,6 @@ Read more in [🛠React.NarraLeaf.com](https://react.narraleaf.com)
 import {Character, Scene, Story, Image, Player, GameProviders} from "narraleaf-react";
 
 export default function App() {
-
     const character1 = new Character("character1");
     const image1 = new Image({
         src: "https://placehold.it/200x200",
@@ -53,14 +52,13 @@ export default function App() {
             // Show image1 for 1 second
             image1.show({
                 duration: 1000,
-            }).toActions(),
+            }),
 
             // Say something
             character1
                 .say("Hello, world!")
                 .say("This is my first NarraLeaf story.")
-                .say("Start editing this file and enjoy the journey!")
-                .toActions(),
+                .say("Start editing this file and enjoy the journey!"),
         ])
     );
 

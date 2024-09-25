@@ -1,35 +1,41 @@
-import {Game} from "../game";
 import {ContentNode, RenderableNode, RootNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 
 import {Action} from "@core/action/action";
 import {SceneActionTypes} from "@core/action/actionTypes";
+import {Chainable, Chained, Proxied} from "@core/action/chain";
+import GameElement = LogicAction.GameElement;
 
 export class Constructable<
-    T extends typeof Constructable = any,
     TAction extends LogicAction.Actions = LogicAction.Actions,
-    CAction extends LogicAction.Actions = LogicAction.Actions
-> {
+> extends Chainable<any, any> {
     static targetAction: any = Action;
+    /**
+     * @deprecated
+     * @private
+     */
     private readonly actions: TAction[];
 
     constructor() {
+        super();
         this.actions = [];
     }
 
+    /**
+     * @deprecated
+     * @param root
+     */
     setRoot(root: RootNode): LogicAction.Actions | undefined {
         this.actions[0]?.contentNode.setParent(root);
         root.setChild(this.actions[0]?.contentNode);
         return this.actions[0];
     }
 
-    getActions() {
+    /**
+     * @deprecated
+     */
+    _getActions() {
         return this.actions;
-    }
-
-    setActions(actions: TAction[]) {
-        this.actions.length = 0;
-        this.actions.push(...actions);
     }
 
     /**@internal */
@@ -43,7 +49,7 @@ export class Constructable<
     /**@internal */
     forEachAction(callback: (action: LogicAction.Actions) => void, includeJumpTo = true, actions?: LogicAction.Actions[]): void {
         const seen: string[] = [];
-        (actions || this.getActions()).forEach(sceneAction => {
+        (actions || this._getActions()).forEach(sceneAction => {
             const queue: LogicAction.Actions[] = [];
             queue.push(sceneAction);
 
@@ -70,7 +76,7 @@ export class Constructable<
             return action || null;
         }
 
-        const futureActions = this.getActions();
+        const futureActions = this._getActions();
         const queue: LogicAction.Actions[] = [];
         const seen: string[] = [];
         queue.push(...futureActions);
@@ -139,44 +145,23 @@ export class Constructable<
         return ids.map(id => map.get(id)).filter(Boolean) as LogicAction.GameElement[];
     }
 
-    /**
-     * Adds an action to the current specified context instance
-     */
-    protected _action(actions: (callee: this) => (TAction | TAction[])[]): CAction;
-
-    protected _action(actions: (TAction | TAction[])[]): CAction;
-
-    protected _action(actions: (TAction | TAction[])[] | ((callee: this) => (TAction | TAction[])[])): CAction {
-        if (typeof actions === "function") {
-            actions = actions(this);
-        }
-        const content = actions.flat(2) as TAction[];
-        this.actions.push(...content);
-        const constructed = this.construct();
-        const sceneRoot = new ContentNode<this>(Game.getIdManager().getStringId(), undefined, undefined, constructed || void 0).setContent(this);
-        constructed?.setParent(sceneRoot);
-
-        const thisConstructor = this.constructor as T;
-        return Reflect.construct(thisConstructor.targetAction, [
-            this,
-            thisConstructor.targetAction.ActionTypes.action,
-            sceneRoot
-        ]);
+    public fromChained(chained: Proxied<GameElement, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
+        return chained.getActions();
     }
 
     /**
      * Construct the actions into a tree
      */
-    protected construct(parent?: RenderableNode): RenderableNode | null {
-        for (let i = 0; i < this.actions.length; i++) {
-            const action = this.actions[i];
+    protected construct(actions: LogicAction.Actions[], parent?: RenderableNode): RenderableNode | null {
+        for (let i = 0; i < actions.length; i++) {
+            const action = actions[i];
             if (i === 0 && parent) {
                 parent.setInitChild(action.contentNode);
             } else if (i > 0) {
-                (this.actions[i - 1].contentNode)?.setInitChild(action.contentNode);
+                (actions[i - 1].contentNode)?.setInitChild(action.contentNode);
             }
         }
-        return (this.actions.length) ? this.actions[0].contentNode : null;
+        return (actions.length) ? actions[0].contentNode : null;
     }
 }
 

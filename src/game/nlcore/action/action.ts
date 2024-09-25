@@ -13,13 +13,14 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
     type: ContentNodeType;
     contentNode: ContentNode<ContentNodeType>;
     _id: string;
+
     readonly __stack: string;
 
     constructor(callee: Callee, type: ContentNodeType, contentNode: ContentNode<ContentNodeType>) {
         this.callee = callee;
         this.type = type;
         this.contentNode = contentNode;
-        this.__stack = getCallStack(4, 4);
+        this.__stack = getCallStack();
         this._id = Game.getIdManager().prefix("action", Game.getIdManager().getStringId(), "-");
     }
 

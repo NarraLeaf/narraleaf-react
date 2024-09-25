@@ -12,15 +12,14 @@ export type ElementStateRaw = Record<string, any>;
 export type NodeChildIdMap = Map<string, string>;
 
 export class Story extends Constructable<
-    any,
-    SceneAction<"scene:action">,
-    StoryAction<"story:action">
+    SceneAction<"scene:action">
 > {
     static defaultConfig: StoryConfig = {};
     static targetAction = StoryAction;
     readonly id: string;
     readonly name: string;
     readonly config: StoryConfig;
+    entryScene: Scene | null = null;
 
     constructor(name: string, config: StoryConfig = {}) {
         super();
@@ -125,14 +124,14 @@ export class Story extends Constructable<
      * ```
      */
     public entry(scene: Scene): this {
-        const actions = scene._sceneRoot;
+        const actions = scene.sceneRoot;
         if (!actions) {
             throw new Error("No actions in scene, please add actions to scene first");
         }
 
-        this.setActions([actions]);
+        this.entryScene = scene;
         scene.registerSrc();
-        new StaticChecker(scene).start();
+        new StaticChecker(scene).run();
         return this;
     }
 }
