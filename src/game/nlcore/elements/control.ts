@@ -4,49 +4,51 @@ import {ControlAction} from "@core/action/actions";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Game} from "@core/game";
 import {Values} from "@lib/util/data";
+import {Chained, ChainedActions, Proxied} from "@core/action/chain";
 import Actions = LogicAction.Actions;
 
+type ChainedControl = Proxied<Control, Chained<LogicAction.Actions>>;
 
 export class Control extends Actionable {
     /**
      * Execute actions in order, waiting for each action to complete
      */
-    public static do(actions: (Actions | Actions[])[]): Control {
+    public static do(actions: ChainedActions) {
         return new Control().do(actions);
     }
 
     /**
      * Execute actions in order, do not wait for this action to complete
      */
-    public static doAsync(actions: (Actions | Actions[])[]): Control {
+    public static doAsync(actions: ChainedActions) {
         return new Control().doAsync(actions);
     }
 
     /**
      * Execute all actions at the same time, waiting for any one action to complete
      */
-    public static any(actions: (Actions | Actions[])[]): Control {
+    public static any(actions: ChainedActions) {
         return new Control().any(actions);
     }
 
     /**
      * Execute all actions at the same time, waiting for all actions to complete
      */
-    public static all(actions: (Actions | Actions[])[]): Control {
+    public static all(actions: ChainedActions) {
         return new Control().all(actions);
     }
 
     /**
      * Execute all actions at the same time, do not wait for all actions to complete
      */
-    public static allAsync(actions: (Actions | Actions[])[]): Control {
+    public static allAsync(actions: ChainedActions) {
         return new Control().allAsync(actions);
     }
 
     /**
      * Execute actions multiple times
      */
-    public static repeat(times: number, actions: (Actions | Actions[])[]): Control {
+    public static repeat(times: number, actions: ChainedActions) {
         return new Control().repeat(times, actions);
     }
 
@@ -55,27 +57,27 @@ export class Control extends Actionable {
     }
 
 
-    public do(actions: (Actions | Actions[])[]): this {
+    public do(actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.do, actions);
     }
 
-    public doAsync(actions: (Actions | Actions[])[]): this {
+    public doAsync(actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.doAsync, actions);
     }
 
-    public any(actions: (Actions | Actions[])[]): this {
+    public any(actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.any, actions);
     }
 
-    public all(actions: (Actions | Actions[])[]): this {
+    public all(actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.all, actions);
     }
 
-    public allAsync(actions: (Actions | Actions[])[]): this {
+    public allAsync(actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.allAsync, actions);
     }
 
-    public repeat(times: number, actions: (Actions | Actions[])[]): this {
+    public repeat(times: number, actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.repeat, actions, times);
     }
 
@@ -89,15 +91,18 @@ export class Control extends Actionable {
         return actions;
     }
 
-    private push(type: Values<typeof ControlAction.ActionTypes>, actions: (Actions | Actions[])[], ...args: any[]): this {
-        const flatted = actions.flat(2) as Actions[];
+    private push(
+        type: Values<typeof ControlAction.ActionTypes>,
+        actions: ChainedActions,
+        ...args: any[]
+    ): ChainedControl {
+        const flatted = Chained.toActions(actions);
         const action = new ControlAction(
             this,
             type,
             new ContentNode(Game.getIdManager().getStringId()).setContent([this.construct(flatted), ...args])
         );
-        this.actions.push(action);
-        return this;
+        return this.chain(action);
     }
 }
 

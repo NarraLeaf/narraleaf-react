@@ -392,7 +392,7 @@ export class SkipController<T = any, U extends Array<any> = any[]> {
 
 export function throttle<T extends (...args: any[]) => any>(fn: T, delay: number): T {
     let last = 0;
-    return function (...args: Parameters<T>) {
+    return function (...args: T extends ((...args: infer P) => any) ? P : never[]) {
         const now = Date.now();
         if (now - last < delay) {
             return;
@@ -401,3 +401,9 @@ export function throttle<T extends (...args: any[]) => any>(fn: T, delay: number
         return fn(...args);
     } as T;
 }
+
+export type PublicProperties<T> = {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+    [K in keyof T]: T[K] extends Function ? never : K;
+}[keyof T];
+export type PublicOnly<T> = Pick<T, PublicProperties<T>>;

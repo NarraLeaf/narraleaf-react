@@ -6,13 +6,18 @@ import {LogicAction} from "@core/action/logicAction";
 import {MenuAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import Actions = LogicAction.Actions;
+import {Chained, Proxied} from "@core/action/chain";
+import GameElement = LogicAction.GameElement;
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type MenuConfig = {};
 export type MenuChoice = {
-    action: Actions[];
+    action: ChainedActions;
     prompt: UnSentencePrompt | Sentence;
 };
+
+type ChainedAction = Proxied<GameElement, Chained<LogicAction.Actions>>;
+type ChainedActions = (ChainedAction | ChainedAction[] | Actions | Actions[])[];
 
 type UnSentencePrompt = (string | Word)[] | (string | Word);
 export type Choice = {
@@ -25,7 +30,7 @@ export type MenuData = {
     choices: Choice[];
 }
 
-export class Menu extends Actionable {
+export class Menu extends Actionable<any, Menu> {
     static defaultConfig: MenuConfig = {};
     static targetAction = MenuAction;
     prompt: Sentence;
@@ -47,26 +52,40 @@ export class Menu extends Actionable {
      *     character.say("I went left").toActions()
      * ]);
      */
-    public choose(choice: MenuChoice): this;
-    public choose(prompt: Sentence, action: (Actions | Actions[])[]): this;
-    public choose(prompt: UnSentencePrompt, action: (Actions | Actions[])[]): this;
-    public choose(arg0: Sentence | MenuChoice | UnSentencePrompt, arg1?: (Actions | Actions[])[]): this {
+    public choose(choice: MenuChoice): Proxied<Menu, Chained<LogicAction.Actions>>;
+    public choose(prompt: Sentence, action: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
+    public choose(prompt: UnSentencePrompt, action: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
+    public choose(arg0: Sentence | MenuChoice | UnSentencePrompt, arg1?: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>> {
+        const chained = this.chain();
         if (Sentence.isSentence(arg0) && arg1) {
-            this.choices.push({prompt: Sentence.toSentence(arg0), action: arg1.flat(2)});
+            chained.choices.push({prompt: Sentence.toSentence(arg0), action: Chained.toActions(arg1)});
         } else if ((Word.isWord(arg0) || Array.isArray(arg0) || typeof arg0 === "string") && arg1) {
-            this.choices.push({prompt: Sentence.toSentence(arg0), action: arg1.flat(2)});
+            chained.choices.push({prompt: Sentence.toSentence(arg0), action: Chained.toActions(arg1)});
         } else if (typeof arg0 === "object" && "prompt" in arg0 && "action" in arg0) {
-            this.choices.push({prompt: Sentence.toSentence(arg0.prompt), action: arg0.action.flat(2)});
+            chained.choices.push({prompt: Sentence.toSentence(arg0.prompt), action: Chained.toActions(arg0.action)});
         } else {
             console.warn("No valid choice added to menu, ", {
                 arg0,
                 arg1
             });
         }
-        return this;
+        return chained;
     }
 
-    construct(actions: Actions[], lastChild?: RenderableNode, parentChild?: RenderableNode): Actions[] {
+    public override fromChained(chained: Proxied<Menu, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
+        return [
+            new MenuAction(
+                this,
+                MenuAction.ActionTypes.action,
+                new ContentNode<MenuData>(Game.getIdManager().getStringId()).setContent({
+                    prompt: this.prompt,
+                    choices: chained.constructChoices()
+                })
+            )
+        ];
+    }
+
+    private construct(actions: Actions[], lastChild?: RenderableNode, parentChild?: RenderableNode): Actions[] {
         for (let i = 0; i < actions.length; i++) {
             const node = actions[i].contentNode;
             const child = actions[i + 1]?.contentNode;
@@ -81,21 +100,6 @@ export class Menu extends Actionable {
             }
         }
         return actions;
-    }
-
-    toActions(): MenuAction<"menu:action">[] {
-        const output = [
-            new MenuAction(
-                this,
-                MenuAction.ActionTypes.action,
-                new ContentNode<MenuData>(Game.getIdManager().getStringId()).setContent({
-                    prompt: this.prompt,
-                    choices: this.constructChoices()
-                })
-            )
-        ];
-        this.choices = [];
-        return output;
     }
 
     _getFutureActions(choices: Choice[]): LogicAction.Actions[] {
