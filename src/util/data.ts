@@ -279,7 +279,6 @@ export function getCallStack(n: number = 1, s: number = 0): string {
     if (!stack) {
         return "";
     }
-    // return stack.split('\n').slice(n + 1).join('\n').trim();
     return stack.split("\n").slice(n + 1, -s).join("\n").trim();
 }
 

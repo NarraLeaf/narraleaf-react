@@ -160,7 +160,7 @@ export class Sound extends Actionable<SoundDataRaw> {
 
     private pushAction<T>(type: string, content: T): ChainedSound {
         return this.chain(new SoundAction(
-            this,
+            this.chain(),
             type,
             new ContentNode<T>(Game.getIdManager().getStringId()).setContent(content)
         ));

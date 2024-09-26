@@ -19,7 +19,7 @@ export default function Scene({
 }>) {
     const {ratio} = useRatio();
     const [backgroundMusic, setBackgroundMusic] =
-        useState<Sound | null>(() => scene._$getBackgroundMusic());
+        useState<Sound | null>(() => scene.state.backgroundMusic);
     const [settingProgress, setSettingProgress] =
         useState<NodeJS.Timeout | null>(null);
     const [resolve, setResolve] = useState<(() => void) | null>(null);

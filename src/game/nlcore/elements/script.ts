@@ -40,7 +40,7 @@ export class Script extends Actionable<object> {
     override fromChained(chained: Proxied<Script, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return [
             new ScriptAction(
-                this,
+                this.chain(),
                 ScriptAction.ActionTypes.action,
                 new ContentNode<Script>(Game.getIdManager().getStringId()).setContent(chained)
             )

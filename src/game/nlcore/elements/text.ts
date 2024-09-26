@@ -163,7 +163,7 @@ export class Character extends Actionable<
                 new Sentence(this, content, {}) :
                 (Sentence.isSentence(content) ? content : new Sentence(this, content, {}));
         const action = new CharacterAction<typeof CharacterAction.ActionTypes.say>(
-            this,
+            this.chain(),
             CharacterAction.ActionTypes.say,
             new ContentNode<Sentence>(Game.getIdManager().getStringId()).setContent(sentence)
         );

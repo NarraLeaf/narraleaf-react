@@ -246,12 +246,9 @@ export class LiveGame {
             throw new Error("Saved game version mismatch");
         }
 
-        const actions = story.getAllActions();
+        const actions = story.getAllChildren(story.entryScene?.sceneRoot || []);
         const {
             store,
-            elementState,
-            nodeChildIdMap,
-            currentAction,
             stage,
         } = savedGame.game;
 
@@ -259,15 +256,8 @@ export class LiveGame {
         this.storable.load(store);
 
         // restore action tree
-        story._setAllElementState(elementState, actions);
-        story._setNodeChildByMap(nodeChildIdMap, actions);
 
         // restore game state
-        if (currentAction) {
-            this.setCurrentAction(story.findActionById(currentAction, actions) || null);
-        } else {
-            this.setCurrentAction(null);
-        }
         this.currentSavedGame = savedGame;
         gameState.loadData(stage, actions);
     }
@@ -287,10 +277,7 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
-        const actions = story.getAllActions();
-
-        const elementState = story._getAllElementState(actions);
-        const nodeChildIds = Object.fromEntries(story._getNodeChildIdMap(actions));
+        // get all element state
         const stage = gameState.toData();
 
         return {
@@ -302,9 +289,7 @@ export class LiveGame {
             },
             game: {
                 store: this.storable.toData(),
-                elementState: elementState,
                 stage: stage,
-                nodeChildIdMap: nodeChildIds,
                 currentScene: 0,
                 currentAction: this.getCurrentAction()?.getId() || null,
             }
@@ -363,7 +348,7 @@ export class LiveGame {
 
         this._lockedCount = 0;
 
-        this.currentAction = nextAction.node?.child?.action || null;
+        this.currentAction = nextAction.node?.getChild()?.action || null;
         return nextAction;
     }
 
@@ -380,7 +365,7 @@ export class LiveGame {
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             return nextAction;
         }
-        return nextAction?.node?.child?.action || null;
+        return nextAction?.node?.getChild()?.action || null;
     }
 }
 

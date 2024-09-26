@@ -15,8 +15,8 @@ export interface SavedGame {
     };
     game: {
         store: { [key: string]: StorableData; };
-        elementState: RawData<ElementStateRaw>[];
-        nodeChildIdMap: Record<string, string>;
+        elementState?: RawData<ElementStateRaw>[];
+        nodeChildIdMap?: Record<string, string>;
         stage: PlayerStateData;
         currentScene: number;
         currentAction: string | null;

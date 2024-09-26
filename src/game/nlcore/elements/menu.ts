@@ -75,7 +75,7 @@ export class Menu extends Actionable<any, Menu> {
     public override fromChained(chained: Proxied<Menu, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return [
             new MenuAction(
-                this,
+                this.chain(),
                 MenuAction.ActionTypes.action,
                 new ContentNode<MenuData>(Game.getIdManager().getStringId()).setContent({
                     prompt: this.prompt,

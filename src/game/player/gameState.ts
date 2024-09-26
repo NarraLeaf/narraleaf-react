@@ -239,13 +239,13 @@ export class GameState {
             throw new Error("No story loaded");
         }
 
-        const allElements = story.getAllElements(actions);
+        const allElements = story.getAllChildrenElements(actions);
         const {elements} = data;
         elements.forEach(e => {
             const [
                 scene,
                 ...images
-            ] = (story.findElementsByIds([e.scene, ...e.ele.images], allElements) as [Scene, ...Image[]]);
+            ] = (story.findElementsByIds_([e.scene, ...e.ele.images], allElements) as [Scene, ...Image[]]);
             const element: { scene: Scene, ele: PlayerStateElement } = {
                 scene: scene,
                 ele: {

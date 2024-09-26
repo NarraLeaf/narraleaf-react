@@ -10,7 +10,7 @@ export type ChainedActions = (ChainedAction | ChainedAction[] | Actions | Action
 
 const ChainedFlag = Symbol("_Chained");
 
-export class Chained<T> {
+export class Chained<T, Self = any> {
     static isChained<T>(value: any): value is Chained<T> {
         return value && value[ChainedFlag];
     }
@@ -29,6 +29,11 @@ export class Chained<T> {
 
     [ChainedFlag]: boolean = true;
     private __actions: T[] = [];
+    private readonly __self: any;
+
+    constructor(self: Self) {
+        this.__self = self;
+    }
 
     public push(...actions: T[]) {
         this.__actions.push(...actions);
@@ -36,6 +41,10 @@ export class Chained<T> {
 
     public getActions() {
         return this.__actions;
+    }
+
+    public getSelf(): Self {
+        return this.__self;
     }
 }
 
@@ -46,7 +55,9 @@ export class Chained<T> {
 export class Chainable<T, U extends Record<any, any>> {
     public chain(arg0?: T[] | T): Proxied<U, Chained<T>> {
         const chained: Proxied<U, Chained<T>> =
-            Chained.isChained(this) ? (this as unknown as Proxied<U, Chained<T>>) : this.proxy<U, Chained<T>>(this as any, new Chained<T>());
+            Chained.isChained(this) ?
+                (this as unknown as Proxied<U, Chained<T>>) :
+                this.proxy<U, Chained<T>>(this as any, new Chained<T, U>(this as any));
 
         if (!arg0) {
             return chained;

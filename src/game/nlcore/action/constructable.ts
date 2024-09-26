@@ -1,14 +1,19 @@
-import {ContentNode, RenderableNode, RootNode} from "@core/action/tree/actionTree";
+import {RenderableNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 
 import {Action} from "@core/action/action";
 import {SceneActionTypes} from "@core/action/actionTypes";
 import {Chainable, Chained, Proxied} from "@core/action/chain";
+import {TypedAction} from "@core/action/actions";
 import GameElement = LogicAction.GameElement;
 
 export class Constructable<
     TAction extends LogicAction.Actions = LogicAction.Actions,
-> extends Chainable<any, any> {
+    Self extends Constructable<TAction> = any
+> extends Chainable<LogicAction.Actions, Self> {
+    /**
+     * @deprecated
+     */
     static targetAction: any = Action;
     /**
      * @deprecated
@@ -23,31 +28,27 @@ export class Constructable<
 
     /**
      * @deprecated
-     * @param root
-     */
-    setRoot(root: RootNode): LogicAction.Actions | undefined {
-        this.actions[0]?.contentNode.setParent(root);
-        root.setChild(this.actions[0]?.contentNode);
-        return this.actions[0];
-    }
-
-    /**
-     * @deprecated
      */
     _getActions() {
         return this.actions;
     }
 
-    /**@internal */
-    getAllActions(includeJumpTo?: boolean, actions?: LogicAction.Actions[]): LogicAction.Actions[] {
+    /**
+     * @internal
+     * @deprecated
+     */
+    getAllActions_(includeJumpTo?: boolean, actions?: LogicAction.Actions[]): LogicAction.Actions[] {
         const set = new Set<LogicAction.Actions>();
-        this.forEachAction(action => set.add(action), includeJumpTo, actions);
+        this.forEachAction_(action => set.add(action), includeJumpTo, actions);
 
         return Array.from(set);
     }
 
-    /**@internal */
-    forEachAction(callback: (action: LogicAction.Actions) => void, includeJumpTo = true, actions?: LogicAction.Actions[]): void {
+    /**
+     * @internal
+     * @deprecated
+     */
+    forEachAction_(callback: (action: LogicAction.Actions) => void, includeJumpTo = true, actions?: LogicAction.Actions[]): void {
         const seen: string[] = [];
         (actions || this._getActions()).forEach(sceneAction => {
             const queue: LogicAction.Actions[] = [];
@@ -69,77 +70,12 @@ export class Constructable<
         });
     }
 
-    /**@internal */
-    findActionById(id: string, actions?: LogicAction.Actions[]): LogicAction.Actions | null {
-        if (actions) {
-            const action = actions.find(action => action.getId() === id);
-            return action || null;
-        }
-
-        const futureActions = this._getActions();
-        const queue: LogicAction.Actions[] = [];
-        const seen: string[] = [];
-        queue.push(...futureActions);
-
-        while (queue.length > 0) {
-            const action = queue.shift()!;
-            if (action.getId() === id) {
-                return action;
-            }
-
-            if (action.type === SceneActionTypes.jumpTo) {
-                if (seen.includes(action.getId())) {
-                    continue;
-                }
-                seen.push(action.getId());
-            }
-
-            queue.push(...action.getFutureActions());
-        }
-
-        return null;
-    }
-
-    /**@internal */
-    getAllElements(actions?: LogicAction.Actions[]): LogicAction.GameElement[] {
-        const action = actions || this.getAllActions();
-        const set = new Set<LogicAction.GameElement>(
-            action.map(action => action.callee)
-        );
-        return Array.from(set);
-    }
-
-    /**@internal */
-    getActionsByType(type: LogicAction.ActionTypes, actions?: LogicAction.Actions[]): LogicAction.Actions[] {
-        const action = actions || this.getAllActions();
-        return action.filter(action => action.type === type);
-    }
-
-    /**@internal */
-    getAllNodes(actions?: LogicAction.Actions[]): ContentNode[] {
-        const action = actions || this.getAllActions();
-        const set = new Set<ContentNode>(
-            action.map(action => action.contentNode)
-        );
-        return Array.from(set);
-    }
-
-    /**@internal */
-    findNodeById(id: string, actions?: LogicAction.Actions[]): ContentNode | null {
-        const action = actions || this.getAllActions();
-        return action.find(action => action.contentNode.id === id)?.contentNode || null;
-    }
-
-    /**@internal */
-    findElementById(id: string, elements: LogicAction.GameElement[]): LogicAction.GameElement | null {
-        return elements.find(element => element.id === id) || null;
-    }
-
     /**
      * @internal
+     * @deprecated
      * Find multiple elements by multiple IDs
      */
-    findElementsByIds(ids: string[], elements: LogicAction.GameElement[]): LogicAction.GameElement[] {
+    findElementsByIds_(ids: string[], elements: LogicAction.GameElement[]): LogicAction.GameElement[] {
         const map = new Map<string, LogicAction.GameElement>();
         elements.forEach(element => map.set(element.id, element));
         return ids.map(id => map.get(id)).filter(Boolean) as LogicAction.GameElement[];
@@ -147,6 +83,49 @@ export class Constructable<
 
     public fromChained(chained: Proxied<GameElement, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return chained.getActions();
+    }
+
+    forEachChild(actionOrActions: LogicAction.Actions | LogicAction.Actions[], cb: ((action: TypedAction) => void)): void {
+        const seen = new Set<LogicAction.Actions>();
+        const queue: LogicAction.Actions[] = [];
+
+        if (Array.isArray(actionOrActions)) {
+            queue.push(...actionOrActions);
+        } else {
+            queue.push(actionOrActions);
+        }
+
+        while (queue.length) {
+            const action = queue.shift()!;
+            if (seen.has(action)) {
+                continue;
+            }
+            seen.add(action);
+
+            cb(action);
+
+            const children = action.getFutureActions()
+                .filter(action => !seen.has(action));
+            queue.push(...children);
+        }
+    }
+
+    getAllChildren(action: LogicAction.Actions | LogicAction.Actions[]): LogicAction.Actions[] {
+        const children: LogicAction.Actions[] = [];
+        this.forEachChild(action, action => children.push(action));
+        return children;
+    }
+
+    getAllChildrenElements(action: LogicAction.Actions | LogicAction.Actions[]): LogicAction.GameElement[] {
+        return Array.from(new Set(this.getAllChildren(action).map(action => action.callee)));
+    }
+
+    toData(): Record<string, any> | null {
+        return null;
+    }
+
+    fromData(_: Record<string, any>) {
+        return this;
     }
 
     /**

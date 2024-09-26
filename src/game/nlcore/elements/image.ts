@@ -160,7 +160,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
             chain._transitionSrc(copy);
         }
         const action = new ImageAction<typeof ImageAction.ActionTypes.setSrc>(
-            this,
+            this.chain(),
             ImageAction.ActionTypes.setSrc,
             new ContentNode<[string]>(Game.getIdManager().getStringId()).setContent([
                 typeof src === "string" ? src : Utils.staticImageDataToSrc(src)
@@ -203,7 +203,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
      */
     public applyTransform(transform: Transform): Proxied<Image, Chained<LogicAction.Actions>> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
-            this,
+            this.chain(),
             ImageAction.ActionTypes.applyTransform,
             new ContentNode(Game.getIdManager().getStringId()).setContent([
                 void 0,
@@ -242,7 +242,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
                 }
             ]);
         const action = new ImageAction<typeof ImageAction.ActionTypes.show>(
-            this,
+            this.chain(),
             ImageAction.ActionTypes.show,
             new ContentNode<ImageActionContentType["image:show"]>(Game.getIdManager().getStringId()).setContent([
                 void 0,
@@ -263,7 +263,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
 
     public hide(arg0?: Transform | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.hide>(
-            this,
+            this.chain(),
             ImageAction.ActionTypes.hide,
             new ContentNode<ImageActionContentType["image:hide"]>(Game.getIdManager().getStringId()).setContent([
                 void 0,
@@ -321,7 +321,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
 
     _setTransition(transition: ITransition | null): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.chain(new ImageAction<typeof ImageAction.ActionTypes.setTransition>(
-            this,
+            this.chain(),
             ImageAction.ActionTypes.setTransition,
             new ContentNode<[ITransition | null]>(Game.getIdManager().getStringId()).setContent([
                 transition
@@ -331,7 +331,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
 
     _applyTransition(transition: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.chain(new ImageAction<"image:applyTransition">(
-            this,
+            this.chain(),
             "image:applyTransition",
             new ContentNode<[ITransition]>(Game.getIdManager().getStringId()).setContent([
                 transition
@@ -348,7 +348,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
 
     private _dispose(): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.chain(new ImageAction<typeof ImageAction.ActionTypes.dispose>(
-            this,
+            this.chain(),
             ImageAction.ActionTypes.dispose,
             new ContentNode(Game.getIdManager().getStringId())
         ));
@@ -356,7 +356,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
 
     _init(scene?: Scene): ImageAction<typeof ImageAction.ActionTypes.init> {
         return new ImageAction<typeof ImageAction.ActionTypes.init>(
-            this,
+            this.chain(),
             ImageAction.ActionTypes.init,
             new ContentNode<[Scene?]>(Game.getIdManager().getStringId()).setContent([
                 scene
