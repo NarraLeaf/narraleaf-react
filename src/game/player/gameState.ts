@@ -23,9 +23,9 @@ export type PlayerState = {
     elements: { scene: Scene, ele: PlayerStateElement }[];
 };
 export type PlayerStateData = {
-    elements: {
-        scene: string;
-        ele: {
+    scenes: {
+        sceneId: string;
+        elements: {
             images: string[];
         };
     }[]
@@ -178,6 +178,14 @@ export class GameState {
         return this;
     }
 
+    public forceReset() {
+        this.state.elements.forEach(({scene}) => {
+            this.offSrcManager(scene.srcManager);
+            scene._liveState.active = false;
+            scene.events.reset();
+        });
+    }
+
     playSound(howl: Howler.Howl, onEnd?: () => void): any {
         const token = howl.play();
         const events = [
@@ -220,18 +228,18 @@ export class GameState {
 
     toData(): PlayerStateData {
         return {
-            elements: this.state.elements.map(e => {
+            scenes: this.state.elements.map(e => {
                 return {
-                    scene: e.scene.id,
-                    ele: {
-                        images: e.ele.images.map(i => i.id)
+                    sceneId: e.scene.getId(),
+                    elements: {
+                        images: e.ele.images.map(i => i.getId())
                     }
                 };
             })
         };
     }
 
-    loadData(data: PlayerStateData, actions: LogicAction.Actions[]) {
+    loadData(data: PlayerStateData, elementMap: Map<string, LogicAction.GameElement>) {
         this.state.elements = [];
 
         const story = this.game.getLiveGame().story;
@@ -239,21 +247,28 @@ export class GameState {
             throw new Error("No story loaded");
         }
 
-        const allElements = story.getAllElements(actions);
-        const {elements} = data;
-        elements.forEach(e => {
-            const [
+        const {scenes} = data;
+        scenes.forEach(({sceneId, elements}) => {
+            const scene = elementMap.get(sceneId) as Scene;
+            if (!scene) {
+                throw new Error("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");
+            }
+
+            const images = elements.images.map(i => {
+                if (!elementMap.has(i)) {
+                    throw new Error("Image not found, id: " + i + "\nNarraLeaf cannot find the element with the id from the saved game");
+                }
+                return elementMap.get(i) as Image;
+            });
+            const element: { scene: Scene; ele: PlayerStateElement; } = {
                 scene,
-                ...images
-            ] = (story.findElementsByIds([e.scene, ...e.ele.images], allElements) as [Scene, ...Image[]]);
-            const element: { scene: Scene, ele: PlayerStateElement } = {
-                scene: scene,
                 ele: {
-                    images: images,
+                    images,
                     menus: [],
                     texts: []
                 }
             };
+
             this.state.elements.push(element);
             this.state.srcManagers.push(element.scene.srcManager);
         });

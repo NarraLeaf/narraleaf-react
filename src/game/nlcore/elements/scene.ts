@@ -1,6 +1,6 @@
 import {Constructable} from "../action/constructable";
 import {Game} from "../game";
-import {Awaitable, deepEqual, deepMerge, DeepPartial, EventDispatcher, safeClone} from "@lib/util/data";
+import {Awaitable, deepMerge, DeepPartial, EventDispatcher, safeClone} from "@lib/util/data";
 import {Background, CommonImage} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
@@ -44,8 +44,8 @@ export type SceneDataRaw = {
     state: {
         backgroundMusic?: SoundDataRaw | null;
         background?: Background["background"];
-        backgroundImageState?: Partial<CommonImage>;
     };
+    backgroundImageState?: Partial<CommonImage>;
 }
 
 export type SceneEventTypes = {
@@ -63,7 +63,8 @@ export type SceneEventTypes = {
 };
 
 export class Scene extends Constructable<
-    Actions
+    Actions,
+    Scene
 > {
     static EventTypes: { [K in keyof SceneEventTypes]: K } = {
         "event:scene.applyTransition": "event:scene.applyTransition",
@@ -86,13 +87,13 @@ export class Scene extends Constructable<
         backgroundMusicFade: 0,
     };
     static defaultState: SceneState = {};
-    static targetAction = SceneAction;
+
     readonly id: string;
     readonly name: string;
     readonly config: SceneConfig;
     state: SceneConfig & SceneState;
-    srcManager: SrcManager = new SrcManager();
-    events: EventDispatcher<SceneEventTypes> = new EventDispatcher();
+    readonly srcManager: SrcManager = new SrcManager();
+    readonly events: EventDispatcher<SceneEventTypes> = new EventDispatcher();
     backgroundImageState: Partial<CommonImage>;
     _liveState = {
         active: false,
@@ -101,7 +102,7 @@ export class Scene extends Constructable<
 
     constructor(name: string, config: DeepPartial<SceneConfig> = Scene.defaultConfig) {
         super();
-        this.id = Game.getIdManager().getStringId();
+        this.id = name;
         this.name = name;
         this.config = deepMerge<SceneConfig>(Scene.defaultConfig, config);
         this.state = deepMerge<SceneConfig & SceneState>(Scene.defaultState, this.config);
@@ -110,25 +111,38 @@ export class Scene extends Constructable<
         };
     }
 
+    /**
+     * Activate the scene
+     *
+     * This is only used when auto activation is not working
+     * @chainable
+     */
     public activate(): ChainedScene {
         return this.chain(this._init(this));
     }
 
+    /**
+     * Deactivate the scene
+     *
+     * This is only used when auto deactivation is not working
+     * @chainable
+     */
     public deactivate(): ChainedScene {
         return this.chain(this._exit());
     }
 
     /**
      * Set background, if {@link transition} is provided, it will be applied
+     * @chainable
      */
     public setBackground(background: Background["background"], transition?: ITransition): ChainedScene {
         if (transition) {
             const copy = transition.copy();
             copy.setSrc(Utils.backgroundToSrc(background));
-            this.transitionSceneBackground(undefined, copy);
+            this._transitionSceneBackground(undefined, copy);
         }
         return this.chain(new SceneAction(
-            this,
+            this.chain(),
             "scene:setBackground",
             new ContentNode<[Background["background"]]>(Game.getIdManager().getStringId()).setContent([
                 background,
@@ -140,10 +154,11 @@ export class Scene extends Constructable<
      * Apply a transform to the scene
      *
      * for example, you can shake the scene by applying a transform with a shake effect
+     * @chainable
      */
     public applyTransform(transform: Transform<ImageTransformProps>): ChainedScene {
         return this.chain(new SceneAction(
-            this,
+            this.chain(),
             "scene:applyTransform",
             new ContentNode(Game.getIdManager().getStringId()).setContent([transform])
         ));
@@ -159,7 +174,7 @@ export class Scene extends Constructable<
      */
     public jumpTo(arg0: Scene, config?: Partial<JumpConfig>): ChainedScene {
         const chain = this.chain(new SceneAction(
-            this,
+            this.chain(),
             "scene:preUnmount",
             new ContentNode(Game.getIdManager().getStringId()).setContent([])
         ));
@@ -172,20 +187,19 @@ export class Scene extends Constructable<
             ._jumpTo(arg0);
     }
 
-    transitionSceneBackground(scene?: Scene, transition?: ITransition): ChainedScene {
-        return this._transitionToScene(scene, transition);
-    }
-
     /**
      * Wait for a period of time, the parameter can be the number of milliseconds, a Promise, or an unresolved {@link Awaitable}
      * @chainable
      */
     public sleep(ms: number): ChainedScene;
+
     public sleep(promise: Promise<any>): ChainedScene;
+
     public sleep(awaitable: Awaitable<any, any>): ChainedScene;
+
     public sleep(content: number | Promise<any> | Awaitable<any, any>): ChainedScene {
         return this.chain(new SceneAction(
-            this,
+            this.chain(),
             "scene:sleep",
             new ContentNode(Game.getIdManager().getStringId()).setContent(content)
         ));
@@ -195,73 +209,40 @@ export class Scene extends Constructable<
      * Set background music
      * @param sound Target music
      * @param fade If set, the fade-out effect will be applied to the previous music, and the fade-in effect will be applied to the current music, with a duration of {@link fade} milliseconds
+     * @chainable
      */
     public setBackgroundMusic(sound: Sound, fade?: number): ChainedScene {
         return this.chain(new SceneAction<typeof SceneActionTypes["setBackgroundMusic"]>(
-            this,
+            this.chain(),
             SceneActionTypes["setBackgroundMusic"],
             new ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackgroundMusic"]]>(Game.getIdManager().getStringId()).setContent([sound, fade])
         ));
     }
 
-    _$getBackgroundMusic() {
-        return this.state.backgroundMusic;
-    }
-
-    toData(): SceneDataRaw | null {
-        if (deepEqual(this.state, this.config)) {
-            return null;
-        }
+    override toData(): SceneDataRaw | null {
         return {
             state: {
                 ...safeClone(this.state),
                 backgroundMusic: this.state.backgroundMusic?.toData(),
                 background: this.state.background,
-                backgroundImageState: Image.serializeImageState(this.backgroundImageState),
             },
-        };
+            backgroundImageState: Image.serializeImageState(this.backgroundImageState),
+        } satisfies SceneDataRaw;
     }
 
-    fromData(data: SceneDataRaw): this {
+    override fromData(data: SceneDataRaw): this {
         this.state = deepMerge<SceneConfig & SceneState>(this.state, data.state);
         if (data.state.backgroundMusic) {
             this.state.backgroundMusic = new Sound().fromData(data.state.backgroundMusic);
             this.state.background = data.state.background;
         }
-        if (data.state.backgroundImageState) {
-            this.backgroundImageState = Image.deserializeImageState(data.state.backgroundImageState);
+        if (data.backgroundImageState) {
+            this.backgroundImageState = Image.deserializeImageState(data.backgroundImageState);
         }
         return this;
     }
 
-    _setTransition(transition: ITransition): ChainedScene {
-        return this.chain(new SceneAction(
-            this,
-            "scene:setTransition",
-            new ContentNode(Game.getIdManager().getStringId()).setContent([transition])
-        ));
-    }
-
-    _applyTransition(transition: ITransition): ChainedScene {
-        return this.chain(new SceneAction(
-            this,
-            "scene:applyTransition",
-            new ContentNode(Game.getIdManager().getStringId()).setContent([transition])
-        ));
-    }
-
-    _toTransform(): Transform<ImageTransformProps> {
-        return new Transform<ImageTransformProps>([
-            {
-                props: this.backgroundImageState,
-                options: {
-                    duration: 0,
-                }
-            },
-        ]);
-    }
-
-    _initTransform(): Transform<ImageTransformProps> {
+    getInitTransform(): Transform<ImageTransformProps> {
         return new Transform<ImageTransformProps>([
             {
                 props: {
@@ -273,6 +254,45 @@ export class Scene extends Constructable<
                 }
             },
         ]);
+    }
+
+    public action(actions: (ChainableAction | ChainableAction[])[]): this;
+
+    public action(actions: ((scene: Scene) => ChainableAction[])): this;
+
+    public action(actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[])): this {
+        const userChainedActions: ChainableAction[] = Array.isArray(actions) ? actions.flat(2) : actions(this).flat(2);
+        const userActions = userChainedActions.map(v => {
+            if (Chained.isChained(v)) {
+                return v.fromChained(v as any);
+            }
+            return v;
+        }).flat(2);
+
+        const images = this
+            .getAllChildrenElements(userActions)
+            .filter(element => (element instanceof Image) && !Chained.isChained(element));
+        const futureActions = [
+            this._init(this),
+            ...images.map(image => (image as Image)._init()),
+            ...userActions,
+        ];
+
+        const constructed = super.construct(futureActions);
+        const sceneRoot = new ContentNode<this>(Game.getIdManager().getStringId(),
+            undefined,
+            undefined,
+            constructed || void 0
+        ).setContent(this);
+        constructed?.setParent(sceneRoot);
+
+        this.sceneRoot = new SceneAction(
+            this.chain(),
+            "scene:action",
+            sceneRoot
+        );
+
+        return this;
     }
 
     registerSrc(seen: Set<Scene> = new Set<Scene>()) {
@@ -330,46 +350,43 @@ export class Scene extends Constructable<
         });
     }
 
-    public action(actions: (ChainableAction | ChainableAction[])[]): this;
+    /**
+     * @internal STILL IN DEVELOPMENT
+     */
+    assignActionId() {
+        const actions = this.getAllChildren(this.sceneRoot || []);
 
-    public action(actions: ((scene: Scene) => ChainableAction[])): this;
-
-    public action(actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[])): this {
-        const userChainedActions: ChainableAction[] = Array.isArray(actions) ? actions.flat(2) : actions(this).flat(2);
-        const userActions = userChainedActions.map(v => {
-            if (Chained.isChained(v)) {
-                return v.fromChained(v as any);
-            }
-            return v;
-        }).flat(2);
-        const images = this.getAllElements(this.getAllActions(false, userActions))
-            .filter(element => (element instanceof Image) && !Chained.isChained(element));
-        const futureActions = [
-            this._init(this),
-            ...images.map(image => (image as Image)._init()),
-            ...userActions,
-        ];
-
-        const constructed = super.construct(futureActions);
-        const sceneRoot = new ContentNode<this>(Game.getIdManager().getStringId(),
-            undefined,
-            undefined,
-            constructed || void 0
-        ).setContent(this);
-        constructed?.setParent(sceneRoot);
-
-        this.sceneRoot = new SceneAction(
-            this,
-            "scene:action",
-            sceneRoot
-        );
-
-        return this;
+        actions.forEach((action, i) => {
+            action.setId(`action-${i}`);
+        });
     }
 
-    _jumpTo(scene: Scene): ChainedScene {
+    /**
+     * @internal STILL IN DEVELOPMENT
+     */
+    assignElementId() {
+        const elements = this.getAllChildrenElements(this.sceneRoot || []);
+
+        elements.forEach((element, i) => {
+            element.setId(`element-${i}`);
+        });
+    }
+
+    private _applyTransition(transition: ITransition): ChainedScene {
         return this.chain(new SceneAction(
-            this,
+            this.chain(),
+            "scene:applyTransition",
+            new ContentNode(Game.getIdManager().getStringId()).setContent([transition])
+        ));
+    }
+
+    private _transitionSceneBackground(scene?: Scene, transition?: ITransition): ChainedScene {
+        return this._transitionToScene(scene, transition);
+    }
+
+    private _jumpTo(scene: Scene): ChainedScene {
+        return this.chain(new SceneAction(
+            this.chain(),
             "scene:jumpTo",
             new ContentNode<[Scene]>(Game.getIdManager().getStringId()).setContent([
                 scene
@@ -379,7 +396,7 @@ export class Scene extends Constructable<
 
     private _exit(): SceneAction<"scene:exit"> {
         return new SceneAction(
-            this,
+            this.chain(),
             "scene:exit",
             new ContentNode(Game.getIdManager().getStringId()).setContent([])
         );
@@ -397,7 +414,7 @@ export class Scene extends Constructable<
 
     private _init(target = this): SceneAction<"scene:init"> {
         return new SceneAction(
-            target,
+            target.chain(),
             "scene:init",
             new ContentNode(Game.getIdManager().getStringId()).setContent([])
         );

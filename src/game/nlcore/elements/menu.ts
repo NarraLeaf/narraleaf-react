@@ -40,7 +40,7 @@ export class Menu extends Actionable<any, Menu> {
     constructor(prompt: UnSentencePrompt, config?: MenuConfig);
     constructor(prompt: Sentence, config?: MenuConfig);
     constructor(prompt: UnSentencePrompt | Sentence, config: MenuConfig = {}) {
-        super(Actionable.IdPrefixes.Menu);
+        super();
         this.prompt = Sentence.isSentence(prompt) ? prompt : new Sentence(null, prompt);
         this.config = deepMerge<MenuConfig>(Menu.defaultConfig, config);
     }
@@ -75,7 +75,7 @@ export class Menu extends Actionable<any, Menu> {
     public override fromChained(chained: Proxied<Menu, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return [
             new MenuAction(
-                this,
+                this.chain(),
                 MenuAction.ActionTypes.action,
                 new ContentNode<MenuData>(Game.getIdManager().getStringId()).setContent({
                     prompt: this.prompt,

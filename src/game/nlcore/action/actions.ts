@@ -33,6 +33,7 @@ import {
     StoryActionContentType,
     StoryActionTypes
 } from "@core/action/actionTypes";
+import {Chained, Proxied} from "@core/action/chain";
 
 export class TypedAction<
     ContentType extends Record<string, any> = Record<string, any>,
@@ -41,9 +42,9 @@ export class TypedAction<
 > extends Action<ContentType[T], Callee> {
     declare callee: Callee;
 
-    constructor(callee: Callee, type: any, contentNode: ContentNode<ContentType[T]>) {
+    constructor(callee: Proxied<Callee, Chained<LogicAction.Actions, Callee>>, type: any, contentNode: ContentNode<ContentType[T]>) {
         super(callee, type, contentNode);
-        this.callee = callee;
+        this.callee = callee.getSelf();
         this.contentNode.action = this;
     }
 
@@ -104,7 +105,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             wait.then(() => {
                 awaitable.resolve({
                     type: this.type,
-                    node: this.contentNode.child
+                    node: this.contentNode.getChild()
                 });
                 state.stage.next();
             });
@@ -153,11 +154,11 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             });
 
             this.callee.events.once("event:scene.imageLoaded", () => {
-                const initTransform = this.callee._initTransform();
+                const initTransform = this.callee.getInitTransform();
                 this.callee.events.any("event:scene.initTransform", initTransform).then(() => {
                     awaitable.resolve({
                         type: this.type,
-                        node: this.contentNode.child
+                        node: this.contentNode.getChild()
                     });
                     state.stage.next();
                 });
@@ -174,7 +175,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             this.callee.events.once("event:scene.unmount", () => {
                 awaitable.resolve({
                     type: this.type,
-                    node: this.contentNode.child
+                    node: this.contentNode.getChild()
                 });
                 state.stage.next();
             });
@@ -226,7 +227,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             const sceneRootNode = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0]?.sceneRoot?.contentNode;
             return sceneRootNode?.action ? [sceneRootNode.action] : [];
         }
-        const action = this.contentNode.child?.action;
+        const action = this.contentNode.getChild()?.action;
         return action ? [action] : [];
     }
 }
@@ -260,7 +261,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 await this.callee.events.any("event:image.init");
                 awaitable.resolve({
                     type: this.type,
-                    node: this.contentNode.child
+                    node: this.contentNode.getChild()
                 });
                 state.stage.next();
             });
@@ -302,7 +303,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 }
                 awaitable.resolve({
                     type: this.type,
-                    node: this.contentNode?.child || null,
+                    node: this.contentNode?.getChild(),
                 });
             });
             return awaitable;
@@ -429,7 +430,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
                     this.callee.$stop();
                     awaitable.resolve({
                         type: this.type as any,
-                        node: this.contentNode?.child || null
+                        node: this.contentNode?.getChild()
                     });
                 });
                 this.callee.$setToken(token);
@@ -535,7 +536,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                 .then(() => {
                     awaitable.resolve({
                         type: this.type,
-                        node: this.contentNode.child
+                        node: this.contentNode.getChild()
                     });
                 });
             return awaitable;

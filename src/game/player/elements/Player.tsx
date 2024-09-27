@@ -166,7 +166,7 @@ export default function Player(
                                             (ele.images.map((image) => {
                                                 return (
                                                     <StageImage
-                                                        key={"image-" + image.id}
+                                                        key={"image-" + image.getId()}
                                                         image={image}
                                                         state={state}
                                                     />

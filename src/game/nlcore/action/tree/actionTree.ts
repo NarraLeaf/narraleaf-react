@@ -67,10 +67,10 @@ export class ContentNode<T = any> extends Node<T> {
         }
     }
 
-    child?: RenderableNode | null;
     initChild?: RenderableNode | null;
-    parent: RenderableNode | null;
     action: LogicAction.Actions | null;
+    private child?: RenderableNode | null;
+    private parent: RenderableNode | null;
 
     constructor(
         id: string,
@@ -166,7 +166,7 @@ export class RootNode extends ContentNode {
     }
 
     forEach(callback: (node: RenderableNode) => void) {
-        const queue = [this.child];
+        const queue = [this.getChild()];
         const seen: Set<RenderableNode> = new Set();
         while (queue.length > 0) {
             const node = queue.shift();
@@ -178,7 +178,7 @@ export class RootNode extends ContentNode {
             }
             seen.add(node);
             callback(node);
-            queue.push(node.child);
+            queue.push(node.getChild());
         }
     }
 }

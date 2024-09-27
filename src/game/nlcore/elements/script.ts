@@ -19,7 +19,7 @@ export class Script extends Actionable<object> {
     cleaner: ScriptCleaner | null = null;
 
     constructor(handler: ScriptRun) {
-        super(Actionable.IdPrefixes.Script);
+        super();
         this.handler = handler;
         return this.chain() satisfies Proxied<Script, Chained<LogicAction.Actions>>;
     }
@@ -40,7 +40,7 @@ export class Script extends Actionable<object> {
     override fromChained(chained: Proxied<Script, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return [
             new ScriptAction(
-                this,
+                this.chain(),
                 ScriptAction.ActionTypes.action,
                 new ContentNode<Script>(Game.getIdManager().getStringId()).setContent(chained)
             )

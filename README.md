@@ -2,6 +2,8 @@
 
 # NarraLeaf-React
 
+English | [简体中文](./docs/README.zh-CN.md)
+
 A React visual novel player framework
 
 ## What is NarraLeaf-React?
@@ -16,8 +18,6 @@ It doesn't use any rendering libraries and can be used on any web platform (e.g.
 - **Lightweight**: NarraLeaf-React is a front-end framework, and it doesn't use any rendering libraries.
 - **Customizable**: You can customize the UI as you like, even replace the whole components.
 - **Easy to use**: It is easy to use and has a simple API that is built for developers. Based on OOP principles.
-- **Built for React**: It is built for React!
-- **Cross-platform**: It can be used on any web platform (e.g. Electron)
 
 ## Get Started
 
@@ -29,57 +29,19 @@ npm install narraleaf-react
 
 ### Documentation
 
-- [Quick Start](./docs/quick-start.md)
-- [Customization](./docs/customization.md)
-
 Read more in [🛠React.NarraLeaf.com](https://react.narraleaf.com)
 
 ### Example
 
-```tsx
-"use client";
-
-import {Character, Scene, Story, Image, Player, GameProviders} from "narraleaf-react";
-
-export default function App() {
-    const character1 = new Character("character1");
-    const image1 = new Image({
-        src: "https://placehold.it/200x200",
-    })
-
-    const story = new Story("My First NarraLeaf Story").entry(
-        new Scene("scene1").action([
-            // Show image1 for 1 second
-            image1.show({
-                duration: 1000,
-            }),
-
-            // Say something
-            character1
-                .say("Hello, world!")
-                .say("This is my first NarraLeaf story.")
-                .say("Start editing this file and enjoy the journey!"),
-        ])
-    );
-
-    function handleOnReady({game}) {
-        game.getLiveGame().newGame();
-    }
-
-    return (
-        <GameProviders>
-            <Player
-                story={story}
-                onReady={handleOnReady}
-                width="100vw"
-                height="100vh"
-            />
-        </GameProviders>
-    );
-}
+```bash
+npx create-react-app my-first-narraleaf-app --template my-first-narraleaf-app
 ```
 
-Read more in [Quick Start](./docs/quick-start.md)
+to start
+
+```bash
+npm start
+```
 
 ### Performance
 
@@ -111,7 +73,9 @@ export default nextConfig;
 
 ## License
 
-> NarraLeaf-React is licensed under the MIT License.
+> NarraLeaf-React is licensed under the MPL License.
+> 
+> We updated the license to MPL on 2024-9-24. 
 
 ## Contributing
 

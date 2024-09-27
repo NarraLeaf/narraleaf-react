@@ -83,7 +83,7 @@ export class Condition extends Actionable {
     };
 
     constructor(config: ConditionConfig = {}) {
-        super(Actionable.IdPrefixes.Condition);
+        super();
         this.config = deepMerge<ConditionConfig>(Condition.defaultConfig, config);
     }
 
