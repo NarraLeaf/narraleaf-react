@@ -49,7 +49,7 @@ export class Menu extends Actionable<any, Menu> {
      * Add a choice to the menu
      * @example
      * menu.choose("Go left", [
-     *     character.say("I went left").toActions()
+     *     character.say("I went left")
      * ]);
      */
     public choose(choice: MenuChoice): Proxied<Menu, Chained<LogicAction.Actions>>;
