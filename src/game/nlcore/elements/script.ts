@@ -19,7 +19,7 @@ export class Script extends Actionable<object> {
     cleaner: ScriptCleaner | null = null;
 
     constructor(handler: ScriptRun) {
-        super(Actionable.IdPrefixes.Script);
+        super();
         this.handler = handler;
         return this.chain() satisfies Proxied<Script, Chained<LogicAction.Actions>>;
     }

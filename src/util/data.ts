@@ -11,7 +11,7 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
     const hasOwnProperty = (obj: Record<string, any>, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
     const result: Record<string, any> = {};
 
-    const mergeValue = (key: string, value1: any, value2: any) => {
+    const mergeValue = (_: string, value1: any, value2: any) => {
         if (typeof value1 === "object" && value1 !== null && !Array.isArray(value1) &&
             typeof value2 === "object" && value2 !== null && !Array.isArray(value2)) {
             if (value1.constructor !== Object || value2.constructor !== Object) {
@@ -267,6 +267,10 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         await Promise.all(promises);
         return void 0;
     }
+
+    reset() {
+        this.events = {} as any;
+    }
 }
 
 /**
@@ -304,7 +308,7 @@ export function deepEqual(obj1: any, obj2: any): boolean {
 
 export class Logger {
     private game: Game;
-    private prefix: string | undefined;
+    private readonly prefix: string | undefined;
 
     constructor(game: Game, prefix?: string) {
         this.game = game;

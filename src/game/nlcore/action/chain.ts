@@ -1,6 +1,7 @@
 import {LogicAction} from "@core/action/logicAction";
 import Actions = LogicAction.Actions;
 import GameElement = LogicAction.GameElement;
+import {BaseElement} from "@core/action/baseElement";
 
 export type Proxied<T extends Record<any, any>, U extends Record<any, any>> =
     T & U;
@@ -52,7 +53,7 @@ export class Chained<T, Self = any> {
  * - T - the action type
  * - U - self constructor
  */
-export class Chainable<T, U extends Record<any, any>> {
+export class Chainable<T, U extends Record<any, any>> extends BaseElement {
     public chain(arg0?: T[] | T): Proxied<U, Chained<T>> {
         const chained: Proxied<U, Chained<T>> =
             Chained.isChained(this) ?

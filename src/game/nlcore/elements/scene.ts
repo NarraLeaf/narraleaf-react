@@ -1,6 +1,6 @@
 import {Constructable} from "../action/constructable";
 import {Game} from "../game";
-import {Awaitable, deepEqual, deepMerge, DeepPartial, EventDispatcher, safeClone} from "@lib/util/data";
+import {Awaitable, deepMerge, DeepPartial, EventDispatcher, safeClone} from "@lib/util/data";
 import {Background, CommonImage} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
@@ -44,8 +44,8 @@ export type SceneDataRaw = {
     state: {
         backgroundMusic?: SoundDataRaw | null;
         background?: Background["background"];
-        backgroundImageState?: Partial<CommonImage>;
     };
+    backgroundImageState?: Partial<CommonImage>;
 }
 
 export type SceneEventTypes = {
@@ -220,17 +220,14 @@ export class Scene extends Constructable<
     }
 
     override toData(): SceneDataRaw | null {
-        if (deepEqual(this.state, this.config)) {
-            return null;
-        }
         return {
             state: {
                 ...safeClone(this.state),
                 backgroundMusic: this.state.backgroundMusic?.toData(),
                 background: this.state.background,
-                backgroundImageState: Image.serializeImageState(this.backgroundImageState),
             },
-        };
+            backgroundImageState: Image.serializeImageState(this.backgroundImageState),
+        } satisfies SceneDataRaw;
     }
 
     override fromData(data: SceneDataRaw): this {
@@ -239,8 +236,8 @@ export class Scene extends Constructable<
             this.state.backgroundMusic = new Sound().fromData(data.state.backgroundMusic);
             this.state.background = data.state.background;
         }
-        if (data.state.backgroundImageState) {
-            this.backgroundImageState = Image.deserializeImageState(data.state.backgroundImageState);
+        if (data.backgroundImageState) {
+            this.backgroundImageState = Image.deserializeImageState(data.backgroundImageState);
         }
         return this;
     }
@@ -356,11 +353,22 @@ export class Scene extends Constructable<
     /**
      * @internal STILL IN DEVELOPMENT
      */
-    assignId() {
+    assignActionId() {
         const actions = this.getAllChildren(this.sceneRoot || []);
 
         actions.forEach((action, i) => {
             action.setId(`action-${i}`);
+        });
+    }
+
+    /**
+     * @internal STILL IN DEVELOPMENT
+     */
+    assignElementId() {
+        const elements = this.getAllChildrenElements(this.sceneRoot || []);
+
+        elements.forEach((element, i) => {
+            element.setId(`element-${i}`);
         });
     }
 

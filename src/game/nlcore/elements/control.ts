@@ -53,7 +53,7 @@ export class Control extends Actionable {
     }
 
     constructor() {
-        super(Actionable.IdPrefixes.Control);
+        super();
     }
 
 

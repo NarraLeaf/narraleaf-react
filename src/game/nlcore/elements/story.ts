@@ -4,6 +4,7 @@ import {deepMerge} from "@lib/util/data";
 import {SceneAction} from "@core/action/actions";
 import {Scene} from "@core/elements/scene";
 import {StaticChecker} from "@core/common/Utils";
+import {RawData} from "@core/action/tree/actionTree";
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type StoryConfig = {};
@@ -11,7 +12,8 @@ export type ElementStateRaw = Record<string, any>;
 export type NodeChildIdMap = Map<string, string>;
 
 export class Story extends Constructable<
-    SceneAction<"scene:action">
+    SceneAction<"scene:action">,
+    Story
 > {
     static defaultConfig: StoryConfig = {};
     readonly id: string;
@@ -37,11 +39,34 @@ export class Story extends Constructable<
      */
     public entry(scene: Scene): this {
         this.entryScene = scene;
+        return this;
+    }
+
+    constructStory(): this {
+        const scene = this.entryScene;
+
+        if (!scene) {
+            throw new Error("Story must have an entry scene");
+        }
+
         scene.registerSrc();
-        scene.assignId();
+        scene.assignActionId();
+        scene.assignElementId();
 
         this.runStaticCheck(scene);
         return this;
+    }
+
+    getAllElementStates(): RawData<ElementStateRaw>[] {
+        const elements = this.getAllChildrenElements(this.entryScene?.sceneRoot || []);
+        return elements
+            .map(e => {
+                return {
+                    id: e.getId(),
+                    data: e.toData()
+                };
+            })
+            .filter(e => !!e.data);
     }
 
     private runStaticCheck(scene: Scene) {

@@ -60,7 +60,7 @@ export class Sound extends Actionable<SoundDataRaw> {
     };
 
     constructor(config: DeepPartial<SoundConfig> = {}) {
-        super(Actionable.IdPrefixes.Sound);
+        super();
         this.config = deepMerge<SoundConfig>(Sound.defaultConfig, config);
     }
 

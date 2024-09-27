@@ -24,22 +24,6 @@ class IdManager extends Singleton<IdManager>() {
     }
 }
 
-class GameIdManager {
-    private id = 0;
-
-    public getId() {
-        return this.id++;
-    }
-
-    public getStringId() {
-        return (this.id++).toString();
-    }
-
-    prefix(prefix: string, value: string, separator = ":") {
-        return prefix + separator + value;
-    }
-}
-
 enum GameSettingsNamespace {
     game = "game",
 }
@@ -158,14 +142,11 @@ export class LiveGame {
 
     game: Game;
     storable: Storable;
-    /**
-     * @deprecated
-     */
-    currentSceneNumber: number | null = null;
+
     currentSavedGame: SavedGame | null = null;
     story: Story | null = null;
     lockedAwaiting: Awaitable<CalledActionResult, any> | null = null;
-    idManager: GameIdManager;
+
     _lockedCount = 0;
     private currentAction: LogicAction.Actions | null = null;
 
@@ -174,28 +155,6 @@ export class LiveGame {
         this.storable = new Storable();
 
         this.initNamespaces();
-        this.idManager = new GameIdManager();
-    }
-
-    getDefaultSavedGame(): SavedGame {
-        return {
-            name: "_",
-            version: this.game.config.version,
-            meta: {
-                created: Date.now(),
-                updated: Date.now(),
-            },
-            game: {
-                store: {},
-                elementState: [],
-                nodeChildIdMap: {},
-                stage: {
-                    elements: [],
-                },
-                currentScene: 0,
-                currentAction: null,
-            }
-        };
     }
 
     /* Store */
@@ -210,7 +169,7 @@ export class LiveGame {
 
     /* Game */
     public loadStory(story: Story) {
-        this.story = story;
+        this.story = story.constructStory();
         return this;
     }
 
@@ -222,7 +181,7 @@ export class LiveGame {
 
         this.currentAction = this.story?.entryScene?.sceneRoot || null;
 
-        const newGame = this.getDefaultSavedGame();
+        const newGame = this.getNewSavedGame();
         newGame.name = "NewGame-" + Date.now();
         this.currentSavedGame = newGame;
 
@@ -232,9 +191,9 @@ export class LiveGame {
     /**
      * Load a saved game
      *
-     * Note: Different versions of the game won't be able to load each other's saved games
+     * Note: Even if you change just a single line of code, the saved game might not be compatible with the new version
      *
-     * @internal - DO NOT USE IT, it's not ready yet
+     * After calling this method, the current game state will be lost, can the stage will trigger force reset
      */
     public deserialize(savedGame: SavedGame, {gameState}: { gameState: GameState }) {
         const story = this.story;
@@ -242,24 +201,54 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
-        if (savedGame.version !== this.game.config.version) {
-            throw new Error("Saved game version mismatch");
-        }
+        this.reset({gameState});
 
-        const actions = story.getAllChildren(story.entryScene?.sceneRoot || []);
+        const actionMaps = new Map<string, LogicAction.Actions>();
+        const elementMaps = new Map<string, LogicAction.GameElement>();
         const {
-            store,
-            stage,
-        } = savedGame.game;
+            game: {
+                store,
+                stage,
+                elementStates,
+                currentAction,
+            }
+        } = savedGame;
+
+        // construct maps
+        story.forEachChild(story.entryScene?.sceneRoot || [], action => {
+            actionMaps.set(action.getId(), action);
+            elementMaps.set(action.callee.getId(), action.callee);
+        });
 
         // restore storable
         this.storable.load(store);
 
-        // restore action tree
+        // restore elements
+        elementStates.forEach(({id, data}) => {
+            const element = elementMaps.get(id);
+            if (!element) {
+                throw new Error("Element not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
+            }
+            element.fromData(data);
+        });
 
         // restore game state
         this.currentSavedGame = savedGame;
-        gameState.loadData(stage, actions);
+        gameState.loadData(stage, elementMaps);
+        if (currentAction) {
+            const action = actionMaps.get(currentAction);
+            if (!action) {
+                throw new Error("Action not found, id: " + currentAction + "\nNarraLeaf cannot find the action with the id from the saved game");
+            }
+            this.currentAction = action;
+        }
+    }
+
+    public reset({gameState}: { gameState: GameState }) {
+        this.currentAction = this.story?.entryScene?.sceneRoot || null;
+        this.lockedAwaiting = null;
+        this.currentSavedGame = null;
+        gameState.forceReset();
     }
 
     /**
@@ -267,9 +256,7 @@ export class LiveGame {
      *
      * You can use this to save the game state to a file or a database
      *
-     * Note: Different versions of the game won't be able to load each other's saved games
-     *
-     * @internal - DO NOT USE IT, it's not ready yet
+     * Note: Even if you change just a single line of code, the saved game might not be compatible with the new version
      */
     public serialize({gameState}: { gameState: GameState }): SavedGame {
         const story = this.story;
@@ -278,20 +265,22 @@ export class LiveGame {
         }
 
         // get all element state
+        const store = this.storable.toData();
         const stage = gameState.toData();
+        const currentAction = this.getCurrentAction()?.getId() || null;
+        const elementStates = story.getAllElementStates();
 
         return {
-            name: this.currentSavedGame?.name || "_",
-            version: this.game.config.version,
+            name: this.currentSavedGame?.name || "",
             meta: {
                 created: this.currentSavedGame?.meta.created || Date.now(),
                 updated: Date.now(),
             },
             game: {
-                store: this.storable.toData(),
-                stage: stage,
-                currentScene: 0,
-                currentAction: this.getCurrentAction()?.getId() || null,
+                store,
+                stage,
+                currentAction,
+                elementStates,
             }
         };
     }
@@ -366,6 +355,24 @@ export class LiveGame {
             return nextAction;
         }
         return nextAction?.node?.getChild()?.action || null;
+    }
+
+    private getNewSavedGame(): SavedGame {
+        return {
+            name: "",
+            meta: {
+                created: Date.now(),
+                updated: Date.now(),
+            },
+            game: {
+                store: {},
+                stage: {
+                    scenes: [],
+                },
+                elementStates: [],
+                currentAction: this.story?.entryScene?.sceneRoot?.getId() || null,
+            }
+        };
     }
 }
 

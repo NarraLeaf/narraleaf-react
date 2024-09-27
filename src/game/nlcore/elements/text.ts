@@ -130,7 +130,7 @@ export class Character extends Actionable<
     readonly config: CharacterConfig;
 
     constructor(name: string | null, config: DeepPartial<CharacterConfig> = {}) {
-        super(Actionable.IdPrefixes.Text);
+        super();
         this.name = name;
         this.config = deepMerge<CharacterConfig>({}, Character.defaultConfig, config);
     }

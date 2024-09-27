@@ -105,7 +105,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     constructor(config: DeepPartial<ImageConfig>);
 
     constructor(arg0: string | DeepPartial<ImageConfig>, config?: DeepPartial<ImageConfig>) {
-        super(Actionable.IdPrefixes.Image);
+        super();
         if (typeof arg0 === "string") {
             this.name = arg0;
             this.config = deepMerge<ImageConfig>(Image.defaultConfig, config || {});
