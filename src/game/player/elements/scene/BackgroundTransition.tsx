@@ -41,8 +41,6 @@ export default function BackgroundTransition({scene, props, state}: {
                                 type: TransitionEventTypes.update,
                                 listener: t.events.on(TransitionEventTypes.update, (progress) => {
                                     setTransitionProps(progress);
-
-                                    state.logger.debug("transition update", {progress});
                                 }),
                             },
                             {

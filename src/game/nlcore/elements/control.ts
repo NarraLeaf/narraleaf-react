@@ -53,7 +53,7 @@ export class Control extends Actionable {
     }
 
     constructor() {
-        super(Actionable.IdPrefixes.Control);
+        super();
     }
 
 
@@ -98,7 +98,7 @@ export class Control extends Actionable {
     ): ChainedControl {
         const flatted = Chained.toActions(actions);
         const action = new ControlAction(
-            this,
+            this.chain(),
             type,
             new ContentNode(Game.getIdManager().getStringId()).setContent([this.construct(flatted), ...args])
         );

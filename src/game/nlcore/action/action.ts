@@ -3,7 +3,6 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import type {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, getCallStack} from "@lib/util/data";
 import {GameState} from "@player/gameState";
-import {Game} from "@core/game";
 
 export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
     static ActionTypes = {
@@ -21,7 +20,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
         this.type = type;
         this.contentNode = contentNode;
         this.__stack = getCallStack();
-        this._id = Game.getIdManager().prefix("action", Game.getIdManager().getStringId(), "-");
+        this._id = "";
     }
 
     public executeAction(_state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
@@ -35,8 +34,12 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
         return this._id;
     }
 
+    setId(id: string) {
+        this._id = id;
+    }
+
     getFutureActions(): LogicAction.Actions[] {
-        const action = this.contentNode.child;
+        const action = this.contentNode.getChild();
         return (action && action.action) ? [action.action] : [];
     }
 }

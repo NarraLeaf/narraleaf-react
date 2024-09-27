@@ -8,17 +8,14 @@ import {MenuComponent, SayComponent} from "@player/elements/type";
 
 export interface SavedGame {
     name: string;
-    version: string;
     meta: {
         created: number;
         updated: number;
     };
     game: {
         store: { [key: string]: StorableData; };
-        elementState: RawData<ElementStateRaw>[];
-        nodeChildIdMap: Record<string, string>;
+        elementStates: RawData<ElementStateRaw>[];
         stage: PlayerStateData;
-        currentScene: number;
         currentAction: string | null;
     };
 }
