@@ -125,20 +125,22 @@ export class StaticChecker {
         } else if (action instanceof SceneAction) {
             const scene = action.callee;
 
-            if (!scenes.has(scene.name)) {
+            if (scenes.has(scene.name)) {
+                if (scenes.get(scene.name) !== scene) {
+                    const message = `Scene with name: ${scene.name} is duplicated\nScene: ${scene.name}\n\nAt: ${action.__stack}`;
+                    throw new StaticScriptWarning(message);
+                }
+            } else {
                 scenes.set(scene.name, scene);
-            } else if (scenes.get(scene.name) !== scene) {
-                const message = `Scene with name: ${scene.name} is duplicated\nScene: ${scene.name}\n\nAt: ${action.__stack}`;
-                throw new StaticScriptWarning(message);
             }
 
             if (action.type === SceneActionTypes.jumpTo) {
                 const targetScene =
                     (action.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
-                if (!seen.has(targetScene)) {
-                    seen.add(targetScene);
-                } else {
+                if (seen.has(targetScene)) {
                     return;
+                } else {
+                    seen.add(targetScene);
                 }
             }
         }

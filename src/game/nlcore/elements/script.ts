@@ -15,8 +15,8 @@ type ScriptRun = (ctx: ScriptCtx) => ScriptCleaner | void;
 export type ScriptCleaner = () => void;
 
 export class Script extends Actionable<object> {
-    handler: ScriptRun;
-    cleaner: ScriptCleaner | null = null;
+    /**@internal */
+    readonly handler: ScriptRun;
 
     constructor(handler: ScriptRun) {
         super();
@@ -24,12 +24,14 @@ export class Script extends Actionable<object> {
         return this.chain() satisfies Proxied<Script, Chained<LogicAction.Actions>>;
     }
 
+    /**@internal */
     execute({gameState}: { gameState: GameState }): void {
-        this.cleaner = this.handler(this.getCtx({
+        this.handler(this.getCtx({
             gameState
-        })) || null;
+        }));
     }
 
+    /**@internal */
     getCtx({gameState}: { gameState: GameState }): ScriptCtx {
         return {
             script: this,
@@ -37,6 +39,7 @@ export class Script extends Actionable<object> {
         };
     }
 
+    /**@internal */
     override fromChained(chained: Proxied<Script, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return [
             new ScriptAction(

@@ -1,8 +1,10 @@
-
 export function Singleton<T>() {
     class Singleton {
         static _instance: Singleton | null = null;
-        protected constructor() { }
+
+        protected constructor() {
+        }
+
         public static getInstance(): T {
             if (!Singleton._instance) {
                 Singleton._instance = new this();
@@ -10,5 +12,6 @@ export function Singleton<T>() {
             return Singleton._instance as T;
         }
     }
+
     return Singleton;
 }

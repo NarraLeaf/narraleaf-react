@@ -16,9 +16,13 @@ export class Story extends Constructable<
     Story
 > {
     static defaultConfig: StoryConfig = {};
+    /**@internal */
     readonly id: string;
+    /**@internal */
     readonly name: string;
+    /**@internal */
     readonly config: StoryConfig;
+    /**@internal */
     entryScene: Scene | null = null;
 
     constructor(name: string, config: StoryConfig = {}) {
@@ -42,6 +46,7 @@ export class Story extends Constructable<
         return this;
     }
 
+    /**@internal */
     constructStory(): this {
         const scene = this.entryScene;
 
@@ -57,6 +62,7 @@ export class Story extends Constructable<
         return this;
     }
 
+    /**@internal */
     getAllElementStates(): RawData<ElementStateRaw>[] {
         const elements = this.getAllChildrenElements(this.entryScene?.sceneRoot || []);
         return elements
@@ -69,6 +75,7 @@ export class Story extends Constructable<
             .filter(e => !!e.data);
     }
 
+    /**@internal */
     private runStaticCheck(scene: Scene) {
         return new StaticChecker(scene).run();
     }

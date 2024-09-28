@@ -41,8 +41,8 @@ export type D2Position<X = any, Y = any> = {
 }
 
 export type RawPosition = CommonPositionType
-    | (Coord2DPosition & {xalign?: never; yalign?: never})
-    | (AlignPosition & {x: never; y: never});
+    | (Coord2DPosition & { xalign?: never; yalign?: never })
+    | (AlignPosition & { x: never; y: never });
 
 export type Unknown = typeof PositionUtils.Unknown;
 export type UnknownAble<T> = T | Unknown;
@@ -250,8 +250,8 @@ export class Coord2D implements IPosition {
 
     static fromAlignPosition(position: AlignPosition): Coord2D {
         return new Coord2D({
-            x: (!PositionUtils.isUnknown(position.xalign)) ? `${position.xalign * 100}%` : PositionUtils.Unknown,
-            y: (!PositionUtils.isUnknown(position.yalign)) ? `${position.yalign * 100}%` : PositionUtils.Unknown,
+            x: (PositionUtils.isUnknown(position.xalign)) ? PositionUtils.Unknown : `${position.xalign * 100}%`,
+            y: (PositionUtils.isUnknown(position.yalign)) ? PositionUtils.Unknown : `${position.yalign * 100}%`,
             xoffset: position.xoffset,
             yoffset: position.yoffset
         });
@@ -259,10 +259,10 @@ export class Coord2D implements IPosition {
 
     static merge(a: Coord2D, b: Coord2D): Coord2D {
         return new Coord2D({
-            x: ((!PositionUtils.isUnknown(b.x)) ? b.x : a.x),
-            y: ((!PositionUtils.isUnknown(b.y)) ? b.y : a.y),
-            xoffset: ((!PositionUtils.isUnknown(b.xoffset)) ? b.xoffset : a.xoffset),
-            yoffset: ((!PositionUtils.isUnknown(b.yoffset)) ? b.yoffset : a.yoffset),
+            x: ((PositionUtils.isUnknown(b.x)) ? a.x : b.x),
+            y: ((PositionUtils.isUnknown(b.y)) ? a.y : b.y),
+            xoffset: ((PositionUtils.isUnknown(b.xoffset)) ? a.xoffset : b.xoffset),
+            yoffset: ((PositionUtils.isUnknown(b.yoffset)) ? a.yoffset : b.yoffset),
         });
     }
 
@@ -325,8 +325,8 @@ export class Align implements IPosition {
 
     toCSS(): D2Position {
         return {
-            x: (!PositionUtils.isUnknown(this.xalign)) ? `${this.xalign * 100}%` : this.xalign,
-            y: (!PositionUtils.isUnknown(this.yalign)) ? `${this.yalign * 100}%` : this.yalign,
+            x: (PositionUtils.isUnknown(this.xalign)) ? this.xalign : `${this.xalign * 100}%`,
+            y: (PositionUtils.isUnknown(this.yalign)) ? this.yalign : `${this.yalign * 100}%`,
             xoffset: this.xoffset,
             yoffset: this.yoffset,
         };
