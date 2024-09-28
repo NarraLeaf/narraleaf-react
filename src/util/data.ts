@@ -26,7 +26,7 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
                 return item;
             });
         } else {
-            return value2 !== undefined ? value2 : value1;
+            return value2 === undefined ? value1 : value2;
         }
     };
 
@@ -40,10 +40,10 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
         if (hasOwnProperty(obj2, key) && !hasOwnProperty(result, key)) {
             // If the value in obj2 is an object, perform a deep copy
             if (typeof obj2[key] === "object" && obj2[key] !== null) {
-                if (obj2[key].constructor !== Object) {
-                    result[key] = obj2[key];
-                } else {
+                if (obj2[key].constructor === Object) {
                     result[key] = deepMerge({}, obj2[key]);
+                } else {
+                    result[key] = obj2[key];
                 }
             } else {
                 result[key] = obj2[key];
@@ -158,7 +158,7 @@ export function toHex(hex: { r: number; g: number; b: number; a?: number } | str
     if (typeof hex === "string") {
         return hex;
     }
-    return `#${(hex.r || 0).toString(16).padStart(2, "0")}${(hex.g || 0).toString(16).padStart(2, "0")}${(hex.b || 0).toString(16).padStart(2, "0")}${(hex.a !== undefined ? hex.a.toString(16).padStart(2, "0") : "")}`;
+    return `#${(hex.r || 0).toString(16).padStart(2, "0")}${(hex.g || 0).toString(16).padStart(2, "0")}${(hex.b || 0).toString(16).padStart(2, "0")}${(hex.a === undefined ? "" : hex.a.toString(16).padStart(2, "0"))}`;
 }
 
 export type EventTypes = {

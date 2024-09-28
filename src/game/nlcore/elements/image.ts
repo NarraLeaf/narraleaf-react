@@ -94,8 +94,11 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         return result as ImageConfig;
     }
 
+    /**@internal */
     readonly name: string;
+    /**@internal */
     readonly config: ImageConfig;
+    /**@internal */
     readonly events: EventDispatcher<ImageEventTypes> = new EventDispatcher();
     /**@internal */
     ref: React.RefObject<HTMLImageElement> | undefined = undefined;

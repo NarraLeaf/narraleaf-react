@@ -507,10 +507,10 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                 const {node} = await new Promise<CalledActionResult>((r) => {
                     next.then((_) => r(next.result as any));
                 });
-                if (!node) {
-                    break;
-                } else {
+                if (node) {
                     current = node.action;
+                } else {
+                    break;
                 }
             } else {
                 current = next as LogicAction.Actions;

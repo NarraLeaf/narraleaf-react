@@ -16,9 +16,13 @@ export class Story extends Constructable<
     Story
 > {
     static defaultConfig: StoryConfig = {};
+    /**@internal */
     readonly id: string;
+    /**@internal */
     readonly name: string;
+    /**@internal */
     readonly config: StoryConfig;
+    /**@internal */
     entryScene: Scene | null = null;
 
     constructor(name: string, config: StoryConfig = {}) {

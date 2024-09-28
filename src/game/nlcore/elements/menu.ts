@@ -33,8 +33,11 @@ export type MenuData = {
 export class Menu extends Actionable<any, Menu> {
     static defaultConfig: MenuConfig = {};
     static targetAction = MenuAction;
+    /**@internal */
     readonly prompt: Sentence;
+    /**@internal */
     readonly config: MenuConfig;
+    /**@internal */
     protected choices: Choice[] = [];
 
     constructor(prompt: UnSentencePrompt, config?: MenuConfig);

@@ -88,10 +88,15 @@ export class Scene extends Constructable<
     };
     static defaultState: SceneState = {};
 
+    /**@internal */
     readonly id: string;
+    /**@internal */
     readonly name: string;
+    /**@internal */
     readonly config: SceneConfig;
+    /**@internal */
     readonly srcManager: SrcManager = new SrcManager();
+    /**@internal */
     readonly events: EventDispatcher<SceneEventTypes> = new EventDispatcher();
     /**@internal */
     state: SceneConfig & SceneState;

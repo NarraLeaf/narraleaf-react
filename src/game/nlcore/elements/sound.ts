@@ -50,6 +50,7 @@ export class Sound extends Actionable<SoundDataRaw> {
         loop: false,
         volume: 1,
     };
+    /**@internal */
     config: SoundConfig;
     /**@internal */
     state: {

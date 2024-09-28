@@ -15,6 +15,7 @@ type ScriptRun = (ctx: ScriptCtx) => ScriptCleaner | void;
 export type ScriptCleaner = () => void;
 
 export class Script extends Actionable<object> {
+    /**@internal */
     readonly handler: ScriptRun;
 
     constructor(handler: ScriptRun) {

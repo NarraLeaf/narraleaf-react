@@ -1,4 +1,3 @@
-
 export class BaseElement {
     /**@internal */
     protected id: string = "";

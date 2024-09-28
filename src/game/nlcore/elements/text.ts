@@ -40,9 +40,13 @@ export class Sentence {
         return Sentence.isSentence(prompt) ? prompt : new Sentence(null, prompt);
     }
 
+    /**@internal */
     readonly id: string;
+    /**@internal */
     readonly character: Character | null;
+    /**@internal */
     readonly text: Word[];
+    /**@internal */
     readonly config: SentenceConfig;
     /**@internal */
     state: SentenceState;
@@ -102,7 +106,9 @@ export class Word {
         return obj instanceof Word;
     }
 
+    /**@internal */
     readonly text: string;
+    /**@internal */
     readonly config: Partial<WordConfig>;
 
     constructor(text: string, config: Partial<WordConfig> = {}) {
@@ -131,7 +137,9 @@ export class Character extends Actionable<
     static defaultConfig: CharacterConfig = {
         mode: CharacterMode.adv,
     };
+    /**@internal */
     readonly name: string | null;
+    /**@internal */
     readonly config: CharacterConfig;
 
     constructor(name: string | null, config: DeepPartial<CharacterConfig> = {}) {

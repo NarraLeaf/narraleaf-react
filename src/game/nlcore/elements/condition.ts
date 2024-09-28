@@ -70,6 +70,7 @@ export class Condition extends Actionable {
         };
     }
 
+    /**@internal */
     readonly config: ConditionConfig;
     /**@internal */
     conditions: ConditionData = {

@@ -26,6 +26,7 @@ export type CommonText = {
 } & Color;
 
 export type NextJSStaticImageData = StaticImageData;
+
 export interface StaticImageData {
     src: string;
     height: number;

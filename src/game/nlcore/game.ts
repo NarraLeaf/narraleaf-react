@@ -38,6 +38,7 @@ export class Game {
         say: "say",
         menu: "menu",
     };
+    // noinspection MagicNumberJS
     static DefaultConfig: GameConfig = {
         version: "v0.0.0",
         player: {
