@@ -28,22 +28,29 @@ export class Chained<T, Self = any> {
             .flat(2) satisfies Actions[];
     }
 
+    /**@internal */
     [ChainedFlag]: boolean = true;
+    /**@internal */
     private __actions: T[] = [];
+    /**@internal */
     private readonly __self: any;
 
+    /**@internal */
     constructor(self: Self) {
         this.__self = self;
     }
 
+    /**@internal */
     public push(...actions: T[]) {
         this.__actions.push(...actions);
     }
 
+    /**@internal */
     public getActions() {
         return this.__actions;
     }
 
+    /**@internal */
     public getSelf(): Self {
         return this.__self;
     }
@@ -54,6 +61,7 @@ export class Chained<T, Self = any> {
  * - U - self constructor
  */
 export class Chainable<T, U extends Record<any, any>> extends BaseElement {
+    /**@internal */
     public chain(arg0?: T[] | T): Proxied<U, Chained<T>> {
         const chained: Proxied<U, Chained<T>> =
             Chained.isChained(this) ?
@@ -69,6 +77,7 @@ export class Chainable<T, U extends Record<any, any>> extends BaseElement {
         return chained;
     }
 
+    /**@internal */
     public proxy<T extends Record<any, any>, U extends Record<any, any>>(target: T, chained: U): Proxied<T, U> {
         const proxy = new Proxy(target as any, {
             get: function (target, prop) {

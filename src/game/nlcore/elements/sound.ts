@@ -51,6 +51,7 @@ export class Sound extends Actionable<SoundDataRaw> {
         volume: 1,
     };
     config: SoundConfig;
+    /**@internal */
     state: {
         playing: null | Howler.Howl;
         token: any;
@@ -130,6 +131,7 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this.pushAction<SoundActionContentType["sound:resume"]>(SoundAction.ActionTypes.resume, [void 0]);
     }
 
+    /**@internal */
     getHowlOptions(): HowlOptions {
         return {
             src: this.config.src,
@@ -140,32 +142,39 @@ export class Sound extends Actionable<SoundDataRaw> {
         };
     }
 
+    /**@internal */
     getSrc() {
         return this.config.src;
     }
 
+    /**@internal */
     $setToken(token: any) {
         this.state.token = token;
     }
 
+    /**@internal */
     $getToken() {
         return this.state.token;
     }
 
+    /**@internal */
     $setHowl(howl: Howler.Howl | null) {
         this.state.playing = howl;
     }
 
+    /**@internal */
     $getHowl() {
         return this.state.playing;
     }
 
+    /**@internal */
     $stop() {
         this.$setToken(null);
         this.$setHowl(null);
     }
 
-    public toData(): SoundDataRaw | null {
+    /**@internal */
+    toData(): SoundDataRaw | null {
         if (deepEqual(this.config, Sound.defaultConfig)) {
             return null;
         }
@@ -174,11 +183,13 @@ export class Sound extends Actionable<SoundDataRaw> {
         };
     }
 
-    public fromData(data: SoundDataRaw): this {
+    /**@internal */
+    fromData(data: SoundDataRaw): this {
         this.config = deepMerge<SoundConfig & SoundDataRaw>(this.config, data.config);
         return this;
     }
 
+    /**@internal */
     private pushAction<T>(type: string, content: T): ChainedSound {
         return this.chain(new SoundAction(
             this.chain(),

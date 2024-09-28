@@ -96,9 +96,11 @@ export class Image extends Actionable<ImageDataRaw, Image> {
 
     readonly name: string;
     readonly config: ImageConfig;
-    state: ImageConfig;
     readonly events: EventDispatcher<ImageEventTypes> = new EventDispatcher();
+    /**@internal */
     ref: React.RefObject<HTMLImageElement> | undefined = undefined;
+    /**@internal */
+    state: ImageConfig;
 
     constructor(name: string, config: DeepPartial<ImageConfig>);
 
@@ -120,14 +122,22 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         this.checkConfig();
     }
 
+    /**
+     * Dispose the image
+     *
+     * Normally, you don't need to dispose the image manually
+     * @chainable
+     */
     public dispose() {
         return this._dispose();
     }
 
+    /**@internal */
     init(): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.chain(this._init());
     }
 
+    /**@internal */
     checkConfig() {
         if (!this.config.src) {
             throw new Error("Image src is required");
@@ -151,6 +161,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
      * import yourImage from "path/to/image.png";
      * image.setSrc(yourImage, new Fade(1000));
      * ```
+     * @chainable
      */
     public setSrc(src: string | StaticImageData, transition?: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
         const chain = this.chain();
@@ -200,6 +211,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
      *     ]).repeat(3);
      * );
      * ```
+     * @chainable
      */
     public applyTransform(transform: Transform): Proxied<Image, Chained<LogicAction.Actions>> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
@@ -224,6 +236,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
      *     duration: 1000,
      * });
      * ```
+     * @chainable
      */
     public show(): Proxied<Image, Chained<LogicAction.Actions>>;
 
@@ -254,6 +267,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
 
     /**
      * Hide the image
+     * @chainable
      */
     public hide(): Proxied<Image, Chained<LogicAction.Actions>>;
 
@@ -280,17 +294,20 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         return this.chain(action);
     }
 
+    /**@internal */
     toTransform(): Transform {
         return new Transform<TransformDefinitions.ImageTransformProps>(this.state, {
             duration: 0,
         });
     }
 
+    /**@internal */
     setScope(scope: React.RefObject<HTMLImageElement>): this {
         this.ref = scope;
         return this;
     }
 
+    /**@internal */
     getScope(): React.RefObject<HTMLImageElement> | undefined {
         return this.ref;
     }
@@ -299,7 +316,8 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         return new Image(this.name, this.config);
     }
 
-    public toData(): ImageDataRaw | null {
+    /**@internal */
+    toData(): ImageDataRaw | null {
         if (this.state.disposed || deepEqual(this.state, this.config)) {
             return null;
         }
@@ -309,16 +327,19 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         };
     }
 
-    public fromData(data: ImageDataRaw): this {
+    /**@internal */
+    fromData(data: ImageDataRaw): this {
         this.state = deepMerge<ImageConfig>(this.state, Image.deserializeImageState(data.state));
         return this;
     }
 
+    /**@internal */
     _$setDispose() {
         this.state.disposed = true;
         return this;
     }
 
+    /**@internal */
     _setTransition(transition: ITransition | null): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.chain(new ImageAction<typeof ImageAction.ActionTypes.setTransition>(
             this.chain(),
@@ -329,6 +350,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         ));
     }
 
+    /**@internal */
     _applyTransition(transition: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.chain(new ImageAction<"image:applyTransition">(
             this.chain(),
@@ -339,21 +361,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         ));
     }
 
-    private _transitionSrc(transition: ITransition): this {
-        const t = transition.copy();
-        this._setTransition(t)
-            ._applyTransition(t);
-        return this;
-    }
-
-    private _dispose(): Proxied<Image, Chained<LogicAction.Actions>> {
-        return this.chain(new ImageAction<typeof ImageAction.ActionTypes.dispose>(
-            this.chain(),
-            ImageAction.ActionTypes.dispose,
-            new ContentNode(Game.getIdManager().getStringId())
-        ));
-    }
-
+    /**@internal */
     _init(scene?: Scene): ImageAction<typeof ImageAction.ActionTypes.init> {
         return new ImageAction<typeof ImageAction.ActionTypes.init>(
             this.chain(),
@@ -362,5 +370,22 @@ export class Image extends Actionable<ImageDataRaw, Image> {
                 scene
             ])
         );
+    }
+
+    /**@internal */
+    private _transitionSrc(transition: ITransition): this {
+        const t = transition.copy();
+        this._setTransition(t)
+            ._applyTransition(t);
+        return this;
+    }
+
+    /**@internal */
+    private _dispose(): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.chain(new ImageAction<typeof ImageAction.ActionTypes.dispose>(
+            this.chain(),
+            ImageAction.ActionTypes.dispose,
+            new ContentNode(Game.getIdManager().getStringId())
+        ));
     }
 }

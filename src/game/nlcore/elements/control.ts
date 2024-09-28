@@ -12,6 +12,7 @@ type ChainedControl = Proxied<Control, Chained<LogicAction.Actions>>;
 export class Control extends Actionable {
     /**
      * Execute actions in order, waiting for each action to complete
+     * @chainable
      */
     public static do(actions: ChainedActions) {
         return new Control().do(actions);
@@ -19,6 +20,7 @@ export class Control extends Actionable {
 
     /**
      * Execute actions in order, do not wait for this action to complete
+     * @chainable
      */
     public static doAsync(actions: ChainedActions) {
         return new Control().doAsync(actions);
@@ -26,6 +28,7 @@ export class Control extends Actionable {
 
     /**
      * Execute all actions at the same time, waiting for any one action to complete
+     * @chainable
      */
     public static any(actions: ChainedActions) {
         return new Control().any(actions);
@@ -33,6 +36,7 @@ export class Control extends Actionable {
 
     /**
      * Execute all actions at the same time, waiting for all actions to complete
+     * @chainable
      */
     public static all(actions: ChainedActions) {
         return new Control().all(actions);
@@ -40,6 +44,7 @@ export class Control extends Actionable {
 
     /**
      * Execute all actions at the same time, do not wait for all actions to complete
+     * @chainable
      */
     public static allAsync(actions: ChainedActions) {
         return new Control().allAsync(actions);
@@ -47,6 +52,7 @@ export class Control extends Actionable {
 
     /**
      * Execute actions multiple times
+     * @chainable
      */
     public static repeat(times: number, actions: ChainedActions) {
         return new Control().repeat(times, actions);
@@ -56,31 +62,55 @@ export class Control extends Actionable {
         super();
     }
 
-
+    /**
+     * Execute actions in order, waiting for each action to complete
+     * @chainable
+     */
     public do(actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.do, actions);
     }
 
+    /**
+     * Execute actions in order, do not wait for this action to complete
+     * @chainable
+     */
     public doAsync(actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.doAsync, actions);
     }
 
+    /**
+     * Execute all actions at the same time, waiting for any one action to complete
+     * @chainable
+     */
     public any(actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.any, actions);
     }
 
+    /**
+     * Execute all actions at the same time, waiting for all actions to complete
+     * @chainable
+     */
     public all(actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.all, actions);
     }
 
+    /**
+     * Execute all actions at the same time, do not wait for all actions to complete
+     * @chainable
+     */
     public allAsync(actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.allAsync, actions);
     }
 
+    /**
+     * Execute actions multiple times
+     * @chainable
+     */
     public repeat(times: number, actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.repeat, actions, times);
     }
 
+    /**@internal */
     construct(actions: Actions[]): Actions[] {
         for (let i = 0; i < actions.length; i++) {
             const action = actions[i];
@@ -91,6 +121,7 @@ export class Control extends Actionable {
         return actions;
     }
 
+    /**@internal */
     private push(
         type: Values<typeof ControlAction.ActionTypes>,
         actions: ChainedActions,

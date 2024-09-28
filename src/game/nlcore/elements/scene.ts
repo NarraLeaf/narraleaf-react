@@ -91,13 +91,17 @@ export class Scene extends Constructable<
     readonly id: string;
     readonly name: string;
     readonly config: SceneConfig;
-    state: SceneConfig & SceneState;
     readonly srcManager: SrcManager = new SrcManager();
     readonly events: EventDispatcher<SceneEventTypes> = new EventDispatcher();
+    /**@internal */
+    state: SceneConfig & SceneState;
+    /**@internal */
     backgroundImageState: Partial<CommonImage>;
+    /**@internal */
     _liveState = {
         active: false,
     };
+    /**@internal */
     sceneRoot?: SceneAction<"scene:action">;
 
     constructor(name: string, config: DeepPartial<SceneConfig> = Scene.defaultConfig) {
@@ -219,6 +223,7 @@ export class Scene extends Constructable<
         ));
     }
 
+    /**@internal */
     override toData(): SceneDataRaw | null {
         return {
             state: {
@@ -230,6 +235,7 @@ export class Scene extends Constructable<
         } satisfies SceneDataRaw;
     }
 
+    /**@internal */
     override fromData(data: SceneDataRaw): this {
         this.state = deepMerge<SceneConfig & SceneState>(this.state, data.state);
         if (data.state.backgroundMusic) {
@@ -242,6 +248,7 @@ export class Scene extends Constructable<
         return this;
     }
 
+    /**@internal */
     getInitTransform(): Transform<ImageTransformProps> {
         return new Transform<ImageTransformProps>([
             {
@@ -256,6 +263,9 @@ export class Scene extends Constructable<
         ]);
     }
 
+    /**
+     * Add actions to the scene
+     */
     public action(actions: (ChainableAction | ChainableAction[])[]): this;
 
     public action(actions: ((scene: Scene) => ChainableAction[])): this;
@@ -295,6 +305,7 @@ export class Scene extends Constructable<
         return this;
     }
 
+    /**@internal */
     registerSrc(seen: Set<Scene> = new Set<Scene>()) {
         if (!this.sceneRoot) {
             return;
@@ -372,6 +383,7 @@ export class Scene extends Constructable<
         });
     }
 
+    /**@internal */
     private _applyTransition(transition: ITransition): ChainedScene {
         return this.chain(new SceneAction(
             this.chain(),
@@ -380,10 +392,12 @@ export class Scene extends Constructable<
         ));
     }
 
+    /**@internal */
     private _transitionSceneBackground(scene?: Scene, transition?: ITransition): ChainedScene {
         return this._transitionToScene(scene, transition);
     }
 
+    /**@internal */
     private _jumpTo(scene: Scene): ChainedScene {
         return this.chain(new SceneAction(
             this.chain(),
@@ -394,6 +408,7 @@ export class Scene extends Constructable<
         ));
     }
 
+    /**@internal */
     private _exit(): SceneAction<"scene:exit"> {
         return new SceneAction(
             this.chain(),
@@ -402,6 +417,7 @@ export class Scene extends Constructable<
         );
     }
 
+    /**@internal */
     private _transitionToScene(scene?: Scene, transition?: ITransition): ChainedScene {
         const chain = this.chain();
         if (transition) {
@@ -412,6 +428,7 @@ export class Scene extends Constructable<
         return chain;
     }
 
+    /**@internal */
     private _init(target = this): SceneAction<"scene:init"> {
         return new SceneAction(
             target.chain(),
