@@ -70,7 +70,9 @@ export class Condition extends Actionable {
         };
     }
 
+    /**@internal */
     readonly config: ConditionConfig;
+    /**@internal */
     conditions: ConditionData = {
         If: {
             condition: null,
@@ -87,6 +89,9 @@ export class Condition extends Actionable {
         this.config = deepMerge<ConditionConfig>(Condition.defaultConfig, config);
     }
 
+    /**
+     * @chainable
+     */
     public If(
         condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
@@ -95,6 +100,9 @@ export class Condition extends Actionable {
         return this.chain();
     }
 
+    /**
+     * @chainable
+     */
     public ElseIf(
         condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
@@ -105,6 +113,9 @@ export class Condition extends Actionable {
         return this.chain();
     }
 
+    /**
+     * @chainable
+     */
     public Else(
         action: ChainedActions
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
@@ -112,6 +123,7 @@ export class Condition extends Actionable {
         return this.chain();
     }
 
+    /**@internal */
     evaluate(conditions: ConditionData, {gameState}: { gameState: GameState }): LogicAction.Actions[] | null {
         const ctx = {gameState};
 
@@ -130,6 +142,7 @@ export class Condition extends Actionable {
         return conditions.Else.action || null;
     }
 
+    /**@internal */
     override fromChained(chained: Proxied<Condition, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return [
             Reflect.construct(ConditionAction, [
@@ -140,6 +153,7 @@ export class Condition extends Actionable {
         ];
     }
 
+    /**@internal */
     construct(chainedActions: ChainedActions, lastChild?: RenderableNode, parentChild?: RenderableNode): LogicAction.Actions[] {
         const actions: Actions[] = Chained.toActions(chainedActions);
         for (let i = 0; i < actions.length; i++) {
@@ -158,6 +172,7 @@ export class Condition extends Actionable {
         return actions;
     }
 
+    /**@internal */
     _getFutureActions(): LogicAction.Actions[] {
         return [
             ...(this.conditions.If.action || []),

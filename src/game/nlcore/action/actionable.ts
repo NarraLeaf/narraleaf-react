@@ -10,14 +10,17 @@ export class Actionable<
         super();
     }
 
+    /**@internal */
     public toData(): StateData | null {
         return null;
     }
 
+    /**@internal */
     public fromData(_: StateData): this {
         return this;
     }
 
+    /**@internal */
     public fromChained(chained: Proxied<GameElement, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return chained.getActions();
     }

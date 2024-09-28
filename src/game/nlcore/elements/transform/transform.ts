@@ -7,7 +7,7 @@ import {TransformDefinitions} from "./type";
 import {Align, CommonPosition, Coord2D, IPosition, PositionUtils, RawPosition} from "./position";
 import {CSSProps} from "@core/elements/transition/type";
 import {Utils} from "@core/common/Utils";
-import { animate } from "framer-motion/dom";
+import {animate} from "framer-motion/dom";
 import Sequence = TransformDefinitions.Sequence;
 import SequenceProps = TransformDefinitions.SequenceProps;
 import React from "react";
@@ -147,14 +147,14 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     public async animate(
         {scope, overwrites}:
             {
-                scope:  React.MutableRefObject<HTMLImageElement | null>,
+                scope: React.MutableRefObject<HTMLImageElement | null>,
                 overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>
             },
         gameState: GameState,
-        state: SequenceProps<T>,
+        initState: SequenceProps<T>,
         after?: (state: DeepPartial<T>) => void
     ) {
-        state = deepMerge<DeepPartial<T>>(state, {});
+        let state: DeepPartial<T> = deepMerge<DeepPartial<T>>(initState, {});
 
         return new Promise<void>((resolve) => {
             (async () => {
@@ -183,15 +183,15 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
                         );
                         this.setControl(animation);
 
-                        if (options?.sync !== false) {
-                            await new Promise<void>(r => animation.then(() => r()));
-                            Object.assign(current["style"], this.propToCSS(gameState, state, overwrites));
-                            this.setControl(null);
-                        } else {
+                        if (options?.sync === false) {
                             animation.then(() => {
                                 Object.assign(current["style"], this.propToCSS(gameState, state, overwrites));
                                 this.setControl(null);
                             });
+                        } else {
+                            await new Promise<void>(r => animation.then(() => r()));
+                            Object.assign(current["style"], this.propToCSS(gameState, state, overwrites));
+                            this.setControl(null);
                         }
                     }
                 }

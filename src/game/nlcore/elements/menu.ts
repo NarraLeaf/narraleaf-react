@@ -33,8 +33,11 @@ export type MenuData = {
 export class Menu extends Actionable<any, Menu> {
     static defaultConfig: MenuConfig = {};
     static targetAction = MenuAction;
-    prompt: Sentence;
+    /**@internal */
+    readonly prompt: Sentence;
+    /**@internal */
     readonly config: MenuConfig;
+    /**@internal */
     protected choices: Choice[] = [];
 
     constructor(prompt: UnSentencePrompt, config?: MenuConfig);
@@ -49,8 +52,9 @@ export class Menu extends Actionable<any, Menu> {
      * Add a choice to the menu
      * @example
      * menu.choose("Go left", [
-     *     character.say("I went left").toActions()
+     *     character.say("I went left")
      * ]);
+     * @chainable
      */
     public choose(choice: MenuChoice): Proxied<Menu, Chained<LogicAction.Actions>>;
     public choose(prompt: Sentence, action: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
@@ -72,6 +76,7 @@ export class Menu extends Actionable<any, Menu> {
         return chained;
     }
 
+    /**@internal */
     public override fromChained(chained: Proxied<Menu, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return [
             new MenuAction(
@@ -85,6 +90,7 @@ export class Menu extends Actionable<any, Menu> {
         ];
     }
 
+    /**@internal */
     private construct(actions: Actions[], lastChild?: RenderableNode, parentChild?: RenderableNode): Actions[] {
         for (let i = 0; i < actions.length; i++) {
             const node = actions[i].contentNode;
@@ -102,10 +108,12 @@ export class Menu extends Actionable<any, Menu> {
         return actions;
     }
 
+    /**@internal */
     _getFutureActions(choices: Choice[]): LogicAction.Actions[] {
         return choices.map(choice => choice.action).flat(2);
     }
 
+    /**@internal */
     private constructChoices(): Choice[] {
         return this.choices.map(choice => {
             return {

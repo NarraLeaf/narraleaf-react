@@ -50,7 +50,9 @@ export class Sound extends Actionable<SoundDataRaw> {
         loop: false,
         volume: 1,
     };
+    /**@internal */
     config: SoundConfig;
+    /**@internal */
     state: {
         playing: null | Howler.Howl;
         token: any;
@@ -64,6 +66,9 @@ export class Sound extends Actionable<SoundDataRaw> {
         this.config = deepMerge<SoundConfig>(Sound.defaultConfig, config);
     }
 
+    /**
+     * @chainable
+     */
     public play(): ChainedSound {
         if (this.config.type === SoundType.backgroundMusic) {
             throw new Error("Background music cannot be played directly");
@@ -71,6 +76,9 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this.pushAction<SoundActionContentType["sound:play"]>(SoundAction.ActionTypes.play, [void 0]);
     }
 
+    /**
+     * @chainable
+     */
     public stop(): ChainedSound {
         if (this.config.type === SoundType.backgroundMusic) {
             throw new Error("Background music cannot be stopped directly");
@@ -78,6 +86,9 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this.pushAction<SoundActionContentType["sound:stop"]>(SoundAction.ActionTypes.stop, [void 0]);
     }
 
+    /**
+     * @chainable
+     */
     public fade(start: number | undefined, end: number, duration: number): ChainedSound {
         if (this.config.type === SoundType.backgroundMusic) {
             throw new Error("Background music cannot be faded directly");
@@ -87,14 +98,23 @@ export class Sound extends Actionable<SoundDataRaw> {
         }]);
     }
 
+    /**
+     * @chainable
+     */
     public setVolume(volume: number): ChainedSound {
         return this.pushAction<SoundActionContentType["sound:setVolume"]>(SoundAction.ActionTypes.setVolume, [volume]);
     }
 
+    /**
+     * @chainable
+     */
     public setRate(rate: number): ChainedSound {
         return this.pushAction<SoundActionContentType["sound:setRate"]>(SoundAction.ActionTypes.setRate, [rate]);
     }
 
+    /**
+     * @chainable
+     */
     public pause(fade?: number): ChainedSound {
         if (fade !== undefined) {
             return this.fade(undefined, 0, fade);
@@ -102,6 +122,9 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this.pushAction<SoundActionContentType["sound:pause"]>(SoundAction.ActionTypes.pause, [void 0]);
     }
 
+    /**
+     * @chainable
+     */
     public resume(fade?: number): ChainedSound {
         if (fade !== undefined) {
             return this.fade(0, this.config.volume, fade);
@@ -109,6 +132,7 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this.pushAction<SoundActionContentType["sound:resume"]>(SoundAction.ActionTypes.resume, [void 0]);
     }
 
+    /**@internal */
     getHowlOptions(): HowlOptions {
         return {
             src: this.config.src,
@@ -119,32 +143,39 @@ export class Sound extends Actionable<SoundDataRaw> {
         };
     }
 
+    /**@internal */
     getSrc() {
         return this.config.src;
     }
 
+    /**@internal */
     $setToken(token: any) {
         this.state.token = token;
     }
 
+    /**@internal */
     $getToken() {
         return this.state.token;
     }
 
+    /**@internal */
     $setHowl(howl: Howler.Howl | null) {
         this.state.playing = howl;
     }
 
+    /**@internal */
     $getHowl() {
         return this.state.playing;
     }
 
+    /**@internal */
     $stop() {
         this.$setToken(null);
         this.$setHowl(null);
     }
 
-    public toData(): SoundDataRaw | null {
+    /**@internal */
+    toData(): SoundDataRaw | null {
         if (deepEqual(this.config, Sound.defaultConfig)) {
             return null;
         }
@@ -153,11 +184,13 @@ export class Sound extends Actionable<SoundDataRaw> {
         };
     }
 
-    public fromData(data: SoundDataRaw): this {
+    /**@internal */
+    fromData(data: SoundDataRaw): this {
         this.config = deepMerge<SoundConfig & SoundDataRaw>(this.config, data.config);
         return this;
     }
 
+    /**@internal */
     private pushAction<T>(type: string, content: T): ChainedSound {
         return this.chain(new SoundAction(
             this.chain(),

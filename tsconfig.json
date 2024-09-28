@@ -36,7 +36,8 @@
     "typeRoots": [
       "node_modules/@types",
       "src/types"
-    ]
+    ],
+    "stripInternal": true,
   },
   "include": [
     "src/**/*"

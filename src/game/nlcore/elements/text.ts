@@ -40,10 +40,15 @@ export class Sentence {
         return Sentence.isSentence(prompt) ? prompt : new Sentence(null, prompt);
     }
 
-    id: string;
-    character: Character | null;
-    text: Word[];
-    config: SentenceConfig;
+    /**@internal */
+    readonly id: string;
+    /**@internal */
+    readonly character: Character | null;
+    /**@internal */
+    readonly text: Word[];
+    /**@internal */
+    readonly config: SentenceConfig;
+    /**@internal */
     state: SentenceState;
 
     constructor(character: Character | null, text: (string | Word)[] | (string | Word), config: Partial<SentenceConfig> = {}) {
@@ -54,6 +59,7 @@ export class Sentence {
         this.state = safeClone(Sentence.defaultState);
     }
 
+    /**@internal */
     format(text: (string | Word)[] | (string | Word)): Word[] {
         const result: Word[] = [];
         if (Array.isArray(text)) {
@@ -70,6 +76,7 @@ export class Sentence {
         return result;
     }
 
+    /**@internal */
     toData(): SentenceDataRaw | null {
         if (deepEqual(this.state, Sentence.defaultState)) {
             return null;
@@ -79,11 +86,13 @@ export class Sentence {
         };
     }
 
+    /**@internal */
     fromData(data: SentenceDataRaw) {
         this.state = deepMerge<SentenceState>(this.state, data);
         return this;
     }
 
+    /**@internal */
     toString() {
         return this.text.map(word => word.text).join("");
     }
@@ -97,8 +106,10 @@ export class Word {
         return obj instanceof Word;
     }
 
-    text: string;
-    config: Partial<WordConfig>;
+    /**@internal */
+    readonly text: string;
+    /**@internal */
+    readonly config: Partial<WordConfig>;
 
     constructor(text: string, config: Partial<WordConfig> = {}) {
         this.text = text;
@@ -126,7 +137,9 @@ export class Character extends Actionable<
     static defaultConfig: CharacterConfig = {
         mode: CharacterMode.adv,
     };
+    /**@internal */
     readonly name: string | null;
+    /**@internal */
     readonly config: CharacterConfig;
 
     constructor(name: string | null, config: DeepPartial<CharacterConfig> = {}) {
@@ -153,6 +166,7 @@ export class Character extends Actionable<
      *     "Hello, ",
      *     new Word("world", {color: "#f00"}), // Some words can be colored
      * ]));
+     * @chainable
      */
     public say(content: string): Proxied<Character, Chained<LogicAction.Actions>>;
     public say(content: Sentence): Proxied<Character, Chained<LogicAction.Actions>>;
