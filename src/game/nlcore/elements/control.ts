@@ -2,7 +2,6 @@ import {Actionable} from "@core/action/actionable";
 import {LogicAction} from "@core/action/logicAction";
 import {ControlAction} from "@core/action/actions";
 import {ContentNode} from "@core/action/tree/actionTree";
-import {Game} from "@core/game";
 import {Values} from "@lib/util/data";
 import {Chained, ChainedActions, Proxied} from "@core/action/chain";
 import Actions = LogicAction.Actions;
@@ -131,7 +130,7 @@ export class Control extends Actionable {
         const action = new ControlAction(
             this.chain(),
             type,
-            new ContentNode(Game.getIdManager().getStringId()).setContent([this.construct(flatted), ...args])
+            new ContentNode().setContent([this.construct(flatted), ...args])
         );
         return this.chain(action);
     }

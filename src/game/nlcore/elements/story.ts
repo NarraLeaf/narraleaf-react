@@ -1,5 +1,4 @@
 import {Constructable} from "../action/constructable";
-import {Game} from "../game";
 import {deepMerge} from "@lib/util/data";
 import {SceneAction} from "@core/action/actions";
 import {Scene} from "@core/elements/scene";
@@ -17,8 +16,6 @@ export class Story extends Constructable<
 > {
     static defaultConfig: StoryConfig = {};
     /**@internal */
-    readonly id: string;
-    /**@internal */
     readonly name: string;
     /**@internal */
     readonly config: StoryConfig;
@@ -27,7 +24,6 @@ export class Story extends Constructable<
 
     constructor(name: string, config: StoryConfig = {}) {
         super();
-        this.id = Game.getIdManager().getStringId();
         this.name = name;
         this.config = deepMerge<StoryConfig>(Story.defaultConfig, config);
     }

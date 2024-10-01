@@ -1,4 +1,4 @@
-import {Game, LogicAction} from "../game";
+import {LogicAction} from "../game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {color, Color} from "@core/types";
 import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
@@ -41,8 +41,6 @@ export class Sentence {
     }
 
     /**@internal */
-    readonly id: string;
-    /**@internal */
     readonly character: Character | null;
     /**@internal */
     readonly text: Word[];
@@ -55,7 +53,6 @@ export class Sentence {
         this.character = character;
         this.text = this.format(text);
         this.config = deepMerge<SentenceConfig>(Sentence.defaultConfig, config);
-        this.id = Game.getIdManager().getStringId();
         this.state = safeClone(Sentence.defaultState);
     }
 
@@ -179,7 +176,7 @@ export class Character extends Actionable<
         const action = new CharacterAction<typeof CharacterAction.ActionTypes.say>(
             this.chain(),
             CharacterAction.ActionTypes.say,
-            new ContentNode<Sentence>(Game.getIdManager().getStringId()).setContent(sentence)
+            new ContentNode<Sentence>().setContent(sentence)
         );
         return this.chain(action);
     }

@@ -50,7 +50,7 @@ export class Script extends Actionable<object> {
             new ScriptAction(
                 this.chain(),
                 ScriptAction.ActionTypes.action,
-                new ContentNode<Script>(Game.getIdManager().getStringId()).setContent(chained)
+                new ContentNode<Script>().setContent(chained)
             )
         ];
     }

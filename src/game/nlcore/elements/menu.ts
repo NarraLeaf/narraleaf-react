@@ -1,12 +1,11 @@
-import {Game} from "../game";
 import {deepMerge} from "@lib/util/data";
 import {Sentence, Word} from "./text";
 import {ContentNode, RenderableNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {MenuAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
-import Actions = LogicAction.Actions;
 import {Chained, Proxied} from "@core/action/chain";
+import Actions = LogicAction.Actions;
 import GameElement = LogicAction.GameElement;
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
@@ -82,12 +81,17 @@ export class Menu extends Actionable<any, Menu> {
             new MenuAction(
                 this.chain(),
                 MenuAction.ActionTypes.action,
-                new ContentNode<MenuData>(Game.getIdManager().getStringId()).setContent({
+                new ContentNode<MenuData>().setContent({
                     prompt: this.prompt,
                     choices: chained.constructChoices()
                 })
             )
         ];
+    }
+
+    /**@internal */
+    _getFutureActions(choices: Choice[]): LogicAction.Actions[] {
+        return choices.map(choice => choice.action).flat(2);
     }
 
     /**@internal */
@@ -106,11 +110,6 @@ export class Menu extends Actionable<any, Menu> {
             }
         }
         return actions;
-    }
-
-    /**@internal */
-    _getFutureActions(choices: Choice[]): LogicAction.Actions[] {
-        return choices.map(choice => choice.action).flat(2);
     }
 
     /**@internal */
