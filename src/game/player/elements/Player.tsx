@@ -63,12 +63,8 @@ export default function Player(
     }
 
     useEffect(() => {
-        if (!story) {
-            return;
-        }
-
         game.getLiveGame().loadStory(story);
-    }, [story, game]);
+    }, [game]);
 
     useEffect(() => {
         if (onReady) {
@@ -161,7 +157,7 @@ export default function Player(
                             <KeyEventAnnouncer state={state}/>
                             {
                                 state.getSceneElements().map(({scene, ele}) => (
-                                    <StageScene key={"scene-" + scene.id} state={state} scene={scene}>
+                                    <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
                                         {
                                             (ele.images.map((image) => {
                                                 return (

@@ -8,7 +8,7 @@ import {Scene} from "@core/elements/scene";
 import {Transform} from "./transform/transform";
 import {CommonImage, ImagePosition, StaticImageData} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
-import {Game, LogicAction} from "@core/game";
+import {LogicAction} from "@core/game";
 import {ITransition} from "@core/elements/transition/type";
 import {
     CommonPosition,
@@ -176,7 +176,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.setSrc>(
             this.chain(),
             ImageAction.ActionTypes.setSrc,
-            new ContentNode<[string]>(Game.getIdManager().getStringId()).setContent([
+            new ContentNode<[string]>().setContent([
                 typeof src === "string" ? src : Utils.staticImageDataToSrc(src)
             ])
         );
@@ -220,7 +220,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
             this.chain(),
             ImageAction.ActionTypes.applyTransform,
-            new ContentNode(Game.getIdManager().getStringId()).setContent([
+            new ContentNode().setContent([
                 void 0,
                 transform,
                 getCallStack()
@@ -260,7 +260,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.show>(
             this.chain(),
             ImageAction.ActionTypes.show,
-            new ContentNode<ImageActionContentType["image:show"]>(Game.getIdManager().getStringId()).setContent([
+            new ContentNode<ImageActionContentType["image:show"]>().setContent([
                 void 0,
                 trans
             ])
@@ -282,7 +282,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         const action = new ImageAction<typeof ImageAction.ActionTypes.hide>(
             this.chain(),
             ImageAction.ActionTypes.hide,
-            new ContentNode<ImageActionContentType["image:hide"]>(Game.getIdManager().getStringId()).setContent([
+            new ContentNode<ImageActionContentType["image:hide"]>().setContent([
                 void 0,
                 (arg0 instanceof Transform) ? arg0 : new Transform<TransformDefinitions.ImageTransformProps>([
                     {
@@ -347,7 +347,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         return this.chain(new ImageAction<typeof ImageAction.ActionTypes.setTransition>(
             this.chain(),
             ImageAction.ActionTypes.setTransition,
-            new ContentNode<[ITransition | null]>(Game.getIdManager().getStringId()).setContent([
+            new ContentNode<[ITransition | null]>().setContent([
                 transition
             ])
         ));
@@ -358,7 +358,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         return this.chain(new ImageAction<"image:applyTransition">(
             this.chain(),
             "image:applyTransition",
-            new ContentNode<[ITransition]>(Game.getIdManager().getStringId()).setContent([
+            new ContentNode<[ITransition]>().setContent([
                 transition
             ])
         ));
@@ -369,7 +369,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         return new ImageAction<typeof ImageAction.ActionTypes.init>(
             this.chain(),
             ImageAction.ActionTypes.init,
-            new ContentNode<[Scene?]>(Game.getIdManager().getStringId()).setContent([
+            new ContentNode<[Scene?]>().setContent([
                 scene
             ])
         );
@@ -388,7 +388,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         return this.chain(new ImageAction<typeof ImageAction.ActionTypes.dispose>(
             this.chain(),
             ImageAction.ActionTypes.dispose,
-            new ContentNode(Game.getIdManager().getStringId())
+            new ContentNode()
         ));
     }
 }

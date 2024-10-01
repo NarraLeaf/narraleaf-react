@@ -1,5 +1,4 @@
 import {deepMerge} from "@lib/util/data";
-import {Game} from "../game";
 import {ContentNode, RenderableNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {ConditionAction} from "@core/action/actions";
@@ -186,7 +185,7 @@ export class Condition extends Actionable {
             Reflect.construct(ConditionAction, [
                 this,
                 ConditionAction.ActionTypes.action,
-                new ContentNode<ConditionData>(Game.getIdManager().getStringId()).setContent(chained.conditions)
+                new ContentNode<ConditionData>().setContent(chained.conditions)
             ]) as ConditionAction<typeof ConditionAction.ActionTypes.action>
         ];
     }

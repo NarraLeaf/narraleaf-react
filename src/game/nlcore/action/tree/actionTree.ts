@@ -1,5 +1,4 @@
 import {LogicAction} from "@core/action/logicAction";
-import {Game} from "@core/game";
 
 export enum NodeType {
     TreeNode = "TreeNode",
@@ -12,12 +11,11 @@ export type RawData<T> = {
 };
 
 export class Node<C = any> {
-    id: string;
+
     type: string;
     content: C | undefined;
 
-    constructor(id: string, type: string) {
-        this.id = id;
+    constructor(type: string) {
         this.type = type;
         this.content = undefined;
     }
@@ -73,12 +71,11 @@ export class ContentNode<T = any> extends Node<T> {
     private parent: RenderableNode | null;
 
     constructor(
-        id: string,
         callee?: LogicAction.Actions,
         parent?: RenderableNode | null,
         child?: RenderableNode
     ) {
-        super(Game.getIdManager().prefix("node", id, "-"), NodeType.ContentNode);
+        super(NodeType.ContentNode);
         this.child = child || null;
         this.parent = parent || null;
         this.action = callee || null;
@@ -154,7 +151,7 @@ export class ContentNode<T = any> extends Node<T> {
 
 export class RootNode extends ContentNode {
     constructor() {
-        super("root");
+        super();
     }
 
     setParent(_: RenderableNode | null): this {
