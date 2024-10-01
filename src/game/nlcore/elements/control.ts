@@ -14,7 +14,7 @@ export class Control extends Actionable {
      * Execute actions in order, waiting for each action to complete
      * @chainable
      */
-    public static do(actions: ChainedActions) {
+    public static do(actions: ChainedActions): ChainedControl {
         return new Control().do(actions);
     }
 
@@ -22,7 +22,7 @@ export class Control extends Actionable {
      * Execute actions in order, do not wait for this action to complete
      * @chainable
      */
-    public static doAsync(actions: ChainedActions) {
+    public static doAsync(actions: ChainedActions): ChainedControl {
         return new Control().doAsync(actions);
     }
 
@@ -30,7 +30,7 @@ export class Control extends Actionable {
      * Execute all actions at the same time, waiting for any one action to complete
      * @chainable
      */
-    public static any(actions: ChainedActions) {
+    public static any(actions: ChainedActions): ChainedControl {
         return new Control().any(actions);
     }
 
@@ -38,7 +38,7 @@ export class Control extends Actionable {
      * Execute all actions at the same time, waiting for all actions to complete
      * @chainable
      */
-    public static all(actions: ChainedActions) {
+    public static all(actions: ChainedActions): ChainedControl {
         return new Control().all(actions);
     }
 
@@ -46,7 +46,7 @@ export class Control extends Actionable {
      * Execute all actions at the same time, do not wait for all actions to complete
      * @chainable
      */
-    public static allAsync(actions: ChainedActions) {
+    public static allAsync(actions: ChainedActions): ChainedControl {
         return new Control().allAsync(actions);
     }
 
@@ -54,7 +54,7 @@ export class Control extends Actionable {
      * Execute actions multiple times
      * @chainable
      */
-    public static repeat(times: number, actions: ChainedActions) {
+    public static repeat(times: number, actions: ChainedActions): ChainedControl {
         return new Control().repeat(times, actions);
     }
 

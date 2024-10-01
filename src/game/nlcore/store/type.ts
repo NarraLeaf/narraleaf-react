@@ -23,4 +23,4 @@ export type BaseStorableDeserializeHandlers = {
         K extends "date" ? (data: WrappedStorableData<Date>) => Date :
             never;
 }
-export type NameSpaceContent<T extends string | number | symbol> = { [K in T]: StorableType };
+export type NameSpaceContent<T extends string | number | symbol> = { [K in T]?: StorableType };
