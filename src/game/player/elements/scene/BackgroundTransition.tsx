@@ -49,13 +49,13 @@ export default function BackgroundTransition({scene, props, state}: {
                                     setTransition(null);
                                     resolve();
 
-                                    state.logger.debug("transition end", transition);
+                                    state.logger.debug("transition end", t);
                                 })
                             },
                             {
                                 type: TransitionEventTypes.start,
                                 listener: t.events.on(TransitionEventTypes.start, () => {
-                                    state.logger.debug("transition start", transition);
+                                    state.logger.debug("transition start", t);
                                 })
                             }
                         ]);
@@ -170,7 +170,9 @@ export default function BackgroundTransition({scene, props, state}: {
                     });
                 })() : (() => {
                     const mergedProps =
-                        deepMerge<ImgElementProp>(defaultProps, props, transformProps);
+                        deepMerge<ImgElementProp>(defaultProps, props, {
+                            style: new Transform([]).propToCSS(state, scene.backgroundImageState)
+                        }, transformProps);
                     return (
                         <Background>
                             <img alt={mergedProps.alt} {...mergedProps} onLoad={handleImageOnload} ref={scope}

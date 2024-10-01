@@ -56,12 +56,8 @@ export namespace TransformDefinitions {
         background: Background["background"];
         backgroundOpacity: number;
     };
-    export type ImageTransformProps = ({
-        opacity: number;
-        scale: number;
-        rotation: number;
+    export type ImageTransformProps = CommonImage & {
         display: boolean;
-    }) & {
         position: CommonImage["position"];
     };
     export type Types = ImageTransformProps | SceneBackgroundTransformProps;

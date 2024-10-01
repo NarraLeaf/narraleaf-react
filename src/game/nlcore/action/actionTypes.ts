@@ -46,7 +46,7 @@ export type SceneActionContentType = {
                         K extends typeof SceneActionTypes["init"] ? [] :
                             K extends typeof SceneActionTypes["exit"] ? [] :
                                 K extends typeof SceneActionTypes["jumpTo"] ? [Scene] :
-                                    K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound, number?] :
+                                    K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
                                         K extends typeof SceneActionTypes["preUnmount"] ? [] :
                                             K extends typeof SceneActionTypes["applyTransform"] ? [Transform] :
                                                 any;

@@ -1,7 +1,7 @@
 import {Actionable} from "@core/action/actionable";
 import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
 import {SoundAction} from "@core/action/actions";
-import {Game, LogicAction} from "@core/game";
+import {LogicAction} from "@core/game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import * as Howler from "howler";
 import {HowlOptions} from "howler";
@@ -195,7 +195,7 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this.chain(new SoundAction(
             this.chain(),
             type,
-            new ContentNode<T>(Game.getIdManager().getStringId()).setContent(content)
+            new ContentNode<T>().setContent(content)
         ));
     }
 }

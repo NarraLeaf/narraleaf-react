@@ -11,10 +11,10 @@ type FadeInElementProps = {
 }
 
 type FadeInProps = {
-    style?: {
+    style?: Partial<{
         opacity: number;
         transform: string;
-    },
+    }>,
     src?: string;
 }
 
@@ -77,7 +77,11 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
 
     public toElementProps(): (FadeInProps & ElementProp)[] {
         return [
-            {},
+            {
+                style: {
+                    opacity: 1,
+                }
+            },
             {
                 style: {
                     opacity: this.state.opacity,

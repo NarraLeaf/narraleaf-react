@@ -1,29 +1,12 @@
 import type {CalledActionResult, GameConfig, GameSettings, SavedGame} from "./gameTypes";
 import {Awaitable, deepMerge, DeepPartial} from "@lib/util/data";
 import {Namespace, Storable} from "@core/store/storable";
-import {Singleton} from "@lib/util/singleton";
 import {Story} from "./elements/story";
 import {LogicAction} from "@core/action/logicAction";
 import {GameState} from "@player/gameState";
 import {DefaultElements} from "@player/elements/elements";
 import {ComponentsTypes} from "@player/elements/type";
 import {StorableType} from "@core/store/type";
-
-class IdManager extends Singleton<IdManager>() {
-    private id = 0;
-
-    public getId() {
-        return this.id++;
-    }
-
-    public getStringId() {
-        return (this.id++).toString();
-    }
-
-    prefix(prefix: string, value: string, separator = ":") {
-        return prefix + separator + value;
-    }
-}
 
 enum GameSettingsNamespace {
     game = "game",
@@ -93,11 +76,9 @@ export class Game {
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 
-    static getIdManager() {
-        return IdManager.getInstance();
-    };
-
+    /**@internal */
     readonly config: Readonly<GameConfig>;
+    /**@internal */
     liveGame: LiveGame | null = null;
 
     /**
@@ -108,6 +89,9 @@ export class Game {
         this.config = deepMerge<GameConfig>(Game.DefaultConfig, config);
     }
 
+    /**
+     * Override the default component
+     */
     public useComponent<T extends keyof ComponentsTypes>(key: T, components: ComponentsTypes[T]): this {
         if (!Object.keys(DefaultElements).includes(key)) {
             throw new Error(`Invalid key ${key}`);
@@ -129,6 +113,7 @@ export class Game {
         return this.liveGame;
     }
 
+    /**@internal */
     private createLiveGame() {
         return new LiveGame(this);
     }
@@ -145,13 +130,19 @@ export class LiveGame {
     game: Game;
     storable: Storable;
 
+    /**@internal */
     currentSavedGame: SavedGame | null = null;
+    /**@internal */
     story: Story | null = null;
+    /**@internal */
     lockedAwaiting: Awaitable<CalledActionResult, any> | null = null;
 
+    /**@internal */
     _lockedCount = 0;
+    /**@internal */
     private currentAction: LogicAction.Actions | null = null;
 
+    /**@internal */
     constructor(game: Game) {
         this.game = game;
         this.storable = new Storable();
@@ -160,6 +151,7 @@ export class LiveGame {
     }
 
     /* Store */
+    /**@internal */
     initNamespaces() {
         this.storable.addNamespace(new Namespace<Partial<{
             [key: string]: StorableType | undefined
@@ -167,12 +159,13 @@ export class LiveGame {
         return this;
     }
 
-    getStorable() {
+    public getStorable() {
         return this.storable;
     }
 
     /* Game */
-    public loadStory(story: Story) {
+    /**@internal */
+    loadStory(story: Story) {
         this.story = story.constructStory();
         return this;
     }
@@ -248,7 +241,8 @@ export class LiveGame {
         }
     }
 
-    public reset({gameState}: { gameState: GameState }) {
+    /**@internal */
+    reset({gameState}: { gameState: GameState }) {
         this.currentAction = this.story?.entryScene?.sceneRoot || null;
         this.lockedAwaiting = null;
         this.currentSavedGame = null;
@@ -289,15 +283,18 @@ export class LiveGame {
         };
     }
 
+    /**@internal */
     getCurrentAction(): LogicAction.Actions | null {
         return this.currentAction;
     }
 
+    /**@internal */
     setCurrentAction(action: LogicAction.Actions | null) {
         this.currentAction = action;
         return this;
     }
 
+    /**@internal */
     next(state: GameState): CalledActionResult | Awaitable<CalledActionResult, CalledActionResult> | null {
         if (!this.story) {
             throw new Error("No story loaded");
@@ -345,6 +342,7 @@ export class LiveGame {
         return nextAction;
     }
 
+    /**@internal */
     abortAwaiting() {
         if (this.lockedAwaiting) {
             const next = this.lockedAwaiting.abort();
@@ -353,6 +351,7 @@ export class LiveGame {
         }
     }
 
+    /**@internal */
     executeAction(state: GameState, action: LogicAction.Actions): LogicAction.Actions | Awaitable<CalledActionResult, CalledActionResult> | null {
         const nextAction = action.executeAction(state);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
@@ -361,6 +360,7 @@ export class LiveGame {
         return nextAction?.node?.getChild()?.action || null;
     }
 
+    /**@internal */
     private getNewSavedGame(): SavedGame {
         return {
             name: "",

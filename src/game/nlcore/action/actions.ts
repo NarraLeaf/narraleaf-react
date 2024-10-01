@@ -66,7 +66,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                         node: this.contentNode.getChild()
                     })));
             const sentence = (this.contentNode as ContentNode<Sentence>).getContent();
-            state.createText(this.contentNode.id, sentence, () => {
+            state.createText(this.getId(), sentence, () => {
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
