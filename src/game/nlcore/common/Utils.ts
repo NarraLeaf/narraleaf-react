@@ -58,7 +58,7 @@ export class StaticScriptWarning extends UseError<{
     }
 
     constructor(message: string, info?: any) {
-        super(message, {info}, "StaticScriptWarning");
+        super(message, {info}, "NarraLeafReact-StaticScriptWarning");
     }
 }
 

@@ -6,13 +6,14 @@ import {ConditionAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import {GameState} from "@player/gameState";
 import {Chained, ChainedActions, Proxied} from "@core/action/chain";
+import {ScriptCtx} from "@core/elements/script";
+import {StaticScriptWarning} from "@core/common/Utils";
 import Actions = LogicAction.Actions;
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type ConditionConfig = {};
 
-interface LambdaCtx {
-    gameState: GameState;
+interface LambdaCtx extends ScriptCtx {
 }
 
 type LambdaHandler<T = any> = (ctx: LambdaCtx) => T;
@@ -35,7 +36,10 @@ export class Lambda {
 
     getCtx({gameState}: { gameState: GameState }): LambdaCtx {
         return {
-            gameState
+            gameState,
+            game: gameState.game,
+            liveGame: gameState.game.getLiveGame(),
+            storable: gameState.game.getLiveGame().getStorable(),
         };
     }
 }
@@ -95,6 +99,20 @@ export class Condition extends Actionable {
     public If(
         condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
+        // when IF condition already set
+        if (this.conditions.If.condition) {
+            throw new StaticScriptWarning("IF condition already set\nYou are trying to set multiple IF conditions for the same condition");
+        }
+
+        // when ELSE-IF condition already set
+        if (this.conditions.ElseIf.length) {
+            throw new StaticScriptWarning("ELSE-IF condition already set\nYou are trying to set an IF condition after an ELSE-IF condition");
+        }
+
+        // when ELSE condition already set
+        if (this.conditions.Else.action) {
+            throw new StaticScriptWarning("ELSE condition already set\nYou are trying to set an IF condition after an ELSE condition");
+        }
         this.conditions.If.condition = condition instanceof Lambda ? condition : new Lambda(condition);
         this.conditions.If.action = this.construct(Array.isArray(action) ? action : [action]);
         return this.chain();
@@ -106,6 +124,16 @@ export class Condition extends Actionable {
     public ElseIf(
         condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
+        // when there is no IF condition
+        if (!this.conditions.If.condition) {
+            throw new StaticScriptWarning("IF condition not set\nYou are trying to set an ELSE-IF condition without an IF condition");
+        }
+
+        // when ELSE condition already set
+        if (this.conditions.Else.action) {
+            throw new StaticScriptWarning("ELSE condition already set\nYou are trying to set an ELSE-IF condition after an ELSE condition");
+        }
+
         this.conditions.ElseIf.push({
             condition: condition instanceof Lambda ? condition : new Lambda(condition),
             action: this.construct(Array.isArray(action) ? action : [action])
@@ -119,6 +147,16 @@ export class Condition extends Actionable {
     public Else(
         action: ChainedActions
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
+        // when there is no IF condition
+        if (!this.conditions.If.condition) {
+            throw new StaticScriptWarning("IF condition not set\nYou are trying to set an ELSE condition without an IF condition");
+        }
+
+        // when ELSE condition already set
+        if (this.conditions.Else.action) {
+            throw new StaticScriptWarning("ELSE condition already set\nYou are trying to set multiple ELSE conditions for the same condition");
+        }
+
         this.conditions.Else.action = this.construct(Array.isArray(action) ? action : [action]);
         return this.chain();
     }
@@ -174,10 +212,10 @@ export class Condition extends Actionable {
 
     /**@internal */
     _getFutureActions(): LogicAction.Actions[] {
-        return [
+        return Chained.toActions([
             ...(this.conditions.If.action || []),
             ...this.conditions.ElseIf.flatMap(e => e.action || []),
             ...(this.conditions.Else.action || [])
-        ];
+        ]);
     }
 }

@@ -25,7 +25,7 @@ export class Chained<T, Self = any> {
                 }
                 return v;
             })
-            .flat(2) satisfies Actions[];
+            .flat(3) satisfies Actions[];
     }
 
     /**@internal */
