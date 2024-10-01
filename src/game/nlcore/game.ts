@@ -7,6 +7,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {GameState} from "@player/gameState";
 import {DefaultElements} from "@player/elements/elements";
 import {ComponentsTypes} from "@player/elements/type";
+import {StorableType} from "@core/store/type";
 
 class IdManager extends Singleton<IdManager>() {
     private id = 0;
@@ -160,7 +161,9 @@ export class LiveGame {
 
     /* Store */
     initNamespaces() {
-        this.storable.addNamespace(new Namespace<any>(LiveGame.GameSpacesKey.game, LiveGame.DefaultNamespaces.game));
+        this.storable.addNamespace(new Namespace<Partial<{
+            [key: string]: StorableType | undefined
+        }>>(LiveGame.GameSpacesKey.game, LiveGame.DefaultNamespaces.game));
         return this;
     }
 
