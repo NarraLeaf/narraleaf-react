@@ -376,6 +376,11 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     }
 
     /**@internal */
+    override reset() {
+        this.state = deepMerge<ImageConfig>({}, this.config);
+    }
+
+    /**@internal */
     private _transitionSrc(transition: ITransition): this {
         const t = transition.copy();
         this._setTransition(t)

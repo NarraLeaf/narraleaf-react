@@ -268,7 +268,7 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         return void 0;
     }
 
-    reset() {
+    clear() {
         this.events = {} as any;
     }
 }

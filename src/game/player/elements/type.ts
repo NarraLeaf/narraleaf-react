@@ -3,8 +3,9 @@ import {SayElementProps} from "@player/elements/say/type";
 import {MenuElementProps} from "@player/elements/menu/type";
 import {Story} from "@core/elements/story";
 import clsx from "clsx";
-import {Game} from "@core/game";
+import {Game, LiveGame} from "@core/game";
 import {GameState} from "@player/gameState";
+import {Storable} from "@core/store/storable";
 
 export type Components<T extends Record<string, any>> = (props: Readonly<T>) => React.JSX.Element;
 export type SayComponent = Components<SayElementProps>;
@@ -21,7 +22,9 @@ export type {
 
 export type PlayerEventContext = {
     game: Game;
-    state: GameState;
+    gameState: GameState;
+    liveGame: LiveGame;
+    storable: Storable;
 }
 
 export interface PlayerProps {
