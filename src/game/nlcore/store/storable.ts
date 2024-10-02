@@ -10,16 +10,6 @@ import {
 import {deepMerge} from "@lib/util/data";
 
 export class Namespace<T extends NameSpaceContent<keyof T>> {
-    name: string;
-    key: string;
-    content: NameSpaceContent<keyof T>;
-
-    constructor(name: string, initContent: T, key?: string) {
-        this.name = name;
-        this.key = key || name;
-        this.content = deepMerge({}, initContent);
-    }
-
     static isSerializable(value: any): boolean {
         if (["number", "string", "boolean"].includes(typeof value)) {
             return true;
@@ -39,6 +29,18 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return false;
     }
 
+    name: string;
+    /**@internal */
+    key: string;
+    /**@internal */
+    content: NameSpaceContent<keyof T>;
+
+    constructor(name: string, initContent: T, key?: string) {
+        this.name = name;
+        this.key = key || name;
+        this.content = deepMerge({}, initContent);
+    }
+
     public set<Key extends keyof T>(key: Key, value: T[Key]): this {
         if (!Namespace.isSerializable(value)) {
             console.warn(`Value "${value}" in key "${String(key)}" is not serializable, and will not be set\nat namespace "${this.name}"`);
@@ -53,10 +55,12 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return this.content[key] as T[Key];
     }
 
+    /**@internal */
     toData(): { [key: string]: WrappedStorableData } {
         return this.serialize();
     }
 
+    /**@internal */
     load(data: T) {
         if (!data) {
             console.warn("No data to load");
@@ -65,6 +69,7 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         this.content = data;
     }
 
+    /**@internal */
     serialize() {
         const output: { [key: string]: WrappedStorableData } = {};
         Object.entries(this.content).forEach(([key, value]) => {
@@ -73,6 +78,7 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return output;
     }
 
+    /**@internal */
     deserialize(data: { [key: string]: WrappedStorableData }) {
         if (!data) {
             console.warn("No data to load");
@@ -83,6 +89,7 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         });
     }
 
+    /**@internal */
     toTypeName(value: StorableType): BaseStorableTypeName {
         if (value instanceof Date) {
             return "date";
@@ -90,6 +97,7 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return "any";
     }
 
+    /**@internal */
     wrap(data: StorableType) {
         const handlers: {
             [K in BaseStorableTypeName]: BaseStorableSerializeHandlers[K]
@@ -101,6 +109,7 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return handlers[type](data as any);
     }
 
+    /**@internal */
     unwrap(data: WrappedStorableData): StorableType {
         const handlers: {
             [K in BaseStorableTypeName]: BaseStorableDeserializeHandlers[K]
@@ -113,26 +122,31 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
 }
 
 export class Storable {
+    /**@internal */
     namespaces: { [key: string]: Namespace<any> } = {};
 
+    /**@internal */
     constructor() {
     }
 
-    addNamespace<T extends NameSpaceContent<keyof T>>(namespace: Namespace<T>) {
+    public addNamespace<T extends NameSpaceContent<keyof T>>(namespace: Namespace<T>) {
+        if (this.namespaces[namespace.key]) {
+            console.warn(`Namespace ${namespace.key} already exists`);
+        }
         this.namespaces[namespace.key] = namespace;
         return this;
     }
 
-    getNamespace<T extends NameSpaceContent<keyof T> = any>(key: string): Namespace<T> {
+    public getNamespace<T extends NameSpaceContent<keyof T> = any>(key: string): Namespace<T> {
         return this.namespaces[key];
     }
 
-    setNamespace<T extends NameSpaceContent<keyof T> = any>(key: string, namespace: Namespace<T>) {
+    public setNamespace<T extends NameSpaceContent<keyof T> = any>(key: string, namespace: Namespace<T>) {
         this.namespaces[key] = namespace;
         return this;
     }
 
-    getNamespaces() {
+    public getNamespaces() {
         return this.namespaces;
     }
 
@@ -148,6 +162,7 @@ export class Storable {
         return Object.entries(this.namespaces);
     }
 
+    /**@internal */
     toData() {
         return this.entries().reduce((acc, [key, namespace]) => {
             acc[key] = namespace.toData();
@@ -155,7 +170,8 @@ export class Storable {
         }, {} as { [key: string]: StorableData });
     }
 
-    public load(data: { [key: string]: StorableData }) {
+    /**@internal */
+    load(data: { [key: string]: StorableData }) {
         if (!data) {
             console.warn("No data to load");
             return;
@@ -167,6 +183,12 @@ export class Storable {
                 console.warn(`Namespace ${key} not found in ${this.constructor.name}`);
             }
         });
+    }
+
+    /**@internal */
+    clear() {
+        this.namespaces = {};
+        return this;
     }
 }
 

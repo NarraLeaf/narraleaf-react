@@ -19,6 +19,7 @@ import {GameState, PlayerAction} from "@player/gameState";
 import {useGame} from "@player/provider/game-state";
 import {PlayerProps} from "@player/elements/type";
 import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
+import {flushSync} from "react-dom";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -33,11 +34,14 @@ export default function Player(
         onReady,
         onEnd,
     }: Readonly<PlayerProps>) {
-    const [, forceUpdate] = useReducer((x) => x + 1, 0);
+    const [, update] = useReducer((x) => x + 1, 0);
     const {game} = useGame();
     const [state, dispatch] = useReducer(handleAction, new GameState(game, {
+        update,
         forceUpdate: () => {
-            forceUpdate();
+            flushSync(() => {
+                update();
+            });
         },
         next,
         dispatch: (action) => dispatch(action),
@@ -59,7 +63,7 @@ export default function Player(
             }
             dispatch(next);
         }
-        state.stage.forceUpdate();
+        state.stage.update();
     }
 
     useEffect(() => {
@@ -67,69 +71,85 @@ export default function Player(
     }, [game]);
 
     useEffect(() => {
-        if (onReady) {
-            onReady({
-                game,
-                state,
-            });
-        }
+        let microTaskExecuted = false;
 
-        const lastScene = state.getLastScene();
+        const microTask = Promise.resolve().then(() => {
+            microTaskExecuted = true;
 
-        const events: {
-            type: keyof SceneEventTypes;
-            listener: () => void;
-        }[] = [];
-        if (lastScene) {
-            events.push({
-                type: "event:scene.mount",
-                listener: lastScene.events.once("event:scene.mount", () => {
-                    state.stage.next();
-                })
-            });
-        } else {
-            state.stage.next();
-        }
-
-        const gameStateEvents = state.events.onEvents([
-            {
-                type: GameState.EventTypes["event:state.end"],
-                listener: () => {
-                    if (onEnd) {
-                        onEnd({
-                            game,
-                            state,
-                        });
-                    }
-                }
-            }
-        ]);
-
-        const gameKeyEvents = state.events.onEvents([
-            {
-                type: GameState.EventTypes["event:state.player.skip"],
-                listener: () => {
-                    game.getLiveGame().abortAwaiting();
-                    next();
-                }
-            }
-        ]);
-
-        state.stage.forceUpdate();
-
-        return () => {
-            if (lastScene) {
-                events.forEach(event => {
-                    lastScene.events.off(event.type, event.listener);
+            if (onReady) {
+                onReady({
+                    game,
+                    gameState: state,
+                    liveGame: game.getLiveGame(),
+                    storable: game.getLiveGame().getStorable(),
                 });
             }
-            gameStateEvents.cancel();
-            gameKeyEvents.cancel();
+
+            const lastScene = state.getLastScene();
+
+            const events: {
+                type: keyof SceneEventTypes;
+                listener: () => void;
+            }[] = [];
+            if (lastScene) {
+                events.push({
+                    type: "event:scene.mount",
+                    listener: lastScene.events.once("event:scene.mount", () => {
+                        state.stage.next();
+                    })
+                });
+            } else {
+                state.stage.next();
+            }
+
+            const gameStateEvents = state.events.onEvents([
+                {
+                    type: GameState.EventTypes["event:state.end"],
+                    listener: () => {
+                        if (onEnd) {
+                            onEnd({
+                                game,
+                                gameState: state,
+                                liveGame: game.getLiveGame(),
+                                storable: game.getLiveGame().getStorable(),
+                            });
+                        }
+                    }
+                }
+            ]);
+
+            const gameKeyEvents = state.events.onEvents([
+                {
+                    type: GameState.EventTypes["event:state.player.skip"],
+                    listener: () => {
+                        game.getLiveGame().abortAwaiting();
+                        next();
+                    }
+                }
+            ]);
+
+            state.stage.update();
+
+            return () => {
+                if (lastScene) {
+                    events.forEach(event => {
+                        lastScene.events.off(event.type, event.listener);
+                    });
+                }
+                gameStateEvents.cancel();
+                gameKeyEvents.cancel();
+            };
+        });
+
+        return () => {
+            if (microTaskExecuted) {
+                microTask.then(cancelListeners => cancelListeners());
+            }
         };
     }, []);
 
     function handlePreloadLoaded() {
-        state.stage.forceUpdate();
+        state.stage.update();
         if (story) {
             next();
         }

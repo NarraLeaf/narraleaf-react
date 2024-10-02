@@ -270,7 +270,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
 
         if (this.type === ImageActionTypes.setSrc) {
             this.callee.state.src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
-            state.stage.forceUpdate();
+            state.stage.update();
             return super.executeAction(state);
         } else if ([
             ImageActionTypes.show,
@@ -292,7 +292,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
 
             if (this.type === ImageActionTypes.show) {
                 this.callee.state.display = true;
-                state.stage.forceUpdate();
+                state.stage.update();
             }
 
             state.animateImage(Image.EventTypes["event:image.applyTransform"], this.callee, [

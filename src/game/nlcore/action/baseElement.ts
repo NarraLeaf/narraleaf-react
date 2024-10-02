@@ -11,5 +11,9 @@ export class BaseElement {
     getId() {
         return this.id;
     }
+
+    /**@internal */
+    reset() {
+    }
 }
 

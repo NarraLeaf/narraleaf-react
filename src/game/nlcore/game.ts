@@ -24,7 +24,6 @@ export class Game {
     };
     // noinspection MagicNumberJS
     static DefaultConfig: GameConfig = {
-        version: "v0.0.0",
         player: {
             contentContainerId: "__narraleaf_content",
             aspectRatio: 16 / 9,
@@ -128,6 +127,7 @@ export class LiveGame {
     } as const;
 
     game: Game;
+    /**@internal */
     storable: Storable;
 
     /**@internal */
@@ -153,7 +153,7 @@ export class LiveGame {
     /* Store */
     /**@internal */
     initNamespaces() {
-        this.storable.addNamespace(new Namespace<Partial<{
+        this.storable.clear().addNamespace(new Namespace<Partial<{
             [key: string]: StorableType | undefined
         }>>(LiveGame.GameSpacesKey.game, LiveGame.DefaultNamespaces.game));
         return this;
@@ -173,14 +173,24 @@ export class LiveGame {
     /**
      * Start a new game
      */
-    public newGame() {
+    public newGame({gameState}: { gameState: GameState }) {
+        this.reset({gameState});
         this.initNamespaces();
-
-        this.currentAction = this.story?.entryScene?.sceneRoot || null;
 
         const newGame = this.getNewSavedGame();
         newGame.name = "NewGame-" + Date.now();
         this.currentSavedGame = newGame;
+
+        const elements: Map<string, LogicAction.GameElement> | undefined =
+            this.story?.getAllElementMap(this.story?.entryScene?.sceneRoot || []);
+        if (elements) {
+            (Object.values(elements) as LogicAction.GameElement[]).forEach(element => {
+                element.reset();
+            });
+        }
+
+        gameState.stage.forceUpdate();
+        gameState.stage.next();
 
         return this;
     }
@@ -190,7 +200,7 @@ export class LiveGame {
      *
      * Note: Even if you change just a single line of code, the saved game might not be compatible with the new version
      *
-     * After calling this method, the current game state will be lost, can the stage will trigger force reset
+     * After calling this method, the current game state will be lost, and the stage will trigger force reset
      */
     public deserialize(savedGame: SavedGame, {gameState}: { gameState: GameState }) {
         const story = this.story;
@@ -243,10 +253,16 @@ export class LiveGame {
 
     /**@internal */
     reset({gameState}: { gameState: GameState }) {
+        if (this.lockedAwaiting) {
+            this.lockedAwaiting.abort();
+        }
+
         this.currentAction = this.story?.entryScene?.sceneRoot || null;
         this.lockedAwaiting = null;
         this.currentSavedGame = null;
+
         gameState.forceReset();
+        gameState.stage.update();
     }
 
     /**
