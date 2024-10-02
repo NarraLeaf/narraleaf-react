@@ -383,6 +383,15 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
+    override reset() {
+        this.state = deepMerge<SceneConfig & SceneState>(Scene.defaultState, this.config);
+        this.backgroundImageState = {
+            position: new CommonPosition(CommonPositionType.Center),
+            opacity: 1,
+        };
+    }
+
+    /**@internal */
     private _applyTransition(transition: ITransition): ChainedScene {
         return this.chain(new SceneAction<"scene:applyTransition">(
             this.chain(),

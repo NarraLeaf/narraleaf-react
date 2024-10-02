@@ -21,7 +21,6 @@ export interface SavedGame {
 }
 
 export type GameConfig = {
-    version: string;
     player: {
         contentContainerId: string;
         /**

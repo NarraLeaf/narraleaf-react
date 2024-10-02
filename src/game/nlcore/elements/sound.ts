@@ -191,6 +191,13 @@ export class Sound extends Actionable<SoundDataRaw> {
     }
 
     /**@internal */
+    override reset() {
+        this.state.playing?.stop();
+        this.state.playing = null;
+        this.state.token = null;
+    }
+
+    /**@internal */
     private pushAction<T>(type: string, content: T): ChainedSound {
         return this.chain(new SoundAction(
             this.chain(),

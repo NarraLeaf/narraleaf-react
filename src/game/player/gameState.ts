@@ -33,6 +33,7 @@ export type PlayerStateData = {
 export type PlayerAction = CalledActionResult;
 
 interface StageUtils {
+    update: () => void;
     forceUpdate: () => void;
     next: () => void;
     dispatch: (action: PlayerAction) => void;
@@ -43,6 +44,7 @@ type GameStateEvents = {
     "event:state.ready": [];
     "event:state.end": [];
     "event:state.player.skip": [];
+    "event:state.preload.unmount": [];
 };
 
 export class GameState {
@@ -50,6 +52,7 @@ export class GameState {
         "event:state.ready": "event:state.ready",
         "event:state.end": "event:state.end",
         "event:state.player.skip": "event:state.player.skip",
+        "event:state.preload.unmount": "event:state.preload.unmount",
     };
     state: PlayerState = {
         sounds: [],
@@ -182,8 +185,10 @@ export class GameState {
         this.state.elements.forEach(({scene}) => {
             this.offSrcManager(scene.srcManager);
             scene._liveState.active = false;
-            scene.events.reset();
+            scene.events.clear();
         });
+        this.state.elements = [];
+        this.state.srcManagers = [];
     }
 
     playSound(howl: Howler.Howl, onEnd?: () => void): any {

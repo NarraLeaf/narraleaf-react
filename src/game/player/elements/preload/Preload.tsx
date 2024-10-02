@@ -103,6 +103,8 @@ export function Preload({
             newImages.forEach(img => {
                 img.onload = null;
             });
+            state.events.emit(GameState.EventTypes["event:state.preload.unmount"]);
+            state.logger.debug("Preload unmounted");
         };
     }, [state]);
 
