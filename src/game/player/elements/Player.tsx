@@ -166,14 +166,8 @@ export default function Player(
             }} className={clsx(className, "__narraleaf_content-player")}>
                 <AspectRatio className={clsx("flex-grow overflow-auto")}>
                     <Isolated className="relative">
-                        {
-                            state.state.srcManagers.map((srcManager, i) => {
-                                return (
-                                    <Preload key={i} state={state} srcManager={srcManager}/>
-                                );
-                            })
-                        }
-                        <OnlyPreloaded onLoaded={handlePreloadLoaded}>
+                        <Preload state={state}/>
+                        <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
                             <KeyEventAnnouncer state={state}/>
                             {
                                 state.getSceneElements().map(({scene, ele}) => (
@@ -234,7 +228,11 @@ export default function Player(
     );
 }
 
-function OnlyPreloaded({children, onLoaded}: Readonly<{ children: React.ReactNode, onLoaded: () => void }>) {
+function OnlyPreloaded({children, onLoaded, state}: Readonly<{
+    children: React.ReactNode,
+    onLoaded: () => void,
+    state: GameState
+}>) {
     const {preloaded} = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
     useEffect(() => {
@@ -242,8 +240,12 @@ function OnlyPreloaded({children, onLoaded}: Readonly<{ children: React.ReactNod
             setPreloadedReady(true);
             onLoaded();
         });
+        const unmountListener = state.events.on(GameState.EventTypes["event:state.preload.unmount"], () => {
+            setPreloadedReady(false);
+        });
         return () => {
             preloaded.events.off(Preloaded.EventTypes["event:preloaded.ready"], listener);
+            state.events.off(GameState.EventTypes["event:state.preload.unmount"], unmountListener);
         };
     }, [preloadedReady]);
     return (

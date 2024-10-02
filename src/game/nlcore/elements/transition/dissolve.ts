@@ -55,7 +55,12 @@ export class Dissolve extends Base<DissolveProps> implements ITransition<Dissolv
             end: Dissolve.Frames[1],
             duration: this.duration
         }, {
-            onComplete,
+            onComplete: () => {
+                this.state.opacity = Dissolve.Frames[1];
+                if (onComplete) {
+                    onComplete();
+                }
+            },
             onUpdate: (value) => {
                 this.state.opacity = value;
             }

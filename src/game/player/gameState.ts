@@ -11,6 +11,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/store/storable";
 import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
+import {SceneAction} from "@core/action/actions";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -45,6 +46,7 @@ type GameStateEvents = {
     "event:state.end": [];
     "event:state.player.skip": [];
     "event:state.preload.unmount": [];
+    "event:state.preload.loaded": [];
 };
 
 export class GameState {
@@ -53,6 +55,7 @@ export class GameState {
         "event:state.end": "event:state.end",
         "event:state.player.skip": "event:state.player.skip",
         "event:state.preload.unmount": "event:state.preload.unmount",
+        "event:state.preload.loaded": "event:state.preload.loaded",
     };
     state: PlayerState = {
         sounds: [],
@@ -275,7 +278,15 @@ export class GameState {
             };
 
             this.state.elements.push(element);
-            this.state.srcManagers.push(element.scene.srcManager);
+            this.registerSrcManager(scene.srcManager);
+            scene._liveState.active = true;
+            SceneAction.registerEventListeners(scene, this);
+        });
+    }
+
+    initScenes() {
+        this.state.elements.forEach(({scene}) => {
+            SceneAction.registerEventListeners(scene, this);
         });
     }
 

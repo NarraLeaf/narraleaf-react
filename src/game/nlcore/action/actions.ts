@@ -82,6 +82,55 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
     extends TypedAction<SceneActionContentType, T, Scene> {
     static ActionTypes = SceneActionTypes;
 
+    static handleSceneInit(sceneAction: SceneAction, state: GameState, awaitable: Awaitable<CalledActionResult, any>) {
+        if (sceneAction.callee._liveState.active) {
+            return {
+                type: sceneAction.type,
+                node: sceneAction.contentNode.getChild()
+            };
+        }
+        sceneAction.callee._liveState.active = true;
+
+        state
+            .registerSrcManager(sceneAction.callee.srcManager)
+            .addScene(sceneAction.callee);
+
+        SceneAction.registerEventListeners(sceneAction.callee, state, () => {
+            awaitable.resolve({
+                type: sceneAction.type,
+                node: sceneAction.contentNode.getChild()
+            });
+            state.stage.next();
+        });
+
+        return awaitable;
+    }
+
+    static registerEventListeners(scene: Scene, state: GameState, onInit?: () => void) {
+        scene.events.once("event:scene.unmount", () => {
+            state.offSrcManager(scene.srcManager);
+        });
+
+        scene.events.once("event:scene.mount", () => {
+            if (scene.state.backgroundMusic) {
+                SoundAction.initSound(state, scene.state.backgroundMusic);
+                scene.events.emit("event:scene.setBackgroundMusic",
+                    scene.state.backgroundMusic,
+                    scene.config.backgroundMusicFade
+                );
+            }
+        });
+
+        scene.events.once("event:scene.imageLoaded", () => {
+            const initTransform = scene.getInitTransform();
+            scene.events.any("event:scene.initTransform", initTransform).then(() => {
+                if (onInit) {
+                    onInit();
+                }
+            });
+        });
+    }
+
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === SceneActionTypes.action) {
             return super.executeAction(state);
@@ -129,41 +178,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             });
             return awaitable;
         } else if (this.type === SceneActionTypes.init) {
-            if (this.callee._liveState.active) {
-                return super.executeAction(state);
-            }
-            this.callee._liveState.active = true;
-
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-            state
-                .registerSrcManager(this.callee.srcManager)
-                .addScene(this.callee);
-
-            this.callee.events.once("event:scene.unmount", () => {
-                state.offSrcManager(this.callee.srcManager);
-            });
-
-            this.callee.events.once("event:scene.mount", () => {
-                if (this.callee.state.backgroundMusic) {
-                    SoundAction.initSound(state, this.callee.state.backgroundMusic);
-                    this.callee.events.emit("event:scene.setBackgroundMusic",
-                        this.callee.state.backgroundMusic,
-                        this.callee.config.backgroundMusicFade
-                    );
-                }
-            });
-
-            this.callee.events.once("event:scene.imageLoaded", () => {
-                const initTransform = this.callee.getInitTransform();
-                this.callee.events.any("event:scene.initTransform", initTransform).then(() => {
-                    awaitable.resolve({
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    });
-                    state.stage.next();
-                });
-            });
-            return awaitable;
+            return SceneAction.handleSceneInit(this, state, awaitable);
         } else if (this.type === SceneActionTypes.exit) {
             this.callee._liveState.active = false;
 

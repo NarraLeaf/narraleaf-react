@@ -184,9 +184,12 @@ export class LiveGame {
         const elements: Map<string, LogicAction.GameElement> | undefined =
             this.story?.getAllElementMap(this.story?.entryScene?.sceneRoot || []);
         if (elements) {
-            (Object.values(elements) as LogicAction.GameElement[]).forEach(element => {
+            elements.forEach((element) => {
+                gameState.logger.debug("reset element", element);
                 element.reset();
             });
+        } else {
+            gameState.logger.warn("No elements found");
         }
 
         gameState.stage.forceUpdate();
@@ -249,6 +252,9 @@ export class LiveGame {
             }
             this.currentAction = action;
         }
+
+        gameState.stage.forceUpdate();
+        gameState.stage.next();
     }
 
     /**@internal */
@@ -262,7 +268,6 @@ export class LiveGame {
         this.currentSavedGame = null;
 
         gameState.forceReset();
-        gameState.stage.update();
     }
 
     /**

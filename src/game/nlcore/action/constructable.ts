@@ -61,7 +61,7 @@ export class Constructable<
     /**@internal */
     getAllElementMap(action: LogicAction.Actions | LogicAction.Actions[]): Map<string, LogicAction.GameElement> {
         const map = new Map<string, LogicAction.GameElement>();
-        this.forEachChild(action, action => map.set(action.getId(), action.callee));
+        this.forEachChild(action, action => map.set(action.callee.getId(), action.callee));
         return map;
     }
 

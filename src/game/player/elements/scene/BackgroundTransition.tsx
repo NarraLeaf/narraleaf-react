@@ -98,7 +98,7 @@ export default function BackgroundTransition({scene, props, state}: {
         return () => {
             sceneEventTokens.cancel();
         };
-    }, [scene]);
+    }, []);
 
     useEffect(() => {
         assignTo(scene.backgroundImageState);

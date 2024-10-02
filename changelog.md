@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.4] - 2024/10/01
+
+### Fixed
+
+- `liveGame.newGame` does not reset the game state
+
 ## [0.0.3] - 2024/10/01
 
 ### Added

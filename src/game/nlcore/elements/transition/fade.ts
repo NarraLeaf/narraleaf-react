@@ -49,7 +49,12 @@ export class Fade extends Base<FadeProps> implements ITransition {
             end: Fade.Frames[1],
             duration: this.duration
         }, {
-            onComplete,
+            onComplete: () => {
+                if (onComplete) {
+                    onComplete();
+                }
+                this.state.opacity = Fade.Frames[1];
+            },
             onUpdate: (value) => {
                 this.state.opacity = value;
             }
