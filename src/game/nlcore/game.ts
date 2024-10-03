@@ -171,6 +171,103 @@ export class LiveGame {
     }
 
     /**
+     * Serialize the current game state
+     *
+     * You can use this to save the game state to a file or a database
+     *
+     * Note: Even if you change just a single line of script, the saved game might not be compatible with the new version
+     */
+    public serialize({gameState}: { gameState: GameState }): SavedGame {
+        const story = this.story;
+        if (!story) {
+            throw new Error("No story loaded");
+        }
+
+        // get all element state
+        const store = this.storable.toData();
+        const stage = gameState.toData();
+        const currentAction = this.getCurrentAction()?.getId() || null;
+        const elementStates = story.getAllElementStates();
+
+        return {
+            name: this.currentSavedGame?.name || "",
+            meta: {
+                created: this.currentSavedGame?.meta.created || Date.now(),
+                updated: Date.now(),
+            },
+            game: {
+                store,
+                stage,
+                currentAction,
+                elementStates,
+            }
+        };
+    }
+
+    /**
+     * Load a saved game
+     *
+     * Note: Even if you change just a single line of script, the saved game might not be compatible with the new version
+     *
+     * After calling this method, the current game state will be lost, and the stage will trigger force reset
+     */
+    public deserialize(savedGame: SavedGame, {gameState}: { gameState: GameState }) {
+        const story = this.story;
+        if (!story) {
+            throw new Error("No story loaded");
+        }
+
+        this.reset({gameState});
+        gameState.stage.forceUpdate();
+
+        const actionMaps = new Map<string, LogicAction.Actions>();
+        const elementMaps = new Map<string, LogicAction.GameElement>();
+        const {
+            game: {
+                store,
+                stage,
+                elementStates,
+                currentAction,
+            }
+        } = savedGame;
+
+        // construct maps
+        story.forEachChild(story.entryScene?.sceneRoot || [], action => {
+            actionMaps.set(action.getId(), action);
+            elementMaps.set(action.callee.getId(), action.callee);
+        });
+
+        // restore storable
+        this.storable.load(store);
+
+        // restore elements
+        elementStates.forEach(({id, data}) => {
+            gameState.logger.debug("restore element", id);
+
+            const element = elementMaps.get(id);
+            if (!element) {
+                throw new Error("Element not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
+            }
+            element.reset();
+            element.fromData(data as any);
+        });
+
+        // restore game state
+        this.currentSavedGame = savedGame;
+        gameState.loadData(stage, elementMaps);
+        if (currentAction) {
+            const action = actionMaps.get(currentAction);
+            if (!action) {
+                throw new Error("Action not found, id: " + currentAction + "\nNarraLeaf cannot find the action with the id from the saved game");
+            }
+            this.currentAction = action;
+        }
+
+        gameState.stage.forceUpdate();
+        gameState.stage.next();
+    }
+
+    /**
      * Start a new game
      */
     public newGame({gameState}: { gameState: GameState }) {
@@ -198,65 +295,6 @@ export class LiveGame {
         return this;
     }
 
-    /**
-     * Load a saved game
-     *
-     * Note: Even if you change just a single line of code, the saved game might not be compatible with the new version
-     *
-     * After calling this method, the current game state will be lost, and the stage will trigger force reset
-     */
-    public deserialize(savedGame: SavedGame, {gameState}: { gameState: GameState }) {
-        const story = this.story;
-        if (!story) {
-            throw new Error("No story loaded");
-        }
-
-        this.reset({gameState});
-
-        const actionMaps = new Map<string, LogicAction.Actions>();
-        const elementMaps = new Map<string, LogicAction.GameElement>();
-        const {
-            game: {
-                store,
-                stage,
-                elementStates,
-                currentAction,
-            }
-        } = savedGame;
-
-        // construct maps
-        story.forEachChild(story.entryScene?.sceneRoot || [], action => {
-            actionMaps.set(action.getId(), action);
-            elementMaps.set(action.callee.getId(), action.callee);
-        });
-
-        // restore storable
-        this.storable.load(store);
-
-        // restore elements
-        elementStates.forEach(({id, data}) => {
-            const element = elementMaps.get(id);
-            if (!element) {
-                throw new Error("Element not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
-            }
-            element.fromData(data);
-        });
-
-        // restore game state
-        this.currentSavedGame = savedGame;
-        gameState.loadData(stage, elementMaps);
-        if (currentAction) {
-            const action = actionMaps.get(currentAction);
-            if (!action) {
-                throw new Error("Action not found, id: " + currentAction + "\nNarraLeaf cannot find the action with the id from the saved game");
-            }
-            this.currentAction = action;
-        }
-
-        gameState.stage.forceUpdate();
-        gameState.stage.next();
-    }
-
     /**@internal */
     reset({gameState}: { gameState: GameState }) {
         if (this.lockedAwaiting) {
@@ -268,40 +306,6 @@ export class LiveGame {
         this.currentSavedGame = null;
 
         gameState.forceReset();
-    }
-
-    /**
-     * Serialize the current game state
-     *
-     * You can use this to save the game state to a file or a database
-     *
-     * Note: Even if you change just a single line of code, the saved game might not be compatible with the new version
-     */
-    public serialize({gameState}: { gameState: GameState }): SavedGame {
-        const story = this.story;
-        if (!story) {
-            throw new Error("No story loaded");
-        }
-
-        // get all element state
-        const store = this.storable.toData();
-        const stage = gameState.toData();
-        const currentAction = this.getCurrentAction()?.getId() || null;
-        const elementStates = story.getAllElementStates();
-
-        return {
-            name: this.currentSavedGame?.name || "",
-            meta: {
-                created: this.currentSavedGame?.meta.created || Date.now(),
-                updated: Date.now(),
-            },
-            game: {
-                store,
-                stage,
-                currentAction,
-                elementStates,
-            }
-        };
     }
 
     /**@internal */

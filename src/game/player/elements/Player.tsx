@@ -39,6 +39,7 @@ export default function Player(
     const [state, dispatch] = useReducer(handleAction, new GameState(game, {
         update,
         forceUpdate: () => {
+            (state as GameState).logger.warn("Player", "force update");
             flushSync(() => {
                 update();
             });

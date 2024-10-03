@@ -1,3 +1,5 @@
+import {ElementStateRaw} from "@core/elements/story";
+
 export class BaseElement {
     /**@internal */
     protected id: string = "";
@@ -14,6 +16,11 @@ export class BaseElement {
 
     /**@internal */
     reset() {
+    }
+
+    /**@internal */
+    fromData(_: ElementStateRaw) {
+        return this;
     }
 }
 

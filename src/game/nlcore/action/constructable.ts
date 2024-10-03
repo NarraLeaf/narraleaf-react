@@ -75,11 +75,6 @@ export class Constructable<
         return null;
     }
 
-    /**@internal */
-    fromData(_: Record<string, any>) {
-        return this;
-    }
-
     /**
      * Construct the actions into a tree
      * @internal

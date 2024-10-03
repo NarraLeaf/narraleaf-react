@@ -257,6 +257,8 @@ export class GameState {
 
         const {scenes} = data;
         scenes.forEach(({sceneId, elements}) => {
+            this.logger.debug("Loading scene: " + sceneId);
+
             const scene = elementMap.get(sceneId) as Scene;
             if (!scene) {
                 throw new Error("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");

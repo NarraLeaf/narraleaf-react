@@ -5,6 +5,7 @@
 ### Fixed
 
 - `liveGame.newGame` does not reset the game state
+- deserializing does not trigger repainting
 
 ## [0.0.3] - 2024/10/01
 
