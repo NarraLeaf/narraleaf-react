@@ -363,7 +363,7 @@ export class LiveGame {
 
         this._lockedCount = 0;
 
-        this.currentAction = nextAction.node?.getChild()?.action || null;
+        this.currentAction = nextAction.node?.action || null;
         return nextAction;
     }
 
@@ -382,7 +382,7 @@ export class LiveGame {
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             return nextAction;
         }
-        return nextAction?.node?.getChild()?.action || null;
+        return nextAction?.node?.action || null;
     }
 
     /**@internal */

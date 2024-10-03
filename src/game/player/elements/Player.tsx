@@ -71,6 +71,14 @@ export default function Player(
         game.getLiveGame().loadStory(story);
     }, [game]);
 
+    // useEffect(() => {
+    //     if (story) {
+    //         new Promise(() => {
+    //             next();
+    //         }).then(_ => {});
+    //     }
+    // }, [updateCount]);
+
     useEffect(() => {
         let microTaskExecuted = false;
 
@@ -148,6 +156,8 @@ export default function Player(
             }
         };
     }, []);
+
+    state.events.emit(GameState.EventTypes["event:state.player.flush"]);
 
     function handlePreloadLoaded() {
         state.stage.update();

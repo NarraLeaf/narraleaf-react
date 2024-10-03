@@ -39,7 +39,9 @@ export type ImageEventTypes = {
     "event:image.unmount": [];
     "event:image.ready": [React.MutableRefObject<HTMLImageElement | null>];
     "event:image.elementLoaded": [];
-    "event:image.setTransition": [ITransition | null];
+    "event:image.applyTransition": [ITransition];
+    "event:image.flush": [];
+    "event:image.flushComponent": [];
 };
 
 export class Image extends Actionable<ImageDataRaw, Image> {
@@ -52,7 +54,9 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         "event:image.unmount": "event:image.unmount",
         "event:image.ready": "event:image.ready",
         "event:image.elementLoaded": "event:image.elementLoaded",
-        "event:image.setTransition": "event:image.setTransition",
+        "event:image.applyTransition": "event:image.applyTransition",
+        "event:image.flush": "event:image.flush",
+        "event:image.flushComponent": "event:image.flushComponent",
     };
     static defaultConfig: ImageConfig = {
         src: "",
@@ -180,7 +184,9 @@ export class Image extends Actionable<ImageDataRaw, Image> {
                 typeof src === "string" ? src : Utils.staticImageDataToSrc(src)
             ])
         );
-        return chain.chain(action);
+        return chain
+            .chain(action)
+            .chain(this._flush());
     }
 
     /**
@@ -226,7 +232,9 @@ export class Image extends Actionable<ImageDataRaw, Image> {
                 getCallStack()
             ])
         );
-        return this.chain(action);
+        return this
+            .chain(action)
+            .chain(this._flush());
     }
 
     /**
@@ -265,7 +273,9 @@ export class Image extends Actionable<ImageDataRaw, Image> {
                 trans
             ])
         );
-        return this.chain(action);
+        return this
+            .chain(action)
+            .chain(this._flush());
     }
 
     /**
@@ -294,7 +304,8 @@ export class Image extends Actionable<ImageDataRaw, Image> {
                 ])
             ])
         );
-        return this.chain(action);
+        return this.chain(action)
+            .chain(this._flush());
     }
 
     /**@internal */
@@ -343,17 +354,6 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     }
 
     /**@internal */
-    _setTransition(transition: ITransition | null): Proxied<Image, Chained<LogicAction.Actions>> {
-        return this.chain(new ImageAction<typeof ImageAction.ActionTypes.setTransition>(
-            this.chain(),
-            ImageAction.ActionTypes.setTransition,
-            new ContentNode<[ITransition | null]>().setContent([
-                transition
-            ])
-        ));
-    }
-
-    /**@internal */
     _applyTransition(transition: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.chain(new ImageAction<"image:applyTransition">(
             this.chain(),
@@ -376,6 +376,15 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     }
 
     /**@internal */
+    _flush(): ImageAction<typeof ImageAction.ActionTypes.flush> {
+        return new ImageAction<typeof ImageAction.ActionTypes.flush>(
+            this.chain(),
+            ImageAction.ActionTypes.flush,
+            new ContentNode()
+        );
+    }
+
+    /**@internal */
     override reset() {
         this.state = deepMerge<ImageConfig>({}, this.config);
     }
@@ -383,8 +392,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     /**@internal */
     private _transitionSrc(transition: ITransition): this {
         const t = transition.copy();
-        this._setTransition(t)
-            ._applyTransition(t);
+        this._applyTransition(t);
         return this;
     }
 

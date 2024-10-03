@@ -47,22 +47,29 @@ export default function Image({
             return {
                 type,
                 listener: image.events.on(type, async (transform) => {
+                    if (!scope.current) {
+                        throw new Error("scope not ready");
+                    }
+
                     assignTo(transform.propToCSS(state, image.state));
 
                     setTransform(transform);
 
                     state.logger.debug("transform", transform, transform.propToCSS(state, image.state));
                     await transform.animate({scope}, state, image.state, (after) => {
+                        state.logger.debug("transform start", transform, transform.propToCSS(state, image.state));
+
                         image.state = deepMerge(image.state, after);
                         setTransformProps({
                             style: transform.propToCSS(state, image.state) as any,
                         });
 
+                        setTransform(null);
+                        state.logger.debug("transform end", transform, transform.propToCSS(state, image.state));
+
                         if (onAnimationEnd) {
                             onAnimationEnd();
                         }
-
-                        setTransform(null);
                     });
                     return true;
                 }),
@@ -79,54 +86,72 @@ export default function Image({
             })
         }]);
 
+        const imageTransitionEventToken = image.events.onEvents([
+            {
+                type: GameImage.EventTypes["event:image.applyTransition"],
+                listener: image.events.on(GameImage.EventTypes["event:image.applyTransition"], (t) => {
+                    setTransition(t);
+                    if (!t) {
+                        state.logger.warn("transition not set");
+                        return Promise.resolve();
+                    }
+                    return new Promise<void>(resolve => {
+                        const eventToken = t.events.onEvents([
+                            {
+                                type: TransitionEventTypes.update,
+                                listener: t.events.on(TransitionEventTypes.update, (progress) => {
+                                    setTransitionProps(progress);
+                                }),
+                            },
+                            {
+                                type: TransitionEventTypes.end,
+                                listener: t.events.on(TransitionEventTypes.end, () => {
+                                    setTransition(null);
+
+                                    state.logger.debug("image transition end", t);
+                                })
+                            },
+                            {
+                                type: TransitionEventTypes.start,
+                                listener: t.events.on(TransitionEventTypes.start, () => {
+                                    state.logger.debug("image transition start", t);
+                                })
+                            }
+                        ]);
+                        t.start(() => {
+                            eventToken.cancel();
+                            resolve();
+                        });
+                    });
+                })
+            },
+            {
+                type: GameImage.EventTypes["event:image.flushComponent"],
+                listener: image.events.on(GameImage.EventTypes["event:image.flushComponent"], async () => {
+                    state.stage.update();
+                    await new Promise<void>(resolve => {
+                        // It is hard to explain why this is needed, but it is needed
+                        // react does not flush between some microtasks
+                        // so we need to wait for the next microtask
+                        setTimeout(() => {
+                            resolve();
+                        }, 10);
+                    });
+                    return true;
+                })
+            }
+        ]);
+
         assignTo(image.toTransform().propToCSS(state, image.state));
 
         image.events.emit(GameImage.EventTypes["event:image.ready"], scope);
 
         return () => {
             imageEventToken.cancel();
+            imageTransitionEventToken.cancel();
             image.events.emit(GameImage.EventTypes["event:image.unmount"]);
         };
     }, []);
-
-    /**
-     * Listen to image transition events
-     */
-    useEffect(() => {
-        const imageEventToken = image.events.onEvents([
-            {
-                type: GameImage.EventTypes["event:image.setTransition"],
-                listener: image.events.on(GameImage.EventTypes["event:image.setTransition"], (transition) => {
-                    setTransition(transition);
-                })
-            }
-        ]);
-
-        return () => {
-            imageEventToken.cancel();
-        };
-    }, [transition, image]);
-
-    useEffect(() => {
-        const transitionEventTokens = transition ? transition.events.onEvents([
-            {
-                type: TransitionEventTypes.update,
-                listener: transition.events.on(TransitionEventTypes.update, (progress) => {
-                    setTransitionProps(progress);
-                })
-            },
-            {
-                type: TransitionEventTypes.end,
-                listener: transition.events.on(TransitionEventTypes.end, () => {
-                    setTransition(null);
-                })
-            },
-        ]) : null;
-
-        return () => {
-            transitionEventTokens?.cancel?.();
-        };
-    }, [transition]);
 
     useEffect(() => {
         setStartTime(performance.now());
@@ -211,7 +236,7 @@ export default function Image({
                     deepMerge<ImgElementProp>(defaultProps, transformProps, elementProps) as any;
                 return (
                     <m.img
-                        key={index}
+                        key={index === (arr.length - 1) ? "last" : index}
                         alt={mergedProps.alt}
                         {...mergedProps}
                         ref={index === (arr.length - 1) ? scope : undefined}
@@ -223,10 +248,15 @@ export default function Image({
                 <m.img
                     ref={scope}
                     alt={"image"}
+                    key={"last"}
                     {...deepMerge(defaultProps, transformProps)}
                     onLoad={handleLoad}
                 />
             )}
+            {(() => {
+                image.events.emit(GameImage.EventTypes["event:image.flush"]);
+                return null;
+            })()}
         </Isolated>
     );
 };

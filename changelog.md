@@ -23,6 +23,8 @@
 ### Fixed
 
 - New game does not reset the game state
+- Positions cannot handle number 0
+- Components does not flush after applying transformations
 
 ## [0.0.3-beta.1] - 2024-09-30
 

@@ -102,6 +102,10 @@ export class PositionUtils {
         }
     }
 
+    static orUnknown<T>(arg: T | UnknownAble<T> | undefined): T | Unknown {
+        return (PositionUtils.isUnknown(arg) || arg === undefined) ? PositionUtils.Unknown : arg;
+    }
+
     static mergePosition(a: IPosition, b: IPosition): Coord2D {
         const aPos = this.toCoord2D(a);
         const bPos = this.toCoord2D(b);
@@ -166,6 +170,11 @@ export class PositionUtils {
 
 export class CommonPosition implements IPosition {
     public static Positions = CommonPositionType;
+
+    static isCommonPositionType(arg: any): arg is CommonPosition {
+        return arg instanceof CommonPosition;
+    }
+
     readonly position: CommonPositionType;
 
     /**
@@ -180,10 +189,6 @@ export class CommonPosition implements IPosition {
         this.position = position;
     }
 
-    static isCommonPositionType(arg: any): arg is CommonPosition {
-        return arg instanceof CommonPosition;
-    }
-
     toCSS(): D2Position {
         return {
             x: CommonPositions[this.position],
@@ -195,6 +200,35 @@ export class CommonPosition implements IPosition {
 }
 
 export class Coord2D implements IPosition {
+    static isCoord2DPosition(arg: any): arg is Coord2D {
+        return arg instanceof Coord2D;
+    }
+
+    static fromCommonPosition(position: CommonPosition): Coord2D {
+        return new Coord2D({
+            x: CommonPositions[position.position],
+            y: "50%",
+        });
+    }
+
+    static fromAlignPosition(position: AlignPosition): Coord2D {
+        return new Coord2D({
+            x: (PositionUtils.isUnknown(position.xalign)) ? PositionUtils.Unknown : `${position.xalign * 100}%`,
+            y: (PositionUtils.isUnknown(position.yalign)) ? PositionUtils.Unknown : `${position.yalign * 100}%`,
+            xoffset: position.xoffset,
+            yoffset: position.yoffset
+        });
+    }
+
+    static merge(a: Coord2D, b: Coord2D): Coord2D {
+        return new Coord2D({
+            x: ((PositionUtils.isUnknown(b.x)) ? a.x : b.x),
+            y: ((PositionUtils.isUnknown(b.y)) ? a.y : b.y),
+            xoffset: ((PositionUtils.isUnknown(b.xoffset)) ? a.xoffset : b.xoffset),
+            yoffset: ((PositionUtils.isUnknown(b.yoffset)) ? a.yoffset : b.yoffset),
+        });
+    }
+
     readonly x: UnknownAble<Coord2DPosition["x"]>;
     readonly y: UnknownAble<Coord2DPosition["y"]>;
     readonly xoffset: UnknownAble<number>;
@@ -225,45 +259,16 @@ export class Coord2D implements IPosition {
         yoffset?: UnknownAble<number>;
     } | UnknownAble<Coord2DPosition["x"]>, y?: UnknownAble<Coord2DPosition["y"]>) {
         if (typeof arg0 === "object") {
-            this.x = arg0.x || PositionUtils.Unknown;
-            this.y = arg0.y || PositionUtils.Unknown;
-            this.xoffset = arg0.xoffset || PositionUtils.Unknown;
-            this.yoffset = arg0.yoffset || PositionUtils.Unknown;
+            this.x = PositionUtils.orUnknown<Coord2DPosition["x"]>(arg0.x);
+            this.y = PositionUtils.orUnknown<Coord2DPosition["y"]>(arg0.y);
+            this.xoffset = PositionUtils.orUnknown<number>(arg0.xoffset);
+            this.yoffset = PositionUtils.orUnknown<number>(arg0.yoffset);
         } else {
-            this.x = arg0 || PositionUtils.Unknown;
-            this.y = y || PositionUtils.Unknown;
+            this.x = PositionUtils.orUnknown<Coord2DPosition["x"]>(arg0);
+            this.y = PositionUtils.orUnknown<Coord2DPosition["y"]>(y);
             this.xoffset = PositionUtils.Unknown;
             this.yoffset = PositionUtils.Unknown;
         }
-    }
-
-    static isCoord2DPosition(arg: any): arg is Coord2D {
-        return arg instanceof Coord2D;
-    }
-
-    static fromCommonPosition(position: CommonPosition): Coord2D {
-        return new Coord2D({
-            x: CommonPositions[position.position],
-            y: "50%",
-        });
-    }
-
-    static fromAlignPosition(position: AlignPosition): Coord2D {
-        return new Coord2D({
-            x: (PositionUtils.isUnknown(position.xalign)) ? PositionUtils.Unknown : `${position.xalign * 100}%`,
-            y: (PositionUtils.isUnknown(position.yalign)) ? PositionUtils.Unknown : `${position.yalign * 100}%`,
-            xoffset: position.xoffset,
-            yoffset: position.yoffset
-        });
-    }
-
-    static merge(a: Coord2D, b: Coord2D): Coord2D {
-        return new Coord2D({
-            x: ((PositionUtils.isUnknown(b.x)) ? a.x : b.x),
-            y: ((PositionUtils.isUnknown(b.y)) ? a.y : b.y),
-            xoffset: ((PositionUtils.isUnknown(b.xoffset)) ? a.xoffset : b.xoffset),
-            yoffset: ((PositionUtils.isUnknown(b.yoffset)) ? a.yoffset : b.yoffset),
-        });
     }
 
     toCSS(): D2Position<Coord2DPosition["x"], Coord2DPosition["y"]> {
@@ -277,6 +282,11 @@ export class Coord2D implements IPosition {
 }
 
 export class Align implements IPosition {
+
+    static isAlignPosition(arg: any): arg is AlignPosition {
+        return arg instanceof Align;
+    }
+
     readonly xalign: UnknownAble<number>;
     readonly yalign: UnknownAble<number>;
     readonly xoffset: UnknownAble<number>;
@@ -307,20 +317,16 @@ export class Align implements IPosition {
         yoffset?: UnknownAble<number>;
     } | UnknownAble<number>, yalign?: UnknownAble<number>) {
         if (typeof arg0 === "object") {
-            this.xalign = arg0.xalign || PositionUtils.Unknown;
-            this.yalign = arg0.yalign || PositionUtils.Unknown;
-            this.xoffset = arg0.xoffset || PositionUtils.Unknown;
-            this.yoffset = arg0.yoffset || PositionUtils.Unknown;
+            this.xalign = PositionUtils.orUnknown<number>(arg0.xalign);
+            this.yalign = PositionUtils.orUnknown<number>(arg0.yalign);
+            this.xoffset = PositionUtils.orUnknown<number>(arg0.xoffset);
+            this.yoffset = PositionUtils.orUnknown<number>(arg0.yoffset);
         } else {
-            this.xalign = arg0 || PositionUtils.Unknown;
-            this.yalign = yalign || PositionUtils.Unknown;
+            this.xalign = PositionUtils.orUnknown<number>(arg0);
+            this.yalign = PositionUtils.orUnknown<number>(yalign);
             this.xoffset = PositionUtils.Unknown;
             this.yoffset = PositionUtils.Unknown;
         }
-    }
-
-    static isAlignPosition(arg: any): arg is AlignPosition {
-        return arg instanceof Align;
     }
 
     toCSS(): D2Position {

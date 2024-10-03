@@ -47,6 +47,7 @@ type GameStateEvents = {
     "event:state.player.skip": [];
     "event:state.preload.unmount": [];
     "event:state.preload.loaded": [];
+    "event:state.player.flush": [];
 };
 
 export class GameState {
@@ -56,6 +57,7 @@ export class GameState {
         "event:state.player.skip": "event:state.player.skip",
         "event:state.preload.unmount": "event:state.preload.unmount",
         "event:state.preload.loaded": "event:state.preload.loaded",
+        "event:state.player.flush": "event:state.player.flush",
     };
     state: PlayerState = {
         sounds: [],

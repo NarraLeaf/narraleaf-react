@@ -70,8 +70,12 @@ export const ImageActionTypes = {
     applyTransform: "image:applyTransform",
     init: "image:init",
     dispose: "image:dispose",
+    /**
+     * @deprecated
+     */
     setTransition: "image:setTransition",
     applyTransition: "image:applyTransition",
+    flush: "image:flush",
 } as const;
 export type ImageActionContentType = {
     [K in typeof ImageActionTypes[keyof typeof ImageActionTypes]]:
@@ -84,7 +88,8 @@ export type ImageActionContentType = {
                             K extends "image:dispose" ? [] :
                                 K extends "image:setTransition" ? [ITransition | null] :
                                     K extends "image:applyTransition" ? [ITransition] :
-                                        any;
+                                        K extends "image:flush" ? [] :
+                                            any;
 }
 /* Condition */
 export const ConditionActionTypes = {

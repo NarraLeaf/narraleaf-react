@@ -74,7 +74,8 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             });
             return awaitable;
         }
-        return super.executeAction(state);
+
+        throw super.unknownType();
     }
 }
 
@@ -299,10 +300,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                         if (this.type === ImageActionTypes.hide) {
                             this.callee.state.display = false;
                         }
-                        return {
-                            type: this.type,
-                            node: this.contentNode.getChild()
-                        };
+                        return super.executeAction(state) as CalledActionResult;
                     }));
             const transform = (this.contentNode as ContentNode<ImageActionContentType["image:show"]>).getContent()[1];
 
@@ -327,12 +325,6 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             state.disposeImage(this.callee);
             this.callee._$setDispose();
             return super.executeAction(state);
-        } else if (this.type === ImageActionTypes.setTransition) {
-            this.callee.events.emit(
-                "event:image.setTransition",
-                (this.contentNode as ContentNode<ImageActionContentType["image:setTransition"]>).getContent()[0]
-            );
-            return super.executeAction(state);
         } else if (this.type === ImageActionTypes.applyTransition) {
             const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
                 .registerSkipController(new SkipController(() => {
@@ -345,13 +337,24 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     };
                 }));
             const transition = (this.contentNode as ContentNode<ImageActionContentType["image:applyTransition"]>).getContent()[0];
-            transition.start(() => {
+            this.callee.events.any("event:image.applyTransition", transition).then(() => {
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
                 });
                 state.stage.next();
             });
+            return awaitable;
+        } else if (this.type === ImageActionTypes.flush) {
+            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
+            this.callee.events.any("event:image.flushComponent")
+                .then(() => {
+                    awaitable.resolve({
+                        type: this.type,
+                        node: this.contentNode.getChild()
+                    });
+                    state.stage.next();
+                });
             return awaitable;
         }
 
@@ -371,7 +374,7 @@ export class ConditionAction<T extends typeof ConditionActionTypes[keyof typeof 
         this.contentNode.addChild(nodes?.[0]?.contentNode || null);
         return {
             type: this.type as any,
-            node: this.contentNode,
+            node: this.contentNode.getChild(),
         };
     }
 
@@ -388,10 +391,7 @@ export class ScriptAction<T extends typeof ScriptActionTypes[keyof typeof Script
         this.contentNode.getContent().execute({
             gameState,
         });
-        return {
-            type: this.type as any,
-            node: this.contentNode,
-        };
+        return super.executeAction(gameState);
     }
 }
 
@@ -516,6 +516,9 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         let current: LogicAction.Actions | null = action;
         while (!exited && current) {
             const next = state.game.getLiveGame().executeAction(state, current);
+
+            state.logger.debug("Control - Next Action", next);
+
             if (!next) {
                 break;
             }
@@ -565,13 +568,8 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         const contentNode = this.contentNode as ContentNode<ControlActionContentType[T]>;
         const [content] = contentNode.getContent() as [LogicAction.Actions[]];
         if (this.type === ControlActionTypes.do) {
-            const firstNode = content[0]?.contentNode;
-            const lastNode = content[content.length - 1]?.contentNode;
-            const thisChild = this.contentNode.getChild();
-
-            lastNode?.addChild(thisChild);
-            this.contentNode.addChild(firstNode || null);
-            return super.executeAction(state);
+            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
+            return this.execute(state, awaitable, content);
         } else if (this.type === ControlActionTypes.doAsync) {
             (async () => {
                 if (content.length > 0) {

@@ -47,15 +47,14 @@ export default function BackgroundTransition({scene, props, state}: {
                                 type: TransitionEventTypes.end,
                                 listener: t.events.on(TransitionEventTypes.end, () => {
                                     setTransition(null);
-                                    resolve();
 
-                                    state.logger.debug("transition end", t);
+                                    state.logger.debug("scene background transition end", t);
                                 })
                             },
                             {
                                 type: TransitionEventTypes.start,
                                 listener: t.events.on(TransitionEventTypes.start, () => {
-                                    state.logger.debug("transition start", t);
+                                    state.logger.debug("scene background transition start", t);
                                 })
                             }
                         ]);

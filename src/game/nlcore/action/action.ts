@@ -26,7 +26,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
     public executeAction(_state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         return {
             type: this.type as any,
-            node: this.contentNode,
+            node: this.contentNode.getChild(),
         };
     }
 
