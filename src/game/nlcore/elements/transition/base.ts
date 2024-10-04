@@ -48,11 +48,11 @@ export class Base<T extends ElementProp> implements ITransition<T> {
                 this.events.emit(TransitionEventTypes.update, this.toElementProps());
             },
             onComplete: () => {
+                this.controller = undefined;
                 this.events.emit(TransitionEventTypes.end, null);
                 if (onComplete) {
                     onComplete();
                 }
-                this.controller = undefined;
             },
             ...options,
         });

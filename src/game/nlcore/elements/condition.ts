@@ -197,13 +197,13 @@ export class Condition extends Actionable {
             const node = actions[i].contentNode;
             const child = actions[i + 1]?.contentNode;
             if (child) {
-                node.setInitChild(child);
+                node.setChild(child);
             }
             if (i === actions.length - 1 && lastChild) {
-                node.setInitChild(lastChild);
+                node.setChild(lastChild);
             }
             if (i === 0 && parentChild) {
-                parentChild.setInitChild(node);
+                parentChild.setChild(node);
             }
         }
         return actions;

@@ -65,7 +65,6 @@ export class ContentNode<T = any> extends Node<T> {
         }
     }
 
-    initChild?: RenderableNode | null;
     action: LogicAction.Actions | null;
     private child?: RenderableNode | null;
     private parent: RenderableNode | null;
@@ -106,15 +105,6 @@ export class ContentNode<T = any> extends Node<T> {
 
     getParent(): RenderableNode | null {
         return this.parent || null;
-    }
-
-    /**
-     * To track the changes of the child
-     * should only be called when constructing the tree
-     */
-    setInitChild(child: RenderableNode) {
-        this.initChild = child;
-        return this.setChild(child);
     }
 
     /**

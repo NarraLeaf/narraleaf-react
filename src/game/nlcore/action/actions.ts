@@ -74,13 +74,63 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             });
             return awaitable;
         }
-        return super.executeAction(state);
+
+        throw super.unknownType();
     }
 }
 
 export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneActionTypes] = typeof SceneActionTypes[keyof typeof SceneActionTypes]>
     extends TypedAction<SceneActionContentType, T, Scene> {
     static ActionTypes = SceneActionTypes;
+
+    static handleSceneInit(sceneAction: SceneAction, state: GameState, awaitable: Awaitable<CalledActionResult, any>) {
+        if (sceneAction.callee._liveState.active) {
+            return {
+                type: sceneAction.type,
+                node: sceneAction.contentNode.getChild()
+            };
+        }
+        sceneAction.callee._liveState.active = true;
+
+        state
+            .registerSrcManager(sceneAction.callee.srcManager)
+            .addScene(sceneAction.callee);
+
+        SceneAction.registerEventListeners(sceneAction.callee, state, () => {
+            awaitable.resolve({
+                type: sceneAction.type,
+                node: sceneAction.contentNode.getChild()
+            });
+            state.stage.next();
+        });
+
+        return awaitable;
+    }
+
+    static registerEventListeners(scene: Scene, state: GameState, onInit?: () => void) {
+        scene.events.once("event:scene.unmount", () => {
+            state.offSrcManager(scene.srcManager);
+        });
+
+        scene.events.once("event:scene.mount", () => {
+            if (scene.state.backgroundMusic) {
+                SoundAction.initSound(state, scene.state.backgroundMusic);
+                scene.events.emit("event:scene.setBackgroundMusic",
+                    scene.state.backgroundMusic,
+                    scene.config.backgroundMusicFade
+                );
+            }
+        });
+
+        scene.events.once("event:scene.imageLoaded", () => {
+            const initTransform = scene.getInitTransform();
+            scene.events.any("event:scene.initTransform", initTransform).then(() => {
+                if (onInit) {
+                    onInit();
+                }
+            });
+        });
+    }
 
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === SceneActionTypes.action) {
@@ -129,41 +179,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             });
             return awaitable;
         } else if (this.type === SceneActionTypes.init) {
-            if (this.callee._liveState.active) {
-                return super.executeAction(state);
-            }
-            this.callee._liveState.active = true;
-
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-            state
-                .registerSrcManager(this.callee.srcManager)
-                .addScene(this.callee);
-
-            this.callee.events.once("event:scene.unmount", () => {
-                state.offSrcManager(this.callee.srcManager);
-            });
-
-            this.callee.events.once("event:scene.mount", () => {
-                if (this.callee.state.backgroundMusic) {
-                    SoundAction.initSound(state, this.callee.state.backgroundMusic);
-                    this.callee.events.emit("event:scene.setBackgroundMusic",
-                        this.callee.state.backgroundMusic,
-                        this.callee.config.backgroundMusicFade
-                    );
-                }
-            });
-
-            this.callee.events.once("event:scene.imageLoaded", () => {
-                const initTransform = this.callee.getInitTransform();
-                this.callee.events.any("event:scene.initTransform", initTransform).then(() => {
-                    awaitable.resolve({
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    });
-                    state.stage.next();
-                });
-            });
-            return awaitable;
+            return SceneAction.handleSceneInit(this, state, awaitable);
         } else if (this.type === SceneActionTypes.exit) {
             this.callee._liveState.active = false;
 
@@ -266,10 +283,10 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 state.stage.next();
             });
             return awaitable;
-        }
-
-        if (this.type === ImageActionTypes.setSrc) {
+        } else if (this.type === ImageActionTypes.setSrc) {
             this.callee.state.src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
+            state.logger.debug("Image - Set Src", this.callee.state.src);
+
             state.stage.update();
             return super.executeAction(state);
         } else if ([
@@ -283,10 +300,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                         if (this.type === ImageActionTypes.hide) {
                             this.callee.state.display = false;
                         }
-                        return {
-                            type: this.type,
-                            node: this.contentNode.getChild()
-                        };
+                        return super.executeAction(state) as CalledActionResult;
                     }));
             const transform = (this.contentNode as ContentNode<ImageActionContentType["image:show"]>).getContent()[1];
 
@@ -311,12 +325,6 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             state.disposeImage(this.callee);
             this.callee._$setDispose();
             return super.executeAction(state);
-        } else if (this.type === ImageActionTypes.setTransition) {
-            this.callee.events.emit(
-                "event:image.setTransition",
-                (this.contentNode as ContentNode<ImageActionContentType["image:setTransition"]>).getContent()[0]
-            );
-            return super.executeAction(state);
         } else if (this.type === ImageActionTypes.applyTransition) {
             const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
                 .registerSkipController(new SkipController(() => {
@@ -329,13 +337,24 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     };
                 }));
             const transition = (this.contentNode as ContentNode<ImageActionContentType["image:applyTransition"]>).getContent()[0];
-            transition.start(() => {
+            this.callee.events.any("event:image.applyTransition", transition).then(() => {
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
                 });
                 state.stage.next();
             });
+            return awaitable;
+        } else if (this.type === ImageActionTypes.flush) {
+            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
+            this.callee.events.any("event:image.flushComponent")
+                .then(() => {
+                    awaitable.resolve({
+                        type: this.type,
+                        node: this.contentNode.getChild()
+                    });
+                    state.stage.next();
+                });
             return awaitable;
         }
 
@@ -355,7 +374,7 @@ export class ConditionAction<T extends typeof ConditionActionTypes[keyof typeof 
         this.contentNode.addChild(nodes?.[0]?.contentNode || null);
         return {
             type: this.type as any,
-            node: this.contentNode,
+            node: this.contentNode.getChild(),
         };
     }
 
@@ -372,10 +391,7 @@ export class ScriptAction<T extends typeof ScriptActionTypes[keyof typeof Script
         this.contentNode.getContent().execute({
             gameState,
         });
-        return {
-            type: this.type as any,
-            node: this.contentNode,
-        };
+        return super.executeAction(gameState);
     }
 }
 
@@ -500,6 +516,9 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         let current: LogicAction.Actions | null = action;
         while (!exited && current) {
             const next = state.game.getLiveGame().executeAction(state, current);
+
+            state.logger.debug("Control - Next Action", next);
+
             if (!next) {
                 break;
             }
@@ -538,6 +557,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                         type: this.type,
                         node: this.contentNode.getChild()
                     });
+                    state.stage.next();
                 });
             return awaitable;
         } else {
@@ -549,13 +569,8 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         const contentNode = this.contentNode as ContentNode<ControlActionContentType[T]>;
         const [content] = contentNode.getContent() as [LogicAction.Actions[]];
         if (this.type === ControlActionTypes.do) {
-            const firstNode = content[0]?.contentNode;
-            const lastNode = content[content.length - 1]?.contentNode;
-            const thisChild = this.contentNode.getChild();
-
-            lastNode?.addChild(thisChild);
-            this.contentNode.addChild(firstNode || null);
-            return super.executeAction(state);
+            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
+            return this.execute(state, awaitable, content);
         } else if (this.type === ControlActionTypes.doAsync) {
             (async () => {
                 if (content.length > 0) {
@@ -571,29 +586,44 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                     type: this.type,
                     node: this.contentNode.getChild()
                 });
+                state.stage.next();
             });
             return awaitable;
         } else if (this.type === ControlActionTypes.all) {
             const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
-            return this.execute(state, awaitable, content);
+            (async () => {
+                await Promise.all(content.map(action => this.executeSingleAction(state, action)));
+                awaitable.resolve({
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                });
+                state.stage.next();
+            })();
+            return awaitable;
         } else if (this.type === ControlActionTypes.allAsync) {
             (async () => {
-                if (content.length > 0) {
-                    await this.executeAllActions(state, content[0]);
+                for (const action of content) {
+                    this.executeSingleAction(state, action).then(_ => (void 0));
                 }
             })();
             return super.executeAction(state);
         } else if (this.type === ControlActionTypes.repeat) {
             const [actions, times] =
                 (this.contentNode as ContentNode<ControlActionContentType["control:repeat"]>).getContent();
+            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
             (async () => {
                 for (let i = 0; i < times; i++) {
                     if (actions.length > 0) {
                         await this.executeAllActions(state, actions[0]);
                     }
                 }
+                awaitable.resolve({
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                });
+                state.stage.next();
             })();
-            return super.executeAction(state);
+            return awaitable;
         }
 
         throw new Error("Unknown control action type: " + this.type);

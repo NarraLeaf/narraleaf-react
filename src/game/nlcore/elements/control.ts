@@ -4,7 +4,7 @@ import {ControlAction} from "@core/action/actions";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Values} from "@lib/util/data";
 import {Chained, ChainedActions, Proxied} from "@core/action/chain";
-import Actions = LogicAction.Actions;
+
 
 type ChainedControl = Proxied<Control, Chained<LogicAction.Actions>>;
 
@@ -107,17 +107,6 @@ export class Control extends Actionable {
      */
     public repeat(times: number, actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.repeat, actions, times);
-    }
-
-    /**@internal */
-    construct(actions: Actions[]): Actions[] {
-        for (let i = 0; i < actions.length; i++) {
-            const action = actions[i];
-            if (i !== 0) {
-                actions[i - 1]?.contentNode.setInitChild(action.contentNode);
-            }
-        }
-        return actions;
     }
 
     /**@internal */

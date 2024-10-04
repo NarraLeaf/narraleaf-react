@@ -61,7 +61,7 @@ export class Constructable<
     /**@internal */
     getAllElementMap(action: LogicAction.Actions | LogicAction.Actions[]): Map<string, LogicAction.GameElement> {
         const map = new Map<string, LogicAction.GameElement>();
-        this.forEachChild(action, action => map.set(action.getId(), action.callee));
+        this.forEachChild(action, action => map.set(action.callee.getId(), action.callee));
         return map;
     }
 
@@ -75,22 +75,17 @@ export class Constructable<
         return null;
     }
 
-    /**@internal */
-    fromData(_: Record<string, any>) {
-        return this;
-    }
-
     /**
      * Construct the actions into a tree
      * @internal
      */
-    protected construct(actions: LogicAction.Actions[], parent?: RenderableNode): RenderableNode | null {
+    protected constructNodes(actions: LogicAction.Actions[], parent?: RenderableNode): RenderableNode | null {
         for (let i = 0; i < actions.length; i++) {
             const action = actions[i];
             if (i === 0 && parent) {
-                parent.setInitChild(action.contentNode);
+                parent.setChild(action.contentNode);
             } else if (i > 0) {
-                (actions[i - 1].contentNode)?.setInitChild(action.contentNode);
+                (actions[i - 1].contentNode)?.setChild(action.contentNode);
             }
         }
         return (actions.length) ? actions[0].contentNode : null;

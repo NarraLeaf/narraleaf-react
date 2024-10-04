@@ -16,11 +16,6 @@ export class Actionable<
     }
 
     /**@internal */
-    public fromData(_: StateData): this {
-        return this;
-    }
-
-    /**@internal */
     public fromChained(chained: Proxied<GameElement, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return chained.getActions();
     }

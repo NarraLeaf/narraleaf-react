@@ -11,6 +11,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/store/storable";
 import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
+import {SceneAction} from "@core/action/actions";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -45,6 +46,8 @@ type GameStateEvents = {
     "event:state.end": [];
     "event:state.player.skip": [];
     "event:state.preload.unmount": [];
+    "event:state.preload.loaded": [];
+    "event:state.player.flush": [];
 };
 
 export class GameState {
@@ -53,6 +56,8 @@ export class GameState {
         "event:state.end": "event:state.end",
         "event:state.player.skip": "event:state.player.skip",
         "event:state.preload.unmount": "event:state.preload.unmount",
+        "event:state.preload.loaded": "event:state.preload.loaded",
+        "event:state.player.flush": "event:state.player.flush",
     };
     state: PlayerState = {
         sounds: [],
@@ -254,6 +259,8 @@ export class GameState {
 
         const {scenes} = data;
         scenes.forEach(({sceneId, elements}) => {
+            this.logger.debug("Loading scene: " + sceneId);
+
             const scene = elementMap.get(sceneId) as Scene;
             if (!scene) {
                 throw new Error("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");
@@ -275,7 +282,15 @@ export class GameState {
             };
 
             this.state.elements.push(element);
-            this.state.srcManagers.push(element.scene.srcManager);
+            this.registerSrcManager(scene.srcManager);
+            scene._liveState.active = true;
+            SceneAction.registerEventListeners(scene, this);
+        });
+    }
+
+    initScenes() {
+        this.state.elements.forEach(({scene}) => {
+            SceneAction.registerEventListeners(scene, this);
         });
     }
 

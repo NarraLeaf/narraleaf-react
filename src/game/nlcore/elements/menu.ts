@@ -95,18 +95,18 @@ export class Menu extends Actionable<any, Menu> {
     }
 
     /**@internal */
-    private construct(actions: Actions[], lastChild?: RenderableNode, parentChild?: RenderableNode): Actions[] {
+    private constructNodes(actions: Actions[], lastChild?: RenderableNode, parentChild?: RenderableNode): Actions[] {
         for (let i = 0; i < actions.length; i++) {
             const node = actions[i].contentNode;
             const child = actions[i + 1]?.contentNode;
             if (child) {
-                node.setInitChild(child);
+                node.setChild(child);
             }
             if (i === this.choices.length - 1 && lastChild) {
-                node.setInitChild(lastChild);
+                node.setChild(lastChild);
             }
             if (i === 0 && parentChild) {
-                parentChild.setInitChild(node);
+                parentChild.setChild(node);
             }
         }
         return actions;
@@ -116,7 +116,7 @@ export class Menu extends Actionable<any, Menu> {
     private constructChoices(): Choice[] {
         return this.choices.map(choice => {
             return {
-                action: this.construct(choice.action),
+                action: this.constructNodes(choice.action),
                 prompt: choice.prompt
             };
         });
