@@ -11,6 +11,7 @@ import {animate} from "framer-motion/dom";
 import Sequence = TransformDefinitions.Sequence;
 import SequenceProps = TransformDefinitions.SequenceProps;
 import React from "react";
+import {Image, ImageConfig} from "@core/elements/image";
 
 export type Transformers =
     "position"
@@ -145,28 +146,28 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
      * ```
      */
     public async animate(
-        {scope, overwrites}:
+        {scope, overwrites, image}:
             {
-                scope: React.MutableRefObject<HTMLImageElement | null>,
-                overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>
+                scope: React.MutableRefObject<HTMLDivElement | null>,
+                overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>,
+                image: Image,
             },
         gameState: GameState,
-        initState: SequenceProps<T>,
+        initState?: SequenceProps<T>,
         after?: (state: DeepPartial<T>) => void
     ) {
-        let state: DeepPartial<T> = deepMerge<DeepPartial<T>>(initState, {});
 
         return new Promise<void>((resolve) => {
             (async () => {
                 if (!this.sequenceOptions.sync) {
                     resolve();
                     if (after) {
-                        after(state);
+                        after(image.state as any);
                     }
                 }
                 for (let i = 0; i < this.sequenceOptions.repeat; i++) {
                     for (const {props, options} of this.sequences) {
-                        const initState = deepMerge({}, this.propToCSS(gameState, state));
+                        const initState = deepMerge({}, this.propToCSS(gameState, image.state as any));
 
                         if (!scope.current) {
                             throw new Error("No scope found when animating.");
@@ -174,23 +175,23 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
                         const current = scope.current as any;
                         Object.assign(current["style"], initState);
 
-                        state = Transform.mergeState(state, props);
+                        image.state = Transform.mergeState(image.state, props) as ImageConfig;
 
                         const animation = animate(
                             current,
-                            this.propToCSS(gameState, state, overwrites),
+                            this.propToCSS(gameState, image.state as any, overwrites),
                             this.optionsToFramerMotionOptions(options) || {}
                         );
                         this.setControl(animation);
 
                         if (options?.sync === false) {
                             animation.then(() => {
-                                Object.assign(current["style"], this.propToCSS(gameState, state, overwrites));
+                                Object.assign(current["style"], this.propToCSS(gameState, image.state as any, overwrites));
                                 this.setControl(null);
                             });
                         } else {
                             await new Promise<void>(r => animation.then(() => r()));
-                            Object.assign(current["style"], this.propToCSS(gameState, state, overwrites));
+                            Object.assign(current["style"], this.propToCSS(gameState, image.state as any, overwrites));
                             this.setControl(null);
                         }
                     }
@@ -202,7 +203,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
                 if (this.sequenceOptions.sync) {
                     resolve();
                     if (after) {
-                        after(state);
+                        after(image.state as any);
                     }
                 }
             })();

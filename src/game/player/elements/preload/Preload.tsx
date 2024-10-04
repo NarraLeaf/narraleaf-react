@@ -9,12 +9,11 @@ import {Utils} from "@core/common/Utils";
 
 export function Preload({
                             state,
-                            srcManager
                         }: Readonly<{
     state: GameState;
-    srcManager: SrcManager;
 }>) {
     const {preloaded} = usePreloaded();
+    const lastScene = state.getLastScene();
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -25,7 +24,6 @@ export function Preload({
         const currentSceneSrc = state.getLastScene()?.srcManager;
         const futureSceneSrc = state.getLastScene()?.srcManager.future || [];
         const combinedSrc = [
-            ...srcManager.src,
             ...(currentSceneSrc ? currentSceneSrc.src : []),
             ...(futureSceneSrc.map(v => v.src)).flat(2),
         ];
@@ -81,6 +79,7 @@ export function Preload({
         Promise.all(promises).then(() => {
             state.logger.log("Preloaded", `Preloaded ${src.image.size} images`);
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
+            state.events.emit(GameState.EventTypes["event:state.preload.loaded"]);
         });
 
         src.audio.forEach((src: Sound) => {
@@ -106,7 +105,7 @@ export function Preload({
             state.events.emit(GameState.EventTypes["event:state.preload.unmount"]);
             state.logger.debug("Preload unmounted");
         };
-    }, [state]);
+    }, [lastScene]);
 
     return null;
 }

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.4] - 2024/10/01
+
+### Fixed
+
+- `liveGame.newGame` does not reset the game state
+- deserializing does not trigger repainting
+- Some methods in `Control` are working incorrectly
+- Some image components cannot update correctly
+
+### Changed
+
+- `scene.backgroundImageState` is deprecated, use `scene.backgroundImage` instead
+- Now applying of transformations and transitions are separated, you can now apply both at the same time
+- Deprecated `contentNode.initChild`
+- `liveGame.newGame`, `liveGame.deserialize` and `liveGame.serialize` now does not require a gameState instance
+
 ## [0.0.3] - 2024/10/01
 
 ### Added
@@ -16,6 +32,8 @@
 ### Fixed
 
 - New game does not reset the game state
+- Positions cannot handle number 0
+- Components does not flush after applying transformations
 
 ## [0.0.3-beta.1] - 2024-09-30
 

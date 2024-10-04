@@ -6,7 +6,13 @@ import clsx from "clsx";
 import {useRatio} from "@player/provider/ratio";
 
 export default function Isolated(
-    {children, className}: Readonly<{ children: ReactNode, className?: string }>
+    {children, className, props, ref}:
+        Readonly<{
+            children: ReactNode,
+            className?: string,
+            props?: Record<any, any>,
+            ref?: React.MutableRefObject<HTMLDivElement | null>
+        }>
 ) {
     const {ratio} = useRatio();
 
@@ -24,7 +30,7 @@ export default function Isolated(
             <div style={{
                 ...styles,
                 position: "relative"
-            }}>
+            }} {...(props || {})} ref={ref}>
                 {children}
             </div>
         </div>

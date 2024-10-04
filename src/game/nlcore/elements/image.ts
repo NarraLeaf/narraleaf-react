@@ -19,6 +19,7 @@ import {
 } from "@core/elements/transform/position";
 import {deepEqual, deepMerge, DeepPartial, EventDispatcher, getCallStack} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
+import {Control} from "@core/elements/control";
 
 export type ImageConfig = {
     src: string | StaticImageData;
@@ -37,9 +38,11 @@ export type ImageEventTypes = {
     "event:image.applyTransform": [Transform];
     "event:image.mount": [];
     "event:image.unmount": [];
-    "event:image.ready": [React.MutableRefObject<HTMLImageElement | null>];
+    "event:image.ready": [React.MutableRefObject<HTMLDivElement | null>];
     "event:image.elementLoaded": [];
-    "event:image.setTransition": [ITransition | null];
+    "event:image.applyTransition": [ITransition];
+    "event:image.flush": [];
+    "event:image.flushComponent": [];
 };
 
 export class Image extends Actionable<ImageDataRaw, Image> {
@@ -52,7 +55,9 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         "event:image.unmount": "event:image.unmount",
         "event:image.ready": "event:image.ready",
         "event:image.elementLoaded": "event:image.elementLoaded",
-        "event:image.setTransition": "event:image.setTransition",
+        "event:image.applyTransition": "event:image.applyTransition",
+        "event:image.flush": "event:image.flush",
+        "event:image.flushComponent": "event:image.flushComponent",
     };
     static defaultConfig: ImageConfig = {
         src: "",
@@ -101,7 +106,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     /**@internal */
     readonly events: EventDispatcher<ImageEventTypes> = new EventDispatcher();
     /**@internal */
-    ref: React.RefObject<HTMLImageElement> | undefined = undefined;
+    ref: React.RefObject<HTMLDivElement> | undefined = undefined;
     /**@internal */
     state: ImageConfig;
 
@@ -167,20 +172,23 @@ export class Image extends Actionable<ImageDataRaw, Image> {
      * @chainable
      */
     public setSrc(src: string | StaticImageData, transition?: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
-        const chain = this.chain();
-        if (transition) {
-            const copy = transition.copy();
-            copy.setSrc(Utils.srcToString(src));
-            chain._transitionSrc(copy);
-        }
-        const action = new ImageAction<typeof ImageAction.ActionTypes.setSrc>(
-            this.chain(),
-            ImageAction.ActionTypes.setSrc,
-            new ContentNode<[string]>().setContent([
-                typeof src === "string" ? src : Utils.staticImageDataToSrc(src)
-            ])
-        );
-        return chain.chain(action);
+        return this.combineActions(new Control, chain => {
+            if (transition) {
+                const copy = transition.copy();
+                copy.setSrc(Utils.srcToString(src));
+                chain._transitionSrc(copy);
+            }
+            const action = new ImageAction<typeof ImageAction.ActionTypes.setSrc>(
+                chain,
+                ImageAction.ActionTypes.setSrc,
+                new ContentNode<[string]>().setContent([
+                    typeof src === "string" ? src : Utils.staticImageDataToSrc(src)
+                ])
+            );
+            return chain
+                .chain(action)
+                .chain(this._flush());
+        });
     }
 
     /**
@@ -217,16 +225,20 @@ export class Image extends Actionable<ImageDataRaw, Image> {
      * @chainable
      */
     public applyTransform(transform: Transform): Proxied<Image, Chained<LogicAction.Actions>> {
-        const action = new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
-            this.chain(),
-            ImageAction.ActionTypes.applyTransform,
-            new ContentNode().setContent([
-                void 0,
-                transform,
-                getCallStack()
-            ])
-        );
-        return this.chain(action);
+        return this.combineActions(new Control(), chain => {
+            const action = new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
+                chain,
+                ImageAction.ActionTypes.applyTransform,
+                new ContentNode().setContent([
+                    void 0,
+                    transform,
+                    getCallStack()
+                ])
+            );
+            return chain
+                .chain(action)
+                .chain(this._flush());
+        });
     }
 
     /**
@@ -257,15 +269,19 @@ export class Image extends Actionable<ImageDataRaw, Image> {
                     options: options || {}
                 }
             ]);
-        const action = new ImageAction<typeof ImageAction.ActionTypes.show>(
-            this.chain(),
-            ImageAction.ActionTypes.show,
-            new ContentNode<ImageActionContentType["image:show"]>().setContent([
-                void 0,
-                trans
-            ])
-        );
-        return this.chain(action);
+        return this.combineActions(new Control(), chain => {
+            const action = new ImageAction<typeof ImageAction.ActionTypes.show>(
+                chain,
+                ImageAction.ActionTypes.show,
+                new ContentNode<ImageActionContentType["image:show"]>().setContent([
+                    void 0,
+                    trans
+                ])
+            );
+            return chain
+                .chain(action)
+                .chain(this._flush());
+        });
     }
 
     /**
@@ -279,22 +295,28 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     public hide(transform: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>>;
 
     public hide(arg0?: Transform | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>> {
-        const action = new ImageAction<typeof ImageAction.ActionTypes.hide>(
-            this.chain(),
-            ImageAction.ActionTypes.hide,
-            new ContentNode<ImageActionContentType["image:hide"]>().setContent([
-                void 0,
-                (arg0 instanceof Transform) ? arg0 : new Transform<TransformDefinitions.ImageTransformProps>([
-                    {
-                        props: {
-                            opacity: 0,
-                        },
-                        options: arg0 || {}
-                    }
-                ])
-            ])
-        );
-        return this.chain(action);
+        return this.combineActions(
+            new Control(),
+            chain => {
+                const action = new ImageAction<typeof ImageAction.ActionTypes.hide>(
+                    chain,
+                    ImageAction.ActionTypes.hide,
+                    new ContentNode<ImageActionContentType["image:hide"]>().setContent([
+                        void 0,
+                        (arg0 instanceof Transform) ? arg0 : new Transform<TransformDefinitions.ImageTransformProps>([
+                            {
+                                props: {
+                                    opacity: 0,
+                                },
+                                options: arg0 || {}
+                            }
+                        ])
+                    ])
+                );
+                return chain
+                    .chain(action)
+                    .chain(this._flush());
+            });
     }
 
     /**@internal */
@@ -305,13 +327,13 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     }
 
     /**@internal */
-    setScope(scope: React.RefObject<HTMLImageElement>): this {
+    setScope(scope: React.RefObject<HTMLDivElement>): this {
         this.ref = scope;
         return this;
     }
 
     /**@internal */
-    getScope(): React.RefObject<HTMLImageElement> | undefined {
+    getScope(): React.RefObject<HTMLDivElement> | undefined {
         return this.ref;
     }
 
@@ -343,17 +365,6 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     }
 
     /**@internal */
-    _setTransition(transition: ITransition | null): Proxied<Image, Chained<LogicAction.Actions>> {
-        return this.chain(new ImageAction<typeof ImageAction.ActionTypes.setTransition>(
-            this.chain(),
-            ImageAction.ActionTypes.setTransition,
-            new ContentNode<[ITransition | null]>().setContent([
-                transition
-            ])
-        ));
-    }
-
-    /**@internal */
     _applyTransition(transition: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.chain(new ImageAction<"image:applyTransition">(
             this.chain(),
@@ -376,6 +387,15 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     }
 
     /**@internal */
+    _flush(): ImageAction<typeof ImageAction.ActionTypes.flush> {
+        return new ImageAction<typeof ImageAction.ActionTypes.flush>(
+            this.chain(),
+            ImageAction.ActionTypes.flush,
+            new ContentNode()
+        );
+    }
+
+    /**@internal */
     override reset() {
         this.state = deepMerge<ImageConfig>({}, this.config);
     }
@@ -383,8 +403,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     /**@internal */
     private _transitionSrc(transition: ITransition): this {
         const t = transition.copy();
-        this._setTransition(t)
-            ._applyTransition(t);
+        this._applyTransition(t);
         return this;
     }
 
