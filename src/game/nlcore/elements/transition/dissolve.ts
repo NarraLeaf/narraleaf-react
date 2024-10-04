@@ -75,7 +75,7 @@ export class Dissolve extends Base<DissolveProps> implements ITransition<Dissolv
             {
                 style: {opacity: 1 - this.state.opacity},
                 src: this.src,
-            }
+            },
         ];
     }
 

@@ -19,7 +19,7 @@ export default function Image({
     state: GameState;
     onAnimationEnd?: () => any;
 }>) {
-    const scope = useRef<HTMLImageElement | null>(null);
+    const scope = useRef<HTMLDivElement | null>(null);
     const [transform, setTransform] =
         useState<Transform<any> | null>(null);
     const [transformProps, setTransformProps] =
@@ -56,16 +56,14 @@ export default function Image({
                     setTransform(transform);
 
                     state.logger.debug("transform", transform, transform.propToCSS(state, image.state));
-                    await transform.animate({scope}, state, image.state, (after) => {
-                        state.logger.debug("transform start", transform, transform.propToCSS(state, image.state));
-
+                    await transform.animate({scope, image}, state, image.state, (after) => {
                         image.state = deepMerge(image.state, after);
                         setTransformProps({
                             style: transform.propToCSS(state, image.state) as any,
                         });
 
                         setTransform(null);
-                        state.logger.debug("transform end", transform, transform.propToCSS(state, image.state));
+                        state.logger.debug("transform end", transform, transform.propToCSS(state, image.state), image.state);
 
                         if (onAnimationEnd) {
                             onAnimationEnd();
@@ -77,7 +75,7 @@ export default function Image({
         }), {
             type: GameImage.EventTypes["event:image.init"],
             listener: image.events.on(GameImage.EventTypes["event:image.init"], async () => {
-                await image.toTransform().animate({scope}, state, image.state, (after) => {
+                await image.toTransform().animate({scope, image}, state, image.state, (after) => {
                     image.state = deepMerge(image.state, after);
                     setTransformProps({
                         style: image.toTransform().propToCSS(state, image.state) as any,
@@ -132,7 +130,7 @@ export default function Image({
                     await new Promise<void>(resolve => {
                         // It is hard to explain why this is needed, but it is needed
                         // react does not flush between some microtasks
-                        // so we need to wait for the next microtask
+                        // So we need to wait for the next microtask
                         setTimeout(() => {
                             resolve();
                         }, 10);
@@ -219,44 +217,58 @@ export default function Image({
     }
 
     const defaultProps: ImgElementProp = {
-        className: "absolute",
         src: Utils.staticImageDataToSrc(image.state.src),
         style: {
-            opacity: 0,
             ...(game.config.app.debug ? {
                 border: "1px solid red",
             } : {})
         },
     };
+    state.logger.debug("image props", defaultProps, image.state, image.state.src);
 
     return (
         <Isolated className={"absolute overflow-hidden"}>
-            {transition ? transition.toElementProps().map((elementProps, index, arr) => {
-                const mergedProps =
-                    deepMerge<ImgElementProp>(defaultProps, transformProps, elementProps) as any;
-                return (
+            <div
+                ref={(ref) => (scope.current = ref)}
+                className={"absolute"}
+                {...(deepMerge<any>({
+                    style: {
+                        opacity: 0,
+                    }
+                }, transformProps))}
+            >
+                {transition ? (<>
+                    {transition.toElementProps().map((elementProps, index, arr) => {
+                        const mergedProps =
+                            deepMerge<ImgElementProp>(defaultProps, elementProps, {
+                                style: {
+                                    transform: "translate(0%, -50%)"
+                                }
+                            }) as any;
+                        return (
+                            <m.img
+                                className={"absolute"}
+                                key={index === (arr.length - 1) ? "last" : index}
+                                alt={mergedProps.alt}
+                                {...mergedProps}
+                                onLoad={handleLoad}
+                                layout
+                            />
+                        );
+                    })}
+                </>) : (
                     <m.img
-                        key={index === (arr.length - 1) ? "last" : index}
-                        alt={mergedProps.alt}
-                        {...mergedProps}
-                        ref={index === (arr.length - 1) ? scope : undefined}
+                        alt={"image"}
+                        key={"last"}
+                        {...(defaultProps as any)}
                         onLoad={handleLoad}
-                        layout
                     />
-                );
-            }) : (
-                <m.img
-                    ref={scope}
-                    alt={"image"}
-                    key={"last"}
-                    {...deepMerge(defaultProps, transformProps)}
-                    onLoad={handleLoad}
-                />
-            )}
-            {(() => {
-                image.events.emit(GameImage.EventTypes["event:image.flush"]);
-                return null;
-            })()}
+                )}
+                {(() => {
+                    image.events.emit(GameImage.EventTypes["event:image.flush"]);
+                    return null;
+                })()}
+            </div>
         </Isolated>
     );
 };

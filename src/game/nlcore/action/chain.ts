@@ -1,7 +1,10 @@
 import {LogicAction} from "@core/action/logicAction";
+import {BaseElement} from "@core/action/baseElement";
+import {ControlAction} from "@core/action/actions";
+import {ContentNode} from "@core/action/tree/actionTree";
+import type {Control} from "@core/elements/control";
 import Actions = LogicAction.Actions;
 import GameElement = LogicAction.GameElement;
-import {BaseElement} from "@core/action/baseElement";
 
 export type Proxied<T extends Record<any, any>, U extends Record<any, any>> =
     T & U;
@@ -11,7 +14,7 @@ export type ChainedActions = (ChainedAction | ChainedAction[] | Actions | Action
 
 const ChainedFlag = Symbol("_Chained");
 
-export class Chained<T, Self = any> {
+export class Chained<T, Self extends Chainable<any, any> = any> {
     static isChained<T>(value: any): value is Chained<T> {
         return value && value[ChainedFlag];
     }
@@ -54,19 +57,24 @@ export class Chained<T, Self = any> {
     public getSelf(): Self {
         return this.__self;
     }
+
+    /**@internal */
+    public newChain() {
+        return this.getSelf().chain();
+    }
 }
 
 /**
  * - T - the action type
  * - U - self constructor
  */
-export class Chainable<T, U extends Record<any, any>> extends BaseElement {
+export class Chainable<T, U extends Chainable<any, any>> extends BaseElement {
     /**@internal */
-    public chain(arg0?: T[] | T): Proxied<U, Chained<T>> {
-        const chained: Proxied<U, Chained<T>> =
+    public chain(arg0?: T[] | T): Proxied<U, Chained<T, U>> {
+        const chained: Proxied<U, Chained<T, U>> =
             Chained.isChained(this) ?
                 (this as unknown as Proxied<U, Chained<T>>) :
-                this.proxy<U, Chained<T>>(this as any, new Chained<T, U>(this as any));
+                this.proxy<U, Chained<T, U>>(this as any, new Chained<T, U>(this as any));
 
         if (!arg0) {
             return chained;
@@ -96,6 +104,23 @@ export class Chainable<T, U extends Record<any, any>> extends BaseElement {
             }
         }) as Proxied<T, U>;
         return proxy;
+    }
+
+    /**@internal */
+    protected combineActions(
+        control: Control,
+        getActions: ((chain: Proxied<U, Chained<T, U>>)
+            => ChainedAction)
+    ): Proxied<U, Chained<T, U>> {
+        const chain = getActions(this.chain().newChain());
+        const action = new ControlAction(
+            control.chain(),
+            ControlAction.ActionTypes.do,
+            new ContentNode().setContent([
+                this.construct(Chained.toActions([chain]))
+            ])
+        );
+        return this.chain(action as T);
     }
 }
 

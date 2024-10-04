@@ -79,7 +79,7 @@ export class Constructable<
      * Construct the actions into a tree
      * @internal
      */
-    protected construct(actions: LogicAction.Actions[], parent?: RenderableNode): RenderableNode | null {
+    protected constructNodes(actions: LogicAction.Actions[], parent?: RenderableNode): RenderableNode | null {
         for (let i = 0; i < actions.length; i++) {
             const action = actions[i];
             if (i === 0 && parent) {

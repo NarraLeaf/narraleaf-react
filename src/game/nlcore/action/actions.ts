@@ -283,10 +283,10 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 state.stage.next();
             });
             return awaitable;
-        }
-
-        if (this.type === ImageActionTypes.setSrc) {
+        } else if (this.type === ImageActionTypes.setSrc) {
             this.callee.state.src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
+            state.logger.debug("Image - Set Src", this.callee.state.src);
+
             state.stage.update();
             return super.executeAction(state);
         } else if ([
@@ -557,6 +557,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                         type: this.type,
                         node: this.contentNode.getChild()
                     });
+                    state.stage.next();
                 });
             return awaitable;
         } else {
@@ -585,29 +586,44 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                     type: this.type,
                     node: this.contentNode.getChild()
                 });
+                state.stage.next();
             });
             return awaitable;
         } else if (this.type === ControlActionTypes.all) {
             const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
-            return this.execute(state, awaitable, content);
+            (async () => {
+                await Promise.all(content.map(action => this.executeSingleAction(state, action)));
+                awaitable.resolve({
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                });
+                state.stage.next();
+            })();
+            return awaitable;
         } else if (this.type === ControlActionTypes.allAsync) {
             (async () => {
-                if (content.length > 0) {
-                    await this.executeAllActions(state, content[0]);
+                for (const action of content) {
+                    this.executeSingleAction(state, action).then(_ => (void 0));
                 }
             })();
             return super.executeAction(state);
         } else if (this.type === ControlActionTypes.repeat) {
             const [actions, times] =
                 (this.contentNode as ContentNode<ControlActionContentType["control:repeat"]>).getContent();
+            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
             (async () => {
                 for (let i = 0; i < times; i++) {
                     if (actions.length > 0) {
                         await this.executeAllActions(state, actions[0]);
                     }
                 }
+                awaitable.resolve({
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                });
+                state.stage.next();
             })();
-            return super.executeAction(state);
+            return awaitable;
         }
 
         throw new Error("Unknown control action type: " + this.type);

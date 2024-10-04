@@ -6,6 +6,13 @@
 
 - `liveGame.newGame` does not reset the game state
 - deserializing does not trigger repainting
+- Some methods in `Control` are working incorrectly
+- Some image components cannot update correctly
+
+### Changed
+
+- `scene.backgroundImageState` is deprecated, use `scene.backgroundImage` instead
+- Now applying of transformations and transitions are separated, you can now apply both at the same time
 
 ## [0.0.3] - 2024/10/01
 
