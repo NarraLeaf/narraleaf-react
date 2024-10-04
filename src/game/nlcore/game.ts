@@ -136,6 +136,8 @@ export class LiveGame {
     story: Story | null = null;
     /**@internal */
     lockedAwaiting: Awaitable<CalledActionResult, any> | null = null;
+    /**@internal */
+    gameState: GameState | undefined = undefined;
 
     /**@internal */
     _lockedCount = 0;
@@ -177,7 +179,12 @@ export class LiveGame {
      *
      * Note: Even if you change just a single line of script, the saved game might not be compatible with the new version
      */
-    public serialize({gameState}: { gameState: GameState }): SavedGame {
+    public serialize(): SavedGame {
+        if (!this.gameState) {
+            throw new Error("No game state");
+        }
+        const gameState = this.gameState;
+
         const story = this.story;
         if (!story) {
             throw new Error("No story loaded");
@@ -211,7 +218,12 @@ export class LiveGame {
      *
      * After calling this method, the current game state will be lost, and the stage will trigger force reset
      */
-    public deserialize(savedGame: SavedGame, {gameState}: { gameState: GameState }) {
+    public deserialize(savedGame: SavedGame) {
+        if (!this.gameState) {
+            throw new Error("No game state");
+        }
+        const gameState = this.gameState;
+
         const story = this.story;
         if (!story) {
             throw new Error("No story loaded");
@@ -270,7 +282,12 @@ export class LiveGame {
     /**
      * Start a new game
      */
-    public newGame({gameState}: { gameState: GameState }) {
+    public newGame() {
+        if (!this.gameState) {
+            throw new Error("No game state");
+        }
+        const gameState = this.gameState;
+
         this.reset({gameState});
         this.initNamespaces();
 
@@ -383,6 +400,16 @@ export class LiveGame {
             return nextAction;
         }
         return nextAction?.node?.action || null;
+    }
+
+    /**@internal */
+    setGameState(state: GameState | undefined) {
+        this.gameState = state;
+        return this;
+    }
+
+    getGameState() {
+        return this.gameState;
     }
 
     /**@internal */

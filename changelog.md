@@ -13,6 +13,8 @@
 
 - `scene.backgroundImageState` is deprecated, use `scene.backgroundImage` instead
 - Now applying of transformations and transitions are separated, you can now apply both at the same time
+- Deprecated `contentNode.initChild`
+- `liveGame.newGame`, `liveGame.deserialize` and `liveGame.serialize` now does not require a gameState instance
 
 ## [0.0.3] - 2024/10/01
 

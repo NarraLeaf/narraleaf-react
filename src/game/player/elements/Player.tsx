@@ -68,16 +68,12 @@ export default function Player(
     }
 
     useEffect(() => {
-        game.getLiveGame().loadStory(story);
-    }, [game]);
+        game.getLiveGame().setGameState(state).loadStory(story);
 
-    // useEffect(() => {
-    //     if (story) {
-    //         new Promise(() => {
-    //             next();
-    //         }).then(_ => {});
-    //     }
-    // }, [updateCount]);
+        return () => {
+            game.getLiveGame().setGameState(undefined);
+        };
+    }, [game]);
 
     useEffect(() => {
         let microTaskExecuted = false;
