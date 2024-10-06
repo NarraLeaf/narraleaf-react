@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.5] - 2024/10/06
+
+### Fixed
+
+- Image animation does not work correctly when using `yoffset` and `invertY
+
 ## [0.0.5-beta.1] - 2024/10/04
 
 ### Fixed

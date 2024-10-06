@@ -131,15 +131,6 @@ export default function Image({
             {
                 type: GameImage.EventTypes["event:image.flushComponent"],
                 listener: image.events.on(GameImage.EventTypes["event:image.flushComponent"], async () => {
-                    // state.stage.update();
-                    // await new Promise<void>(resolve => {
-                    //     // It is hard to explain why this is needed, but it is needed
-                    //     // react does not flush between some microtasks
-                    //     // So we need to wait for the next microtask
-                    //     setTimeout(() => {
-                    //         resolve();
-                    //     }, 10);
-                    // });
                     return true;
                 })
             }
@@ -229,7 +220,6 @@ export default function Image({
             } : {})
         },
     };
-    state.logger.debug("image props", defaultProps, image.state, image.state.src);
 
     return (
         <Isolated className={"absolute overflow-hidden"}>
@@ -266,8 +256,9 @@ export default function Image({
                     <m.img
                         alt={"image"}
                         key={"last"}
-                        {...(defaultProps as any)}
+                        {...deepMerge<any>(defaultProps, {})}
                         onLoad={handleLoad}
+                        layout
                     />
                 )}
                 {(() => {
