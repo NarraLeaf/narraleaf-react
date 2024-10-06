@@ -9,13 +9,14 @@ import {Character, Word} from "@core/elements/text";
 import {GameState} from "@core/common/game";
 
 
-export default function Say({
-                                action,
-                                onClick,
-                                useTypeEffect = true,
-                                className,
-                                state,
-                            }: Readonly<SayElementProps>) {
+export default function Say(
+    {
+        action,
+        onClick,
+        useTypeEffect = true,
+        className,
+        state,
+    }: Readonly<SayElementProps>) {
     const {sentence, character} = action;
     const [currentWordIndex, setCurrentWordIndex] = useState(0);
     const [isFinished, setIsFinished] = useState(false);
@@ -66,8 +67,11 @@ export default function Say({
                 type: GameState.EventTypes["event:state.player.skip"],
                 listener: state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
                     state.logger.log("NarraLeaf-React: Say", "Skipped");
-                    setIsFinished(true);
-                    if (onClick) onClick();
+                    if (isFinished) {
+                        if (onClick) onClick();
+                    } else {
+                        setIsFinished(true);
+                    }
                 }),
             }
         ]);

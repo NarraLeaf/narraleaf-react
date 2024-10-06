@@ -313,6 +313,11 @@ export class Scene extends Constructable<
             return;
         }
 
+        // [0.0.5] - 2024/10/04
+        // Without this check, this method will enter cycle and cost a lot of time
+        // For example, Control will add some actions to the scene, ths check will not stop correctly
+        const seenActions = new Set<Actions>();
+
         const seenJump = new Set<SceneAction<typeof SceneActionTypes["jumpTo"]>>();
         const queue: Actions[] = [this.sceneRoot];
         const futureScene = new Set<Scene>();
@@ -323,6 +328,11 @@ export class Scene extends Constructable<
 
         while (queue.length) {
             const action = queue.shift()!;
+            if (seenActions.has(action)) {
+                continue;
+            }
+            seenActions.add(action);
+
             if (action instanceof SceneAction) {
                 if (action.type === SceneActionTypes.jumpTo) {
                     const jumpTo = action as SceneAction<typeof SceneActionTypes["jumpTo"]>;

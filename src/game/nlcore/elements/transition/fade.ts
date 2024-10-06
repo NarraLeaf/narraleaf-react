@@ -63,7 +63,11 @@ export class Fade extends Base<FadeProps> implements ITransition {
 
     public toElementProps(): (FadeProps & ElementProp)[] {
         return [
-            {},
+            {
+                style: {
+                    opacity: 1,
+                },
+            },
             {
                 style: {
                     opacity: this.state.opacity,
