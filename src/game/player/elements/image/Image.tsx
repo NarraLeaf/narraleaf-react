@@ -88,6 +88,11 @@ export default function Image({
             {
                 type: GameImage.EventTypes["event:image.applyTransition"],
                 listener: image.events.on(GameImage.EventTypes["event:image.applyTransition"], (t) => {
+                    if (t && t.controller) {
+                        t.controller.complete();
+                        state.logger.warn("processing transform not completed");
+                    }
+
                     setTransition(t);
                     if (!t) {
                         state.logger.warn("transition not set");
@@ -126,15 +131,15 @@ export default function Image({
             {
                 type: GameImage.EventTypes["event:image.flushComponent"],
                 listener: image.events.on(GameImage.EventTypes["event:image.flushComponent"], async () => {
-                    state.stage.update();
-                    await new Promise<void>(resolve => {
-                        // It is hard to explain why this is needed, but it is needed
-                        // react does not flush between some microtasks
-                        // So we need to wait for the next microtask
-                        setTimeout(() => {
-                            resolve();
-                        }, 10);
-                    });
+                    // state.stage.update();
+                    // await new Promise<void>(resolve => {
+                    //     // It is hard to explain why this is needed, but it is needed
+                    //     // react does not flush between some microtasks
+                    //     // So we need to wait for the next microtask
+                    //     setTimeout(() => {
+                    //         resolve();
+                    //     }, 10);
+                    // });
                     return true;
                 })
             }
@@ -228,7 +233,8 @@ export default function Image({
 
     return (
         <Isolated className={"absolute overflow-hidden"}>
-            <div
+            <m.div
+                layout
                 ref={(ref) => (scope.current = ref)}
                 className={"absolute"}
                 {...(deepMerge<any>({
@@ -268,7 +274,7 @@ export default function Image({
                     image.events.emit(GameImage.EventTypes["event:image.flush"]);
                     return null;
                 })()}
-            </div>
+            </m.div>
         </Isolated>
     );
 };

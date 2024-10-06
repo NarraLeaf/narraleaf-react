@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5-beta.1] - 2024/10/04
+
+### Fixed
+
+- Constructing story will enter cycle and cost unexpected time. See [story.ts](./src/game/nlcore/elements/story.ts) #Story.prototype.constructStory
+- Skipping text does not show the complete text
+
 ## [0.0.4] - 2024/10/01
 
 ### Fixed
