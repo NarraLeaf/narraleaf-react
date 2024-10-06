@@ -80,10 +80,10 @@ export class PositionUtils {
             return "auto";
         }
         if (offset === undefined || PositionUtils.isUnknown(offset)) {
-            return `${pos}`;
+            return `calc(${pos} + 0px)`;
         }
         const left = typeof pos === "number" ? `${pos}px` : pos;
-        return `calc(${left} + ${offset}px)`;
+        return `calc(${left} + (${offset}px))`;
     }
 
     static toCoord2D(pos: IPosition | D2Position): Coord2D {

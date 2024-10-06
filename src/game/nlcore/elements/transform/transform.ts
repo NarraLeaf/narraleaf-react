@@ -184,6 +184,8 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
                         );
                         this.setControl(animation);
 
+                        gameState.logger.debug("Animating", this.propToCSS(gameState, image.state as any, overwrites));
+
                         if (options?.sync === false) {
                             animation.then(() => {
                                 Object.assign(current["style"], this.propToCSS(gameState, image.state as any, overwrites));
