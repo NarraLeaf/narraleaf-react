@@ -43,19 +43,26 @@ const CommonImagePositionMap = {
 } as const;
 
 export class Transform<T extends TransformDefinitions.Types = TransformDefinitions.ImageTransformProps> {
+    /**@internal */
     static defaultSequenceOptions: Partial<TransformDefinitions.CommonSequenceProps> = {
         sync: true,
         repeat: 1,
     };
+    /**@internal */
     static defaultOptions: TransformDefinitions.SequenceProps<any> = {
         duration: 0,
         ease: "linear",
     };
+    /**@internal */
     static CommonImagePositionMap = CommonImagePositionMap;
 
+    /**@internal */
     private readonly sequenceOptions: TransformDefinitions.CommonSequenceProps;
+    /**@internal */
     private sequences: TransformDefinitions.Sequence<T>[] = [];
+    /**@internal */
     private control: AnimationPlaybackControls | null = null;
+    /**@internal */
     private transformers: { [K in Transformers]?: TransformHandler<any> } = {};
 
     /**
@@ -86,10 +93,12 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         }
     }
 
+    /**@internal */
     public static isPosition(position: any): position is (CommonImagePosition | Coord2D | Align) {
         return CommonPosition.isCommonPositionType(position) || Coord2D.isCoord2DPosition(position) || Align.isAlignPosition(position);
     }
 
+    /**@internal */
     public static positionToCSS(
         position: IPosition,
         invertY?: boolean | undefined,
@@ -98,6 +107,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         return PositionUtils.D2PositionToCSS(position.toCSS(), invertX, invertY);
     }
 
+    /**@internal */
     public static backgroundToCSS(background: Background["background"]): {
         backgroundImage?: string,
         backgroundColor?: string
@@ -116,6 +126,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         return {backgroundImage: "url(" + url + ")"};
     }
 
+    /**@internal */
     static mergePosition(a: RawPosition | undefined, b: RawPosition | undefined): Coord2D {
         if (!a && !b) {
             throw new Error("No position found.");
@@ -129,6 +140,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         );
     }
 
+    /**@internal */
     static mergeState<T>(state: any, props: any): DeepPartial<T> {
         const position = this.mergePosition(state["position"], props["position"]);
         return {
@@ -138,6 +150,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     }
 
     /**
+     * @internal
      * @example
      * ```ts
      * const [scope, animate] = useAnimation();
@@ -242,6 +255,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         return this;
     }
 
+    /**@internal */
     propToCSS(state: GameState, prop: DeepPartial<T>, overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>): DOMKeyframesDefinition {
         const {invertY, invertX} = state.getLastScene()?.config || {};
         const FieldHandlers: Record<string, (v: any) => any> = {
@@ -282,6 +296,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         return props;
     }
 
+    /**@internal */
     optionsToFramerMotionOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions | void {
         if (!options) {
             return options;
@@ -293,6 +308,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         } satisfies DynamicAnimationOptions;
     }
 
+    /**@internal */
     propToCSSTransform(state: GameState, prop: Record<string, any>): string {
         if (!state.getLastScene()) {
             throw new Error("No scene found in state, make sure you called \"scene.activate()\" before this method.");
@@ -305,11 +321,13 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         return Transforms.filter(Boolean).join(" ");
     }
 
+    /**@internal */
     setControl(control: AnimationPlaybackControls | null) {
         this.control = control;
         return this;
     }
 
+    /**@internal */
     getControl() {
         return this.control;
     }
