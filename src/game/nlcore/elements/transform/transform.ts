@@ -77,7 +77,7 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
      * });
      * ```
      */
-    constructor(sequences: Sequence<T>[], sequenceOptions?: Partial<TransformDefinitions.TransformConfig>);
+    constructor(sequences: Sequence<T>[], transformConfig?: Partial<TransformDefinitions.TransformConfig>);
     constructor(props: SequenceProps<T>, options?: Partial<TransformDefinitions.CommonTransformProps>);
     constructor(arg0: Sequence<T>[] | SequenceProps<T>, arg1?: Partial<TransformDefinitions.TransformConfig> | Partial<TransformDefinitions.CommonTransformProps>) {
         if (Array.isArray(arg0)) {

@@ -30,8 +30,7 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
     private src: string | undefined;
 
     /**
-     * The current image will fade out, and the next image will fade in,
-     * but it will also move in a direction
+     * The next image will fade-in in a direction
      * @param direction The direction the image will move from
      * @param offset The distance the image will move (in pixels)
      * @param duration The duration of the transition
