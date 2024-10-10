@@ -1,5 +1,6 @@
-import type {Character, Sentence} from "@core/elements/text";
+import type {Character} from "@core/elements/character";
 import type {GameState} from "@player/gameState";
+import {Sentence} from "@core/elements/character/sentence";
 
 export interface SayElementProps {
     action: {

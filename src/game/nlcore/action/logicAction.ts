@@ -1,4 +1,4 @@
-import type {Character} from "@core/elements/text";
+import type {Character} from "@core/elements/character";
 import type {Scene} from "@core/elements/scene";
 import type {Story} from "@core/elements/story";
 import type {Image} from "@core/elements/image";

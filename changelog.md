@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.0.6] - 2024/10/09
+
+### Changed
+
+- changed constructor signature of `Sound`
+- changed signature of `character.say`
+
+### Add
+
+- Added voice support
+
 ## [0.0.5] - 2024/10/06
 
 ### Fixed

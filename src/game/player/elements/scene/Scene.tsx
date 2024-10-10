@@ -6,17 +6,18 @@ import {GameState} from "@player/gameState";
 import {Sound} from "@core/elements/sound";
 import {Utils} from "@core/common/Utils";
 
-export default function Scene({
-                                  scene,
-                                  state,
-                                  children,
-                                  className
-                              }: Readonly<{
-    scene: GameScene;
-    state: GameState;
-    children?: React.ReactNode;
-    className?: string;
-}>) {
+export default function Scene(
+    {
+        scene,
+        state,
+        children,
+        className
+    }: Readonly<{
+        scene: GameScene;
+        state: GameState;
+        children?: React.ReactNode;
+        className?: string;
+    }>) {
     const {ratio} = useRatio();
     const [backgroundMusic, setBackgroundMusic] =
         useState<Sound | null>(() => scene.state.backgroundMusic);
@@ -24,6 +25,7 @@ export default function Scene({
         useState<NodeJS.Timeout | null>(null);
     const [resolve, setResolve] = useState<(() => void) | null>(null);
 
+    // @todo: refactor this
     async function stopWithFade(music: Sound, fade: number) {
         if (!music.$getHowl() || !music.$getHowl()!.playing(music.$getToken())) {
             return Promise.resolve();
@@ -38,7 +40,7 @@ export default function Scene({
             );
             setResolve(() => resolve);
             setSettingProgress(setTimeout(() => {
-                music.$getHowl()!.stop();
+                music.$getHowl()!.stop(music.$getToken());
                 music.$getHowl()!.volume(originalVolume);
                 music.$setToken(null);
                 resolve();

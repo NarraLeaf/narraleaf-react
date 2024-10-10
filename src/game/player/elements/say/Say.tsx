@@ -5,8 +5,9 @@ import TypingEffect from "./TypingEffect";
 import {toHex} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {SayElementProps} from "@player/elements/say/type";
-import {Character, Word} from "@core/elements/text";
+import {Character} from "@core/elements/character";
 import {GameState} from "@core/common/game";
+import {Word} from "@core/elements/character/word";
 
 
 export default function Say(
@@ -55,7 +56,6 @@ export default function Say(
 
         window.addEventListener("keyup", handleKeyUp);
 
-
         return () => {
             window.removeEventListener("keyup", handleKeyUp);
         };
@@ -94,7 +94,7 @@ export default function Say(
                         } onClick={onElementClick}>
                             <div
                                 className={clsx("absolute top-0 left-0 p-1.25 rounded-br-md m-4", game.config.elementStyles.say.nameText)}>
-                                {sentence.character?.name || ""}
+                                {sentence.character?.state.name}
                             </div>
                             <div
                                 className={clsx("text-center max-w-[80%] mx-auto", game.config.elementStyles.say.textContainer)}>

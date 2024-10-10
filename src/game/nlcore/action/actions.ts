@@ -3,7 +3,7 @@ import {Awaitable, SkipController} from "@lib/util/data";
 import {Image as GameImage, Image} from "@core/elements/image";
 import {LogicAction} from "@core/action/logicAction";
 import {Action} from "@core/action/action";
-import type {Character, Sentence} from "@core/elements/text";
+import type {Character} from "@core/elements/character";
 import type {Scene} from "@core/elements/scene";
 import type {Story} from "@core/elements/story";
 import type {Script} from "@core/elements/script";
@@ -34,6 +34,7 @@ import {
     StoryActionTypes
 } from "@core/action/actionTypes";
 import {Chained, Proxied} from "@core/action/chain";
+import {Sentence} from "@core/elements/character/sentence";
 
 export class TypedAction<
     ContentType extends Record<string, any> = Record<string, any>,
@@ -65,14 +66,34 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                         type: this.type as any,
                         node: this.contentNode.getChild()
                     })));
+
             const sentence = (this.contentNode as ContentNode<Sentence>).getContent();
+            const voice = sentence.config.voice;
+
+            if (voice) {
+                SoundAction.initSound(state, voice);
+                const token = state.playSound(voice, () => {
+                    voice.$stop();
+                });
+                voice.$setToken(token);
+            }
+
             state.createText(this.getId(), sentence, () => {
+                if (voice && voice.$getHowl()) {
+                    voice.$getHowl()!.stop(voice.$getToken());
+                    voice.$stop();
+                }
+
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
                 });
             });
+
             return awaitable;
+        } else if (this.type === CharacterActionTypes.setName) {
+            this.callee.state.name = (this.contentNode as ContentNode<CharacterActionContentType["character:setName"]>).getContent()[0];
+            return super.executeAction(state);
         }
 
         throw super.unknownType();
@@ -84,13 +105,12 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
     static ActionTypes = SceneActionTypes;
 
     static handleSceneInit(sceneAction: SceneAction, state: GameState, awaitable: Awaitable<CalledActionResult, any>) {
-        if (sceneAction.callee._liveState.active) {
+        if (state.isSceneActive(sceneAction.callee)) {
             return {
                 type: sceneAction.type,
                 node: sceneAction.contentNode.getChild()
             };
         }
-        sceneAction.callee._liveState.active = true;
 
         state
             .registerSrcManager(sceneAction.callee.srcManager)
@@ -182,8 +202,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
             return SceneAction.handleSceneInit(this, state, awaitable);
         } else if (this.type === SceneActionTypes.exit) {
-            this.callee._liveState.active = false;
-
             state
                 .offSrcManager(this.callee.srcManager)
                 .removeScene(this.callee);
@@ -442,7 +460,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             }
             if (this.callee.config.sync && !this.callee.config.loop) {
                 const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-                const token = state.playSound(this.callee.$getHowl()!, () => {
+                const token = state.playSound(this.callee, () => {
                     this.callee.$stop();
                     awaitable.resolve({
                         type: this.type as any,
@@ -452,7 +470,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
                 this.callee.$setToken(token);
                 return awaitable;
             } else {
-                const token = state.playSound(this.callee.$getHowl()!, () => {
+                const token = state.playSound(this.callee, () => {
                     this.callee.$stop();
                 });
                 this.callee.$setToken(token);

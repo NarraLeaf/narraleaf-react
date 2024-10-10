@@ -44,12 +44,36 @@ export type SoundConfig = {
 };
 
 export class Sound extends Actionable<SoundDataRaw> {
+    /**@internal */
     static defaultConfig: SoundConfig = {
         src: "",
         sync: false,
         loop: false,
         volume: 1,
     };
+
+    /**@internal */
+    static toSoundSrc(v: Sound | string | null | undefined): string | null {
+        if (v === null || v === undefined) {
+            return null;
+        }
+        if (typeof v === "string") {
+            return v;
+        }
+        return v.getSrc();
+    }
+
+    /**@internal */
+    static toSound(v: Sound | string | null | undefined): Sound | null {
+        if (v === null || v === undefined) {
+            return null;
+        }
+        if (typeof v === "string") {
+            return new Sound({src: v});
+        }
+        return v;
+    }
+
     /**@internal */
     config: SoundConfig;
     /**@internal */
@@ -61,9 +85,17 @@ export class Sound extends Actionable<SoundDataRaw> {
         token: null,
     };
 
-    constructor(config: DeepPartial<SoundConfig> = {}) {
+    constructor(config?: DeepPartial<SoundConfig>);
+    constructor(src?: string);
+    constructor(arg0: DeepPartial<SoundConfig> | string = {}) {
         super();
-        this.config = deepMerge<SoundConfig>(Sound.defaultConfig, config);
+        if (typeof arg0 === "string") {
+            this.config = deepMerge<SoundConfig>(Sound.defaultConfig, {
+                src: arg0
+            });
+        } else {
+            this.config = deepMerge<SoundConfig>(Sound.defaultConfig, arg0);
+        }
     }
 
     /**
@@ -168,7 +200,10 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this.state.playing;
     }
 
-    /**@internal */
+    /**
+     * @internal
+     * @todo: find a better way to handle this
+     */
     $stop() {
         this.$setToken(null);
         this.$setHowl(null);

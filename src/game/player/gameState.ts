@@ -1,6 +1,5 @@
 import {CalledActionResult} from "@core/gameTypes";
 import {EventDispatcher, Logger} from "@lib/util/data";
-import {Sentence} from "@core/elements/text";
 import {Choice, MenuData} from "@core/elements/menu";
 import {Image, ImageEventTypes} from "@core/elements/image";
 import {Scene} from "@core/elements/scene";
@@ -12,6 +11,7 @@ import {Storable} from "@core/store/storable";
 import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 import {SceneAction} from "@core/action/actions";
+import {Sentence} from "@core/elements/character/sentence";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -119,6 +119,13 @@ export class GameState {
         return this.state.elements.some(s => s.scene === scene);
     }
 
+    public isSceneActive(scene: Scene): boolean {
+        for (const {scene: s} of this.state.elements) {
+            if (s === scene) return true;
+        }
+        return false;
+    }
+
     handle(action: PlayerAction): this {
         if (this.currentHandling === action) return this;
         this.currentHandling = action;
@@ -187,27 +194,35 @@ export class GameState {
     }
 
     public forceReset() {
+        this.state.sounds.forEach(s => s.$getHowl()?.stop());
         this.state.elements.forEach(({scene}) => {
             this.offSrcManager(scene.srcManager);
-            scene._liveState.active = false;
+            this.removeScene(scene);
             scene.events.clear();
         });
         this.state.elements = [];
         this.state.srcManagers = [];
     }
 
-    playSound(howl: Howler.Howl, onEnd?: () => void): any {
-        const token = howl.play();
+    playSound(sound: Sound, onEnd?: () => void): any {
+        if (!sound.$getHowl()) {
+            throw new Error("Sound not loaded");
+        }
+
+        const token = sound.$getHowl()!.play();
         const events = [
-            howl.once("end", end.bind(this)),
-            howl.once("stop", end.bind(this))
+            sound.$getHowl()!.once("end", end.bind(this)),
+            sound.$getHowl()!.once("stop", end.bind(this))
         ];
+
+        this.state.sounds.push(sound);
 
         function end(this: GameState) {
             if (onEnd) {
                 onEnd();
             }
             events.forEach(e => e.off());
+            this.state.sounds = this.state.sounds.filter(s => s !== sound);
             this.stage.next();
         }
 
@@ -234,6 +249,17 @@ export class GameState {
 
     public getStorable(): Storable {
         return this.game.getLiveGame().getStorable();
+    }
+
+    /**
+     * Dispose the game state
+     *
+     * This is an irreversible action, once disposed, the game state cannot be used again.
+     *
+     * Do not call this method directly
+     */
+    dispose() {
+        this.forceReset();
     }
 
     toData(): PlayerStateData {
@@ -283,7 +309,6 @@ export class GameState {
 
             this.state.elements.push(element);
             this.registerSrcManager(scene.srcManager);
-            scene._liveState.active = true;
             SceneAction.registerEventListeners(scene, this);
         });
     }

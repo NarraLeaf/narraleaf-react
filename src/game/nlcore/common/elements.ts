@@ -1,4 +1,4 @@
-import {Character, Sentence, Word} from "../elements/text";
+import {Character} from "../elements/character";
 import {Condition, Lambda} from "../elements/condition";
 import {Control} from "@core/elements/control";
 import {Image} from "../elements/image";
@@ -8,6 +8,8 @@ import {Script} from "../elements/script";
 import {Sound, SoundType} from "@core/elements/sound";
 import {Story} from "../elements/story";
 import {Transform} from "@core/elements/transform/transform";
+import {Sentence} from "@core/elements/character/sentence";
+import {Word} from "@core/elements/character/word";
 
 export {
     Character,

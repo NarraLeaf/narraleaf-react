@@ -98,10 +98,6 @@ export class Scene extends Constructable<
     /**@internal */
     state: SceneConfig & SceneState;
     /**@internal */
-    _liveState = {
-        active: false,
-    };
-    /**@internal */
     sceneRoot?: SceneAction<"scene:action">;
     /**@internal */
     backgroundImage: Image;

@@ -4,23 +4,25 @@ import type {ConditionData} from "@core/elements/condition";
 import {Background, CommonImage} from "@core/types";
 import {Transform} from "@core/elements/transform/transform";
 import type {Scene} from "@core/elements/scene";
-import type {Sentence} from "@core/elements/text";
 import type {MenuData} from "@core/elements/menu";
 import {Awaitable} from "@lib/util/data";
 import {ITransition} from "@core/elements/transition/type";
 import type {Sound} from "@core/elements/sound";
 import type {Script} from "@core/elements/script";
+import {Sentence} from "@core/elements/character/sentence";
 
 /* Character */
 export const CharacterActionTypes = {
     say: "character:say",
     action: "character:action",
+    setName: "character:setName",
 } as const;
 export type CharacterActionContentType = {
     [K in typeof CharacterActionTypes[keyof typeof CharacterActionTypes]]:
     K extends "character:say" ? Sentence :
         K extends "character:action" ? any :
-            any;
+            K extends "character:setName" ? [string] :
+                any;
 }
 /* Scene */
 export const SceneActionTypes = {

@@ -1,6 +1,7 @@
 import React from "react";
-import {Sentence, Word} from "@core/elements/text";
 import {toHex} from "@lib/util/data";
+import {Sentence} from "@core/elements/character/sentence";
+import {Word} from "@core/elements/character/word";
 
 export default function ColoredSentence({
                                             sentence,

@@ -1,5 +1,4 @@
 import {deepMerge} from "@lib/util/data";
-import {Sentence, Word} from "./text";
 import {ContentNode, RenderableNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {MenuAction} from "@core/action/actions";
@@ -7,6 +6,8 @@ import {Actionable} from "@core/action/actionable";
 import {Chained, Proxied} from "@core/action/chain";
 import Actions = LogicAction.Actions;
 import GameElement = LogicAction.GameElement;
+import {Sentence} from "@core/elements/character/sentence";
+import {Word} from "@core/elements/character/word";
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type MenuConfig = {};
