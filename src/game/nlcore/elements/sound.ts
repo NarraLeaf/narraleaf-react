@@ -79,7 +79,7 @@ export class Sound extends Actionable<SoundDataRaw> {
     /**@internal */
     state: {
         playing: null | Howler.Howl;
-        token: any;
+        token: number | null;
     } = {
         playing: null,
         token: null,
@@ -165,13 +165,14 @@ export class Sound extends Actionable<SoundDataRaw> {
     }
 
     /**@internal */
-    getHowlOptions(): HowlOptions {
+    getHowlOptions(options?: Partial<HowlOptions>): HowlOptions {
         return {
             src: this.config.src,
             loop: this.config.loop,
             volume: this.config.volume,
             html5: this.config.streaming,
             autoplay: false,
+            ...(options || {})
         };
     }
 
@@ -181,32 +182,24 @@ export class Sound extends Actionable<SoundDataRaw> {
     }
 
     /**@internal */
-    $setToken(token: any) {
-        this.state.token = token;
+    getToken(): number | never {
+        return this.state.token || (undefined as never);
     }
 
     /**@internal */
-    $getToken() {
-        return this.state.token;
-    }
-
-    /**@internal */
-    $setHowl(howl: Howler.Howl | null) {
-        this.state.playing = howl;
-    }
-
-    /**@internal */
-    $getHowl() {
+    getPlaying() {
         return this.state.playing;
     }
 
-    /**
-     * @internal
-     * @todo: find a better way to handle this
-     */
-    $stop() {
-        this.$setToken(null);
-        this.$setHowl(null);
+    /**@internal */
+    setToken(token: number | null | undefined) {
+        this.state.token = typeof token === "undefined" ? null : token;
+    }
+
+    /**@internal */
+    setPlaying(howl: Howler.Howl | null) {
+        this.state.playing = howl;
+        return this;
     }
 
     /**@internal */

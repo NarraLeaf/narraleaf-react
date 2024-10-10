@@ -6,10 +6,12 @@
 
 - changed constructor signature of `Sound`
 - changed signature of `character.say`
+- refactored sound management
 
 ### Add
 
 - Added voice support
+- Added lock for `liveGame.next`
 
 ## [0.0.5] - 2024/10/06
 

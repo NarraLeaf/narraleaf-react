@@ -1,10 +1,11 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher, Logger} from "@lib/util/data";
+import {EventDispatcher, Logger, sleep} from "@lib/util/data";
 import {Choice, MenuData} from "@core/elements/menu";
 import {Image, ImageEventTypes} from "@core/elements/image";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
+import {HowlOptions} from "howler";
 import {SrcManager} from "@core/elements/srcManager";
 import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/store/storable";
@@ -194,7 +195,7 @@ export class GameState {
     }
 
     public forceReset() {
-        this.state.sounds.forEach(s => s.$getHowl()?.stop());
+        this.state.sounds.forEach(s => s.getPlaying()?.stop());
         this.state.elements.forEach(({scene}) => {
             this.offSrcManager(scene.srcManager);
             this.removeScene(scene);
@@ -204,18 +205,24 @@ export class GameState {
         this.state.srcManagers = [];
     }
 
-    playSound(sound: Sound, onEnd?: () => void): any {
-        if (!sound.$getHowl()) {
-            throw new Error("Sound not loaded");
+    initSound(sound: Sound, options?: Partial<HowlOptions>): Sound {
+        if (!sound.getPlaying()) {
+            sound.setPlaying(new (this.getHowl())(sound.getHowlOptions(options)));
         }
+        return sound;
+    }
 
-        const token = sound.$getHowl()!.play();
+    playSound(sound: Sound, onEnd?: () => void, options?: Partial<HowlOptions>): any {
+        this.initSound(sound, options);
+
+        const token = sound.getPlaying()!.play();
         const events = [
-            sound.$getHowl()!.once("end", end.bind(this)),
-            sound.$getHowl()!.once("stop", end.bind(this))
+            sound.getPlaying()!.once("end", end.bind(this)),
+            sound.getPlaying()!.once("stop", end.bind(this))
         ];
 
         this.state.sounds.push(sound);
+        sound.state.token = token;
 
         function end(this: GameState) {
             if (onEnd) {
@@ -227,6 +234,42 @@ export class GameState {
         }
 
         return token;
+    }
+
+    stopSound(sound: Sound): typeof sound {
+        if (sound.state.playing?.playing(sound.getToken())) {
+            sound.state.playing?.stop(sound.getToken());
+        }
+        sound
+            .setPlaying(null)
+            .setToken(null);
+        return sound;
+    }
+
+    async transitionSound(prev: Sound | undefined | null, cur: Sound | undefined | null, duration: number | undefined | null): Promise<void> {
+        if (prev) {
+            if (duration) await this.fadeSound(prev, 0, duration);
+            this.stopSound(prev);
+        }
+
+        if (cur) {
+            const volume = cur.config.volume;
+            this.playSound(cur, undefined, {
+                volume: 0
+            });
+
+            if (duration) await this.fadeSound(cur, volume, duration);
+            cur.getPlaying()!.volume(volume, cur.getToken());
+        }
+    }
+
+    async fadeSound(sound: Sound, target: number, duration: number): Promise<void> {
+        const originalVolume = sound.getPlaying()?.volume(sound.getToken()) as number;
+
+        sound.getPlaying()?.fade(originalVolume, target, duration, sound.getToken());
+        await sleep(duration);
+
+        return void 0;
     }
 
     getHowl(): typeof Howler.Howl {

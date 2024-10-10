@@ -64,6 +64,12 @@ export type DeepPartial<T> = T extends object ? {
 } : T;
 
 export class Awaitable<T, U = T> {
+    static isAwaitable<T, U = T>(obj: any): obj is Awaitable<T, U> {
+        return obj instanceof Awaitable;
+    }
+
+    static nothing: ((value: any) => any) = (value) => value as any;
+
     receiver: (value: U) => T;
     result: T | undefined;
     solved = false;
@@ -76,10 +82,6 @@ export class Awaitable<T, U = T> {
     ) {
         this.receiver = receiver;
         this.skipController = skipController;
-    }
-
-    static isAwaitable<T, U>(obj: any): obj is Awaitable<T, U> {
-        return obj instanceof Awaitable;
     }
 
     registerSkipController(skipController: SkipController<T, []>) {
@@ -410,3 +412,64 @@ export type PublicProperties<T> = {
     [K in keyof T]: T[K] extends Function ? never : K;
 }[keyof T];
 export type PublicOnly<T> = Pick<T, PublicProperties<T>>;
+
+export class Lock {
+    private locked = false;
+    private listeners: (() => void)[] = [];
+
+    public lock() {
+        this.locked = true;
+        return this;
+    }
+
+    public unlock() {
+        this.locked = false;
+        for (const listener of this.listeners) {
+            listener();
+        }
+        this.listeners = [];
+        return this;
+    }
+
+    public async nextUnlock() {
+        if (!this.locked) {
+            return;
+        }
+        return new Promise<void>(resolve => {
+            this.listeners.push(resolve);
+        });
+    }
+
+    public isLocked() {
+        return this.locked;
+    }
+}
+
+export class MultiLock {
+    private locks: Lock[] = [];
+
+    public unlock(lock: Lock): Lock {
+        lock.unlock();
+        this.off(lock);
+        return lock;
+    }
+
+    public register(lock?: Lock): Lock {
+        const targetLock = lock || new Lock();
+        this.locks.push(targetLock);
+        return targetLock;
+    }
+
+    public off(lock: Lock) {
+        this.locks = this.locks.filter(l => l !== lock);
+    }
+
+    public async nextUnlock() {
+        const promises = this.locks.map(lock => lock.nextUnlock());
+        return Promise.all(promises);
+    }
+
+    public isLocked() {
+        return this.locks.some(lock => lock.isLocked());
+    }
+}

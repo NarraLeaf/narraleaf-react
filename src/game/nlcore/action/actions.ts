@@ -72,16 +72,14 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
 
             if (voice) {
                 SoundAction.initSound(state, voice);
-                const token = state.playSound(voice, () => {
-                    voice.$stop();
+                state.playSound(voice, () => {
+                    state.stopSound(voice);
                 });
-                voice.$setToken(token);
             }
 
             state.createText(this.getId(), sentence, () => {
-                if (voice && voice.$getHowl()) {
-                    voice.$getHowl()!.stop(voice.$getToken());
-                    voice.$stop();
+                if (voice) {
+                    state.stopSound(voice);
                 }
 
                 awaitable.resolve({
@@ -445,8 +443,8 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
     static ActionTypes = SoundActionTypes;
 
     static initSound(state: GameState, sound: Sound) {
-        if (!sound.$getHowl()) {
-            sound.$setHowl(
+        if (!sound.getPlaying()) {
+            sound.setPlaying(
                 new (state.getHowl())(sound.getHowlOptions())
             );
         }
@@ -455,32 +453,27 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === SoundActionTypes.play) {
             SoundAction.initSound(state, this.callee);
-            if (!this.callee.$getHowl()) {
+            if (!this.callee.getPlaying()) {
                 throw new Error("Howl is not initialized");
             }
             if (this.callee.config.sync && !this.callee.config.loop) {
                 const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-                const token = state.playSound(this.callee, () => {
-                    this.callee.$stop();
+                state.playSound(this.callee, () => {
+                    state.stopSound(this.callee);
                     awaitable.resolve({
                         type: this.type as any,
                         node: this.contentNode?.getChild()
                     });
                 });
-                this.callee.$setToken(token);
                 return awaitable;
             } else {
-                const token = state.playSound(this.callee, () => {
-                    this.callee.$stop();
+                state.playSound(this.callee, () => {
+                    state.stopSound(this.callee);
                 });
-                this.callee.$setToken(token);
                 return super.executeAction(state);
             }
         } else if (this.type === SoundActionTypes.stop) {
-            if (this.callee.$getHowl()) {
-                this.callee.$getHowl()!.stop();
-                this.callee.$stop();
-            }
+            state.stopSound(this.callee);
             return super.executeAction(state);
         } else if (this.type === SoundActionTypes.fade) {
             const [{
@@ -488,31 +481,31 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
                 end,
                 duration
             }] = (this.contentNode as ContentNode<SoundActionContentType["sound:fade"]>).getContent();
-            if (this.callee.$getHowl()) {
-                const startValue = start === undefined ? this.callee.$getHowl()!.volume() : start;
-                this.callee.$getHowl()!.fade(startValue, end, duration, this.callee.$getToken());
+            if (this.callee.getPlaying()) {
+                const startValue = start === undefined ? this.callee.getPlaying()!.volume() : start;
+                this.callee.getPlaying()!.fade(startValue, end, duration, this.callee.getToken());
             }
             return super.executeAction(state);
         } else if (this.type === SoundActionTypes.setVolume) {
             const [volume] = (this.contentNode as ContentNode<SoundActionContentType["sound:setVolume"]>).getContent();
-            if (this.callee.$getHowl()) {
-                this.callee.$getHowl()!.volume(volume, this.callee.$getToken());
+            if (this.callee.getPlaying()) {
+                this.callee.getPlaying()!.volume(volume, this.callee.getToken());
             }
             return super.executeAction(state);
         } else if (this.type === SoundActionTypes.setRate) {
             const [rate] = (this.contentNode as ContentNode<SoundActionContentType["sound:setRate"]>).getContent();
-            if (this.callee.$getHowl()) {
-                this.callee.$getHowl()!.rate(rate, this.callee.$getToken());
+            if (this.callee.getPlaying()) {
+                this.callee.getPlaying()!.rate(rate, this.callee.getToken());
             }
             return super.executeAction(state);
         } else if (this.type === SoundActionTypes.pause) {
-            if (this.callee.$getHowl()) {
-                this.callee.$getHowl()!.pause(this.callee.$getToken());
+            if (this.callee.getPlaying()) {
+                this.callee.getPlaying()!.pause(this.callee.getToken());
             }
             return super.executeAction(state);
         } else if (this.type === SoundActionTypes.resume) {
-            if (this.callee.$getHowl()) {
-                this.callee.$getHowl()!.play(this.callee.$getToken());
+            if (this.callee.getPlaying()) {
+                this.callee.getPlaying()!.play(this.callee.getToken());
             }
             return super.executeAction(state);
         }

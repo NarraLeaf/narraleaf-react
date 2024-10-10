@@ -83,8 +83,8 @@ export function Preload({
         });
 
         src.audio.forEach((src: Sound) => {
-            if (!src.$getHowl()) {
-                src.$setHowl(new (state.getHowl())({
+            if (!src.getPlaying()) {
+                src.setPlaying(new (state.getHowl())({
                     src: src.config.src,
                     loop: src.config.loop,
                     volume: src.config.volume,
