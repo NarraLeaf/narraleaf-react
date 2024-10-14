@@ -145,7 +145,7 @@ export class GameState {
         }
 
         const action = this.createWaitableAction<TextElement, undefined>({
-            character: sentence.character,
+            character: sentence.config.character,
             sentence,
             id
         }, () => {

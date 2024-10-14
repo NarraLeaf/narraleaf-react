@@ -74,8 +74,17 @@ export class Character extends Actionable<
     public say(content: string | Sentence | (string | Word)[], config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>> {
         const sentence: Sentence =
             Array.isArray(content) ?
-                new Sentence(this, content, config || {}) :
-                (Sentence.isSentence(content) ? content : new Sentence(this, content, config || {}));
+                new Sentence(content, {
+                    ...(config || {}),
+                    character: this
+                }) :
+                (Sentence.isSentence(content) ? content : new Sentence(content, {
+                    ...(config || {}),
+                    character: this
+                }))
+                    .copy();
+        sentence.setCharacter(this);
+
         const action = new CharacterAction<typeof CharacterAction.ActionTypes.say>(
             this.chain(),
             CharacterAction.ActionTypes.say,

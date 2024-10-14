@@ -7,11 +7,15 @@
 - changed constructor signature of `Sound`
 - changed signature of `character.say`
 - refactored sound management
+- changed signature of the constructor of `Sentence`, now it does not require a `Character` instance. If you want to
+  specify it, use sentence config instead
 
 ### Add
 
 - Added voice support
 - Added lock for `liveGame.next`
+- Added `sentence.copy`
+- Added `character.setName`
 
 ## [0.0.5] - 2024/10/06
 
@@ -23,7 +27,8 @@
 
 ### Fixed
 
-- Constructing story will enter cycle and cost unexpected time. See [story.ts](./src/game/nlcore/elements/story.ts) #Story.prototype.constructStory
+- Constructing story will enter cycle and cost unexpected time. See [story.ts](./src/game/nlcore/elements/story.ts)
+  #Story.prototype.constructStory
 - Skipping text does not show the complete text
 
 ## [0.0.4] - 2024/10/01

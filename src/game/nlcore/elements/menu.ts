@@ -44,7 +44,7 @@ export class Menu extends Actionable<any, Menu> {
     constructor(prompt: Sentence, config?: MenuConfig);
     constructor(prompt: UnSentencePrompt | Sentence, config: MenuConfig = {}) {
         super();
-        this.prompt = Sentence.isSentence(prompt) ? prompt : new Sentence(null, prompt);
+        this.prompt = Sentence.isSentence(prompt) ? prompt : new Sentence(prompt);
         this.config = deepMerge<MenuConfig>(Menu.defaultConfig, config);
     }
 

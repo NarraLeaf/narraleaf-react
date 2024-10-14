@@ -8,6 +8,7 @@ import {Color} from "@core/types";
 export type SentenceConfig = {
     pause?: boolean | number;
     voice: Sound | null;
+    character: Character | null;
 } & Color;
 
 export type SentenceDataRaw = {
@@ -26,6 +27,7 @@ export class Sentence {
         color: "#000",
         pause: true,
         voice: null,
+        character: null,
     };
     /**@internal */
     static defaultState: SentenceState = {
@@ -39,11 +41,9 @@ export class Sentence {
 
     /**@internal */
     static toSentence(prompt: UnSentencePrompt | Sentence): Sentence {
-        return Sentence.isSentence(prompt) ? prompt : new Sentence(null, prompt);
+        return Sentence.isSentence(prompt) ? prompt : new Sentence(prompt);
     }
 
-    /**@internal */
-    readonly character: Character | null;
     /**@internal */
     readonly text: Word[];
     /**@internal */
@@ -52,11 +52,9 @@ export class Sentence {
     state: SentenceState;
 
     constructor(
-        character: Character | null,
         text: (string | Word)[] | (string | Word),
         config: SentenceUserConfig = {}
     ) {
-        this.character = character;
         this.text = this.format(text);
         this.config = deepMerge<SentenceConfig>(Sentence.defaultConfig, {
             ...config,
@@ -101,5 +99,15 @@ export class Sentence {
     /**@internal */
     toString() {
         return this.text.map(word => word.text).join("");
+    }
+
+    /**@internal */
+    setCharacter(character: Character | null) {
+        this.config.character = character;
+        return this;
+    }
+
+    copy(): Sentence {
+        return new Sentence([...this.text], this.config);
     }
 }

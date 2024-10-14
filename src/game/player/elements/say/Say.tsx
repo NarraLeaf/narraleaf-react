@@ -94,7 +94,7 @@ export default function Say(
                         } onClick={onElementClick}>
                             <div
                                 className={clsx("absolute top-0 left-0 p-1.25 rounded-br-md m-4", game.config.elementStyles.say.nameText)}>
-                                {sentence.character?.state.name}
+                                {sentence.config.character?.state.name}
                             </div>
                             <div
                                 className={clsx("text-center max-w-[80%] mx-auto", game.config.elementStyles.say.textContainer)}>
