@@ -3,7 +3,6 @@ import {Awaitable, deepMerge, DeepPartial, EventDispatcher, safeClone} from "@li
 import {Background} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
-import {ControlAction, ImageAction, SceneAction, SoundAction} from "@core/action/actions";
 import {Transform} from "@core/elements/transform/transform";
 import {ITransition} from "@core/elements/transition/type";
 import {SrcManager} from "@core/elements/srcManager";
@@ -22,6 +21,11 @@ import {Chained, Proxied} from "@core/action/chain";
 import Actions = LogicAction.Actions;
 import ImageTransformProps = TransformDefinitions.ImageTransformProps;
 import GameElement = LogicAction.GameElement;
+import {SceneAction} from "@core/action/actions/sceneAction";
+import {ImageAction} from "@core/action/actions/imageAction";
+import {SoundAction} from "@core/action/actions/soundAction";
+import {ControlAction} from "@core/action/actions/controlAction";
+import {Text} from "@core/elements/text";
 
 export type SceneConfig = {
     invertY: boolean;
@@ -165,7 +169,7 @@ export class Scene extends Constructable<
         return this.chain(new SceneAction(
             this.chain(),
             "scene:applyTransform",
-            new ContentNode().setContent([transform])
+            new ContentNode().setContent([transform.copy()])
         ));
     }
 
@@ -281,12 +285,21 @@ export class Scene extends Constructable<
             return v;
         }).flat(2);
 
-        const images = this
-            .getAllChildrenElements(userActions)
-            .filter(element => (element instanceof Image) && !Chained.isChained(element));
+        const images: Image[] = [], texts: Text[] = [];
+        this.getAllChildrenElements(userActions).forEach(element => {
+            if (Chained.isChained(element)) {
+                return;
+            }
+            if (element instanceof Image) {
+                images.push(element);
+            } else if (element instanceof Text) {
+                texts.push(element);
+            }
+        });
         const futureActions = [
             this._init(this),
             ...images.map(image => (image as Image)._init()),
+            ...texts.map(text => (text as Text)._init()),
             ...userActions,
         ];
 

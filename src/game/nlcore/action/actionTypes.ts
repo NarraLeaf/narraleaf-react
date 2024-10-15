@@ -1,7 +1,7 @@
 import {LogicAction} from "@core/action/logicAction";
 import type {Story} from "@core/elements/story";
 import type {ConditionData} from "@core/elements/condition";
-import {Background, CommonImage} from "@core/types";
+import {Background, CommonDisplayable} from "@core/types";
 import {Transform} from "@core/elements/transform/transform";
 import type {Scene} from "@core/elements/scene";
 import type {MenuData} from "@core/elements/menu";
@@ -10,6 +10,7 @@ import {ITransition} from "@core/elements/transition/type";
 import type {Sound} from "@core/elements/sound";
 import type {Script} from "@core/elements/script";
 import {Sentence} from "@core/elements/character/sentence";
+import type {TransformDefinitions} from "@core/elements/transform/type";
 
 /* Character */
 export const CharacterActionTypes = {
@@ -82,10 +83,10 @@ export const ImageActionTypes = {
 export type ImageActionContentType = {
     [K in typeof ImageActionTypes[keyof typeof ImageActionTypes]]:
     K extends "image:setSrc" ? [string] :
-        K extends "image:setPosition" ? [CommonImage["position"], Transform] :
-            K extends "image:show" ? [void, Transform] :
-                K extends "image:hide" ? [void, Transform] :
-                    K extends "image:applyTransform" ? [void, Transform, string] :
+        K extends "image:setPosition" ? [CommonDisplayable["position"], Transform<TransformDefinitions.ImageTransformProps>] :
+            K extends "image:show" ? [void, Transform<TransformDefinitions.ImageTransformProps>] :
+                K extends "image:hide" ? [void, Transform<TransformDefinitions.ImageTransformProps>] :
+                    K extends "image:applyTransform" ? [void, Transform<TransformDefinitions.ImageTransformProps>, string] :
                         K extends "image:init" ? [Scene?] :
                             K extends "image:dispose" ? [] :
                                 K extends "image:setTransition" ? [ITransition | null] :
@@ -164,4 +165,21 @@ export type ControlActionContentType = {
                         K extends "control:allAsync" ? [LogicAction.Actions[]] :
                             K extends "control:repeat" ? [LogicAction.Actions[], number] :
                                 any;
+}
+export const TextActionTypes = {
+    action: "text:action",
+    setText: "text:setText",
+    show: "text:show",
+    hide: "text:hide",
+    applyTransform: "text:applyTransform",
+    init: "text:init",
+} as const;
+export type TextActionContentType = {
+    [K in typeof TextActionTypes[keyof typeof TextActionTypes]]:
+    K extends "text:setText" ? [string] :
+        K extends "text:show" ? [Transform<TransformDefinitions.TextTransformProps>] :
+            K extends "text:hide" ? [Transform<TransformDefinitions.TextTransformProps>] :
+                K extends "text:applyTransform" ? [Transform<TransformDefinitions.TextTransformProps>] :
+                    K extends "text:init" ? [Scene?] :
+                        any;
 }

@@ -1,11 +1,11 @@
 import {Game, LiveGame} from "../game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
-import {ScriptAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import {GameState} from "@player/gameState";
 import {Chained, Proxied} from "@core/action/chain";
 import type {Storable} from "@core/store/storable";
+import {ScriptAction} from "@core/action/actions/scriptAction";
 
 export interface ScriptCtx {
     gameState: GameState;

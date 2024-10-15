@@ -8,6 +8,7 @@ import Background from "./Background";
 import {Transform} from "@core/elements/transform/transform";
 import {GameState} from "@player/gameState";
 import {useGame} from "@player/provider/game-state";
+import type {TransformDefinitions} from "@core/elements/transform/type";
 
 export default function BackgroundTransition({scene, props, state}: {
     scene: GameScene,
@@ -21,7 +22,7 @@ export default function BackgroundTransition({scene, props, state}: {
     const [, setTransitionProps] =
         useState<ElementProp[]>([]);
     const [transform, setTransform] =
-        useState<null | Transform>(null);
+        useState<null | Transform<TransformDefinitions.ImageTransformProps>>(null);
     const [transformProps, setTransformProps] =
         useState<ElementProp>({});
 
@@ -73,8 +74,8 @@ export default function BackgroundTransition({scene, props, state}: {
                     setTransform(transform);
                     await transform.animate({
                         scope,
-                        image: scene.backgroundImage
-                    }, state, scene.backgroundImage.state, (after) => {
+                        target: scene.backgroundImage
+                    }, state, (after) => {
 
                         scene.backgroundImage.state = deepMerge(scene.backgroundImage.state, after);
 
@@ -92,8 +93,8 @@ export default function BackgroundTransition({scene, props, state}: {
                     state.logger.debug("init transform", transform);
                     await transform.animate({
                         scope,
-                        image: scene.backgroundImage
-                    }, state, scene.backgroundImage.state, (after) => {
+                        target: scene.backgroundImage
+                    }, state, (after) => {
                         scene.backgroundImage.state = deepMerge(scene.backgroundImage.state, after);
                     });
                 })
@@ -131,7 +132,7 @@ export default function BackgroundTransition({scene, props, state}: {
         scene.events.emit(GameScene.EventTypes["event:scene.imageLoaded"]);
     }
 
-    function assignTo(arg0: Transform | Record<string, any>) {
+    function assignTo(arg0: Transform<TransformDefinitions.ImageTransformProps> | Record<string, any>) {
         if (transform && transform.getControl()) {
             console.warn("processing transform not completed");
             transform.getControl()!.complete();

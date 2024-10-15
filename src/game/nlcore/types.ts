@@ -43,7 +43,7 @@ export type Background = {
 }
 
 export type CommonImagePosition = "left" | "center" | "right";
-export type CommonImage = {
+export type CommonDisplayable = {
     scale?: number;
     rotation?: number;
     position?: RawPosition | IPosition;

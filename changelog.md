@@ -9,13 +9,15 @@
 - refactored sound management
 - changed signature of the constructor of `Sentence`, now it does not require a `Character` instance. If you want to
   specify it, use sentence config instead
+- Rename `CommonImage` to `CommonDisplayable`
 
 ### Add
 
-- Added voice support
-- Added lock for `liveGame.next`
-- Added `sentence.copy`
-- Added `character.setName`
+- voice support
+- lock for `liveGame.next`
+- `sentence.copy`
+- `character.setName`
+- `Text` element
 
 ## [0.0.5] - 2024/10/06
 

@@ -1,9 +1,9 @@
 import {Constructable} from "../action/constructable";
 import {deepMerge} from "@lib/util/data";
-import {SceneAction} from "@core/action/actions";
 import {Scene} from "@core/elements/scene";
 import {StaticChecker} from "@core/common/Utils";
 import {RawData} from "@core/action/tree/actionTree";
+import {SceneAction} from "@core/action/actions/sceneAction";
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type StoryConfig = {};

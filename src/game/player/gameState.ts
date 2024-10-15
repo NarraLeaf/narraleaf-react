@@ -11,13 +11,15 @@ import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/store/storable";
 import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
-import {SceneAction} from "@core/action/actions";
 import {Sentence} from "@core/elements/character/sentence";
+import {SceneAction} from "@core/action/actions/sceneAction";
+import {Text, TextEventTypes} from "@core/elements/text";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Choice>[];
     images: Image[];
+    displayable: LogicAction.Displayable[];
 };
 export type PlayerState = {
     sounds: Sound[];
@@ -84,6 +86,13 @@ export class GameState {
 
     public findElementByImage(image: Image): { scene: Scene, ele: PlayerStateElement } | null {
         return this.state.elements.find(e => e.ele.images.includes(image)) || null;
+    }
+
+    public findElementByDisplayable(displayable: LogicAction.Displayable): {
+        scene: Scene,
+        ele: PlayerStateElement
+    } | null {
+        return this.state.elements.find(e => e.ele.displayable.includes(displayable)) || null;
     }
 
     public addScene(scene: Scene): this {
@@ -194,6 +203,29 @@ export class GameState {
         return this;
     }
 
+    public createDisplayable(displayable: LogicAction.Displayable, scene?: Scene) {
+        const targetScene = this._getLastSceneIfNot(scene);
+        const targetElement = this.findElementByScene(targetScene);
+        if (!targetElement) return this;
+        targetElement.ele.displayable.push(displayable);
+        return this;
+    }
+
+    public disposeDisplayable(displayable: LogicAction.Displayable, scene?: Scene) {
+        const targetScene = this._getLastSceneIfNot(scene);
+        const displayables = this.findElementByScene(targetScene)?.ele.displayable;
+        if (!displayables) {
+            throw new Error("Scene not found");
+        }
+
+        const index = displayables.indexOf(displayable);
+        if (index === -1) {
+            throw new Error("Displayable not found");
+        }
+        displayables.splice(index, 1);
+        return this;
+    }
+
     public forceReset() {
         this.state.sounds.forEach(s => s.getPlaying()?.stop());
         this.state.elements.forEach(({scene}) => {
@@ -280,6 +312,10 @@ export class GameState {
         return this.anyEvent(type, target, onEnd, ...args);
     }
 
+    animateText<T extends keyof TextEventTypes>(type: T, target: Text, args: TextEventTypes[T], onEnd: () => void) {
+        return this.anyEvent(type, target, onEnd, ...args);
+    }
+
     public registerSrcManager(srcManager: SrcManager) {
         this.state.srcManagers.push(srcManager);
         return this;
@@ -346,7 +382,8 @@ export class GameState {
                 ele: {
                     images,
                     menus: [],
-                    texts: []
+                    texts: [],
+                    displayable: []
                 }
             };
 
@@ -362,11 +399,12 @@ export class GameState {
         });
     }
 
-    private getElementMap() {
+    private getElementMap(): PlayerStateElement {
         return {
             texts: [],
             menus: [],
-            images: []
+            images: [],
+            displayable: [],
         };
     }
 

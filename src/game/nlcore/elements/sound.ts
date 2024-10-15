@@ -1,12 +1,12 @@
 import {Actionable} from "@core/action/actionable";
 import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
-import {SoundAction} from "@core/action/actions";
 import {LogicAction} from "@core/game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import * as Howler from "howler";
 import {HowlOptions} from "howler";
 import {SoundActionContentType} from "@core/action/actionTypes";
 import {Chained, Proxied} from "@core/action/chain";
+import {SoundAction} from "@core/action/actions/soundAction";
 
 type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
 

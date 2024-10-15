@@ -56,7 +56,7 @@ export default function Image({
                     setTransform(transform);
 
                     state.logger.debug("transform", transform, transform.propToCSS(state, image.state));
-                    await transform.animate({scope, image}, state, image.state, (after) => {
+                    await transform.animate({scope, target: image}, state, (after) => {
                         image.state = deepMerge(image.state, after);
                         setTransformProps({
                             style: transform.propToCSS(state, image.state) as any,
@@ -75,7 +75,7 @@ export default function Image({
         }), {
             type: GameImage.EventTypes["event:image.init"],
             listener: image.events.on(GameImage.EventTypes["event:image.init"], async () => {
-                await image.toTransform().animate({scope, image}, state, image.state, (after) => {
+                await image.toTransform().animate({scope, target: image}, state, (after) => {
                     image.state = deepMerge(image.state, after);
                     setTransformProps({
                         style: image.toTransform().propToCSS(state, image.state) as any,

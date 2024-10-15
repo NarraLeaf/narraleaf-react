@@ -10,6 +10,7 @@ import {Story} from "../elements/story";
 import {Transform} from "@core/elements/transform/transform";
 import {Sentence} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
+import {Text} from "@core/elements/text";
 
 export {
     Character,
@@ -25,5 +26,6 @@ export {
     SoundType,
     Story,
     Transform,
-    Word
+    Word,
+    Text
 };

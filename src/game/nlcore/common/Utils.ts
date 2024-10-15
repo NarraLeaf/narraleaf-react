@@ -2,7 +2,6 @@ import type {Background, NextJSStaticImageData} from "@core/types";
 import type {Scene} from "@core/elements/scene";
 import type {Image} from "@core/elements/image";
 import type {LogicAction} from "@core/action/logicAction";
-import {ImageAction, SceneAction} from "@core/action/actions";
 import {
     ImageActionContentType,
     ImageActionTypes,
@@ -10,6 +9,8 @@ import {
     SceneActionTypes
 } from "@core/action/actionTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
+import {SceneAction} from "@core/action/actions/sceneAction";
+import {ImageAction} from "@core/action/actions/imageAction";
 
 export class Utils {
     public static srcToString(src: string | NextJSStaticImageData): string {

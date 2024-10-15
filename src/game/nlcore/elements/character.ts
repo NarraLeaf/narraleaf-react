@@ -2,11 +2,11 @@ import {LogicAction} from "../game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Color} from "@core/types";
 import {deepMerge, DeepPartial} from "@lib/util/data";
-import {CharacterAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import {Chained, Proxied} from "@core/action/chain";
 import {Sentence, SentenceUserConfig} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
+import {CharacterAction} from "@core/action/actions/characterAction";
 
 export type UnSentencePrompt = (string | Word)[] | (string | Word);
 
