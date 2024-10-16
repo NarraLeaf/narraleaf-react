@@ -1,9 +1,8 @@
 import {ElementProp, ITransition} from "@core/elements/transition/type";
 import {Base} from "@core/elements/transition/base";
-import {Scene} from "@core/elements/scene";
-import {StaticImageData} from "@core/types";
+import {ImageColor, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
-import {getCallStack} from "@lib/util/data";
+import {getCallStack, toHex} from "@lib/util/data";
 
 type FadeInElementProps = {
     opacity: number;
@@ -14,6 +13,7 @@ type FadeInProps = {
     style?: Partial<{
         opacity: number;
         transform: string;
+        backgroundColor?: string;
     }>,
     src?: string;
 }
@@ -27,7 +27,7 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
         opacity: 0,
         transform: ""
     };
-    private src: string | undefined;
+    private src?: ImageSrc | ImageColor;
 
     /**
      * The next image will fade-in in a direction
@@ -36,15 +36,13 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
      * @param duration The duration of the transition
      * @param src The source of the next image
      */
-    constructor(direction: "left" | "right" | "top" | "bottom", offset: number, duration: number = 1000, src?: Scene | StaticImageData | string) {
+    constructor(direction: "left" | "right" | "top" | "bottom", offset: number, duration: number = 1000, src?: ImageSrc | ImageColor) {
         super();
         this.duration = duration;
         this.direction = direction;
         this.offset = offset;
         if (src) {
-            this.src = typeof src === "string" ? src :
-                src instanceof Scene ? Utils.backgroundToSrc(src.config.background) :
-                    Utils.staticImageDataToSrc(src);
+            this.src = src;
         }
         this.__stack = getCallStack();
     }
@@ -85,8 +83,9 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
                 style: {
                     opacity: this.state.opacity,
                     transform: this.state.transform,
+                    backgroundColor: Utils.isImageColor(this.src) ? toHex(this.src) : "",
                 },
-                src: this.src,
+                src: Utils.isImageSrc(this.src) ? Utils.srcToString(this.src) : "",
             }
         ];
     }

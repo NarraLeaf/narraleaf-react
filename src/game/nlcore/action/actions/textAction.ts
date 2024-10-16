@@ -59,6 +59,10 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
                 awaitable.resolve(super.executeAction(state) as CalledActionResult);
             });
             return awaitable;
+        } else if (this.type === TextActionTypes.setText) {
+            const text = (this.contentNode as ContentNode<TextActionContentType["text:setText"]>).getContent()[0];
+            this.callee.state.text = text;
+            return super.executeAction(state) as CalledActionResult;
         }
 
         throw super.unknownType();

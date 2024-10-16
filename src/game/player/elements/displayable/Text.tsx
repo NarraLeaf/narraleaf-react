@@ -113,7 +113,7 @@ export default function Text({state, text}: Readonly<{
                         key={"last"}
                         {...deepMerge<any>(defaultProps, {})}
                         layout
-                    />
+                    >{text.state.text}</m.span>
                 )}
             </m.div>
         </Isolated>

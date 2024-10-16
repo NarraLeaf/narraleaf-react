@@ -19,6 +19,7 @@ export type TextConfig = {
     fontSize: number;
     fontColor: color;
     display: boolean;
+    text: string;
 } & CommonDisplayable;
 
 export type TextDataRaw = {
@@ -48,6 +49,7 @@ export class Text extends Actionable<TextDataRaw, Text> {
         fontSize: 16,
         fontColor: "#000000",
         display: false,
+        text: "",
     };
 
     /**@internal */
@@ -57,9 +59,15 @@ export class Text extends Actionable<TextDataRaw, Text> {
     /**@internal */
     readonly events: EventDispatcher<TextEventTypes> = new EventDispatcher();
 
-    constructor(config: Partial<TextConfig> = {}) {
+    constructor(config: Partial<TextConfig>);
+    constructor(text: string, config?: Partial<TextConfig>);
+    constructor(configOrText: Partial<TextConfig> | string, config: Partial<TextConfig> = {}) {
         super();
-        this.config = deepMerge({}, Text.defaultConfig, config);
+        if (typeof configOrText === "string") {
+            this.config = deepMerge({}, Text.defaultConfig, config, {text: configOrText});
+        } else {
+            this.config = deepMerge({}, Text.defaultConfig, configOrText);
+        }
         this.state = deepMerge({}, this.config);
     }
 
@@ -145,6 +153,16 @@ export class Text extends Actionable<TextDataRaw, Text> {
             chain,
             TextAction.ActionTypes.hide,
             new ContentNode<TextActionContentType["text:hide"]>().setContent([trans])
+        );
+        return chain.chain(action);
+    }
+
+    public setText(text: string): Proxied<Text, Chained<LogicAction.Actions>> {
+        const chain = this.chain();
+        const action = new TextAction<typeof TextAction.ActionTypes.setText>(
+            chain,
+            TextAction.ActionTypes.setText,
+            new ContentNode<TextActionContentType["text:setText"]>().setContent([text])
         );
         return chain.chain(action);
     }

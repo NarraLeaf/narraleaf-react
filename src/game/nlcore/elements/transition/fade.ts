@@ -1,8 +1,8 @@
 import {ElementProp, ITransition} from "./type";
 import {Base} from "./base";
-import {Scene} from "@core/elements/scene";
-import {StaticImageData} from "@core/types";
+import {ImageColor, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
+import {toHex} from "@lib/util/data";
 
 
 export type FadeElementProps = {
@@ -12,6 +12,7 @@ export type FadeElementProps = {
 type FadeProps = {
     style?: {
         opacity: number;
+        backgroundColor?: string;
     },
     src?: string;
 }
@@ -22,18 +23,16 @@ export class Fade extends Base<FadeProps> implements ITransition {
     private state: FadeElementProps = {
         opacity: 1,
     };
-    private src: string | undefined;
+    private src?: ImageSrc | ImageColor;
 
     /**
      * The current image will fade out, and the next image will fade in
      */
-    constructor(duration: number = 1000, src?: Scene | StaticImageData | string) {
+    constructor(duration: number = 1000, src?: ImageSrc | ImageColor) {
         super();
         this.duration = duration;
         if (src) {
-            this.src = typeof src === "string" ? src :
-                src instanceof Scene ? Utils.backgroundToSrc(src.config.background) :
-                    Utils.staticImageDataToSrc(src);
+            this.src = src;
         }
     }
 
@@ -71,8 +70,9 @@ export class Fade extends Base<FadeProps> implements ITransition {
             {
                 style: {
                     opacity: this.state.opacity,
+                    backgroundColor: Utils.isImageColor(this.src) ? toHex(this.src) : "",
                 },
-                src: this.src,
+                src: Utils.isImageSrc(this.src) ? Utils.srcToString(this.src) : "",
             },
         ];
     }

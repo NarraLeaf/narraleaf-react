@@ -2,6 +2,7 @@ import {EventDispatcher} from "@lib/util/data";
 import {ElementProp, EventTypes, ITransition, TransitionEventTypes} from "./type";
 import {animate} from "framer-motion/dom";
 import type {AnimationPlaybackControls, ValueAnimationTransition} from "framer-motion";
+import {ImageColor, ImageSrc} from "@core/types";
 
 
 export class Base<T extends ElementProp> implements ITransition<T> {
@@ -17,7 +18,7 @@ export class Base<T extends ElementProp> implements ITransition<T> {
         throw new Error("Method not implemented.");
     }
 
-    setSrc(_src: string) {
+    setSrc(_src: ImageSrc | ImageColor): void {
         throw new Error("Method not implemented.");
     }
 

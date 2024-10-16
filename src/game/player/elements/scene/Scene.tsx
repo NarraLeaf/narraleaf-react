@@ -81,7 +81,12 @@ export default function Scene(
             <BackgroundTransition scene={scene} props={{
                 width: ratio.state.width,
                 height: ratio.state.height,
-                src: Utils.backgroundToSrc(scene.state.background),
+                src: Utils.isImageSrc(scene.state.background) ?
+                    Utils.srcToString(scene.state.background) : void 0,
+                style: {
+                    backgroundColor: Utils.isImageColor(scene.state.background) ?
+                        Utils.toHex(scene.state.background) : void 0,
+                }
             }} state={state}/>
             {children}
         </div>

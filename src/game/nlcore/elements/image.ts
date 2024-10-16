@@ -60,7 +60,7 @@ export class Image extends Actionable<ImageDataRaw, Image> {
         "event:image.flushComponent": "event:image.flushComponent",
     };
     static defaultConfig: ImageConfig = {
-        src: "",
+        src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
         display: false,
         position: new CommonPosition(CommonPositionType.Center),
         scale: 1,

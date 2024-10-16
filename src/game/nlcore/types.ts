@@ -41,6 +41,9 @@ export type Background = {
         url: string;
     } | color | null | undefined | StaticImageData;
 }
+export type ImageSrc = string | StaticImageData;
+export type HexColor = `#${string}`;
+export type ImageColor = color | HexColor;
 
 export type CommonImagePosition = "left" | "center" | "right";
 export type CommonDisplayable = {

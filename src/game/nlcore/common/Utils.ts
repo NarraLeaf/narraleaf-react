@@ -1,4 +1,4 @@
-import type {Background, NextJSStaticImageData} from "@core/types";
+import type {Background, color, HexColor, ImageColor, ImageSrc, NextJSStaticImageData} from "@core/types";
 import type {Scene} from "@core/elements/scene";
 import type {Image} from "@core/elements/image";
 import type {LogicAction} from "@core/action/logicAction";
@@ -11,8 +11,58 @@ import {
 import {ContentNode} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
+import {toHex} from "@lib/util/data";
+
+export class RGBColor {
+    static isHexString(color: any): color is HexColor {
+        if (typeof color !== "string") {
+            return false;
+        }
+        return /^#[0-9A-F]{6}$/i.test(color);
+    }
+
+    static fromHex(hex: HexColor) {
+        const hexString = hex.slice(1);
+        const r = parseInt(hexString.slice(0, 2), 16);
+        const g = parseInt(hexString.slice(2, 4), 16);
+        const b = parseInt(hexString.slice(4, 6), 16);
+        const a = hexString.length === 8 ? parseInt(hexString.slice(6, 8), 16) / 255 : 1;
+        return new RGBColor(r, g, b, a);
+    }
+
+    public r: number;
+    public g: number;
+    public b: number;
+    public a: number;
+
+    constructor(r: number, g: number, b: number, a: number = 1) {
+        this.r = r;
+        this.g = g;
+        this.b = b;
+        this.a = a;
+    }
+
+    public toString() {
+        return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a})`;
+    }
+
+    public toHex() {
+        return "#" + this.r.toString(16) + this.g.toString(16) + this.b.toString(16);
+    }
+
+    public toImageColor(): ImageColor {
+        return {
+            r: this.r,
+            g: this.g,
+            b: this.b,
+            a: this.a,
+        };
+    }
+}
 
 export class Utils {
+    static RGBColor = RGBColor;
+
     public static srcToString(src: string | NextJSStaticImageData): string {
         return typeof src === "string" ? src : src.src;
     }
@@ -25,7 +75,7 @@ export class Utils {
         return src?.src !== undefined;
     }
 
-    public static backgroundToSrc(background: Background["background"]) {
+    public static backgroundToSrc(background: Background["background"]): string | null {
         return Utils.isStaticImageData(background) ? background.src : (
             (background as any)?.["url"] || null
         );
@@ -33,6 +83,36 @@ export class Utils {
 
     public static isExternalSrc(src: string) {
         return src.startsWith("http://") || src.startsWith("https://");
+    }
+
+    public static isImageSrc(src: any): src is ImageSrc {
+        return (typeof src === "string" && !this.isHexString(src)) || Utils.isStaticImageData(src);
+    }
+
+    public static isImageColor(color: any): color is ImageColor {
+        return Utils.isHexString(color) || Utils.isPlainColor(color);
+    }
+
+    public static isPlainColor(color: any): color is color {
+        return typeof color === "string" || (typeof color === "object" && "r" in color && "g" in color && "b" in color);
+    }
+
+    static isHexString(color: any): color is HexColor {
+        if (typeof color !== "string") {
+            return false;
+        }
+        return /^#([0-9A-F]{6}|[0-9A-F]{3})$/i.test(color);
+    }
+
+    public static toBackgroundSrc(src: ImageSrc): string {
+        if (typeof src === "string") {
+            return src;
+        }
+        return src.src;
+    }
+
+    public static toHex(color: ImageColor): HexColor {
+        return toHex(color);
     }
 }
 

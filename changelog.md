@@ -18,6 +18,7 @@
 - `sentence.copy`
 - `character.setName`
 - `Text` element
+- Support of pure color background
 
 ## [0.0.5] - 2024/10/06
 

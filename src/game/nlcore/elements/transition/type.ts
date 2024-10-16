@@ -1,6 +1,7 @@
 import type {EventDispatcher} from "@lib/util/data";
 import React from "react";
-import type {DOMKeyframesDefinition, AnimationPlaybackControls} from "framer-motion";
+import type {AnimationPlaybackControls, DOMKeyframesDefinition} from "framer-motion";
+import {ImageColor, ImageSrc} from "@core/types";
 
 export type ElementProp<T extends Element = Element, U extends React.HTMLAttributes<T> = React.HTMLAttributes<T>> =
     React.JSX.IntrinsicAttributes
@@ -22,7 +23,7 @@ export interface ITransition<T extends ElementProp = {}> {
 
     toElementProps(): T[];
 
-    setSrc(src: string): void;
+    setSrc(src: ImageSrc | ImageColor): void;
 
     copy(): ITransition<T>;
 }

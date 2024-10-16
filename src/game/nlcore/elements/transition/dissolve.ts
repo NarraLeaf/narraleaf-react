@@ -1,8 +1,8 @@
 import {ElementProp, ITransition} from "./type";
 import {Base} from "./base";
-import {Scene} from "@core/elements/scene";
-import {NextJSStaticImageData} from "@core/types";
+import {ImageColor, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
+import {toHex} from "@lib/util/data";
 
 
 export type DissolveElementProps = {
@@ -12,6 +12,7 @@ export type DissolveElementProps = {
 type DissolveProps = {
     style: {
         opacity: number;
+        backgroundColor?: string;
     },
     src?: string;
 };
@@ -28,22 +29,20 @@ export class Dissolve extends Base<DissolveProps> implements ITransition<Dissolv
     private state: DissolveElementProps = {
         opacity: 0,
     };
-    private src: string | undefined;
+    private src?: ImageSrc | ImageColor;
 
     /**
      * Image will dissolve from one image to another
      */
-    constructor(duration: number = 1000, src?: string | NextJSStaticImageData | Scene) {
+    constructor(duration: number = 1000, src?: ImageSrc | ImageColor) {
         super();
         this.duration = duration;
         if (src) {
-            this.src = typeof src === "string" ? src :
-                src instanceof Scene ? Utils.backgroundToSrc(src.config.background) :
-                    Utils.staticImageDataToSrc(src);
+            this.src = src;
         }
     }
 
-    setSrc(src: string) {
+    setSrc(src: ImageSrc | ImageColor) {
         this.src = src;
     }
 
@@ -73,8 +72,11 @@ export class Dissolve extends Base<DissolveProps> implements ITransition<Dissolv
                 style: {opacity: this.state.opacity},
             },
             {
-                style: {opacity: 1 - this.state.opacity},
-                src: this.src,
+                style: {
+                    opacity: 1 - this.state.opacity,
+                    backgroundColor: Utils.isImageColor(this.src) ? toHex(this.src) : "",
+                },
+                src: Utils.isImageSrc(this.src) ? Utils.srcToString(this.src) : "",
             },
         ];
     }

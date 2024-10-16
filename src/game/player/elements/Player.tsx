@@ -20,6 +20,7 @@ import {useGame} from "@player/provider/game-state";
 import {PlayerProps} from "@player/elements/type";
 import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 import {flushSync} from "react-dom";
+import Displayable from "@player/elements/displayable/Displayable";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -212,6 +213,7 @@ export default function Player(
                                                 );
                                             })
                                         }
+                                        <Displayable state={state} displayable={ele.displayable}/>
                                         {
                                             ele.menus.map((action, i) => {
                                                 return (

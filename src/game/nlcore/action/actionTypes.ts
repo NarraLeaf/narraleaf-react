@@ -1,7 +1,7 @@
 import {LogicAction} from "@core/action/logicAction";
 import type {Story} from "@core/elements/story";
 import type {ConditionData} from "@core/elements/condition";
-import {Background, CommonDisplayable} from "@core/types";
+import {CommonDisplayable, ImageColor, ImageSrc} from "@core/types";
 import {Transform} from "@core/elements/transform/transform";
 import type {Scene} from "@core/elements/scene";
 import type {MenuData} from "@core/elements/menu";
@@ -43,7 +43,7 @@ export type SceneActionContentType = {
     [K in typeof SceneActionTypes[keyof typeof SceneActionTypes]]:
     K extends typeof SceneActionTypes["action"] ? Scene :
         K extends typeof SceneActionTypes["sleep"] ? number | Promise<any> | Awaitable<any, any> :
-            K extends typeof SceneActionTypes["setBackground"] ? [Background["background"]] :
+            K extends typeof SceneActionTypes["setBackground"] ? [ImageSrc | ImageColor] :
                 K extends typeof SceneActionTypes["setTransition"] ? [ITransition | null] :
                     K extends typeof SceneActionTypes["applyTransition"] ? [ITransition] :
                         K extends typeof SceneActionTypes["init"] ? [] :
