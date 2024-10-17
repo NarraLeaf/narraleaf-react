@@ -67,10 +67,20 @@ export class Transform<T extends TransformDefinitions.Types = object> {
 
     /**@internal */
     public static positionToCSS(
-        position: IPosition,
+        position: RawPosition | IPosition | undefined,
         invertY?: boolean | undefined,
         invertX?: boolean | undefined
     ): CSSProps {
+        if (!position) {
+            return {};
+        }
+        if (PositionUtils.isRawPosition(position)) {
+            return PositionUtils.D2PositionToCSS(
+                PositionUtils.rawPositionToCoord2D(position),
+                invertX,
+                invertY
+            );
+        }
         return PositionUtils.D2PositionToCSS(position.toCSS(), invertX, invertY);
     }
 
@@ -167,7 +177,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
     public async animate(
         {scope, overwrites, target}: {
             scope: React.MutableRefObject<HTMLDivElement | null>;
-            overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>;
+            overwrites?: Partial<{ [K in keyof TransformersMap]?: TransformHandler<TransformersMap[K]> }>;
             target: { state: CommonDisplayable }
         },
         gameState: GameState,
@@ -178,9 +188,6 @@ export class Transform<T extends TransformDefinitions.Types = object> {
             (async () => {
                 if (!this.sequenceOptions.sync) {
                     resolve();
-                    if (after) {
-                        after(target.state as any);
-                    }
                 }
                 for (let i = 0; i < this.sequenceOptions.repeat; i++) {
                     for (const {props, options} of this.sequences) {
@@ -194,6 +201,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
 
                         target.state = Transform.mergeState(target.state, props) as ImageConfig;
 
+                        // Initiate animation
                         const animation = animate(
                             current,
                             this.propToCSS(gameState, target.state as any, overwrites),
@@ -203,6 +211,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
 
                         gameState.logger.debug("Animating", this.propToCSS(gameState, target.state as any, overwrites));
 
+                        // Wait for animation to finish
                         if (options?.sync === false) {
                             animation.then(() => {
                                 Object.assign(current["style"], this.propToCSS(gameState, target.state as any, overwrites));
@@ -219,11 +228,9 @@ export class Transform<T extends TransformDefinitions.Types = object> {
                 await sleep(2);
                 this.setControl(null);
 
-                if (this.sequenceOptions.sync) {
-                    resolve();
-                    if (after) {
-                        after(target.state as any);
-                    }
+                resolve();
+                if (after) {
+                    after(target.state as any);
                 }
             })();
         });
@@ -262,8 +269,8 @@ export class Transform<T extends TransformDefinitions.Types = object> {
     /**@internal */
     propToCSS(state: GameState, prop: DeepPartial<T>, overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>): DOMKeyframesDefinition {
         const {invertY, invertX} = state.getLastScene()?.config || {};
-        const FieldHandlers: Record<string, (v: any) => any> = {
-            "position": (value: IPosition) => Transform.positionToCSS(value, invertY, invertX),
+        const FieldHandlers: Omit<{ [K in keyof TransformersMap]: (value: TransformersMap[K]) => CSSProps }, "transform"> = {
+            "position": (value: RawPosition | IPosition | undefined) => Transform.positionToCSS(value, invertY, invertX),
             "backgroundColor": (value: Background["background"]) => Transform.backgroundToCSS(value),
             "backgroundOpacity": (value: number) => ({opacity: value}),
             "opacity": (value: number) => ({opacity: value}),
@@ -294,14 +301,15 @@ export class Transform<T extends TransformDefinitions.Types = object> {
             Object.assign(props, overwrites["transform"](prop));
         }
 
+        // @todo: refactor this
         for (const key in prop) {
             if (!Object.prototype.hasOwnProperty.call(prop, key)) continue;
             if (overwrites && overwrites[key as keyof TransformersMap]) {
                 Object.assign(props, overwrites[key as keyof TransformersMap]!(prop[key]));
             } else if (this.transformers[key as keyof TransformersMap]) {
                 Object.assign(props, this.transformers[key as keyof TransformersMap]!(prop[key]));
-            } else if (FieldHandlers[key]) {
-                Object.assign(props, FieldHandlers[key](prop[key]));
+            } else if (FieldHandlers[key as keyof Omit<TransformersMap, "transform">]) {
+                Object.assign(props, (FieldHandlers[key as keyof Omit<TransformersMap, "transform">] as any)!(prop[key]));
             }
         }
         return props;

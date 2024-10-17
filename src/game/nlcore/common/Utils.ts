@@ -11,7 +11,7 @@ import {
 import {ContentNode} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
-import {toHex} from "@lib/util/data";
+import {toHex, Values} from "@lib/util/data";
 
 export class RGBColor {
     static isHexString(color: any): color is HexColor {
@@ -234,13 +234,13 @@ export class StaticChecker {
                 throw new StaticScriptWarning(message);
             }
             state.isDisposed = true;
-        } else if ([
+        } else if (([
             ImageActionTypes.init,
             ImageActionTypes.show,
             ImageActionTypes.hide,
             ImageActionTypes.applyTransform,
             ImageActionTypes.applyTransition,
-        ].includes(action.type)) {
+        ] as Values<typeof ImageActionTypes>[]).includes(action.type)) {
             if (state.isDisposed) {
                 const message = `Image is disposed before action: ${action.type}\nImage: ${action.callee.name}\nAction: ${action.type}\n\nAt: ${action.__stack}`;
                 throw new StaticScriptWarning(message);

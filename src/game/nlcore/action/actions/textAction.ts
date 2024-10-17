@@ -1,4 +1,4 @@
-import {ImageActionTypes, TextActionContentType, TextActionTypes} from "@core/action/actionTypes";
+import {TextActionContentType, TextActionTypes} from "@core/action/actionTypes";
 import {TypedAction} from "@core/action/actions";
 import {GameState} from "@player/gameState";
 import {CalledActionResult} from "@core/gameTypes";
@@ -30,11 +30,11 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
                 state.stage.next();
             });
             return awaitable;
-        } else if ([
+        } else if (([
             TextActionTypes.show,
             TextActionTypes.hide,
             TextActionTypes.applyTransform
-        ].includes(this.type)) {
+        ] as T[]).includes(this.type)) {
             const awaitable =
                 new Awaitable<CalledActionResult>(v => v)
                     .registerSkipController(new SkipController(() => {
@@ -53,15 +53,14 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
             state.animateText(Text.EventTypes["event:text.applyTransform"], this.callee, [
                 transform
             ], () => {
-                if (this.type === ImageActionTypes.hide) {
+                if (this.type === TextActionTypes.hide) {
                     this.callee.state.display = false;
                 }
                 awaitable.resolve(super.executeAction(state) as CalledActionResult);
             });
             return awaitable;
         } else if (this.type === TextActionTypes.setText) {
-            const text = (this.contentNode as ContentNode<TextActionContentType["text:setText"]>).getContent()[0];
-            this.callee.state.text = text;
+            this.callee.state.text = (this.contentNode as ContentNode<TextActionContentType["text:setText"]>).getContent()[0];
             return super.executeAction(state) as CalledActionResult;
         }
 

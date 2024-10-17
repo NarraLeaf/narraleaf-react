@@ -2,6 +2,10 @@
 
 ## [0.0.6] - 2024/10/09
 
+### Fixed
+
+- Transform Animation does not wait for the previous animation to finish
+
 ### Changed
 
 - changed constructor signature of `Sound`
@@ -13,12 +17,18 @@
 
 ### Add
 
-- voice support
-- lock for `liveGame.next`
-- `sentence.copy`
-- `character.setName`
-- `Text` element
-- Support of pure color background
+- Added voice support
+- Added lock for `liveGame.next`
+- Added `sentence.copy`
+- Added `character.setName`
+- Added `Text` element
+- Added Support of pure color background
+
+### Feature
+
+- specify the voice of each sentence
+- show text on the screen using `Text` element
+- use pure color as background
 
 ## [0.0.5] - 2024/10/06
 

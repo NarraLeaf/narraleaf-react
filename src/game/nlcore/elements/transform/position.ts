@@ -138,7 +138,7 @@ export class PositionUtils {
         );
     }
 
-    static isRawPosition(arg: any): arg is IPosition {
+    static isRawPosition(arg: any): arg is RawPosition {
         return this.isRawCommonPositionType(arg) || this.isRawCoord2DPosition(arg) || this.isRawAlignPosition(arg);
     }
 

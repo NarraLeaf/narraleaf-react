@@ -4,7 +4,7 @@ import {LogicAction} from "@core/game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import * as Howler from "howler";
 import {HowlOptions} from "howler";
-import {SoundActionContentType} from "@core/action/actionTypes";
+import {SoundActionContentType, SoundActionTypes} from "@core/action/actionTypes";
 import {Chained, Proxied} from "@core/action/chain";
 import {SoundAction} from "@core/action/actions/soundAction";
 
@@ -226,7 +226,7 @@ export class Sound extends Actionable<SoundDataRaw> {
     }
 
     /**@internal */
-    private pushAction<T>(type: string, content: T): ChainedSound {
+    private pushAction<T>(type: typeof SoundActionTypes[keyof typeof SoundActionTypes], content: T): ChainedSound {
         return this.chain(new SoundAction(
             this.chain(),
             type,

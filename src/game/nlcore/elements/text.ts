@@ -7,7 +7,6 @@ import {Chained, Proxied} from "@core/action/chain";
 import {LogicAction} from "@core/action/logicAction";
 import {Transform} from "@core/elements/transform/transform";
 import type {TransformDefinitions} from "@core/elements/transform/type";
-import {ImageAction} from "@core/action/actions/imageAction";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {TextActionContentType} from "@core/action/actionTypes";
 import {TextAction} from "@core/action/actions/textAction";
@@ -75,7 +74,7 @@ export class Text extends Actionable<TextDataRaw, Text> {
         const chain = this.chain();
         const action = new TextAction<typeof TextAction.ActionTypes.applyTransform>(
             chain,
-            ImageAction.ActionTypes.applyTransform,
+            TextAction.ActionTypes.applyTransform,
             new ContentNode<TextActionContentType["text:applyTransform"]>().setContent([
                 transform.copy(),
             ])
@@ -114,7 +113,7 @@ export class Text extends Actionable<TextDataRaw, Text> {
             ]);
         const action = new TextAction<typeof TextAction.ActionTypes.show>(
             chain,
-            ImageAction.ActionTypes.show,
+            TextAction.ActionTypes.show,
             new ContentNode<TextActionContentType["text:show"]>().setContent([trans])
         );
         return chain.chain(action);
@@ -182,22 +181,9 @@ export class Text extends Actionable<TextDataRaw, Text> {
 
     /**@internal */
     toTransform(): Transform<TransformDefinitions.TextTransformProps> {
-        return new Transform<TransformDefinitions.TextTransformProps>([
-            {
-                props: {
-                    position: this.state.position,
-                    scale: this.state.scale,
-                    rotation: this.state.rotation,
-                    opacity: this.state.opacity,
-                    fontSize: this.state.fontSize,
-                    fontColor: this.state.fontColor,
-                    display: this.state.display,
-                },
-                options: {
-                    sync: true,
-                }
-            }
-        ]);
+        return new Transform<TransformDefinitions.TextTransformProps>(this.state, {
+            duration: 0,
+        });
     }
 
     /**@internal */

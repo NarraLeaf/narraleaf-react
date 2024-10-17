@@ -7,10 +7,10 @@ export class TypedAction<
     ContentType extends Record<string, any> = Record<string, any>,
     T extends keyof ContentType & string = keyof ContentType & string,
     Callee extends LogicAction.GameElement = LogicAction.GameElement
-> extends Action<ContentType[T], Callee> {
+> extends Action<ContentType[T], Callee, T> {
     declare callee: Callee;
 
-    constructor(callee: Proxied<Callee, Chained<LogicAction.Actions, Callee>>, type: any, contentNode: ContentNode<ContentType[T]>) {
+    constructor(callee: Proxied<Callee, Chained<LogicAction.Actions, Callee>>, type: T, contentNode: ContentNode<ContentType[T]>) {
         super(callee, type, contentNode);
         this.callee = callee.getSelf();
         this.contentNode.action = this;

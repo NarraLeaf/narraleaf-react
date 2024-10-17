@@ -41,11 +41,11 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
 
             state.stage.update();
             return super.executeAction(state);
-        } else if ([
+        } else if (([
             ImageActionTypes.show,
             ImageActionTypes.hide,
             ImageActionTypes.applyTransform
-        ].includes(this.type)) {
+        ] as T[]).includes(this.type)) {
             const awaitable =
                 new Awaitable<CalledActionResult, CalledActionResult>(v => v)
                     .registerSkipController(new SkipController(() => {
