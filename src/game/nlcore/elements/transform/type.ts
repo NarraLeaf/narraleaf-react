@@ -57,7 +57,6 @@ export namespace TransformDefinitions {
         position: CommonDisplayable["position"];
     };
     export type TextTransformProps = ImageTransformProps & {
-        fontSize: number;
         fontColor: color;
     };
     export type Types = ImageTransformProps | TextTransformProps | object;

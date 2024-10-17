@@ -154,6 +154,7 @@ export const ControlActionTypes = {
     all: "control:all",
     allAsync: "control:allAsync",
     repeat: "control:repeat",
+    sleep: "control:sleep",
 } as const;
 export type ControlActionContentType = {
     [K in typeof ControlActionTypes[keyof typeof ControlActionTypes]]:
@@ -164,7 +165,8 @@ export type ControlActionContentType = {
                     K extends "control:parallel" ? [LogicAction.Actions[]] :
                         K extends "control:allAsync" ? [LogicAction.Actions[]] :
                             K extends "control:repeat" ? [LogicAction.Actions[], number] :
-                                any;
+                                K extends "control:sleep" ? [LogicAction.Actions[], number | Awaitable<any> | Promise<any>] :
+                                    any;
 }
 export const TextActionTypes = {
     action: "text:action",
@@ -173,6 +175,8 @@ export const TextActionTypes = {
     hide: "text:hide",
     applyTransform: "text:applyTransform",
     init: "text:init",
+    applyTransition: "text:applyTransition",
+    setFontSize: "text:setFontSize",
 } as const;
 export type TextActionContentType = {
     [K in typeof TextActionTypes[keyof typeof TextActionTypes]]:
@@ -181,5 +185,7 @@ export type TextActionContentType = {
             K extends "text:hide" ? [Transform<TransformDefinitions.TextTransformProps>] :
                 K extends "text:applyTransform" ? [Transform<TransformDefinitions.TextTransformProps>] :
                     K extends "text:init" ? [Scene?] :
-                        any;
+                        K extends "text:applyTransition" ? [ITransition] :
+                            K extends "text:setFontSize" ? [number] :
+                                any;
 }

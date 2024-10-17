@@ -23,6 +23,7 @@
 - Added `character.setName`
 - Added `Text` element
 - Added Support of pure color background
+- Added `sleep` method to `Control`
 
 ### Feature
 

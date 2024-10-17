@@ -70,7 +70,7 @@ export class Text extends Actionable<TextDataRaw, Text> {
         this.state = deepMerge({}, this.config);
     }
 
-    public applyTransform(transform: Transform): Proxied<Text, Chained<LogicAction.Actions>> {
+    public applyTransform(transform: Transform<TransformDefinitions.TextTransformProps>): Proxied<Text, Chained<LogicAction.Actions>> {
         const chain = this.chain();
         const action = new TextAction<typeof TextAction.ActionTypes.applyTransform>(
             chain,

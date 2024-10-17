@@ -128,6 +128,28 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                 state.stage.next();
             })();
             return awaitable;
+        } else if (this.type === ControlActionTypes.sleep) {
+            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
+            const [, content] = (this.contentNode as ContentNode<[never[], number | Awaitable<any> | Promise<any>]>).getContent();
+            const wait = new Promise<void>(resolve => {
+                if (typeof content === "number") {
+                    setTimeout(() => {
+                        resolve();
+                    }, content);
+                } else if (Awaitable.isAwaitable<any, any>(content)) {
+                    content.then(resolve);
+                } else {
+                    content?.then(resolve);
+                }
+            });
+            wait.then(() => {
+                awaitable.resolve({
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                });
+                state.stage.next();
+            });
+            return awaitable;
         }
 
         throw new Error("Unknown control action type: " + this.type);

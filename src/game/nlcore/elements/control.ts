@@ -1,7 +1,7 @@
 import {Actionable} from "@core/action/actionable";
 import {LogicAction} from "@core/action/logicAction";
 import {ContentNode} from "@core/action/tree/actionTree";
-import {Values} from "@lib/util/data";
+import {Awaitable, Values} from "@lib/util/data";
 import {Chained, ChainedActions, Proxied} from "@core/action/chain";
 import {ControlAction} from "@core/action/actions/controlAction";
 
@@ -57,6 +57,14 @@ export class Control extends Actionable {
         return new Control().repeat(times, actions);
     }
 
+    /**
+     * Sleep for a duration
+     * @chainable
+     */
+    public static sleep(duration: number | Awaitable<any> | Promise<any>): ChainedControl {
+        return new Control().sleep(duration);
+    }
+
     constructor() {
         super();
     }
@@ -107,6 +115,14 @@ export class Control extends Actionable {
      */
     public repeat(times: number, actions: ChainedActions): ChainedControl {
         return this.push(ControlAction.ActionTypes.repeat, actions, times);
+    }
+
+    /**
+     * Sleep for a duration
+     * @chainable
+     */
+    public sleep(duration: number | Awaitable<any> | Promise<any>): ChainedControl {
+        return this.push(ControlAction.ActionTypes.sleep, [], duration);
     }
 
     /**@internal */
