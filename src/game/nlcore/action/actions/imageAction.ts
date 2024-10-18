@@ -1,5 +1,5 @@
 import {ImageActionContentType, ImageActionTypes} from "@core/action/actionTypes";
-import {Image as GameImage, Image} from "@core/elements/image";
+import {Image} from "@core/elements/image";
 import {GameState} from "@player/gameState";
 import type {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, SkipController} from "@lib/util/data";
@@ -22,18 +22,14 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
 
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
 
-            this.callee.events.once("event:image.mount", async () => {
-                if (!this.callee.getScope()?.current) {
-                    await this.callee.events.any(GameImage.EventTypes["event:image.elementLoaded"]);
-                }
-
-                await this.callee.events.any("event:image.init");
+            (async () => {
+                await this.callee.events.any("event:displayable.init");
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
                 });
                 state.stage.next();
-            });
+            })();
             return awaitable;
         } else if (this.type === ImageActionTypes.setSrc) {
             this.callee.state.src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
@@ -54,14 +50,15 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                         }
                         return super.executeAction(state) as CalledActionResult;
                     }));
-            const transform = (this.contentNode as ContentNode<ImageActionContentType["image:show"]>).getContent()[1];
+            const transform =
+                (this.contentNode as ContentNode<ImageActionContentType["image:show"]>).getContent()[1];
 
             if (this.type === ImageActionTypes.show) {
                 this.callee.state.display = true;
                 state.stage.update();
             }
 
-            state.animateImage(Image.EventTypes["event:image.applyTransform"], this.callee, [
+            state.animateImage(Image.EventTypes["event:displayable.applyTransform"], this.callee, [
                 transform
             ], () => {
                 if (this.type === ImageActionTypes.hide) {
@@ -88,8 +85,9 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                         node: this.contentNode.getChild()
                     };
                 }));
-            const transition = (this.contentNode as ContentNode<ImageActionContentType["image:applyTransition"]>).getContent()[0];
-            this.callee.events.any("event:image.applyTransition", transition).then(() => {
+            const transition =
+                (this.contentNode as ContentNode<ImageActionContentType["image:applyTransition"]>).getContent()[0];
+            this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
@@ -98,16 +96,17 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             });
             return awaitable;
         } else if (this.type === ImageActionTypes.flush) {
-            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
-            this.callee.events.any("event:image.flushComponent")
-                .then(() => {
-                    awaitable.resolve({
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    });
-                    state.stage.next();
-                });
-            return awaitable;
+            // const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
+            // this.callee.events.any("event:image.flushComponent")
+            //     .then(() => {
+            //         awaitable.resolve({
+            //             type: this.type,
+            //             node: this.contentNode.getChild()
+            //         });
+            //         state.stage.next();
+            //     });
+            // return awaitable;
+            return super.executeAction(state);
         }
 
         throw super.unknownType();

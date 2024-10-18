@@ -5,7 +5,7 @@ import {Actionable} from "@core/action/actionable";
 import {Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
 import {Transform} from "./transform/transform";
-import {CommonDisplayable, StaticImageData} from "@core/types";
+import {CommonDisplayable, EventfulDisplayable, StaticImageData} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
 import {ITransition} from "@core/elements/transition/type";
@@ -32,32 +32,32 @@ export type ImageDataRaw = {
 };
 
 export type ImageEventTypes = {
-    "event:image.show": [Transform];
-    "event:image.hide": [Transform];
     "event:image.init": [];
-    "event:image.applyTransform": [Transform];
     "event:image.mount": [];
     "event:image.unmount": [];
     "event:image.ready": [React.MutableRefObject<HTMLDivElement | null>];
     "event:image.elementLoaded": [];
-    "event:image.applyTransition": [ITransition];
     "event:image.flush": [];
     "event:image.flushComponent": [];
+    "event:displayable.applyTransition": [ITransition];
+    "event:displayable.applyTransform": [Transform];
+    "event:displayable.init": [];
 };
 
-export class Image extends Actionable<ImageDataRaw, Image> {
+export class Image
+    extends Actionable<ImageDataRaw, Image>
+    implements EventfulDisplayable {
     static EventTypes: { [K in keyof ImageEventTypes]: K } = {
-        "event:image.show": "event:image.show",
-        "event:image.hide": "event:image.hide",
         "event:image.init": "event:image.init",
-        "event:image.applyTransform": "event:image.applyTransform",
         "event:image.mount": "event:image.mount",
         "event:image.unmount": "event:image.unmount",
         "event:image.ready": "event:image.ready",
         "event:image.elementLoaded": "event:image.elementLoaded",
-        "event:image.applyTransition": "event:image.applyTransition",
         "event:image.flush": "event:image.flush",
         "event:image.flushComponent": "event:image.flushComponent",
+        "event:displayable.applyTransition": "event:displayable.applyTransition",
+        "event:displayable.applyTransform": "event:displayable.applyTransform",
+        "event:displayable.init": "event:displayable.init",
     };
     static defaultConfig: ImageConfig = {
         src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
@@ -318,7 +318,10 @@ export class Image extends Actionable<ImageDataRaw, Image> {
             });
     }
 
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     toTransform(): Transform<TransformDefinitions.ImageTransformProps> {
         return new Transform<TransformDefinitions.ImageTransformProps>(this.state, {
             duration: 0,
@@ -397,6 +400,13 @@ export class Image extends Actionable<ImageDataRaw, Image> {
     /**@internal */
     override reset() {
         this.state = deepMerge<ImageConfig>({}, this.config);
+    }
+
+    /**@internal */
+    toDisplayableTransform(): Transform {
+        return new Transform<TransformDefinitions.ImageTransformProps>(this.state, {
+            duration: 0,
+        });
     }
 
     /**@internal */

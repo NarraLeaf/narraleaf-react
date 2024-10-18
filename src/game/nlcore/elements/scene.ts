@@ -1,6 +1,6 @@
 import {Constructable} from "../action/constructable";
 import {Awaitable, deepMerge, EventDispatcher, safeClone} from "@lib/util/data";
-import {Background, ImageColor, ImageSrc} from "@core/types";
+import {Background, EventfulDisplayable, ImageColor, ImageSrc} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Transform} from "@core/elements/transform/transform";
@@ -64,7 +64,6 @@ export type SceneDataRaw = {
 }
 
 export type SceneEventTypes = {
-    "event:scene.applyTransition": [ITransition | null];
     "event:scene.remove": [];
     "event:scene.load": [],
     "event:scene.unload": [],
@@ -72,17 +71,17 @@ export type SceneEventTypes = {
     "event:scene.unmount": [],
     "event:scene.preUnmount": [],
     "event:scene.imageLoaded": [],
-    "event:scene.initTransform": [Transform<ImageTransformProps>];
     "event:scene.setBackgroundMusic": [Sound | null, number];
-    "event:scene.applyTransform": [Transform<ImageTransformProps>];
+    "event:displayable.applyTransition": [ITransition];
+    "event:displayable.applyTransform": [Transform];
+    "event:displayable.init": [];
 };
 
 export class Scene extends Constructable<
     Actions,
     Scene
-> {
+> implements EventfulDisplayable {
     static EventTypes: { [K in keyof SceneEventTypes]: K } = {
-        "event:scene.applyTransition": "event:scene.applyTransition",
         "event:scene.remove": "event:scene.remove",
         "event:scene.load": "event:scene.load",
         "event:scene.unload": "event:scene.unload",
@@ -90,9 +89,10 @@ export class Scene extends Constructable<
         "event:scene.unmount": "event:scene.unmount",
         "event:scene.preUnmount": "event:scene.preUnmount",
         "event:scene.imageLoaded": "event:scene.imageLoaded",
-        "event:scene.initTransform": "event:scene.initTransform",
         "event:scene.setBackgroundMusic": "event:scene.setBackgroundMusic",
-        "event:scene.applyTransform": "event:scene.applyTransform",
+        "event:displayable.applyTransition": "event:displayable.applyTransition",
+        "event:displayable.applyTransform": "event:displayable.applyTransform",
+        "event:displayable.init": "event:displayable.init",
     };
     static defaultConfig: Omit<ISceneConfig, "background"> = {
         invertY: false,
@@ -122,7 +122,9 @@ export class Scene extends Constructable<
 
         this.config = {
             ...rest,
-            backgroundImage: new Image({}),
+            backgroundImage: new Image({
+                opacity: 1,
+            }),
             background: background || null,
         };
         this.state = deepMerge<SceneConfig & SceneState>(this.config, {});
@@ -429,6 +431,11 @@ export class Scene extends Constructable<
     override reset() {
         this.state = deepMerge<SceneConfig & SceneState>(Scene.defaultState, this.config);
         this.state.backgroundImage.reset();
+    }
+
+    /**@internal */
+    toDisplayableTransform(): Transform {
+        return this.state.backgroundImage.toDisplayableTransform();
     }
 
     /**@internal */

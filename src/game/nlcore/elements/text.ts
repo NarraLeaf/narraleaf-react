@@ -1,4 +1,4 @@
-import {color, CommonDisplayable} from "@core/types";
+import {color, CommonDisplayable, EventfulDisplayable} from "@core/types";
 import {Actionable} from "@core/action/actionable";
 import {CommonPosition} from "@core/elements/transform/position";
 import {deepMerge, EventDispatcher} from "@lib/util/data";
@@ -11,6 +11,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {TextActionContentType} from "@core/action/actionTypes";
 import {TextAction} from "@core/action/actions/textAction";
 import {Scene} from "@core/elements/scene";
+import {ITransition} from "@core/elements/transition/type";
 
 export type TextConfig = {
     align: "left" | "center" | "right";
@@ -28,16 +29,20 @@ export type TextDataRaw = {
 export type TextEventTypes = {
     "event:text.show": [Transform];
     "event:text.hide": [Transform];
-    "event:text.applyTransform": [Transform];
-    "event:text.init": [];
+    "event:displayable.applyTransition": [ITransition];
+    "event:displayable.applyTransform": [Transform];
+    "event:displayable.init": [];
 };
 
-export class Text extends Actionable<TextDataRaw, Text> {
+export class Text
+    extends Actionable<TextDataRaw, Text>
+    implements EventfulDisplayable {
     static EventTypes: { [K in keyof TextEventTypes]: K } = {
         "event:text.show": "event:text.show",
         "event:text.hide": "event:text.hide",
-        "event:text.applyTransform": "event:text.applyTransform",
-        "event:text.init": "event:text.init",
+        "event:displayable.applyTransition": "event:displayable.applyTransition",
+        "event:displayable.applyTransform": "event:displayable.applyTransform",
+        "event:displayable.init": "event:displayable.init",
     };
     static defaultConfig: TextConfig = {
         position: new CommonPosition(CommonPosition.Positions.Center),
@@ -179,8 +184,18 @@ export class Text extends Actionable<TextDataRaw, Text> {
         return this;
     }
 
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     toTransform(): Transform<TransformDefinitions.TextTransformProps> {
+        return new Transform<TransformDefinitions.TextTransformProps>(this.state, {
+            duration: 0,
+        });
+    }
+
+    /**@internal */
+    toDisplayableTransform(): Transform {
         return new Transform<TransformDefinitions.TextTransformProps>(this.state, {
             duration: 0,
         });

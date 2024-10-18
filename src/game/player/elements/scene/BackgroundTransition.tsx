@@ -1,159 +1,69 @@
 // noinspection SpellCheckingInspection
 
-import React, {useEffect, useRef, useState} from "react";
+import React from "react";
 import {Scene as GameScene} from "@core/elements/scene";
-import {ElementProp, ImgElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";
+import {ImgElementProp} from "@core/elements/transition/type";
 import {deepMerge} from "@lib/util/data";
-import Background from "./Background";
-import {Transform} from "@core/elements/transform/transform";
 import {GameState} from "@player/gameState";
-import {useGame} from "@player/provider/game-state";
-import type {TransformDefinitions} from "@core/elements/transform/type";
+import {DisplayableChildProps} from "@player/elements/displayable/type";
+import {m} from "framer-motion";
+import Displayable from "@player/elements/displayable/Displayable";
+import {useRatio} from "@player/provider/ratio";
 
 export default function BackgroundTransition({scene, props, state}: {
     scene: GameScene,
     props: Record<string, any>,
     state: GameState
 }) {
-    const scope = useRef<HTMLImageElement | null>(null);
-    const {game} = useGame();
-    const [transition, setTransition] =
-        useState<null | ITransition>(null);
-    const [, setTransitionProps] =
-        useState<ElementProp[]>([]);
-    const [transform, setTransform] =
-        useState<null | Transform<TransformDefinitions.ImageTransformProps>>(null);
-    const [transformProps, setTransformProps] =
-        useState<ElementProp>({});
+    return (
+        <Displayable
+            displayable={{
+                element: scene,
+                skipTransform: state.game.config.elements.background.allowSkipTransform,
+                skipTransition: state.game.config.elements.background.allowSkipTransition,
+            }}
+            child={(displayableProps) => (
+                <DisplayableBackground
+                    {...displayableProps}
+                    scene={scene}
+                    props={props}
+                />
+            )} state={state}
+        />
+    );
+}
 
-    useEffect(() => {
-        const sceneEventTokens = scene.events.onEvents([
-            {
-                type: GameScene.EventTypes["event:scene.applyTransition"],
-                listener: scene.events.on(GameScene.EventTypes["event:scene.applyTransition"], (t) => {
-                    setTransition(t);
-                    if (!t) {
-                        state.logger.warn("transition not set");
-                        return Promise.resolve();
-                    }
-                    return new Promise<void>(resolve => {
-                        const eventToken = t.events.onEvents([
-                            {
-                                type: TransitionEventTypes.update,
-                                listener: t.events.on(TransitionEventTypes.update, (progress) => {
-                                    setTransitionProps(progress);
-                                }),
-                            },
-                            {
-                                type: TransitionEventTypes.end,
-                                listener: t.events.on(TransitionEventTypes.end, () => {
-                                    setTransition(null);
-
-                                    state.logger.debug("scene background transition end", t);
-                                })
-                            },
-                            {
-                                type: TransitionEventTypes.start,
-                                listener: t.events.on(TransitionEventTypes.start, () => {
-                                    state.logger.debug("scene background transition start", t);
-                                })
-                            }
-                        ]);
-                        t.start(() => {
-                            eventToken.cancel();
-                            resolve();
-                        });
-                    });
-                })
-            },
-            {
-                type: GameScene.EventTypes["event:scene.applyTransform"],
-                listener: scene.events.on(GameScene.EventTypes["event:scene.applyTransform"], async (transform) => {
-                    assignTo(transform.propToCSS(state, scene.state.backgroundImage.state));
-
-                    setTransform(transform);
-                    await transform.animate({
-                        scope,
-                        target: scene.state.backgroundImage
-                    }, state, (after) => {
-
-                        scene.state.backgroundImage.state = deepMerge(scene.state.backgroundImage.state, after);
-
-                        setTransformProps({
-                            style: transform.propToCSS(state, scene.state.backgroundImage.state) as any,
-                        });
-
-                        setTransform(null);
-                    });
-                })
-            },
-            {
-                type: GameScene.EventTypes["event:scene.initTransform"],
-                listener: scene.events.on(GameScene.EventTypes["event:scene.initTransform"], async (transform) => {
-                    state.logger.debug("init transform", transform);
-                    await transform.animate({
-                        scope,
-                        target: scene.state.backgroundImage
-                    }, state, (after) => {
-                        scene.state.backgroundImage.state = deepMerge(scene.state.backgroundImage.state, after);
-                    });
-                })
-            }
-        ]);
-
-        return () => {
-            sceneEventTokens.cancel();
-        };
-    }, []);
-
-    useEffect(() => {
-        assignTo(scene.state.backgroundImage.state);
-    }, []);
-
-    useEffect(() => {
-        const gameEvents = state.events.onEvents([
-            {
-                type: GameState.EventTypes["event:state.player.skip"],
-                listener: state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
-                    if (transform && transform.getControl()) {
-                        transform.getControl()!.complete();
-                        transform.setControl(null);
-                    }
-                }),
-            }
-        ]);
-
-        return () => {
-            gameEvents.cancel();
-        };
-    }, [transform]);
+function DisplayableBackground(
+    {
+        transformRef,
+        transformProps,
+        transition,
+        state,
+        scene,
+        props,
+    }: Readonly<DisplayableChildProps & {
+        scene: GameScene;
+        props: Record<string, any>;
+    }>
+) {
+    const {ratio} = useRatio();
+    const [imageLoaded, setImageLoaded] = React.useState<boolean>(false);
 
     function handleImageOnload() {
+        if (imageLoaded) {
+            return;
+        }
+        setImageLoaded(true);
         scene.events.emit(GameScene.EventTypes["event:scene.imageLoaded"]);
-    }
 
-    function assignTo(arg0: Transform<TransformDefinitions.ImageTransformProps> | Record<string, any>) {
-        if (transform && transform.getControl()) {
-            console.warn("processing transform not completed");
-            transform.getControl()!.complete();
-            transform.setControl(null);
-        }
-        if (!scope.current) {
-            throw new Error("scope not ready");
-        }
-        if (arg0 instanceof Transform) {
-            Object.assign(scope.current.style, arg0.propToCSS(state, scene.state.backgroundImage.state));
-        } else {
-            Object.assign(scope.current.style, arg0);
-        }
+        state.logger.debug("BackgroundTransition", "Image loaded", scene);
     }
 
     const emptyImage = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAgAB9sWFXTkAAAAASUVORK5CYII=";
     const defaultProps = {
         src: emptyImage,
         style: {
-            opacity: 0,
-            ...(game.config.app.debug ? {
+            ...(state.game.config.app.debug ? {
                 border: "1px solid red",
             } : {})
         }
@@ -161,33 +71,48 @@ export default function BackgroundTransition({scene, props, state}: {
 
     return (
         <div>
-            {
-                transition ? (() => {
-                    return transition.toElementProps().map((elementProps, index, arr) => {
+            <m.div
+                layout
+                ref={transformRef}
+                className={"absolute inset-0 flex items-center justify-center bg-cover bg-center overflow-hidden"}
+                {...(deepMerge<any>({
+                    style: {
+                        ...ratio.getStyle(),
+                    }
+                }, transformProps))}
+            >
+                {
+                    transition ? (() => {
+                        return transition.toElementProps().map((elementProps, index) => {
+                            const mergedProps =
+                                deepMerge<ImgElementProp>(defaultProps, props, elementProps);
+                            return (
+                                <img
+                                    alt={mergedProps.alt}
+                                    {...mergedProps}
+                                    onLoad={handleImageOnload}
+                                    src={(mergedProps.src) ? mergedProps.src : emptyImage}
+                                    className={"absolute"}
+                                    key={index}
+                                />
+                            );
+                        });
+                    })() : (() => {
                         const mergedProps =
-                            deepMerge<ImgElementProp>(defaultProps, transformProps, props, elementProps);
+                            deepMerge<ImgElementProp>(defaultProps, props);
                         return (
-                            <Background key={index}>
-                                <img alt={mergedProps.alt} {...mergedProps} onLoad={handleImageOnload}
-                                     src={(mergedProps.src) ? mergedProps.src : emptyImage}
-                                     ref={index === (arr.length - 1) ? scope : undefined} className={"absolute"}/>
-                            </Background>
+                            <img
+                                key={"last"}
+                                alt={mergedProps.alt}
+                                {...mergedProps}
+                                onLoad={handleImageOnload}
+                                src={mergedProps.src || emptyImage}
+                                className={"absolute"}
+                            />
                         );
-                    });
-                })() : (() => {
-                    const mergedProps =
-                        deepMerge<ImgElementProp>(defaultProps, props, {
-                            style: new Transform([]).propToCSS(state, scene.state.backgroundImage.state)
-                        }, transformProps);
-                    return (
-                        <Background>
-                            <img alt={mergedProps.alt} {...mergedProps} onLoad={handleImageOnload} ref={scope}
-                                 src={mergedProps.src || emptyImage}
-                                 className={"absolute"}/>
-                        </Background>
-                    );
-                })()
-            }
+                    })()
+                }
+            </m.div>
         </div>
     );
 }

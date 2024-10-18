@@ -22,7 +22,7 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
 
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
 
-            this.callee.events.any("event:text.init").then(() => {
+            this.callee.events.any("event:displayable.init").then(() => {
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
@@ -50,7 +50,7 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
                 state.stage.update();
             }
 
-            state.animateText(Text.EventTypes["event:text.applyTransform"], this.callee, [
+            state.animateText(Text.EventTypes["event:displayable.applyTransform"], this.callee, [
                 transform
             ], () => {
                 if (this.type === TextActionTypes.hide) {
@@ -62,6 +62,28 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
         } else if (this.type === TextActionTypes.setText) {
             this.callee.state.text = (this.contentNode as ContentNode<TextActionContentType["text:setText"]>).getContent()[0];
             return super.executeAction(state) as CalledActionResult;
+        } else if (this.type === TextActionTypes.setFontSize) {
+            this.callee.state.fontSize = (this.contentNode as ContentNode<TextActionContentType["text:setFontSize"]>).getContent()[0];
+            return super.executeAction(state) as CalledActionResult;
+        } else if (this.type === TextActionTypes.applyTransition) {
+            const awaitable = new Awaitable<CalledActionResult>()
+                .registerSkipController(new SkipController(() => {
+                    state.logger.info("NarraLeaf-React: Text Transition", "Skipped");
+                    return {
+                        type: this.type,
+                        node: this.contentNode.getChild()
+                    };
+                }));
+            const transition =
+                (this.contentNode as ContentNode<TextActionContentType["text:applyTransition"]>).getContent()[0];
+            this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
+                awaitable.resolve({
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                });
+                state.stage.next();
+            });
+            return awaitable;
         }
 
         throw super.unknownType();

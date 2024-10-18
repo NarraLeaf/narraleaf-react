@@ -43,10 +43,20 @@ export class Game {
             img: {
                 slowLoadWarning: true,
                 slowLoadThreshold: 2000,
+                allowSkipTransform: true,
+                allowSkipTransition: true,
             },
             menu: {
                 use: DefaultElements.menu,
-            }
+            },
+            background: {
+                allowSkipTransform: true,
+                allowSkipTransition: false,
+            },
+            text: {
+                allowSkipTransform: true,
+                allowSkipTransition: true,
+            },
         },
         elementStyles: {
             say: {

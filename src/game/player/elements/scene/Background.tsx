@@ -27,13 +27,6 @@ export default function Background({
                 className={clsx("absolute inset-0 flex items-center justify-center bg-cover bg-center overflow-hidden")}
                 style={{
                     ...ratio.getStyle(),
-                    // ...(clientWidth > ratio.state.minWidth ? {
-                    //     left: "50%",
-                    // } : {}),
-                    // ...(clientHeight > ratio.state.minHeight ? {
-                    //     top: "50%",
-                    // } : {}),
-                    // transform: `translate(${clientWidth > ratio.state.minWidth ? "-50%" : "0"}, ${clientHeight > ratio.state.minHeight ? "-50%" : "0"})`,
                 }}
             >
                 {children}

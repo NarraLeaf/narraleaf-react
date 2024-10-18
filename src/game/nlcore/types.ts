@@ -1,4 +1,7 @@
 import {IPosition, RawPosition} from "@core/elements/transform/position";
+import {ITransition} from "@core/elements/transition/type";
+import {Transform} from "@core/elements/transform/transform";
+import {EventDispatcher} from "@lib/util/data";
 
 export type color = string | {
     r: number;
@@ -61,3 +64,21 @@ export const ImagePosition: {
     left: "left",
     right: "right"
 } as const;
+
+export type DisplayableAnimationEvents =
+    | "event:displayable.applyTransform"
+    | "event:displayable.applyTransition"
+    | "event:displayable.init";
+export type EventfulDisplayableEvents = {
+    [K in DisplayableAnimationEvents]:
+    K extends "event:displayable.applyTransform" ? [Transform] :
+        K extends "event:displayable.applyTransition" ? [ITransition] :
+            K extends "event:displayable.init" ? [] :
+                never;
+}
+
+export interface EventfulDisplayable {
+    events: EventDispatcher<EventfulDisplayableEvents>;
+
+    toDisplayableTransform(): Transform;
+}

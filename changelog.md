@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.0.6] - 2024/10/09
+## [0.1.0] - 2024/10/09
 
 ### Fixed
 
@@ -14,6 +14,7 @@
 - changed signature of the constructor of `Sentence`, now it does not require a `Character` instance. If you want to
   specify it, use sentence config instead
 - Rename `CommonImage` to `CommonDisplayable`
+- Refactor `Image.tsx`, `BackgroundTransition.tsx` and `Text.tsx`.
 
 ### Add
 
@@ -24,6 +25,8 @@
 - Added `Text` element
 - Added Support of pure color background
 - Added `sleep` method to `Control`
+- Added transition support for `Text`
+- Configurable skipping options
 
 ### Feature
 

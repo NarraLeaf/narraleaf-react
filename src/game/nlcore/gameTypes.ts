@@ -73,9 +73,19 @@ export type GameConfig = {
              */
             slowLoadWarning: boolean;
             slowLoadThreshold: number;
+            allowSkipTransform: boolean;
+            allowSkipTransition: boolean;
         },
         menu: {
             use: MenuComponent;
+        },
+        background: {
+            allowSkipTransform: boolean;
+            allowSkipTransition: boolean;
+        },
+        text: {
+            allowSkipTransform: boolean;
+            allowSkipTransition: boolean;
         }
     },
     elementStyles: {

@@ -29,7 +29,8 @@ export default function Isolated(
         }}>
             <div style={{
                 ...styles,
-                position: "relative"
+                position: "relative",
+                overflow: "hidden",
             }} {...(props || {})} ref={ref}>
                 {children}
             </div>

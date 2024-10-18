@@ -50,13 +50,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             }
         });
 
-        scene.events.once("event:scene.imageLoaded", () => {
-            const initTransform = scene.getInitTransform();
-            scene.events.any("event:scene.initTransform", initTransform).then(() => {
-                if (onInit) {
-                    onInit();
-                }
-            });
+        scene.events.any("event:displayable.init").then(() => {
+            if (onInit) {
+                onInit();
+            }
         });
     }
 
@@ -98,7 +95,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                     };
                 }));
             const transition = (this.contentNode as ContentNode<SceneActionContentType["scene:applyTransition"]>).getContent()[0];
-            this.callee.events.any("event:scene.applyTransition", transition).then(() => {
+            this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
@@ -149,7 +146,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                         node: this.contentNode.getChild()
                     };
                 }));
-            this.callee.events.any("event:scene.applyTransform", transform)
+            this.callee.events.any("event:displayable.applyTransform", transform)
                 .then(() => {
                     awaitable.resolve({
                         type: this.type,

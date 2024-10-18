@@ -220,7 +220,7 @@ export class GameState {
 
         const index = displayables.indexOf(displayable);
         if (index === -1) {
-            throw new Error("Displayable not found");
+            throw new Error("Displayables not found");
         }
         displayables.splice(index, 1);
         return this;
