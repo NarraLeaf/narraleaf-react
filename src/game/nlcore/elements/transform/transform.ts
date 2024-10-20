@@ -127,6 +127,19 @@ export class Transform<T extends TransformDefinitions.Types = object> {
     }
 
     /**@internal */
+    static propToCSSTransform(state: GameState, prop: Record<string, any>, translate: [string?, string?] = []): string {
+        if (!state.getLastScene()) {
+            throw new Error("No scene found in state, make sure you called \"scene.activate()\" before this method.");
+        }
+        const {invertY, invertX} = state.getLastScene()?.config || {};
+        const Transforms = [
+            `translate(${translate[0] || ((invertX ? "" : "-") + "50%")}, ${translate[1] || ((invertY ? "" : "-") + "50%")})`,
+            (prop["rotation"] !== undefined) && `rotate(${prop["rotation"]}deg)`,
+        ];
+        return Transforms.filter(Boolean).join(" ");
+    }
+
+    /**@internal */
     private readonly sequenceOptions: TransformDefinitions.CommonSequenceProps;
     /**@internal */
     private sequences: TransformDefinitions.Sequence<T>[] = [];
@@ -293,7 +306,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
         };
 
         const props = {} as DOMKeyframesDefinition;
-        props.transform = this.propToCSSTransform(state, prop);
+        props.transform = Transform.propToCSSTransform(state, prop);
         if (this.transformers["transform"]) {
             Object.assign(props, this.transformers["transform"](prop));
         }
@@ -325,19 +338,6 @@ export class Transform<T extends TransformDefinitions.Types = object> {
             duration: duration ? (duration / 1000) : 0,
             ease,
         } satisfies DynamicAnimationOptions;
-    }
-
-    /**@internal */
-    propToCSSTransform(state: GameState, prop: Record<string, any>): string {
-        if (!state.getLastScene()) {
-            throw new Error("No scene found in state, make sure you called \"scene.activate()\" before this method.");
-        }
-        const {invertY, invertX} = state.getLastScene()?.config || {};
-        const Transforms = [
-            `translate(${invertX ? "" : "-"}50%, ${invertY ? "" : "-"}50%)`,
-            (prop["rotation"] !== undefined) && `rotate(${prop["rotation"]}deg)`,
-        ];
-        return Transforms.filter(Boolean).join(" ");
     }
 
     /**@internal */

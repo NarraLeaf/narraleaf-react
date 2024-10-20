@@ -5,6 +5,7 @@ import {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, SkipController} from "@lib/util/data";
 import {Text} from "@core/elements/text";
 import {ContentNode} from "@core/action/tree/actionTree";
+import {Transform} from "@core/elements/transform/transform";
 
 export class TextAction<T extends typeof TextActionTypes[keyof typeof TextActionTypes] = typeof TextActionTypes[keyof typeof TextActionTypes]>
     extends TypedAction<TextActionContentType, T, Text> {
@@ -64,7 +65,16 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
             return super.executeAction(state) as CalledActionResult;
         } else if (this.type === TextActionTypes.setFontSize) {
             this.callee.state.fontSize = (this.contentNode as ContentNode<TextActionContentType["text:setFontSize"]>).getContent()[0];
-            return super.executeAction(state) as CalledActionResult;
+            const transform = new Transform([], {
+                duration: 0,
+            });
+            const awaitable = new Awaitable<CalledActionResult>();
+            state.animateText(Text.EventTypes["event:displayable.applyTransform"], this.callee, [
+                transform
+            ], () => {
+                awaitable.resolve(super.executeAction(state) as CalledActionResult);
+            });
+            return awaitable;
         } else if (this.type === TextActionTypes.applyTransition) {
             const awaitable = new Awaitable<CalledActionResult>()
                 .registerSkipController(new SkipController(() => {

@@ -1,43 +1,31 @@
-import {ElementProp, ITransition} from "./type";
-import {Base} from "./base";
+import {IImageTransition, ImgElementProp} from "../type";
+import {BaseImageTransition} from "../baseTransitions";
 import {ImageColor, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
 import {toHex} from "@lib/util/data";
+import {TransformDefinitions} from "@core/elements/transform/type";
 
-
-export type FadeElementProps = {
-    opacity: number;
-}
-
-type FadeProps = {
-    style?: {
-        opacity: number;
-        backgroundColor?: string;
-    },
-    src?: string;
-}
-
-export class Fade extends Base<FadeProps> implements ITransition {
+export class Fade extends BaseImageTransition<ImgElementProp> implements IImageTransition {
     static Frames: [number, number] = [0, 1];
     private readonly duration: number;
-    private state: FadeElementProps = {
+    private state = {
         opacity: 1,
     };
     private src?: ImageSrc | ImageColor;
+    private readonly easing: TransformDefinitions.EasingDefinition | undefined;
 
     /**
      * The current image will fade out, and the next image will fade in
      */
-    constructor(duration: number = 1000, src?: ImageSrc | ImageColor) {
+    constructor(duration: number = 1000, ease?: TransformDefinitions.EasingDefinition) {
         super();
         this.duration = duration;
-        if (src) {
-            this.src = src;
-        }
+        this.easing = ease;
     }
 
-    setSrc(src: string) {
+    setSrc(src: ImageSrc | ImageColor | undefined): this {
         this.src = src;
+        return this;
     }
 
     public start(onComplete?: () => void): void {
@@ -57,10 +45,12 @@ export class Fade extends Base<FadeProps> implements ITransition {
             onUpdate: (value) => {
                 this.state.opacity = value;
             }
+        }, {
+            ease: this.easing,
         });
     }
 
-    public toElementProps(): (FadeProps & ElementProp)[] {
+    public toElementProps(): ImgElementProp[] {
         return [
             {
                 style: {
@@ -77,8 +67,8 @@ export class Fade extends Base<FadeProps> implements ITransition {
         ];
     }
 
-    copy(): ITransition<FadeProps> {
-        return new Fade(this.duration, this.src);
+    copy(): Fade {
+        return new Fade(this.duration, this.easing).setSrc(this.src);
     }
 }
 

@@ -1,54 +1,41 @@
-import {ElementProp, ITransition} from "@core/elements/transition/type";
-import {Base} from "@core/elements/transition/base";
+import {IImageTransition, ImgElementProp} from "@core/elements/transition/type";
+import {BaseImageTransition} from "@core/elements/transition/baseTransitions";
 import {ImageColor, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
 import {getCallStack, toHex} from "@lib/util/data";
+import {TransformDefinitions} from "@core/elements/transform/type";
 
-type FadeInElementProps = {
-    opacity: number;
-    transform: string;
-}
-
-type FadeInProps = {
-    style?: Partial<{
-        opacity: number;
-        transform: string;
-        backgroundColor?: string;
-    }>,
-    src?: string;
-}
-
-export class FadeIn extends Base<FadeInProps> implements ITransition {
+export class FadeIn extends BaseImageTransition<ImgElementProp> implements IImageTransition {
     __stack: string;
     private readonly duration: number;
     private readonly direction: "left" | "right" | "top" | "bottom";
     private readonly offset: number;
-    private state: FadeInElementProps = {
+    private state = {
         opacity: 0,
         transform: ""
     };
     private src?: ImageSrc | ImageColor;
+    private readonly easing: TransformDefinitions.EasingDefinition | undefined;
 
     /**
      * The next image will fade-in in a direction
      * @param direction The direction the image will move from
      * @param offset The distance the image will move (in pixels)
      * @param duration The duration of the transition
-     * @param src The source of the next image
+     * @param easing
      */
-    constructor(direction: "left" | "right" | "top" | "bottom", offset: number, duration: number = 1000, src?: ImageSrc | ImageColor) {
+    constructor(direction: "left" | "right" | "top" | "bottom", offset: number, duration: number = 1000, easing?: TransformDefinitions.EasingDefinition) {
         super();
         this.duration = duration;
         this.direction = direction;
         this.offset = offset;
-        if (src) {
-            this.src = src;
-        }
+        this.easing = easing;
         this.__stack = getCallStack();
     }
 
-    setSrc(src: string) {
+    setSrc(src: ImageSrc | ImageColor | undefined): this {
         this.src = src;
+        return this;
     }
 
     public start(onComplete?: () => void): void {
@@ -69,10 +56,12 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
                 this.state.opacity = value;
                 this.state.transform = this.getTransform(value);
             }
+        }, {
+            ease: this.easing,
         });
     }
 
-    public toElementProps(): (FadeInProps & ElementProp)[] {
+    public toElementProps(): ImgElementProp[] {
         return [
             {
                 style: {
@@ -90,8 +79,8 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
         ];
     }
 
-    copy(): ITransition<FadeInProps> {
-        return new FadeIn(this.direction, this.offset, this.duration, this.src);
+    copy(): FadeIn {
+        return new FadeIn(this.direction, this.offset, this.duration, this.easing).setSrc(this.src);
     }
 
     private getInitialTransform(): string {

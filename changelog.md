@@ -15,6 +15,7 @@
   specify it, use sentence config instead
 - Rename `CommonImage` to `CommonDisplayable`
 - Refactor `Image.tsx`, `BackgroundTransition.tsx` and `Text.tsx`.
+- Use `IImageTransition` instead of `ITransition`
 
 ### Add
 
@@ -33,6 +34,7 @@
 - specify the voice of each sentence
 - show text on the screen using `Text` element
 - use pure color as background
+- animate font size and color of text
 
 ## [0.0.5] - 2024/10/06
 

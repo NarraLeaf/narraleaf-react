@@ -4,7 +4,7 @@ import {Background, EventfulDisplayable, ImageColor, ImageSrc} from "@core/types
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Transform} from "@core/elements/transform/transform";
-import {ITransition} from "@core/elements/transition/type";
+import {IImageTransition, ITransition} from "@core/elements/transition/type";
 import {SrcManager} from "@core/elements/srcManager";
 import {Sound, SoundDataRaw} from "@core/elements/sound";
 import {TransformDefinitions} from "@core/elements/transform/type";
@@ -49,7 +49,7 @@ export interface ISceneConfig {
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type SceneState = {};
 export type JumpConfig = {
-    transition: ITransition;
+    transition: IImageTransition;
 }
 
 type ChainableAction = Proxied<GameElement, Chained<LogicAction.Actions>> | Actions;
@@ -165,7 +165,7 @@ export class Scene extends Constructable<
      * Set background, if {@link transition} is provided, it will be applied
      * @chainable
      */
-    public setBackground(background: UserImageInput, transition?: ITransition): ChainedScene {
+    public setBackground(background: UserImageInput, transition?: IImageTransition): ChainedScene {
         return this.combineActions(new Control(), chain => {
             if (transition) {
                 const copy = transition.copy();
@@ -468,7 +468,7 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _transitionToScene(scene?: Scene, transition?: ITransition, src?: ImageSrc | ImageColor): ChainedScene {
+    private _transitionToScene(scene?: Scene, transition?: IImageTransition, src?: ImageSrc | ImageColor): ChainedScene {
         const chain = this.chain();
         if (transition) {
             const copy = transition.copy();

@@ -198,6 +198,7 @@ export default function Player(
                                                 );
                                             }))
                                         }
+                                        <Displayables state={state} displayable={ele.displayable}/>
                                         {
                                             ele.texts.map(({action, onClick}) => {
                                                 return (
@@ -213,7 +214,6 @@ export default function Player(
                                                 );
                                             })
                                         }
-                                        <Displayables state={state} displayable={ele.displayable}/>
                                         {
                                             ele.menus.map((action, i) => {
                                                 return (

@@ -21,12 +21,12 @@ export interface IPosition {
 export type Coord2DPosition = {
     x: number | `${"-" | ""}${number}%`;
     y: number | `${"-" | ""}${number}%`;
-} & OffsetPosition;
+} & Partial<OffsetPosition>;
 
 export type AlignPosition = {
     xalign: number;
     yalign: number;
-} & OffsetPosition;
+} & Partial<OffsetPosition>;
 
 export type OffsetPosition = {
     xoffset: number;

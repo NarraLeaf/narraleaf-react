@@ -13,8 +13,7 @@ export type SpanElementProp = ElementProp<HTMLSpanElement, React.HTMLAttributes<
 export type CSSElementProp<T extends React.CSSProperties | DOMKeyframesDefinition> = ElementProp & { style: T };
 export type CSSProps = React.CSSProperties;
 
-/* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
-export interface ITransition<T extends ElementProp = {}> {
+export interface ITransition<T extends ElementProp = Record<string, any>> {
     events: EventDispatcher<EventTypes<[T[]]>>;
 
     controller: AnimationPlaybackControls | null | undefined;
@@ -23,9 +22,17 @@ export interface ITransition<T extends ElementProp = {}> {
 
     toElementProps(): T[];
 
+    copy(): ITransition<T>;
+}
+
+export interface IImageTransition<T extends ElementProp = ImgElementProp> extends ITransition<T> {
     setSrc(src: ImageSrc | ImageColor): void;
 
-    copy(): ITransition<T>;
+    copy(): IImageTransition<T>;
+}
+
+export interface ITextTransition<T extends ElementProp = SpanElementProp> extends ITransition<T> {
+    copy(): ITextTransition<T>;
 }
 
 export type EventTypes<T extends any[]> = {

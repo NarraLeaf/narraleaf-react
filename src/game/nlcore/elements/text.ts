@@ -11,10 +11,13 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {TextActionContentType} from "@core/action/actionTypes";
 import {TextAction} from "@core/action/actions/textAction";
 import {Scene} from "@core/elements/scene";
-import {ITransition} from "@core/elements/transition/type";
+import {ITextTransition, ITransition} from "@core/elements/transition/type";
+import {Control} from "@core/elements/control";
+import {FontSizeTransition} from "@core/elements/transition/textTransitions/fontSizeTransition";
 
 export type TextConfig = {
-    align: "left" | "center" | "right";
+    alignX: "left" | "center" | "right";
+    alignY: "top" | "center" | "bottom";
     className?: string;
     fontSize: number;
     fontColor: color;
@@ -49,7 +52,8 @@ export class Text
         scale: 1,
         rotation: 0,
         opacity: 0,
-        align: "center",
+        alignX: "center",
+        alignY: "center",
         fontSize: 16,
         fontColor: "#000000",
         display: false,
@@ -84,6 +88,12 @@ export class Text
                 transform.copy(),
             ])
         );
+        return chain.chain(action);
+    }
+
+    public applyTransition(transition: ITextTransition): Proxied<Text, Chained<LogicAction.Actions>> {
+        const chain = this.chain();
+        const action = this._applyTransition(chain, transition);
         return chain.chain(action);
     }
 
@@ -171,6 +181,21 @@ export class Text
         return chain.chain(action);
     }
 
+    public setFontSize(fontSize: number, duration: number = 0, easing?: TransformDefinitions.EasingDefinition): Proxied<Text, Chained<LogicAction.Actions>> {
+        return this.combineActions(new Control(), chain => {
+            if (duration) {
+                const transition = new FontSizeTransition(this.state.fontSize, fontSize, duration, easing);
+                chain.chain(this._applyTransition(chain, transition));
+            }
+            const action = new TextAction<typeof TextAction.ActionTypes.setFontSize>(
+                chain,
+                TextAction.ActionTypes.setFontSize,
+                new ContentNode<TextActionContentType["text:setFontSize"]>().setContent([fontSize])
+            );
+            return chain.chain(action);
+        });
+    }
+
     /**@internal */
     toData(): TextDataRaw {
         return {
@@ -207,6 +232,15 @@ export class Text
             this.chain(),
             TextAction.ActionTypes.init,
             new ContentNode<TextActionContentType["text:init"]>().setContent([scene])
+        );
+    }
+
+    /**@internal */
+    private _applyTransition(chain: Proxied<Text, Chained<LogicAction.Actions, Text>>, transition: ITextTransition): TextAction<typeof TextAction.ActionTypes.applyTransition> {
+        return new TextAction<typeof TextAction.ActionTypes.applyTransition>(
+            chain,
+            TextAction.ActionTypes.applyTransition,
+            new ContentNode<TextActionContentType["text:applyTransition"]>().setContent([transition])
         );
     }
 }

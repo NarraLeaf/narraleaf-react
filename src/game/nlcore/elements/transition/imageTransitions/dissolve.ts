@@ -1,49 +1,37 @@
-import {ElementProp, ITransition} from "./type";
-import {Base} from "./base";
+import {IImageTransition, ImgElementProp} from "../type";
+import {BaseImageTransition} from "../baseTransitions";
 import {ImageColor, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
 import {toHex} from "@lib/util/data";
-
-
-export type DissolveElementProps = {
-    opacity: number;
-}
-
-type DissolveProps = {
-    style: {
-        opacity: number;
-        backgroundColor?: string;
-    },
-    src?: string;
-};
+import {TransformDefinitions} from "@core/elements/transform/type";
 
 /**
  * @class Dissolve
  * @implements ITransition
- * @extends Base
+ * @extends BaseTransition
  * @description Dissolve transition effect
  */
-export class Dissolve extends Base<DissolveProps> implements ITransition<DissolveProps> {
+export class Dissolve extends BaseImageTransition<ImgElementProp> implements IImageTransition {
     static Frames: [number, number] = [1, 0];
     private readonly duration: number;
-    private state: DissolveElementProps = {
+    private state = {
         opacity: 0,
     };
     private src?: ImageSrc | ImageColor;
+    private readonly easing: TransformDefinitions.EasingDefinition | undefined;
 
     /**
      * Image will dissolve from one image to another
      */
-    constructor(duration: number = 1000, src?: ImageSrc | ImageColor) {
+    constructor(duration: number = 1000, easing?: TransformDefinitions.EasingDefinition) {
         super();
         this.duration = duration;
-        if (src) {
-            this.src = src;
-        }
+        this.easing = easing;
     }
 
-    setSrc(src: ImageSrc | ImageColor) {
+    setSrc(src: ImageSrc | ImageColor | undefined): this {
         this.src = src;
+        return this;
     }
 
     public start(onComplete?: () => void): void {
@@ -62,11 +50,13 @@ export class Dissolve extends Base<DissolveProps> implements ITransition<Dissolv
             },
             onUpdate: (value) => {
                 this.state.opacity = value;
-            }
+            },
+        }, {
+            ease: this.easing,
         });
     }
 
-    public toElementProps(): (DissolveProps & ElementProp)[] {
+    public toElementProps(): ImgElementProp[] {
         return [
             {
                 style: {opacity: this.state.opacity},
@@ -81,8 +71,8 @@ export class Dissolve extends Base<DissolveProps> implements ITransition<Dissolv
         ];
     }
 
-    copy(): ITransition<DissolveProps> {
-        return new Dissolve(this.duration, this.src);
+    copy(): Dissolve {
+        return new Dissolve(this.duration, this.easing).setSrc(this.src);
     }
 }
 

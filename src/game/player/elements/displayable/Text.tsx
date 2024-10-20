@@ -1,13 +1,15 @@
 import {GameState} from "@player/gameState";
 import {Text as GameText} from "@core/elements/text";
 import React from "react";
-import {TransformersMap, TransformHandler} from "@core/elements/transform/transform";
+import {Transform, TransformersMap, TransformHandler} from "@core/elements/transform/transform";
 import {SpanElementProp} from "@core/elements/transition/type";
 import {m} from "framer-motion";
 import {deepMerge} from "@lib/util/data";
 import Isolated from "@player/lib/isolated";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
 import Displayable from "@player/elements/displayable/Displayable";
+import clsx from "clsx";
+import {TransformDefinitions} from "@core/elements/transform/type";
 
 export default function Text({state, text}: Readonly<{
     state: GameState;
@@ -19,6 +21,16 @@ export default function Text({state, text}: Readonly<{
         "scale": (_) => {
             return {
                 width: "fit-content",
+            };
+        },
+        "transform": (props: TransformDefinitions.Types) => {
+            return {
+                transform: Transform.propToCSSTransform(state, props, [
+                    text.config.alignX === "left" ? "0%"
+                        : (text.config.alignX === "right" ? "-100%" : void 0),
+                    text.config.alignY === "top" ? "100%"
+                        : (text.config.alignY === "bottom" ? "0%" : void 0),
+                ]),
             };
         }
     };
@@ -59,8 +71,11 @@ function DisplayableText(
             ...(state.game.config.app.debug ? {
                 border: "1px solid red",
             } : {}),
+            whiteSpace: "nowrap",
         },
     };
+
+    const spanClassName = clsx(text.config.className);
 
     return (
         <Isolated className={"absolute overflow-hidden pointer-events-none"}>
@@ -78,7 +93,7 @@ function DisplayableText(
                     }
                 }))}
             >
-                {transition ? (function () {
+                {transition ? (function (): React.JSX.Element[] {
                     return transition.toElementProps().map((elementProps, index) => {
                         const mergedProps =
                             deepMerge(defaultProps, transformProps, elementProps);
@@ -87,6 +102,7 @@ function DisplayableText(
                                 key={index}
                                 layout
                                 {...mergedProps}
+                                className={spanClassName}
                             >
                                 <span>{text.state.text}</span>
                             </m.span>
@@ -94,7 +110,6 @@ function DisplayableText(
                     });
                 })() : (
                     <m.div
-                        alt={"image"}
                         key={"last"}
                         {...deepMerge<any>(defaultProps, {
                             style: {
@@ -103,7 +118,9 @@ function DisplayableText(
                         })}
                         layout
                     >
-                        <span>{text.state.text}</span>
+                        <span
+                            className={spanClassName}
+                        >{text.state.text}</span>
                     </m.div>
                 )}
             </m.div>

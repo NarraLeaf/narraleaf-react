@@ -8,7 +8,7 @@ import {Transform} from "./transform/transform";
 import {CommonDisplayable, EventfulDisplayable, StaticImageData} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
-import {ITransition} from "@core/elements/transition/type";
+import {IImageTransition, ITransition} from "@core/elements/transition/type";
 import {
     CommonPosition,
     CommonPositionType,
@@ -170,8 +170,8 @@ export class Image
      * ```
      * @chainable
      */
-    public setSrc(src: string | StaticImageData, transition?: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
-        return this.combineActions(new Control, chain => {
+    public setSrc(src: string | StaticImageData, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.combineActions(new Control(), chain => {
             if (transition) {
                 const copy = transition.copy();
                 copy.setSrc(Utils.srcToString(src));

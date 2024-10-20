@@ -1,15 +1,19 @@
-import {ITransition} from "@core/elements/transition/type";
-import {Fade} from "@core/elements/transition/fade";
-import {FadeIn} from "@core/elements/transition/fadeIn";
-import {Dissolve} from "@core/elements/transition/dissolve";
-import {Base} from "@core/elements/transition/base";
+import {IImageTransition, ITextTransition, ITransition} from "@core/elements/transition/type";
+import {BaseImageTransition, BaseTextTransition, BaseTransition} from "@core/elements/transition/baseTransitions";
+import {Fade} from "@core/elements/transition/imageTransitions/fade";
+import {FadeIn} from "@core/elements/transition/imageTransitions/fadeIn";
+import {Dissolve} from "@core/elements/transition/imageTransitions/dissolve";
 
 export {
     Fade,
     FadeIn,
     Dissolve,
-    Base
+    BaseTransition,
+    BaseImageTransition,
+    BaseTextTransition,
 };
 export type {
-    ITransition
+    ITransition,
+    IImageTransition,
+    ITextTransition,
 };
