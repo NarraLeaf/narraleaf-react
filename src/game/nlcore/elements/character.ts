@@ -4,11 +4,8 @@ import {Color} from "@core/types";
 import {deepMerge, DeepPartial} from "@lib/util/data";
 import {Actionable} from "@core/action/actionable";
 import {Chained, Proxied} from "@core/action/chain";
-import {Sentence, SentenceUserConfig} from "@core/elements/character/sentence";
-import {Word} from "@core/elements/character/word";
+import {Sentence, SentencePrompt, SentenceUserConfig} from "@core/elements/character/sentence";
 import {CharacterAction} from "@core/action/actions/characterAction";
-
-export type UnSentencePrompt = (string | Word)[] | (string | Word);
 
 export enum CharacterMode {
     // noinspection SpellCheckingInspection
@@ -70,8 +67,8 @@ export class Character extends Actionable<
      */
     public say(content: string, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
     public say(content: Sentence): Proxied<Character, Chained<LogicAction.Actions>>;
-    public say(content: (string | Word)[], config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
-    public say(content: string | Sentence | (string | Word)[], config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>> {
+    public say(content: SentencePrompt, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
+    public say(content: SentencePrompt | Sentence, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>> {
         const sentence: Sentence =
             Array.isArray(content) ?
                 new Sentence(content, {

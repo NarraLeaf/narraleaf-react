@@ -1,9 +1,9 @@
 import {deepEqual, deepMerge, safeClone} from "@lib/util/data";
 import {Sound} from "@core/elements/sound";
 import type {Character} from "@core/elements/character";
-import {UnSentencePrompt} from "@core/elements/character";
-import {Word} from "@core/elements/character/word";
+import {Word, WordConfig} from "@core/elements/character/word";
 import {Color} from "@core/types";
+import type {ScriptCtx} from "@core/elements/script";
 
 export type SentenceConfig = {
     pause?: boolean | number;
@@ -20,6 +20,11 @@ export type SentenceState = {
 export type SentenceUserConfig = Partial<Omit<SentenceConfig, "voice"> & {
     voice: Sound | string | null | undefined
 }>;
+export type DynamicWord = (ctx: ScriptCtx) => DynamicWordResult;
+export type DynamicWordResult = string | Word | (string | Word)[];
+export type StaticWord<T extends string | DynamicWord = string | DynamicWord> = string | Word<T>;
+export type SingleWord = StaticWord | DynamicWord;
+export type SentencePrompt = SingleWord[] | SingleWord;
 
 export class Sentence {
     /**@internal */
@@ -40,8 +45,40 @@ export class Sentence {
     }
 
     /**@internal */
-    static toSentence(prompt: UnSentencePrompt | Sentence): Sentence {
+    static toSentence(prompt: SentencePrompt | Sentence): Sentence {
         return Sentence.isSentence(prompt) ? prompt : new Sentence(prompt);
+    }
+
+    /**@internal */
+    static format(text: SentencePrompt): Word[] {
+        const result: Word[] = [];
+        if (Array.isArray(text)) {
+            for (let i = 0; i < text.length; i++) {
+                result.push(this.formatWord(text[i]));
+            }
+        } else {
+            result.push(this.formatWord(text));
+        }
+        return result;
+    }
+
+    /**@internal */
+    static formatWord(word: SingleWord): Word {
+        if (Word.isWord(word)) {
+            return word;
+        }
+        return new Word(word);
+    }
+
+    /**@internal */
+    static formatStaticWord<T extends string | DynamicWord>(
+        word: StaticWord<T | string> | StaticWord<T | string>[],
+        config?: Partial<WordConfig>
+    ): Word<T | string>[] {
+        if (Array.isArray(word)) {
+            return word.map(w => this.formatStaticWord(w, config)).flat(2);
+        }
+        return [Word.isWord(word) ? word : new Word<T | string>(word, config)];
     }
 
     /**@internal */
@@ -52,32 +89,15 @@ export class Sentence {
     state: SentenceState;
 
     constructor(
-        text: (string | Word)[] | (string | Word),
+        text: SentencePrompt,
         config: SentenceUserConfig = {}
     ) {
-        this.text = this.format(text);
+        this.text = Sentence.format(text);
         this.config = deepMerge<SentenceConfig>(Sentence.defaultConfig, {
             ...config,
             voice: Sound.toSound(config.voice),
         });
         this.state = safeClone(Sentence.defaultState);
-    }
-
-    /**@internal */
-    format(text: (string | Word)[] | (string | Word)): Word[] {
-        const result: Word[] = [];
-        if (Array.isArray(text)) {
-            for (let i = 0; i < text.length; i++) {
-                if (Word.isWord(text[i])) {
-                    result.push(text[i] as Word);
-                } else {
-                    result.push(new Word(text[i] as string));
-                }
-            }
-        } else {
-            result.push(Word.isWord(text) ? text : new Word(text));
-        }
-        return result;
     }
 
     /**@internal */
@@ -105,6 +125,16 @@ export class Sentence {
     setCharacter(character: Character | null) {
         this.config.character = character;
         return this;
+    }
+
+    /**@internal */
+    evaluate(ctx: ScriptCtx): Word<string>[] {
+        const words: Word<string>[] = [];
+        for (let i = 0; i < this.text.length; i++) {
+            const word = this.text[i].evaluate(ctx);
+            words.push(...Sentence.formatStaticWord(word));
+        }
+        return words;
     }
 
     copy(): Sentence {

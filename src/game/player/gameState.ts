@@ -6,7 +6,7 @@ import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
 import {HowlOptions} from "howler";
-import {SrcManager} from "@core/elements/srcManager";
+import {SrcManager} from "@core/action/srcManager";
 import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/store/storable";
 import {Game} from "@core/game";

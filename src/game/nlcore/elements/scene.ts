@@ -5,7 +5,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Transform} from "@core/elements/transform/transform";
 import {IImageTransition, ITransition} from "@core/elements/transition/type";
-import {SrcManager} from "@core/elements/srcManager";
+import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw} from "@core/elements/sound";
 import {TransformDefinitions} from "@core/elements/transform/type";
 import {

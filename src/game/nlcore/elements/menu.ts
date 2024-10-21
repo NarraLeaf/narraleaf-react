@@ -3,23 +3,22 @@ import {ContentNode, RenderableNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Actionable} from "@core/action/actionable";
 import {Chained, Proxied} from "@core/action/chain";
-import Actions = LogicAction.Actions;
-import GameElement = LogicAction.GameElement;
-import {Sentence} from "@core/elements/character/sentence";
+import {Sentence, SentencePrompt} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
 import {MenuAction} from "@core/action/actions/menuAction";
+import Actions = LogicAction.Actions;
+import GameElement = LogicAction.GameElement;
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type MenuConfig = {};
 export type MenuChoice = {
     action: ChainedActions;
-    prompt: UnSentencePrompt | Sentence;
+    prompt: SentencePrompt | Sentence;
 };
 
 type ChainedAction = Proxied<GameElement, Chained<LogicAction.Actions>>;
 type ChainedActions = (ChainedAction | ChainedAction[] | Actions | Actions[])[];
 
-type UnSentencePrompt = (string | Word)[] | (string | Word);
 export type Choice = {
     action: Actions[];
     prompt: Sentence;
@@ -40,9 +39,9 @@ export class Menu extends Actionable<any, Menu> {
     /**@internal */
     protected choices: Choice[] = [];
 
-    constructor(prompt: UnSentencePrompt, config?: MenuConfig);
+    constructor(prompt: SentencePrompt, config?: MenuConfig);
     constructor(prompt: Sentence, config?: MenuConfig);
-    constructor(prompt: UnSentencePrompt | Sentence, config: MenuConfig = {}) {
+    constructor(prompt: SentencePrompt | Sentence, config: MenuConfig = {}) {
         super();
         this.prompt = Sentence.isSentence(prompt) ? prompt : new Sentence(prompt);
         this.config = deepMerge<MenuConfig>(Menu.defaultConfig, config);
@@ -58,8 +57,8 @@ export class Menu extends Actionable<any, Menu> {
      */
     public choose(choice: MenuChoice): Proxied<Menu, Chained<LogicAction.Actions>>;
     public choose(prompt: Sentence, action: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
-    public choose(prompt: UnSentencePrompt, action: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
-    public choose(arg0: Sentence | MenuChoice | UnSentencePrompt, arg1?: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>> {
+    public choose(prompt: SentencePrompt, action: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
+    public choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>> {
         const chained = this.chain();
         if (Sentence.isSentence(arg0) && arg1) {
             chained.choices.push({prompt: Sentence.toSentence(arg0), action: Chained.toActions(arg1)});

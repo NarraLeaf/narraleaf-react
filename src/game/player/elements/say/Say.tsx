@@ -1,13 +1,11 @@
 import clsx from "clsx";
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useMemo, useState} from "react";
 import Isolated from "@player/lib/isolated";
-import TypingEffect from "./TypingEffect";
-import {toHex} from "@lib/util/data";
-import {useGame} from "@player/provider/game-state";
 import {SayElementProps} from "@player/elements/say/type";
 import {Character} from "@core/elements/character";
 import {GameState} from "@core/common/game";
-import {Word} from "@core/elements/character/word";
+import {Script} from "@core/elements/script";
+import Sentence from "@player/elements/say/Sentence";
 
 
 export default function Say(
@@ -21,11 +19,14 @@ export default function Say(
     const {sentence, character} = action;
     const [currentWordIndex, setCurrentWordIndex] = useState(0);
     const [isFinished, setIsFinished] = useState(false);
-    const {game} = useGame();
+    const {game} = state;
+    const words = useMemo(() => sentence.evaluate(Script.getCtx({
+        gameState: state,
+    })), []);
 
     const handleComplete = () => {
         setCurrentWordIndex((prevIndex) => prevIndex + 1);
-        if (currentWordIndex === sentence.text.length - 1) {
+        if (currentWordIndex === words.length - 1) {
             setIsFinished(true);
         }
     };
@@ -84,54 +85,32 @@ export default function Say(
     return (
         <Isolated className={"absolute"}>
             {sentence.state.display &&
-                ((!character || character.config.mode === Character.Modes.adv) ?
-                        (<div className={
+                (
+                    (!character || character.config.mode === Character.Modes.adv)
+                        ? (<div className={
                             clsx(
-                                "absolute flex items-center justify-center bottom-0 w-[calc(100%-40px)] h-[calc(33%-40px)] m-4 bg-white",
+                                "absolute bottom-0 w-[calc(100%-40px)] min-h-[calc(33%-40px)] m-4 bg-white flex flex-col items-start justify-between",
                                 game.config.elementStyles.say.container,
                                 className
                             )
                         } onClick={onElementClick}>
                             <div
-                                className={clsx("absolute top-0 left-0 p-1.25 rounded-br-md m-4", game.config.elementStyles.say.nameText)}>
+                                className={clsx("rounded-br-md mx-4", game.config.elementStyles.say.nameText)}>
                                 {sentence.config.character?.state.name}
                             </div>
                             <div
-                                className={clsx("text-center max-w-[80%] mx-auto", game.config.elementStyles.say.textContainer)}>
-                                {
-                                    sentence.text.map((word, index) => {
-                                        const color = word.config.color || sentence.config.color || Word.defaultColor;
-                                        if (isFinished) return (
-                                            <span
-                                                key={index}
-                                                style={{
-                                                    color: typeof color === "string" ? color : toHex(color)
-                                                }}
-                                                className={clsx(game.config.elementStyles.say.textSpan)}
-                                            >{word.text}</span>
-                                        );
-                                        if (index > currentWordIndex) return null;
-                                        return (
-                                            <span
-                                                key={index}
-                                                style={{
-                                                    color: toHex(color)
-                                                }} className={clsx(game.config.elementStyles.say.textSpan)}
-                                            >{
-                                                useTypeEffect ?
-                                                    <TypingEffect
-                                                        text={word.text}
-                                                        onComplete={index === currentWordIndex ? handleComplete : undefined}
-                                                        speed={game.config.elements.say.textInterval}
-                                                        className={clsx(game.config.elementStyles.say.textSpan)}
-                                                    /> :
-                                                    word.text
-                                            }</span>
-                                        );
-                                    })
-                                }
+                                className={clsx("text-center max-w-[80%] mx-auto whitespace-pre-wrap", game.config.elementStyles.say.textContainer)}>
+                                <Sentence
+                                    sentence={sentence}
+                                    gameState={state}
+                                    finished={isFinished}
+                                    useTypeEffect={useTypeEffect}
+                                    onCompleted={handleComplete}
+                                />
                             </div>
-                        </div>) : (<> </>)
+                            <div></div>
+                        </div>)
+                        : (<> </>)
                 )
             }
         </Isolated>

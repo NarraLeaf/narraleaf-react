@@ -54,6 +54,7 @@ export default function Menu(
                                         key={i}
                                         sentence={choice.prompt}
                                         className={clsx(game.config.elementStyles.menu.choiceButtonText)}
+                                        gameState={state}
                                     />
                                 </button>
                             ))}

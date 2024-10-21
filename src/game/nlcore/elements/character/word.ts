@@ -1,9 +1,11 @@
 import {Color, color} from "@core/types";
 import {deepMerge} from "@lib/util/data";
+import {DynamicWord} from "@core/elements/character/sentence";
+import {ScriptCtx} from "@core/elements/script";
 
 export type WordConfig = {} & Color;
 
-export class Word {
+export class Word<T extends string | DynamicWord = string | DynamicWord> {
     static defaultConfig: Partial<WordConfig> = {};
     static defaultColor: color = "#000";
 
@@ -12,12 +14,38 @@ export class Word {
     }
 
     /**@internal */
-    readonly text: string;
+    readonly text: T;
     /**@internal */
-    readonly config: Partial<WordConfig>;
+    config: Partial<WordConfig>;
 
-    constructor(text: string, config: Partial<WordConfig> = {}) {
+    constructor(text: T, config: Partial<WordConfig> = {}) {
         this.text = text;
         this.config = deepMerge<Partial<WordConfig>>(Word.defaultConfig, config);
+    }
+
+    /**@internal */
+    evaluate(ctx: ScriptCtx): Word<string>[] {
+        if (typeof this.text === "function") {
+            const texts: string | Word | (string | Word)[] = this.text(ctx);
+            if (Array.isArray(texts)) {
+                return texts.map(text => {
+                    if (Word.isWord(text)) {
+                        return text.inherit(this.config).evaluate(ctx);
+                    }
+                    return new Word(text, this.config);
+                }).flat();
+            }
+            if (Word.isWord(texts)) {
+                return texts.inherit(this.config).evaluate(ctx);
+            }
+            return [new Word(texts, this.config)];
+        }
+        return [this as Word<string>];
+    }
+
+    /**@internal */
+    inherit(config: Partial<WordConfig>): this {
+        this.config.color = this.config.color || config.color;
+        return this;
     }
 }
