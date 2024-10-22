@@ -1,12 +1,10 @@
 import clsx from "clsx";
-import React, {useEffect, useMemo, useState} from "react";
+import React, {useEffect, useState} from "react";
 import Isolated from "@player/lib/isolated";
 import {SayElementProps} from "@player/elements/say/type";
 import {Character} from "@core/elements/character";
 import {GameState} from "@core/common/game";
-import {Script} from "@core/elements/script";
 import Sentence from "@player/elements/say/Sentence";
-
 
 export default function Say(
     {
@@ -17,18 +15,11 @@ export default function Say(
         state,
     }: Readonly<SayElementProps>) {
     const {sentence, character} = action;
-    const [currentWordIndex, setCurrentWordIndex] = useState(0);
     const [isFinished, setIsFinished] = useState(false);
     const {game} = state;
-    const words = useMemo(() => sentence.evaluate(Script.getCtx({
-        gameState: state,
-    })), []);
 
     const handleComplete = () => {
-        setCurrentWordIndex((prevIndex) => prevIndex + 1);
-        if (currentWordIndex === words.length - 1) {
-            setIsFinished(true);
-        }
+        setIsFinished(true);
     };
 
     function onElementClick() {

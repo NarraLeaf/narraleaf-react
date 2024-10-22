@@ -31,26 +31,27 @@ export default function Sentence(
         gameState,
     })), []);
     const {game} = gameState;
+    const completeSentence = useMemo(() => split(
+        words,
+        words.reduce((acc, word) => {
+            return acc + word.text.length;
+        }, 0) - 1
+    ), [words]);
 
     useEffect(() => {
-        const totalLength = words.reduce((acc, word) => {
-            return acc + word.text.length;
-        }, 0);
-        const completeSentence = split(words, totalLength);
+        const length = getLength(completeSentence);
 
-        if (!useTypeEffect || finished || currentIndex >= completeSentence.length) {
-            setCurrentIndex(completeSentence.length);
+        if (!useTypeEffect || isFinished || finished || currentIndex >= length) {
+            setCurrentIndex(length);
             setIsFinished(true);
-        }
 
-        if (isFinished) {
             if (onCompleted) {
                 onCompleted();
             }
             return;
         }
 
-        if (completeSentence[currentIndex] === "\n") {
+        if (completeSentence[completeSentence.length] === "\n") {
             setCurrentIndex((prev) => prev + 1);
         } else {
             const timeoutId = setTimeout(() => {
@@ -61,27 +62,50 @@ export default function Sentence(
     }, [currentIndex, finished]);
 
     function split(words: Word<string>[], index: number): SplitWord[] {
-        const result: SplitWord[] = [];
+        const results: SplitWord[] = [];
         const tasks: Word<string>[] = [...words];
-        let i = 0;
-
-        while (i < index) {
-            const task = tasks.shift();
-            if (!task) break;
-            const text: string = task.text;
-
-            for (const char of text) {
-                if (i >= index) break;
-                if (char === "\n") {
-                    result.push("\n");
-                } else {
-                    result.push({text: char, config: task.config});
+        let i = index + 1;
+        const addResult = (...res: SplitWord[]) => {
+            res.forEach(result => {
+                if (result === "\n") {
+                    results.push("\n");
+                } else if (result.text.length) {
+                    results.push(result);
                 }
-                i++;
+            });
+        };
+
+        w: while (i) {
+            const word = tasks.shift();
+            if (!word) break;
+
+            let result = {text: "", config: word.config};
+
+            for (const char of word.text) {
+                if (!i) {
+                    results.push(result);
+                    break w;
+                }
+                if (char === "\n") {
+                    addResult(result, "\n");
+                    i -= 1;
+                    result = {text: "", config: word.config};
+                } else {
+                    result.text += char;
+                    i -= 1;
+                }
             }
+
+            addResult(result);
         }
 
-        return result;
+        return results;
+    }
+
+    function getLength(words: SplitWord[]): number {
+        return words.reduce((acc, word) => {
+            return acc + (word === "\n" ? 1 : word.text.length);
+        }, 0);
     }
 
     const currentWords = split(words, currentIndex);
