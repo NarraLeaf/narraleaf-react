@@ -2,14 +2,14 @@ import {deepEqual, deepMerge, safeClone} from "@lib/util/data";
 import {Sound} from "@core/elements/sound";
 import type {Character} from "@core/elements/character";
 import {Word, WordConfig} from "@core/elements/character/word";
-import {Color} from "@core/types";
+import {Color, Font} from "@core/types";
 import type {ScriptCtx} from "@core/elements/script";
 
 export type SentenceConfig = {
     pause?: boolean | number;
     voice: Sound | null;
     character: Character | null;
-} & Color;
+} & Color & Font;
 
 export type SentenceDataRaw = {
     state: SentenceState;

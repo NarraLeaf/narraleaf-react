@@ -1,9 +1,12 @@
-import {Color, color} from "@core/types";
+import {Color, color, Font} from "@core/types";
 import {deepMerge} from "@lib/util/data";
 import {DynamicWord} from "@core/elements/character/sentence";
 import {ScriptCtx} from "@core/elements/script";
 
-export type WordConfig = {} & Color;
+export type WordConfig = {
+    className?: string;
+    ruby?: string;
+} & Color & Font;
 
 export class Word<T extends string | DynamicWord = string | DynamicWord> {
     static defaultConfig: Partial<WordConfig> = {};
@@ -46,6 +49,8 @@ export class Word<T extends string | DynamicWord = string | DynamicWord> {
     /**@internal */
     inherit(config: Partial<WordConfig>): this {
         this.config.color = this.config.color || config.color;
+        this.config.italic = this.config.italic || config.italic;
+        this.config.bold = this.config.bold || config.bold;
         return this;
     }
 }

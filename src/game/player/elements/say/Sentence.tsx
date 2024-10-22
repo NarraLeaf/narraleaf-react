@@ -110,7 +110,20 @@ export default function Sentence(
 
     const currentWords = split(words, currentIndex);
 
-    return (<>
+    return (<div
+        className={clsx(
+            "whitespace-pre-wrap",
+            game.config.elementStyles.say.textContainerClassName,
+            {
+                "font-bold": sentence.config.bold,
+                "italic": sentence.config.italic,
+            }
+        )}
+        style={{
+            fontFamily: sentence.config.fontFamily || game.config.elementStyles.say.fontFamily,
+            fontSize: sentence.config.fontSize || game.config.elementStyles.say.fontSize,
+        }}
+    >
         {currentWords.map((word, index) => {
             if (word === "\n") {
                 return <br key={index}/>;
@@ -119,11 +132,33 @@ export default function Sentence(
                 key={index}
                 style={{
                     color: toHex(word.config.color || sentence.config.color || Word.defaultColor),
+                    fontFamily: word.config.fontFamily,
+                    fontSize: word.config.fontSize,
+                    ...(game.config.app.debug ? {
+                        border: "1px dashed red",
+                    } : {}),
                 }}
-                className={clsx(game.config.elementStyles.say.textSpan, "whitespace-pre")}
-            >{word.text}</span>;
+                className={clsx(
+                    game.config.elementStyles.say.textSpanClassName,
+                    "whitespace-pre inline-block",
+                    {
+                        "font-bold": word.config.bold,
+                        "italic": word.config.italic,
+                    },
+                    word.config.className,
+                )}
+            >
+            {word.config.ruby ? (
+                <ruby className={"align-bottom inline-block"}>
+                    <rt className={"block text-center"}>{word.config.ruby}</rt>
+                    {word.text}
+                </ruby>
+            ) : (
+                word.text
+            )}
+        </span>;
         })}
-    </>);
+    </div>);
 
 }
 

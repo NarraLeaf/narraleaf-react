@@ -60,15 +60,16 @@ export class Game {
         },
         elementStyles: {
             say: {
-                container: "",
-                nameText: "",
-                textContainer: "",
-                textSpan: "",
+                containerClassName: "",
+                nameTextClassName: "",
+                textContainerClassName: "",
+                textSpanClassName: "",
+                rubyClassName: "",
             },
             menu: {
-                container: "",
-                choiceButton: "",
-                choiceButtonText: "",
+                containerClassName: "",
+                choiceButtonClassName: "",
+                choiceButtonTextClassName: "",
             }
         },
         app: {

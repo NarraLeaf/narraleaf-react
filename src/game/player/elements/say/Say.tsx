@@ -81,24 +81,21 @@ export default function Say(
                         ? (<div className={
                             clsx(
                                 "absolute bottom-0 w-[calc(100%-40px)] min-h-[calc(33%-40px)] m-4 bg-white flex flex-col items-start justify-between",
-                                game.config.elementStyles.say.container,
+                                game.config.elementStyles.say.containerClassName,
                                 className
                             )
                         } onClick={onElementClick}>
                             <div
-                                className={clsx("rounded-br-md mx-4", game.config.elementStyles.say.nameText)}>
+                                className={clsx("rounded-br-md", game.config.elementStyles.say.nameTextClassName)}>
                                 {sentence.config.character?.state.name}
                             </div>
-                            <div
-                                className={clsx("text-center max-w-[80%] mx-auto whitespace-pre-wrap", game.config.elementStyles.say.textContainer)}>
-                                <Sentence
-                                    sentence={sentence}
-                                    gameState={state}
-                                    finished={isFinished}
-                                    useTypeEffect={useTypeEffect}
-                                    onCompleted={handleComplete}
-                                />
-                            </div>
+                            <Sentence
+                                sentence={sentence}
+                                gameState={state}
+                                finished={isFinished}
+                                useTypeEffect={useTypeEffect}
+                                onCompleted={handleComplete}
+                            />
                             <div></div>
                         </div>)
                         : (<> </>)

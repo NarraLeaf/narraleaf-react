@@ -30,6 +30,8 @@
 - Configurable skipping options
 - Evaluate sentence text in runtime
 - newline support for `Say`
+- more customization for dialogue text
+- ruby text support
 
 ### Feature
 
@@ -39,6 +41,7 @@
 - animate font size and color of text
 - dynamic dialogue text evaluation
 - newline support for character dialogues
+- ruby text support
 
 ## [0.0.5] - 2024/10/06
 

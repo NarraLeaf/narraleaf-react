@@ -2,6 +2,7 @@ import {IPosition, RawPosition} from "@core/elements/transform/position";
 import {ITransition} from "@core/elements/transition/type";
 import {Transform} from "@core/elements/transform/transform";
 import {EventDispatcher} from "@lib/util/data";
+import React from "react";
 
 export type color = string | {
     r: number;
@@ -22,7 +23,14 @@ export type RGBAColor = RGBColor & {
 
 export type Color = {
     color: color;
-}
+};
+
+export type Font = {
+    italic?: boolean;
+    bold?: boolean;
+    fontFamily?: React.CSSProperties["fontFamily"];
+    fontSize?: React.CSSProperties["fontSize"];
+};
 
 export type CommonText = {
     text: string;
