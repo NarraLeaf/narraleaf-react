@@ -7,15 +7,7 @@ import {Chained, Proxied} from "@core/action/chain";
 import {Sentence, SentencePrompt, SentenceUserConfig} from "@core/elements/character/sentence";
 import {CharacterAction} from "@core/action/actions/characterAction";
 
-export enum CharacterMode {
-    // noinspection SpellCheckingInspection
-    "adv" = "adv",
-    "nvl" = "nvl"
-}
-
-export type CharacterConfig = {
-    mode: CharacterMode;
-} & Color;
+export type CharacterConfig = {} & Color;
 export type CharacterStateData = {
     name: string;
 };
@@ -27,9 +19,7 @@ export class Character extends Actionable<
     CharacterStateData,
     Character
 > {
-    static Modes = CharacterMode;
     static defaultConfig: CharacterConfig = {
-        mode: CharacterMode.adv,
         color: "#000",
     };
     /**@internal */

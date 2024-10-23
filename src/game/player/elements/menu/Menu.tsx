@@ -3,9 +3,9 @@ import clsx from "clsx";
 
 import {Choice} from "@core/elements/menu";
 import {MenuElementProps} from "@player/elements/menu/type";
-import ColoredSentence from "./Sentence";
 import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
+import Sentence from "@player/elements/say/Sentence";
 
 export default function Menu(
     {
@@ -50,11 +50,11 @@ export default function Menu(
                                     )}
                                     onClick={() => choose(choice)}
                                 >
-                                    <ColoredSentence
-                                        key={i}
+                                    <Sentence
                                         sentence={choice.prompt}
-                                        className={clsx(game.config.elementStyles.menu.choiceButtonTextClassName)}
                                         gameState={state}
+                                        useTypeEffect={false}
+                                        className={clsx(game.config.elementStyles.menu.choiceButtonTextClassName)}
                                     />
                                 </button>
                             ))}

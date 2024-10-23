@@ -11,6 +11,7 @@ import {Transform} from "@core/elements/transform/transform";
 import {Sentence} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
 import {Text} from "@core/elements/text";
+import {Pause} from "@core/elements/character/pause";
 
 export {
     Character,
@@ -27,5 +28,6 @@ export {
     Story,
     Transform,
     Word,
-    Text
+    Text,
+    Pause
 };

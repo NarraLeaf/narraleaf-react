@@ -417,6 +417,7 @@ export type PublicOnly<T> = Pick<T, PublicProperties<T>>;
 export class Lock {
     private locked = false;
     private listeners: (() => void)[] = [];
+    private unlockListeners: (() => void)[] = [];
 
     public lock() {
         this.locked = true;
@@ -428,8 +429,20 @@ export class Lock {
         for (const listener of this.listeners) {
             listener();
         }
+        for (const listener of this.unlockListeners) {
+            listener();
+        }
         this.listeners = [];
         return this;
+    }
+
+    public onUnlock(listener: () => void) {
+        this.unlockListeners.push(listener);
+        return listener;
+    }
+
+    public offUnlock(listener: () => void) {
+        this.unlockListeners = this.unlockListeners.filter(l => l !== listener);
     }
 
     public async nextUnlock() {

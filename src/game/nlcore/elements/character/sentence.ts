@@ -4,6 +4,7 @@ import type {Character} from "@core/elements/character";
 import {Word, WordConfig} from "@core/elements/character/word";
 import {Color, Font} from "@core/types";
 import type {ScriptCtx} from "@core/elements/script";
+import {Pausing} from "@core/elements/character/pause";
 
 export type SentenceConfig = {
     pause?: boolean | number;
@@ -21,8 +22,11 @@ export type SentenceUserConfig = Partial<Omit<SentenceConfig, "voice"> & {
     voice: Sound | string | null | undefined
 }>;
 export type DynamicWord = (ctx: ScriptCtx) => DynamicWordResult;
-export type DynamicWordResult = string | Word | (string | Word)[];
-export type StaticWord<T extends string | DynamicWord = string | DynamicWord> = string | Word<T>;
+export type DynamicWordResult = string | Word | Pausing | (string | Word | Pausing)[];
+export type StaticWord<T extends string | DynamicWord | Pausing = string | DynamicWord | Pausing> =
+    string
+    | Pausing
+    | Word<T>;
 export type SingleWord = StaticWord | DynamicWord;
 export type SentencePrompt = SingleWord[] | SingleWord;
 
@@ -71,14 +75,14 @@ export class Sentence {
     }
 
     /**@internal */
-    static formatStaticWord<T extends string | DynamicWord>(
+    static formatStaticWord<T extends string | DynamicWord | Pausing>(
         word: StaticWord<T | string> | StaticWord<T | string>[],
         config?: Partial<WordConfig>
-    ): Word<T | string>[] {
+    ): Word<T | string | Pausing>[] {
         if (Array.isArray(word)) {
             return word.map(w => this.formatStaticWord(w, config)).flat(2);
         }
-        return [Word.isWord(word) ? word : new Word<T | string>(word, config)];
+        return [Word.isWord(word) ? word : new Word<T | string | Pausing>(word, config)];
     }
 
     /**@internal */
@@ -128,8 +132,8 @@ export class Sentence {
     }
 
     /**@internal */
-    evaluate(ctx: ScriptCtx): Word<string>[] {
-        const words: Word<string>[] = [];
+    evaluate(ctx: ScriptCtx): Word<string | Pausing>[] {
+        const words: Word<string | Pausing>[] = [];
         for (let i = 0; i < this.text.length; i++) {
             const word = this.text[i].evaluate(ctx);
             words.push(...Sentence.formatStaticWord(word));

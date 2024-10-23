@@ -2,13 +2,14 @@ import {Color, color, Font} from "@core/types";
 import {deepMerge} from "@lib/util/data";
 import {DynamicWord} from "@core/elements/character/sentence";
 import {ScriptCtx} from "@core/elements/script";
+import {Pause, Pausing} from "@core/elements/character/pause";
 
 export type WordConfig = {
     className?: string;
     ruby?: string;
 } & Color & Font;
 
-export class Word<T extends string | DynamicWord = string | DynamicWord> {
+export class Word<T extends string | DynamicWord | Pausing = string | DynamicWord | Pausing> {
     static defaultConfig: Partial<WordConfig> = {};
     static defaultColor: color = "#000";
 
@@ -27,9 +28,11 @@ export class Word<T extends string | DynamicWord = string | DynamicWord> {
     }
 
     /**@internal */
-    evaluate(ctx: ScriptCtx): Word<string>[] {
-        if (typeof this.text === "function") {
-            const texts: string | Word | (string | Word)[] = this.text(ctx);
+    evaluate(ctx: ScriptCtx): Word<string | Pausing>[] {
+        if (Pause.isPause(this.text)) {
+            return [this as Word<Pausing>];
+        } else if (typeof this.text === "function") {
+            const texts: string | Word | Pausing | (string | Word | Pausing)[] = this.text(ctx);
             if (Array.isArray(texts)) {
                 return texts.map(text => {
                     if (Word.isWord(text)) {
@@ -41,7 +44,7 @@ export class Word<T extends string | DynamicWord = string | DynamicWord> {
             if (Word.isWord(texts)) {
                 return texts.inherit(this.config).evaluate(ctx);
             }
-            return [new Word(texts, this.config)];
+            return [new Word<string | Pausing>(texts, this.config)];
         }
         return [this as Word<string>];
     }

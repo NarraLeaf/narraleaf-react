@@ -2,6 +2,17 @@
 
 ## [0.1.0] - 2024/10/09
 
+### _Feature_
+
+- specify the voice of each sentence
+- show text on the screen using `Text` element
+- use pure color as background
+- animate font size and color of text
+- dynamic dialogue text evaluation
+- newline support for character dialogues
+- ruby text support
+- pause text when the character is speaking
+
 ### Fixed
 
 - Transform Animation does not wait for the previous animation to finish
@@ -17,7 +28,7 @@
 - Refactor `Image.tsx`, `BackgroundTransition.tsx` and `Text.tsx`.
 - Use `IImageTransition` instead of `ITransition`
 
-### Add
+### Added
 
 - Added voice support
 - Added lock for `liveGame.next`
@@ -32,16 +43,11 @@
 - newline support for `Say`
 - more customization for dialogue text
 - ruby text support
+- [pause](./src/game/nlcore/elements/character/pause.ts) text when the character is speaking
 
-### Feature
+### Deprecated
 
-- specify the voice of each sentence
-- show text on the screen using `Text` element
-- use pure color as background
-- animate font size and color of text
-- dynamic dialogue text evaluation
-- newline support for character dialogues
-- ruby text support
+- `ColoredSentence` is deprecated, use `Sentence` instead
 
 ## [0.0.5] - 2024/10/06
 
@@ -53,7 +59,7 @@
 
 ### Fixed
 
-- Constructing story will enter cycle and cost unexpected time. See [story.ts](/src/game/nlcore/elements/story.ts)
+- Constructing story will enter cycle and cost unexpected time. See [story.ts](./src/game/nlcore/elements/story.ts)
   #Story.prototype.constructStory
 - Skipping text does not show the complete text
 
