@@ -47,6 +47,9 @@ export default function Image({
                 element: image,
                 skipTransition: state.game.config.elements.img.allowSkipTransition,
                 skipTransform: state.game.config.elements.img.allowSkipTransform,
+                transformOverwrites: {
+                    "scale": () => ({}),
+                },
             }}
             child={(props) => (
                 <DisplayableImage
@@ -78,11 +81,12 @@ function DisplayableImage(
             ...(state.game.config.app.debug ? {
                 border: "1px solid red",
             } : {}),
+            transformOrigin: "center",
         },
     };
 
     return (
-        <div className={""}>
+        <div>
             <m.div
                 layout
                 ref={transformRef}
@@ -90,15 +94,20 @@ function DisplayableImage(
                 {...(deepMerge<any>({
                     style: {
                         opacity: 0,
+                        border: state.game.config.app.debug ? "1px dashed yellow" : undefined,
                     }
-                }, transformProps))}
+                }, transformProps, {
+                    style: {
+                        scale: "unset"
+                    }
+                }))}
             >
                 {transition ? (<>
                     {transition.toElementProps().map((elementProps, index, arr) => {
                         const mergedProps =
                             deepMerge<ImgElementProp>(defaultProps, elementProps, {
                                 style: {
-                                    transform: "translate(-50%, -50%)"
+                                    // transform: "translate(-50%, -50%)"
                                 }
                             }) as any;
                         return (
@@ -118,7 +127,7 @@ function DisplayableImage(
                         key={"last"}
                         {...deepMerge<any>(defaultProps, {
                             style: {
-                                transform: "translate(-50%, 50%)"
+                                // transform: "translate(-50%, 50%)"
                             }
                         })}
                         onLoad={handleLoad}

@@ -108,7 +108,8 @@ const RatioContext = createContext<null | { ratio: AspectRatio }>(null);
 export function RatioProvider({children}: {
     children: React.ReactNode
 }) {
-    const [ratio] = useState(new AspectRatio());
+    const [ratio] = useState(() => new AspectRatio());
+
     return (
         <RatioContext.Provider value={{ratio}}>
             {children}

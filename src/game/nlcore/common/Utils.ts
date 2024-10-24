@@ -94,7 +94,7 @@ export class Utils {
     }
 
     public static isPlainColor(color: any): color is color {
-        return typeof color === "string" || (typeof color === "object" && "r" in color && "g" in color && "b" in color);
+        return color && (typeof color === "string" || (typeof color === "object" && "r" in color && "g" in color && "b" in color));
     }
 
     static isHexString(color: any): color is HexColor {

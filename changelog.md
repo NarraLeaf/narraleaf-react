@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1] - 2024/10/23
+
+### Fixed
+
+- Image transform position incorrect
+- throw error when color is not in correct format
+
 ## [0.1.0] - 2024/10/23
 
 ### _Feature_

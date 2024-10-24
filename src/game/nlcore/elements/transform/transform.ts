@@ -135,6 +135,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
         const Transforms = [
             `translate(${translate[0] || ((invertX ? "" : "-") + "50%")}, ${translate[1] || ((invertY ? "" : "-") + "50%")})`,
             (prop["rotation"] !== undefined) && `rotate(${prop["rotation"]}deg)`,
+            (prop["scale"] !== undefined) && `scale(${prop["scale"]})`,
         ];
         return Transforms.filter(Boolean).join(" ");
     }
@@ -287,12 +288,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
             "backgroundColor": (value: Background["background"]) => Transform.backgroundToCSS(value),
             "backgroundOpacity": (value: number) => ({opacity: value}),
             "opacity": (value: number) => ({opacity: value}),
-            "scale": () => {
-                if (!("scale" in prop)) return {};
-                return {
-                    width: `${(prop as any)["scale"] * 100}%`,
-                };
-            },
+            "scale": () => ({}),
             "rotation": () => ({}),
             "display": () => ({}),
             "src": () => ({}),
