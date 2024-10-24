@@ -6,6 +6,7 @@
 
 - Image transform position incorrect
 - throw error when color is not in correct format
+- image disappear during transition
 
 ## [0.1.0] - 2024/10/23
 

@@ -85,6 +85,22 @@ function DisplayableImage(
         },
     };
 
+    const transitionProps: ImgElementProp[] = [
+        {
+            style: {
+                display: "block",
+                position: "unset"
+            }
+        },
+        {
+            style: {
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+            }
+        }
+    ];
+
     return (
         <div>
             <m.div
@@ -98,7 +114,7 @@ function DisplayableImage(
                     }
                 }, transformProps, {
                     style: {
-                        scale: "unset"
+                        display: "inline-block",
                     }
                 }))}
             >
@@ -109,7 +125,7 @@ function DisplayableImage(
                                 style: {
                                     // transform: "translate(-50%, -50%)"
                                 }
-                            }) as any;
+                            }, transitionProps[index] || {}) as any;
                         return (
                             <m.img
                                 className={"absolute"}
