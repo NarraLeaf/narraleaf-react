@@ -13,16 +13,18 @@ enum GameSettingsNamespace {
 }
 
 export class Game {
+    /**@internal */
     static defaultSettings: GameSettings = {
         volume: 1,
     };
-    static ComponentTypes: {
+    public static ComponentTypes: {
         [K in keyof ComponentsTypes]: K;
     } = {
         say: "say",
         menu: "menu",
     };
     // noinspection MagicNumberJS
+    /**@internal */
     static DefaultConfig: GameConfig = {
         player: {
             contentContainerId: "__narraleaf_content",

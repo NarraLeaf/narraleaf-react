@@ -40,6 +40,7 @@ export type TextEventTypes = {
 export class Text
     extends Actionable<TextDataRaw, Text>
     implements EventfulDisplayable {
+    /**@internal */
     static EventTypes: { [K in keyof TextEventTypes]: K } = {
         "event:text.show": "event:text.show",
         "event:text.hide": "event:text.hide",
@@ -47,6 +48,7 @@ export class Text
         "event:displayable.applyTransform": "event:displayable.applyTransform",
         "event:displayable.init": "event:displayable.init",
     };
+    /**@internal */
     static defaultConfig: TextConfig = {
         position: new CommonPosition(CommonPosition.Positions.Center),
         scale: 1,
@@ -79,6 +81,10 @@ export class Text
         this.state = deepMerge({}, this.config);
     }
 
+    /**
+     * Apply a transform to the Text
+     * @chainable
+     */
     public applyTransform(transform: Transform<TransformDefinitions.TextTransformProps>): Proxied<Text, Chained<LogicAction.Actions>> {
         const chain = this.chain();
         const action = new TextAction<typeof TextAction.ActionTypes.applyTransform>(
@@ -91,6 +97,10 @@ export class Text
         return chain.chain(action);
     }
 
+    /**
+     * Apply a transition to the Text
+     * @chainable
+     */
     public applyTransition(transition: ITextTransition): Proxied<Text, Chained<LogicAction.Actions>> {
         const chain = this.chain();
         const action = this._applyTransition(chain, transition);
@@ -171,6 +181,10 @@ export class Text
         return chain.chain(action);
     }
 
+    /**
+     * Set the text of the Text
+     * @chainable
+     */
     public setText(text: string): Proxied<Text, Chained<LogicAction.Actions>> {
         const chain = this.chain();
         const action = new TextAction<typeof TextAction.ActionTypes.setText>(
@@ -181,6 +195,10 @@ export class Text
         return chain.chain(action);
     }
 
+    /**
+     * Set the font color of the Text
+     * @chainable
+     */
     public setFontSize(fontSize: number, duration: number = 0, easing?: TransformDefinitions.EasingDefinition): Proxied<Text, Chained<LogicAction.Actions>> {
         return this.combineActions(new Control(), chain => {
             if (duration) {

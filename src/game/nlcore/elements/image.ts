@@ -47,6 +47,7 @@ export type ImageEventTypes = {
 export class Image
     extends Actionable<ImageDataRaw, Image>
     implements EventfulDisplayable {
+    /**@internal */
     static EventTypes: { [K in keyof ImageEventTypes]: K } = {
         "event:image.init": "event:image.init",
         "event:image.mount": "event:image.mount",
@@ -59,6 +60,7 @@ export class Image
         "event:displayable.applyTransform": "event:displayable.applyTransform",
         "event:displayable.init": "event:displayable.init",
     };
+    /**@internal */
     static defaultConfig: ImageConfig = {
         src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
         display: false,
@@ -68,6 +70,7 @@ export class Image
         opacity: 0,
     };
 
+    /**@internal */
     public static serializeImageState(state: Record<string, any>): Record<string, any> {
         const handlers: Record<string, ((value: any) => any)> = {
             position: (value: IPosition) => {
@@ -83,6 +86,7 @@ export class Image
         return result;
     };
 
+    /**@internal */
     public static deserializeImageState(state: Record<string, any>): ImageConfig {
         const handlers: Record<string, ((value: any) => any)> = {
             position: (value: D2Position) => {

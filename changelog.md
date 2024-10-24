@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.0] - 2024/10/09
+## [0.1.0] - 2024/10/23
 
 ### _Feature_
 
@@ -16,6 +16,7 @@
 ### Fixed
 
 - Transform Animation does not wait for the previous animation to finish
+- Text dialogues cannot have newline
 
 ### Changed
 
@@ -47,7 +48,7 @@
 
 ### Deprecated
 
-- `ColoredSentence` is deprecated, use `Sentence` instead
+- `ColoredSentence.tsx` is deprecated, use `Sentence.tsx` instead
 
 ## [0.0.5] - 2024/10/06
 

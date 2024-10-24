@@ -58,8 +58,10 @@ export type ConditionData = {
 };
 
 export class Condition extends Actionable {
+    /**@internal */
     static defaultConfig: ConditionConfig = {};
 
+    /**@internal */
     static getInitialState(): ConditionData {
         return {
             If: {

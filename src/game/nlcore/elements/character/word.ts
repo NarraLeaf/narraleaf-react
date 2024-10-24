@@ -10,7 +10,9 @@ export type WordConfig = {
 } & Color & Font;
 
 export class Word<T extends string | DynamicWord | Pausing = string | DynamicWord | Pausing> {
+    /**@internal */
     static defaultConfig: Partial<WordConfig> = {};
+    /**@internal */
     static defaultColor: color = "#000";
 
     static isWord(obj: any): obj is Word {

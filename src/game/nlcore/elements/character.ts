@@ -19,6 +19,7 @@ export class Character extends Actionable<
     CharacterStateData,
     Character
 > {
+    /**@internal */
     static defaultConfig: CharacterConfig = {
         color: "#000",
     };

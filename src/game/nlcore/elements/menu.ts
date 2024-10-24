@@ -30,7 +30,9 @@ export type MenuData = {
 }
 
 export class Menu extends Actionable<any, Menu> {
+    /**@internal */
     static defaultConfig: MenuConfig = {};
+    /**@internal */
     static targetAction = MenuAction;
     /**@internal */
     readonly prompt: Sentence;

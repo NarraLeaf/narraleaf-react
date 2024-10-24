@@ -81,6 +81,7 @@ export class Scene extends Constructable<
     Actions,
     Scene
 > implements EventfulDisplayable {
+    /**@internal */
     static EventTypes: { [K in keyof SceneEventTypes]: K } = {
         "event:scene.remove": "event:scene.remove",
         "event:scene.load": "event:scene.load",
@@ -94,12 +95,14 @@ export class Scene extends Constructable<
         "event:displayable.applyTransform": "event:displayable.applyTransform",
         "event:displayable.init": "event:displayable.init",
     };
+    /**@internal */
     static defaultConfig: Omit<ISceneConfig, "background"> = {
         invertY: false,
         invertX: false,
         backgroundMusic: null,
         backgroundMusicFade: 0,
     };
+    /**@internal */
     static defaultState: SceneState = {};
 
     /**@internal */

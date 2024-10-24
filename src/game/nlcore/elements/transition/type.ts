@@ -14,8 +14,10 @@ export type CSSElementProp<T extends React.CSSProperties | DOMKeyframesDefinitio
 export type CSSProps = React.CSSProperties;
 
 export interface ITransition<T extends ElementProp = Record<string, any>> {
+    /**@internal */
     events: EventDispatcher<EventTypes<[T[]]>>;
 
+    /**@internal */
     controller: AnimationPlaybackControls | null | undefined;
 
     start(onComplete?: () => void): void;
