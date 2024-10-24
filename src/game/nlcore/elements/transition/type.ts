@@ -1,6 +1,7 @@
 import type {EventDispatcher} from "@lib/util/data";
 import React from "react";
-import type {DOMKeyframesDefinition, AnimationPlaybackControls} from "framer-motion";
+import type {AnimationPlaybackControls, DOMKeyframesDefinition} from "framer-motion";
+import {ImageColor, ImageSrc} from "@core/types";
 
 export type ElementProp<T extends Element = Element, U extends React.HTMLAttributes<T> = React.HTMLAttributes<T>> =
     React.JSX.IntrinsicAttributes
@@ -8,22 +9,32 @@ export type ElementProp<T extends Element = Element, U extends React.HTMLAttribu
     & React.HTMLAttributes<T>
     & U;
 export type ImgElementProp = ElementProp<HTMLImageElement, React.ImgHTMLAttributes<HTMLImageElement>>;
+export type SpanElementProp = ElementProp<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>;
 export type CSSElementProp<T extends React.CSSProperties | DOMKeyframesDefinition> = ElementProp & { style: T };
 export type CSSProps = React.CSSProperties;
 
-/* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
-export interface ITransition<T extends ElementProp = {}> {
+export interface ITransition<T extends ElementProp = Record<string, any>> {
+    /**@internal */
     events: EventDispatcher<EventTypes<[T[]]>>;
 
+    /**@internal */
     controller: AnimationPlaybackControls | null | undefined;
 
     start(onComplete?: () => void): void;
 
     toElementProps(): T[];
 
-    setSrc(src: string): void;
-
     copy(): ITransition<T>;
+}
+
+export interface IImageTransition<T extends ElementProp = ImgElementProp> extends ITransition<T> {
+    setSrc(src: ImageSrc | ImageColor): void;
+
+    copy(): IImageTransition<T>;
+}
+
+export interface ITextTransition<T extends ElementProp = SpanElementProp> extends ITransition<T> {
+    copy(): ITextTransition<T>;
 }
 
 export type EventTypes<T extends any[]> = {

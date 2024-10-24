@@ -1,7 +1,7 @@
 import {useEffect} from "react";
 import {GameState} from "@player/gameState";
 import {Sound} from "@core/elements/sound";
-import {SrcManager} from "@core/elements/srcManager";
+import {SrcManager} from "@core/action/srcManager";
 import {usePreloaded} from "@player/provider/preloaded";
 import {Preloaded, PreloadedSrc} from "@player/lib/Preloaded";
 import {Image as GameImage} from "@core/elements/image";
@@ -83,8 +83,8 @@ export function Preload({
         });
 
         src.audio.forEach((src: Sound) => {
-            if (!src.$getHowl()) {
-                src.$setHowl(new (state.getHowl())({
+            if (!src.getPlaying()) {
+                src.setPlaying(new (state.getHowl())({
                     src: src.config.src,
                     loop: src.config.loop,
                     volume: src.config.volume,

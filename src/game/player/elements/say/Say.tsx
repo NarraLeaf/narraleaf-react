@@ -1,13 +1,9 @@
 import clsx from "clsx";
 import React, {useEffect, useState} from "react";
 import Isolated from "@player/lib/isolated";
-import TypingEffect from "./TypingEffect";
-import {toHex} from "@lib/util/data";
-import {useGame} from "@player/provider/game-state";
 import {SayElementProps} from "@player/elements/say/type";
-import {Character, Word} from "@core/elements/text";
 import {GameState} from "@core/common/game";
-
+import Sentence from "@player/elements/say/Sentence";
 
 export default function Say(
     {
@@ -17,23 +13,20 @@ export default function Say(
         className,
         state,
     }: Readonly<SayElementProps>) {
-    const {sentence, character} = action;
-    const [currentWordIndex, setCurrentWordIndex] = useState(0);
+    const {sentence} = action;
     const [isFinished, setIsFinished] = useState(false);
-    const {game} = useGame();
+    const {game} = state;
+    const [count, setCount] = useState(0);
 
     const handleComplete = () => {
-        setCurrentWordIndex((prevIndex) => prevIndex + 1);
-        if (currentWordIndex === sentence.text.length - 1) {
-            setIsFinished(true);
-        }
+        setIsFinished(true);
     };
 
     function onElementClick() {
         if (isFinished) {
             if (onClick) onClick();
         } else {
-            setIsFinished(true);
+            setCount((count) => count + 1);
         }
     }
 
@@ -48,13 +41,12 @@ export default function Say(
                 if (isFinished) {
                     if (onClick) onClick();
                 } else {
-                    setIsFinished(true);
+                    setCount((count) => count + 1);
                 }
             }
         };
 
         window.addEventListener("keyup", handleKeyUp);
-
 
         return () => {
             window.removeEventListener("keyup", handleKeyUp);
@@ -84,54 +76,28 @@ export default function Say(
     return (
         <Isolated className={"absolute"}>
             {sentence.state.display &&
-                ((!character || character.config.mode === Character.Modes.adv) ?
-                        (<div className={
-                            clsx(
-                                "absolute flex items-center justify-center bottom-0 w-[calc(100%-40px)] h-[calc(33%-40px)] m-4 bg-white",
-                                game.config.elementStyles.say.container,
-                                className
-                            )
-                        } onClick={onElementClick}>
-                            <div
-                                className={clsx("absolute top-0 left-0 p-1.25 rounded-br-md m-4", game.config.elementStyles.say.nameText)}>
-                                {sentence.character?.name || ""}
-                            </div>
-                            <div
-                                className={clsx("text-center max-w-[80%] mx-auto", game.config.elementStyles.say.textContainer)}>
-                                {
-                                    sentence.text.map((word, index) => {
-                                        const color = word.config.color || sentence.config.color || Word.defaultColor;
-                                        if (isFinished) return (
-                                            <span
-                                                key={index}
-                                                style={{
-                                                    color: typeof color === "string" ? color : toHex(color)
-                                                }}
-                                                className={clsx(game.config.elementStyles.say.textSpan)}
-                                            >{word.text}</span>
-                                        );
-                                        if (index > currentWordIndex) return null;
-                                        return (
-                                            <span
-                                                key={index}
-                                                style={{
-                                                    color: toHex(color)
-                                                }} className={clsx(game.config.elementStyles.say.textSpan)}
-                                            >{
-                                                useTypeEffect ?
-                                                    <TypingEffect
-                                                        text={word.text}
-                                                        onComplete={index === currentWordIndex ? handleComplete : undefined}
-                                                        speed={game.config.elements.say.textInterval}
-                                                        className={clsx(game.config.elementStyles.say.textSpan)}
-                                                    /> :
-                                                    word.text
-                                            }</span>
-                                        );
-                                    })
-                                }
-                            </div>
-                        </div>) : (<> </>)
+                (
+                    <div className={
+                        clsx(
+                            "absolute bottom-0 w-[calc(100%-40px)] min-h-[calc(33%-40px)] m-4 bg-white flex flex-col items-start justify-between",
+                            game.config.elementStyles.say.containerClassName,
+                            className
+                        )
+                    } onClick={onElementClick}>
+                        <div
+                            className={clsx("rounded-br-md", game.config.elementStyles.say.nameTextClassName)}>
+                            {sentence.config.character?.state.name}
+                        </div>
+                        <Sentence
+                            sentence={sentence}
+                            gameState={state}
+                            finished={isFinished}
+                            useTypeEffect={useTypeEffect}
+                            onCompleted={handleComplete}
+                            count={count}
+                        />
+                        <div></div>
+                    </div>
                 )
             }
         </Isolated>

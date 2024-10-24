@@ -1,11 +1,11 @@
 import {Game, LiveGame} from "../game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
-import {ScriptAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import {GameState} from "@player/gameState";
 import {Chained, Proxied} from "@core/action/chain";
 import type {Storable} from "@core/store/storable";
+import {ScriptAction} from "@core/action/actions/scriptAction";
 
 export interface ScriptCtx {
     gameState: GameState;
@@ -19,6 +19,16 @@ export type ScriptCleaner = () => void;
 
 export class Script extends Actionable<object> {
     /**@internal */
+    static getCtx({gameState}: { gameState: GameState }): ScriptCtx {
+        return {
+            gameState,
+            game: gameState.game,
+            liveGame: gameState.game.getLiveGame(),
+            storable: gameState.game.getLiveGame().getStorable(),
+        };
+    }
+
+    /**@internal */
     readonly handler: ScriptRun;
 
     constructor(handler: ScriptRun) {
@@ -29,19 +39,9 @@ export class Script extends Actionable<object> {
 
     /**@internal */
     execute({gameState}: { gameState: GameState }): void {
-        this.handler(this.getCtx({
+        this.handler(Script.getCtx({
             gameState
         }));
-    }
-
-    /**@internal */
-    getCtx({gameState}: { gameState: GameState }): ScriptCtx {
-        return {
-            gameState,
-            game: gameState.game,
-            liveGame: gameState.game.getLiveGame(),
-            storable: gameState.game.getLiveGame().getStorable(),
-        };
     }
 
     /**@internal */

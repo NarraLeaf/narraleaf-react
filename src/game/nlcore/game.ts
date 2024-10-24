@@ -1,5 +1,5 @@
 import type {CalledActionResult, GameConfig, GameSettings, SavedGame} from "./gameTypes";
-import {Awaitable, deepMerge, DeepPartial} from "@lib/util/data";
+import {Awaitable, deepMerge, DeepPartial, Lock, MultiLock} from "@lib/util/data";
 import {Namespace, Storable} from "@core/store/storable";
 import {Story} from "./elements/story";
 import {LogicAction} from "@core/action/logicAction";
@@ -13,16 +13,18 @@ enum GameSettingsNamespace {
 }
 
 export class Game {
+    /**@internal */
     static defaultSettings: GameSettings = {
         volume: 1,
     };
-    static ComponentTypes: {
+    public static ComponentTypes: {
         [K in keyof ComponentsTypes]: K;
     } = {
         say: "say",
         menu: "menu",
     };
     // noinspection MagicNumberJS
+    /**@internal */
     static DefaultConfig: GameConfig = {
         player: {
             contentContainerId: "__narraleaf_content",
@@ -43,22 +45,33 @@ export class Game {
             img: {
                 slowLoadWarning: true,
                 slowLoadThreshold: 2000,
+                allowSkipTransform: true,
+                allowSkipTransition: true,
             },
             menu: {
                 use: DefaultElements.menu,
-            }
+            },
+            background: {
+                allowSkipTransform: true,
+                allowSkipTransition: false,
+            },
+            text: {
+                allowSkipTransform: true,
+                allowSkipTransition: true,
+            },
         },
         elementStyles: {
             say: {
-                container: "",
-                nameText: "",
-                textContainer: "",
-                textSpan: "",
+                containerClassName: "",
+                nameTextClassName: "",
+                textContainerClassName: "",
+                textSpanClassName: "",
+                rubyClassName: "",
             },
             menu: {
-                container: "",
-                choiceButton: "",
-                choiceButtonText: "",
+                containerClassName: "",
+                choiceButtonClassName: "",
+                choiceButtonTextClassName: "",
             }
         },
         app: {
@@ -126,10 +139,8 @@ export class LiveGame {
         game: "game",
     } as const;
 
-    game: Game;
-    /**@internal */
-    storable: Storable;
-
+    public game: Game;
+    public gameLock = new MultiLock();
     /**@internal */
     currentSavedGame: SavedGame | null = null;
     /**@internal */
@@ -138,11 +149,14 @@ export class LiveGame {
     lockedAwaiting: Awaitable<CalledActionResult, any> | null = null;
     /**@internal */
     gameState: GameState | undefined = undefined;
-
     /**@internal */
-    _lockedCount = 0;
+    private readonly storable: Storable;
+    /**@internal */
+    private _lockedCount = 0;
     /**@internal */
     private currentAction: LogicAction.Actions | null = null;
+    /**@internal */
+    private _nextLock = new Lock();
 
     /**@internal */
     constructor(game: Game) {
@@ -337,7 +351,16 @@ export class LiveGame {
     }
 
     /**@internal */
-    next(state: GameState): CalledActionResult | Awaitable<CalledActionResult, CalledActionResult> | null {
+    next(state: GameState): CalledActionResult | Awaitable<CalledActionResult> | MultiLock | null {
+        if (this._nextLock.isLocked()) {
+            return null;
+        }
+        this._nextLock.lock();
+
+        if (this.gameLock.isLocked()) {
+            return this.gameLock;
+        }
+
         if (!this.story) {
             throw new Error("No story loaded");
         }
@@ -349,10 +372,10 @@ export class LiveGame {
                 if (this._lockedCount > 1000) {
                     // sometimes react will make it stuck and enter a dead cycle
                     // that's not cool, so we need to throw an error to break it
-                    // my computer froze for 5 minutes because of this
                     throw new Error("Locked awaiting");
                 }
 
+                this._nextLock.unlock();
                 return this.lockedAwaiting;
             }
             const next = this.lockedAwaiting.result;
@@ -361,18 +384,24 @@ export class LiveGame {
             state.logger.debug("next action", next);
 
             this.lockedAwaiting = null;
+
+            this._nextLock.unlock();
             return next || null;
         }
 
         if (!this.currentAction) {
             state.events.emit(GameState.EventTypes["event:state.end"]);
             state.logger.warn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
+
+            this._nextLock.unlock();
             return null;
         }
 
         const nextAction = this.currentAction.executeAction(state);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             this.lockedAwaiting = nextAction;
+
+            this._nextLock.unlock();
             return nextAction;
         }
 
@@ -381,6 +410,8 @@ export class LiveGame {
         this._lockedCount = 0;
 
         this.currentAction = nextAction.node?.action || null;
+
+        this._nextLock.unlock();
         return nextAction;
     }
 

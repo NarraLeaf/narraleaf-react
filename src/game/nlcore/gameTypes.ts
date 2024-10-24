@@ -4,6 +4,7 @@ import {ElementStateRaw} from "@core/elements/story";
 import {PlayerStateData} from "@player/gameState";
 import {StorableData} from "@core/store/type";
 import {MenuComponent, SayComponent} from "@player/elements/type";
+import React from "react";
 
 
 export interface SavedGame {
@@ -43,7 +44,7 @@ export type GameConfig = {
          *
          * See [Key_Values](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values)
          */
-        skipKey: string[];
+        skipKey: React.KeyboardEvent["key"][];
         /**
          * The interval in milliseconds between each skip action.
          * ex: 100ms means the player can skip 10 actions per second.
@@ -58,7 +59,7 @@ export type GameConfig = {
              *
              * See [Key_Values](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values)
              */
-            nextKey: string[];
+            nextKey: React.KeyboardEvent["key"][];
             /**
              * The speed of the text effect in milliseconds.
              * higher value means slower text effect.
@@ -73,9 +74,19 @@ export type GameConfig = {
              */
             slowLoadWarning: boolean;
             slowLoadThreshold: number;
+            allowSkipTransform: boolean;
+            allowSkipTransition: boolean;
         },
         menu: {
             use: MenuComponent;
+        },
+        background: {
+            allowSkipTransform: boolean;
+            allowSkipTransition: boolean;
+        },
+        text: {
+            allowSkipTransform: boolean;
+            allowSkipTransition: boolean;
         }
     },
     elementStyles: {
@@ -84,15 +95,29 @@ export type GameConfig = {
              * Custom class for the say container
              * Ex: "rounded-md shadow-md" for rounded and shadowed container
              */
-            container: string;
-            nameText: string;
-            textContainer: string;
-            textSpan: string;
+            containerClassName: string;
+            nameTextClassName: string;
+            textContainerClassName: string;
+            textSpanClassName: string;
+            /**
+             * The default font family for the text
+             * Ex: "Arial, sans-serif"
+             *
+             * See [Font family](https://developer.mozilla.org/en-US/docs/Web/CSS/font-family)
+             */
+            fontFamily?: React.CSSProperties["fontFamily"];
+            /**
+             * Font size for the text
+             *
+             * See [Font size](https://developer.mozilla.org/en-US/docs/Web/CSS/font-size)
+             */
+            fontSize?: React.CSSProperties["fontSize"];
+            rubyClassName: string;
         },
         menu: {
-            container: string;
-            choiceButton: string;
-            choiceButtonText: string;
+            containerClassName: string;
+            choiceButtonClassName: string;
+            choiceButtonTextClassName: string;
         }
     };
     app: {

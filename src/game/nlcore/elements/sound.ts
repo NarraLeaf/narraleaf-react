@@ -1,12 +1,12 @@
 import {Actionable} from "@core/action/actionable";
 import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
-import {SoundAction} from "@core/action/actions";
 import {LogicAction} from "@core/game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import * as Howler from "howler";
 import {HowlOptions} from "howler";
-import {SoundActionContentType} from "@core/action/actionTypes";
+import {SoundActionContentType, SoundActionTypes} from "@core/action/actionTypes";
 import {Chained, Proxied} from "@core/action/chain";
+import {SoundAction} from "@core/action/actions/soundAction";
 
 type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
 
@@ -44,26 +44,58 @@ export type SoundConfig = {
 };
 
 export class Sound extends Actionable<SoundDataRaw> {
+    /**@internal */
     static defaultConfig: SoundConfig = {
         src: "",
         sync: false,
         loop: false,
         volume: 1,
     };
+
+    /**@internal */
+    static toSoundSrc(v: Sound | string | null | undefined): string | null {
+        if (v === null || v === undefined) {
+            return null;
+        }
+        if (typeof v === "string") {
+            return v;
+        }
+        return v.getSrc();
+    }
+
+    /**@internal */
+    static toSound(v: Sound | string | null | undefined): Sound | null {
+        if (v === null || v === undefined) {
+            return null;
+        }
+        if (typeof v === "string") {
+            return new Sound({src: v});
+        }
+        return v;
+    }
+
     /**@internal */
     config: SoundConfig;
     /**@internal */
     state: {
         playing: null | Howler.Howl;
-        token: any;
+        token: number | null;
     } = {
         playing: null,
         token: null,
     };
 
-    constructor(config: DeepPartial<SoundConfig> = {}) {
+    constructor(config?: DeepPartial<SoundConfig>);
+    constructor(src?: string);
+    constructor(arg0: DeepPartial<SoundConfig> | string = {}) {
         super();
-        this.config = deepMerge<SoundConfig>(Sound.defaultConfig, config);
+        if (typeof arg0 === "string") {
+            this.config = deepMerge<SoundConfig>(Sound.defaultConfig, {
+                src: arg0
+            });
+        } else {
+            this.config = deepMerge<SoundConfig>(Sound.defaultConfig, arg0);
+        }
     }
 
     /**
@@ -133,13 +165,14 @@ export class Sound extends Actionable<SoundDataRaw> {
     }
 
     /**@internal */
-    getHowlOptions(): HowlOptions {
+    getHowlOptions(options?: Partial<HowlOptions>): HowlOptions {
         return {
             src: this.config.src,
             loop: this.config.loop,
             volume: this.config.volume,
             html5: this.config.streaming,
             autoplay: false,
+            ...(options || {})
         };
     }
 
@@ -149,29 +182,24 @@ export class Sound extends Actionable<SoundDataRaw> {
     }
 
     /**@internal */
-    $setToken(token: any) {
-        this.state.token = token;
+    getToken(): number | never {
+        return this.state.token || (undefined as never);
     }
 
     /**@internal */
-    $getToken() {
-        return this.state.token;
-    }
-
-    /**@internal */
-    $setHowl(howl: Howler.Howl | null) {
-        this.state.playing = howl;
-    }
-
-    /**@internal */
-    $getHowl() {
+    getPlaying() {
         return this.state.playing;
     }
 
     /**@internal */
-    $stop() {
-        this.$setToken(null);
-        this.$setHowl(null);
+    setToken(token: number | null | undefined) {
+        this.state.token = typeof token === "undefined" ? null : token;
+    }
+
+    /**@internal */
+    setPlaying(howl: Howler.Howl | null) {
+        this.state.playing = howl;
+        return this;
     }
 
     /**@internal */
@@ -198,7 +226,7 @@ export class Sound extends Actionable<SoundDataRaw> {
     }
 
     /**@internal */
-    private pushAction<T>(type: string, content: T): ChainedSound {
+    private pushAction<T>(type: typeof SoundActionTypes[keyof typeof SoundActionTypes], content: T): ChainedSound {
         return this.chain(new SoundAction(
             this.chain(),
             type,

@@ -21,12 +21,12 @@ export interface IPosition {
 export type Coord2DPosition = {
     x: number | `${"-" | ""}${number}%`;
     y: number | `${"-" | ""}${number}%`;
-} & OffsetPosition;
+} & Partial<OffsetPosition>;
 
 export type AlignPosition = {
     xalign: number;
     yalign: number;
-} & OffsetPosition;
+} & Partial<OffsetPosition>;
 
 export type OffsetPosition = {
     xoffset: number;
@@ -138,7 +138,7 @@ export class PositionUtils {
         );
     }
 
-    static isRawPosition(arg: any): arg is IPosition {
+    static isRawPosition(arg: any): arg is RawPosition {
         return this.isRawCommonPositionType(arg) || this.isRawCoord2DPosition(arg) || this.isRawAlignPosition(arg);
     }
 

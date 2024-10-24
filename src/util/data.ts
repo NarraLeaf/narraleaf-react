@@ -1,4 +1,5 @@
 import type {Game} from "@core/game";
+import {HexColor} from "@core/types";
 
 /**
  * @param obj1 source object
@@ -64,6 +65,12 @@ export type DeepPartial<T> = T extends object ? {
 } : T;
 
 export class Awaitable<T, U = T> {
+    static isAwaitable<T, U = T>(obj: any): obj is Awaitable<T, U> {
+        return obj instanceof Awaitable;
+    }
+
+    static nothing: ((value: any) => any) = (value) => value as any;
+
     receiver: (value: U) => T;
     result: T | undefined;
     solved = false;
@@ -76,10 +83,6 @@ export class Awaitable<T, U = T> {
     ) {
         this.receiver = receiver;
         this.skipController = skipController;
-    }
-
-    static isAwaitable<T, U>(obj: any): obj is Awaitable<T, U> {
-        return obj instanceof Awaitable;
     }
 
     registerSkipController(skipController: SkipController<T, []>) {
@@ -154,9 +157,9 @@ export function safeClone<T>(obj: T): T {
 
 export type Values<T> = T[keyof T];
 
-export function toHex(hex: { r: number; g: number; b: number; a?: number } | string): string {
+export function toHex(hex: { r: number; g: number; b: number; a?: number } | string): HexColor {
     if (typeof hex === "string") {
-        return hex;
+        return hex as HexColor;
     }
     return `#${(hex.r || 0).toString(16).padStart(2, "0")}${(hex.g || 0).toString(16).padStart(2, "0")}${(hex.b || 0).toString(16).padStart(2, "0")}${(hex.a === undefined ? "" : hex.a.toString(16).padStart(2, "0"))}`;
 }
@@ -410,3 +413,77 @@ export type PublicProperties<T> = {
     [K in keyof T]: T[K] extends Function ? never : K;
 }[keyof T];
 export type PublicOnly<T> = Pick<T, PublicProperties<T>>;
+
+export class Lock {
+    private locked = false;
+    private listeners: (() => void)[] = [];
+    private unlockListeners: (() => void)[] = [];
+
+    public lock() {
+        this.locked = true;
+        return this;
+    }
+
+    public unlock() {
+        this.locked = false;
+        for (const listener of this.listeners) {
+            listener();
+        }
+        for (const listener of this.unlockListeners) {
+            listener();
+        }
+        this.listeners = [];
+        return this;
+    }
+
+    public onUnlock(listener: () => void) {
+        this.unlockListeners.push(listener);
+        return listener;
+    }
+
+    public offUnlock(listener: () => void) {
+        this.unlockListeners = this.unlockListeners.filter(l => l !== listener);
+    }
+
+    public async nextUnlock() {
+        if (!this.locked) {
+            return;
+        }
+        return new Promise<void>(resolve => {
+            this.listeners.push(resolve);
+        });
+    }
+
+    public isLocked() {
+        return this.locked;
+    }
+}
+
+export class MultiLock {
+    private locks: Lock[] = [];
+
+    public unlock(lock: Lock): Lock {
+        lock.unlock();
+        this.off(lock);
+        return lock;
+    }
+
+    public register(lock?: Lock): Lock {
+        const targetLock = lock || new Lock();
+        this.locks.push(targetLock);
+        return targetLock;
+    }
+
+    public off(lock: Lock) {
+        this.locks = this.locks.filter(l => l !== lock);
+    }
+
+    public async nextUnlock() {
+        const promises = this.locks.map(lock => lock.nextUnlock());
+        return Promise.all(promises);
+    }
+
+    public isLocked() {
+        return this.locks.some(lock => lock.isLocked());
+    }
+}
