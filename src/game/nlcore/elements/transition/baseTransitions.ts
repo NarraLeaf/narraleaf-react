@@ -1,23 +1,24 @@
 import {EventDispatcher} from "@lib/util/data";
-import {ElementProp, EventTypes, ITransition, TransitionEventTypes} from "./type";
+import {ElementProp, EventTypes, IImageTransition, ITransition, TransitionEventTypes} from "./type";
 import {animate} from "framer-motion/dom";
 import type {AnimationPlaybackControls, ValueAnimationTransition} from "framer-motion";
+import {ImageColor, ImageSrc} from "@core/types";
 
 
-export class Base<T extends ElementProp> implements ITransition<T> {
-    public controller: AnimationPlaybackControls | null | undefined;
+export class BaseTransition<T extends ElementProp> implements ITransition<T> {
+    controller: AnimationPlaybackControls | null | undefined;
 
-    public events: EventDispatcher<EventTypes<[T[]]>> = new EventDispatcher();
+    events: EventDispatcher<EventTypes<[T[]]>> = new EventDispatcher();
 
-    public start(_onComplete?: () => void): void {
+    start(_onComplete?: () => void): void {
         throw new Error("Method not implemented.");
     }
 
-    public toElementProps(): T[] {
+    toElementProps(): T[] {
         throw new Error("Method not implemented.");
     }
 
-    setSrc(_src: string) {
+    public copy(): ITransition<T> {
         throw new Error("Method not implemented.");
     }
 
@@ -58,10 +59,25 @@ export class Base<T extends ElementProp> implements ITransition<T> {
         });
         return this.controller;
     }
+}
 
-    copy(): ITransition<T> {
+export class BaseImageTransition<T extends ElementProp>
+    extends BaseTransition<T>
+    implements IImageTransition<T> {
+    public setSrc(_src?: ImageSrc | ImageColor): this {
+        throw new Error("Method not implemented.");
+    }
+
+    public copy(): IImageTransition<T> {
         throw new Error("Method not implemented.");
     }
 }
 
+export class BaseTextTransition<T extends ElementProp>
+    extends BaseTransition<T>
+    implements ITransition<T> {
+    public copy(): ITransition<T> {
+        throw new Error("Method not implemented.");
+    }
+}
 

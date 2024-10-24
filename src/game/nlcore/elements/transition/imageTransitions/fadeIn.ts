@@ -1,57 +1,41 @@
-import {ElementProp, ITransition} from "@core/elements/transition/type";
-import {Base} from "@core/elements/transition/base";
-import {Scene} from "@core/elements/scene";
-import {StaticImageData} from "@core/types";
+import {IImageTransition, ImgElementProp} from "@core/elements/transition/type";
+import {BaseImageTransition} from "@core/elements/transition/baseTransitions";
+import {ImageColor, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
-import {getCallStack} from "@lib/util/data";
+import {getCallStack, toHex} from "@lib/util/data";
+import {TransformDefinitions} from "@core/elements/transform/type";
 
-type FadeInElementProps = {
-    opacity: number;
-    transform: string;
-}
-
-type FadeInProps = {
-    style?: Partial<{
-        opacity: number;
-        transform: string;
-    }>,
-    src?: string;
-}
-
-export class FadeIn extends Base<FadeInProps> implements ITransition {
+export class FadeIn extends BaseImageTransition<ImgElementProp> implements IImageTransition {
     __stack: string;
     private readonly duration: number;
     private readonly direction: "left" | "right" | "top" | "bottom";
     private readonly offset: number;
-    private state: FadeInElementProps = {
+    private state = {
         opacity: 0,
         transform: ""
     };
-    private src: string | undefined;
+    private src?: ImageSrc | ImageColor;
+    private readonly easing: TransformDefinitions.EasingDefinition | undefined;
 
     /**
-     * The current image will fade out, and the next image will fade in,
-     * but it will also move in a direction
+     * The next image will fade-in in a direction
      * @param direction The direction the image will move from
      * @param offset The distance the image will move (in pixels)
      * @param duration The duration of the transition
-     * @param src The source of the next image
+     * @param easing
      */
-    constructor(direction: "left" | "right" | "top" | "bottom", offset: number, duration: number = 1000, src?: Scene | StaticImageData | string) {
+    constructor(direction: "left" | "right" | "top" | "bottom", offset: number, duration: number = 1000, easing?: TransformDefinitions.EasingDefinition) {
         super();
         this.duration = duration;
         this.direction = direction;
         this.offset = offset;
-        if (src) {
-            this.src = typeof src === "string" ? src :
-                src instanceof Scene ? Utils.backgroundToSrc(src.config.background) :
-                    Utils.staticImageDataToSrc(src);
-        }
+        this.easing = easing;
         this.__stack = getCallStack();
     }
 
-    setSrc(src: string) {
+    setSrc(src: ImageSrc | ImageColor | undefined): this {
         this.src = src;
+        return this;
     }
 
     public start(onComplete?: () => void): void {
@@ -72,10 +56,12 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
                 this.state.opacity = value;
                 this.state.transform = this.getTransform(value);
             }
+        }, {
+            ease: this.easing,
         });
     }
 
-    public toElementProps(): (FadeInProps & ElementProp)[] {
+    public toElementProps(): ImgElementProp[] {
         return [
             {
                 style: {
@@ -86,14 +72,15 @@ export class FadeIn extends Base<FadeInProps> implements ITransition {
                 style: {
                     opacity: this.state.opacity,
                     transform: this.state.transform,
+                    backgroundColor: Utils.isImageColor(this.src) ? toHex(this.src) : "",
                 },
-                src: this.src,
+                src: Utils.isImageSrc(this.src) ? Utils.srcToString(this.src) : "",
             }
         ];
     }
 
-    copy(): ITransition<FadeInProps> {
-        return new FadeIn(this.direction, this.offset, this.duration, this.src);
+    copy(): FadeIn {
+        return new FadeIn(this.direction, this.offset, this.duration, this.easing).setSrc(this.src);
     }
 
     private getInitialTransform(): string {

@@ -1,5 +1,6 @@
-import {Character, Sentence} from "@core/elements/text";
+import {Character} from "@core/elements/character";
 import {Choice} from "@core/elements/menu";
+import {Sentence} from "@core/elements/character/sentence";
 
 export type Clickable<T, U = undefined> = {
     action: T;

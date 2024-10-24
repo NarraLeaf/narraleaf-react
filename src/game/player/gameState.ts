@@ -1,22 +1,25 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher, Logger} from "@lib/util/data";
-import {Sentence} from "@core/elements/text";
+import {EventDispatcher, Logger, sleep} from "@lib/util/data";
 import {Choice, MenuData} from "@core/elements/menu";
 import {Image, ImageEventTypes} from "@core/elements/image";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
-import {SrcManager} from "@core/elements/srcManager";
+import {HowlOptions} from "howler";
+import {SrcManager} from "@core/action/srcManager";
 import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/store/storable";
 import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
-import {SceneAction} from "@core/action/actions";
+import {Sentence} from "@core/elements/character/sentence";
+import {SceneAction} from "@core/action/actions/sceneAction";
+import {Text, TextEventTypes} from "@core/elements/text";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Choice>[];
     images: Image[];
+    displayable: LogicAction.Displayable[];
 };
 export type PlayerState = {
     sounds: Sound[];
@@ -85,6 +88,13 @@ export class GameState {
         return this.state.elements.find(e => e.ele.images.includes(image)) || null;
     }
 
+    public findElementByDisplayable(displayable: LogicAction.Displayable): {
+        scene: Scene,
+        ele: PlayerStateElement
+    } | null {
+        return this.state.elements.find(e => e.ele.displayable.includes(displayable)) || null;
+    }
+
     public addScene(scene: Scene): this {
         if (this.sceneExists(scene)) return this;
         this.state.elements.push({
@@ -119,6 +129,13 @@ export class GameState {
         return this.state.elements.some(s => s.scene === scene);
     }
 
+    public isSceneActive(scene: Scene): boolean {
+        for (const {scene: s} of this.state.elements) {
+            if (s === scene) return true;
+        }
+        return false;
+    }
+
     handle(action: PlayerAction): this {
         if (this.currentHandling === action) return this;
         this.currentHandling = action;
@@ -137,7 +154,7 @@ export class GameState {
         }
 
         const action = this.createWaitableAction<TextElement, undefined>({
-            character: sentence.character,
+            character: sentence.config.character,
             sentence,
             id
         }, () => {
@@ -186,32 +203,105 @@ export class GameState {
         return this;
     }
 
+    public createDisplayable(displayable: LogicAction.Displayable, scene?: Scene) {
+        const targetScene = this._getLastSceneIfNot(scene);
+        const targetElement = this.findElementByScene(targetScene);
+        if (!targetElement) return this;
+        targetElement.ele.displayable.push(displayable);
+        return this;
+    }
+
+    public disposeDisplayable(displayable: LogicAction.Displayable, scene?: Scene) {
+        const targetScene = this._getLastSceneIfNot(scene);
+        const displayables = this.findElementByScene(targetScene)?.ele.displayable;
+        if (!displayables) {
+            throw new Error("Scene not found");
+        }
+
+        const index = displayables.indexOf(displayable);
+        if (index === -1) {
+            throw new Error("Displayables not found");
+        }
+        displayables.splice(index, 1);
+        return this;
+    }
+
     public forceReset() {
+        this.state.sounds.forEach(s => s.getPlaying()?.stop());
         this.state.elements.forEach(({scene}) => {
             this.offSrcManager(scene.srcManager);
-            scene._liveState.active = false;
+            this.removeScene(scene);
             scene.events.clear();
         });
         this.state.elements = [];
         this.state.srcManagers = [];
     }
 
-    playSound(howl: Howler.Howl, onEnd?: () => void): any {
-        const token = howl.play();
+    initSound(sound: Sound, options?: Partial<HowlOptions>): Sound {
+        if (!sound.getPlaying()) {
+            sound.setPlaying(new (this.getHowl())(sound.getHowlOptions(options)));
+        }
+        return sound;
+    }
+
+    playSound(sound: Sound, onEnd?: () => void, options?: Partial<HowlOptions>): any {
+        this.initSound(sound, options);
+
+        const token = sound.getPlaying()!.play();
         const events = [
-            howl.once("end", end.bind(this)),
-            howl.once("stop", end.bind(this))
+            sound.getPlaying()!.once("end", end.bind(this)),
+            sound.getPlaying()!.once("stop", end.bind(this))
         ];
+
+        this.state.sounds.push(sound);
+        sound.state.token = token;
 
         function end(this: GameState) {
             if (onEnd) {
                 onEnd();
             }
             events.forEach(e => e.off());
+            this.state.sounds = this.state.sounds.filter(s => s !== sound);
             this.stage.next();
         }
 
         return token;
+    }
+
+    stopSound(sound: Sound): typeof sound {
+        if (sound.state.playing?.playing(sound.getToken())) {
+            sound.state.playing?.stop(sound.getToken());
+        }
+        sound
+            .setPlaying(null)
+            .setToken(null);
+        return sound;
+    }
+
+    async transitionSound(prev: Sound | undefined | null, cur: Sound | undefined | null, duration: number | undefined | null): Promise<void> {
+        if (prev) {
+            if (duration) await this.fadeSound(prev, 0, duration);
+            this.stopSound(prev);
+        }
+
+        if (cur) {
+            const volume = cur.config.volume;
+            this.playSound(cur, undefined, {
+                volume: 0
+            });
+
+            if (duration) await this.fadeSound(cur, volume, duration);
+            cur.getPlaying()!.volume(volume, cur.getToken());
+        }
+    }
+
+    async fadeSound(sound: Sound, target: number, duration: number): Promise<void> {
+        const originalVolume = sound.getPlaying()?.volume(sound.getToken()) as number;
+
+        sound.getPlaying()?.fade(originalVolume, target, duration, sound.getToken());
+        await sleep(duration);
+
+        return void 0;
     }
 
     getHowl(): typeof Howler.Howl {
@@ -219,6 +309,10 @@ export class GameState {
     }
 
     animateImage<T extends keyof ImageEventTypes>(type: T, target: Image, args: ImageEventTypes[T], onEnd: () => void) {
+        return this.anyEvent(type, target, onEnd, ...args);
+    }
+
+    animateText<T extends keyof TextEventTypes>(type: T, target: Text, args: TextEventTypes[T], onEnd: () => void) {
         return this.anyEvent(type, target, onEnd, ...args);
     }
 
@@ -234,6 +328,17 @@ export class GameState {
 
     public getStorable(): Storable {
         return this.game.getLiveGame().getStorable();
+    }
+
+    /**
+     * Dispose the game state
+     *
+     * This is an irreversible action, once disposed, the game state cannot be used again.
+     *
+     * Do not call this method directly
+     */
+    dispose() {
+        this.forceReset();
     }
 
     toData(): PlayerStateData {
@@ -277,13 +382,13 @@ export class GameState {
                 ele: {
                     images,
                     menus: [],
-                    texts: []
+                    texts: [],
+                    displayable: []
                 }
             };
 
             this.state.elements.push(element);
             this.registerSrcManager(scene.srcManager);
-            scene._liveState.active = true;
             SceneAction.registerEventListeners(scene, this);
         });
     }
@@ -294,11 +399,12 @@ export class GameState {
         });
     }
 
-    private getElementMap() {
+    private getElementMap(): PlayerStateElement {
         return {
             texts: [],
             menus: [],
-            images: []
+            images: [],
+            displayable: [],
         };
     }
 

@@ -1,4 +1,4 @@
-import {Background, CommonImage} from "@core/types";
+import {color, CommonDisplayable} from "@core/types";
 import {DeepPartial} from "@lib/util/data";
 import type {
     AnimationPlaybackControls,
@@ -52,15 +52,14 @@ export namespace TransformDefinitions {
         sync: boolean;
         repeat: number;
     }
-    export type SceneBackgroundTransformProps = {
-        background: Background["background"];
-        backgroundOpacity: number;
-    };
-    export type ImageTransformProps = CommonImage & {
+    export type ImageTransformProps = CommonDisplayable & {
         display: boolean;
-        position: CommonImage["position"];
+        position: CommonDisplayable["position"];
     };
-    export type Types = ImageTransformProps | SceneBackgroundTransformProps;
+    export type TextTransformProps = ImageTransformProps & {
+        fontColor: color;
+    };
+    export type Types = ImageTransformProps | TextTransformProps | object;
     export type SequenceProps<T> = DeepPartial<T>;
     export type SequenceOptions = Partial<CommonTransformProps>;
     export type Sequence<T> = {

@@ -1,5 +1,5 @@
 import {Sound} from "@core/elements/sound";
-import {Src} from "@core/elements/srcManager";
+import {Src} from "@core/action/srcManager";
 import {EventDispatcher} from "@lib/util/data";
 import {Image} from "@core/elements/image";
 import {Utils} from "@core/common/Utils";

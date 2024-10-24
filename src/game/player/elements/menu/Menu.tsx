@@ -3,9 +3,9 @@ import clsx from "clsx";
 
 import {Choice} from "@core/elements/menu";
 import {MenuElementProps} from "@player/elements/menu/type";
-import ColoredSentence from "./Sentence";
 import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
+import Sentence from "@player/elements/say/Sentence";
 
 export default function Menu(
     {
@@ -37,7 +37,7 @@ export default function Menu(
             <Isolated className={"absolute"}>
                 <div className={clsx(
                     "absolute flex flex-col items-center justify-center min-w-full w-full h-full",
-                    game.config.elementStyles.menu.container
+                    game.config.elementStyles.menu.containerClassName
                 )}>
                     <div className="p-4 rounded-lg w-full z-20">
                         <div className="flex flex-col items-center mt-4 w-full">
@@ -46,14 +46,15 @@ export default function Menu(
                                     key={i}
                                     className={clsx(
                                         "bg-white text-black p-2 mt-2 w-1/2",
-                                        game.config.elementStyles.menu.choiceButton
+                                        game.config.elementStyles.menu.choiceButtonClassName
                                     )}
                                     onClick={() => choose(choice)}
                                 >
-                                    <ColoredSentence
-                                        key={i}
+                                    <Sentence
                                         sentence={choice.prompt}
-                                        className={clsx(game.config.elementStyles.menu.choiceButtonText)}
+                                        gameState={state}
+                                        useTypeEffect={false}
+                                        className={clsx(game.config.elementStyles.menu.choiceButtonTextClassName)}
                                     />
                                 </button>
                             ))}

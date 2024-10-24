@@ -1,15 +1,13 @@
 import {Constructable} from "../action/constructable";
-import {Awaitable, deepMerge, DeepPartial, EventDispatcher, safeClone} from "@lib/util/data";
-import {Background} from "@core/types";
+import {Awaitable, deepMerge, EventDispatcher, safeClone} from "@lib/util/data";
+import {Background, EventfulDisplayable, ImageColor, ImageSrc} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
-import {ControlAction, ImageAction, SceneAction, SoundAction} from "@core/action/actions";
 import {Transform} from "@core/elements/transform/transform";
-import {ITransition} from "@core/elements/transition/type";
-import {SrcManager} from "@core/elements/srcManager";
+import {IImageTransition, ITransition} from "@core/elements/transition/type";
+import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw} from "@core/elements/sound";
 import {TransformDefinitions} from "@core/elements/transform/type";
-import {CommonPosition, CommonPositionType} from "@core/elements/transform/position";
 import {
     ImageActionContentType,
     ImageActionTypes,
@@ -19,21 +17,39 @@ import {
 import {Image, ImageDataRaw} from "@core/elements/image";
 import {Control, Utils} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
+import {SceneAction} from "@core/action/actions/sceneAction";
+import {ImageAction} from "@core/action/actions/imageAction";
+import {SoundAction} from "@core/action/actions/soundAction";
+import {ControlAction} from "@core/action/actions/controlAction";
+import {Text} from "@core/elements/text";
+import {RGBColor} from "@core/common/Utils";
 import Actions = LogicAction.Actions;
 import ImageTransformProps = TransformDefinitions.ImageTransformProps;
 import GameElement = LogicAction.GameElement;
 
+export type UserImageInput = ImageSrc | RGBColor | ImageColor;
 export type SceneConfig = {
     invertY: boolean;
     invertX: boolean;
     backgroundMusic: Sound | null;
     backgroundMusicFade: number;
-} & Background;
-export type SceneState = {
-    backgroundMusic?: Sound | null;
+    backgroundImage: Image;
+} & {
+    background: ImageSrc | ImageColor | null;
 };
+
+export interface ISceneConfig {
+    invertY: boolean;
+    invertX: boolean;
+    backgroundMusic: Sound | null;
+    backgroundMusicFade: number;
+    background?: ImageSrc | ImageColor;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type SceneState = {};
 export type JumpConfig = {
-    transition: ITransition;
+    transition: IImageTransition;
 }
 
 type ChainableAction = Proxied<GameElement, Chained<LogicAction.Actions>> | Actions;
@@ -48,7 +64,6 @@ export type SceneDataRaw = {
 }
 
 export type SceneEventTypes = {
-    "event:scene.applyTransition": [ITransition | null];
     "event:scene.remove": [];
     "event:scene.load": [],
     "event:scene.unload": [],
@@ -56,17 +71,18 @@ export type SceneEventTypes = {
     "event:scene.unmount": [],
     "event:scene.preUnmount": [],
     "event:scene.imageLoaded": [],
-    "event:scene.initTransform": [Transform<ImageTransformProps>];
     "event:scene.setBackgroundMusic": [Sound | null, number];
-    "event:scene.applyTransform": [Transform<ImageTransformProps>];
+    "event:displayable.applyTransition": [ITransition];
+    "event:displayable.applyTransform": [Transform];
+    "event:displayable.init": [];
 };
 
 export class Scene extends Constructable<
     Actions,
     Scene
-> {
+> implements EventfulDisplayable {
+    /**@internal */
     static EventTypes: { [K in keyof SceneEventTypes]: K } = {
-        "event:scene.applyTransition": "event:scene.applyTransition",
         "event:scene.remove": "event:scene.remove",
         "event:scene.load": "event:scene.load",
         "event:scene.unload": "event:scene.unload",
@@ -74,17 +90,19 @@ export class Scene extends Constructable<
         "event:scene.unmount": "event:scene.unmount",
         "event:scene.preUnmount": "event:scene.preUnmount",
         "event:scene.imageLoaded": "event:scene.imageLoaded",
-        "event:scene.initTransform": "event:scene.initTransform",
         "event:scene.setBackgroundMusic": "event:scene.setBackgroundMusic",
-        "event:scene.applyTransform": "event:scene.applyTransform",
+        "event:displayable.applyTransition": "event:displayable.applyTransition",
+        "event:displayable.applyTransform": "event:displayable.applyTransform",
+        "event:displayable.init": "event:displayable.init",
     };
-    static defaultConfig: SceneConfig = {
-        background: null,
+    /**@internal */
+    static defaultConfig: Omit<ISceneConfig, "background"> = {
         invertY: false,
         invertX: false,
         backgroundMusic: null,
         backgroundMusicFade: 0,
     };
+    /**@internal */
     static defaultState: SceneState = {};
 
     /**@internal */
@@ -98,24 +116,32 @@ export class Scene extends Constructable<
     /**@internal */
     state: SceneConfig & SceneState;
     /**@internal */
-    _liveState = {
-        active: false,
-    };
-    /**@internal */
     sceneRoot?: SceneAction<"scene:action">;
-    /**@internal */
-    backgroundImage: Image;
 
-    constructor(name: string, config: DeepPartial<SceneConfig> = Scene.defaultConfig) {
+    constructor(name: string, config: Partial<ISceneConfig> = Scene.defaultConfig) {
         super();
         this.name = name;
-        this.config = deepMerge<SceneConfig>(Scene.defaultConfig, config);
-        this.state = deepMerge<SceneConfig & SceneState>(Scene.defaultState, this.config);
-        this.backgroundImage = new Image({
-            position: new CommonPosition(CommonPositionType.Center),
-            opacity: 1,
-            src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
-        });
+        const {background, ...rest} = deepMerge<ISceneConfig>(Scene.defaultConfig, config);
+
+        this.config = {
+            ...rest,
+            backgroundImage: new Image({
+                opacity: 1,
+            }),
+            background: background || null,
+        };
+        this.state = deepMerge<SceneConfig & SceneState>(this.config, {});
+    }
+
+    /**@internal */
+    toBackground(src: UserImageInput): ImageSrc | ImageColor {
+        if (Utils.isImageSrc(src) || Utils.isImageColor(src)) {
+            return src;
+        }
+        if ((src as unknown) instanceof RGBColor) {
+            return (src as RGBColor).toImageColor();
+        }
+        throw new Error("Invalid background type");
     }
 
     /**
@@ -142,12 +168,12 @@ export class Scene extends Constructable<
      * Set background, if {@link transition} is provided, it will be applied
      * @chainable
      */
-    public setBackground(background: Background["background"], transition?: ITransition): ChainedScene {
+    public setBackground(background: UserImageInput, transition?: IImageTransition): ChainedScene {
         return this.combineActions(new Control(), chain => {
             if (transition) {
                 const copy = transition.copy();
-                copy.setSrc(Utils.backgroundToSrc(background));
-                chain._transitionToScene(undefined, copy, background);
+                copy.setSrc(this.toBackground(background));
+                chain._transitionToScene(undefined, copy, this.toBackground(background));
             }
             return chain.chain(new SceneAction<"scene:setBackground">(
                 chain,
@@ -169,7 +195,7 @@ export class Scene extends Constructable<
         return this.chain(new SceneAction(
             this.chain(),
             "scene:applyTransform",
-            new ContentNode().setContent([transform])
+            new ContentNode().setContent([transform.copy()])
         ));
     }
 
@@ -237,7 +263,7 @@ export class Scene extends Constructable<
                 backgroundMusic: this.state.backgroundMusic?.toData(),
                 background: this.state.background,
             },
-            backgroundImageState: this.backgroundImage.toData(),
+            backgroundImageState: this.state.backgroundImage.toData(),
         } satisfies SceneDataRaw;
     }
 
@@ -246,10 +272,9 @@ export class Scene extends Constructable<
         this.state = deepMerge<SceneConfig & SceneState>(this.state, data.state);
         if (data.state.backgroundMusic) {
             this.state.backgroundMusic = new Sound().fromData(data.state.backgroundMusic);
-            this.state.background = data.state.background;
         }
         if (data.backgroundImageState) {
-            this.backgroundImage.fromData(data.backgroundImageState);
+            this.state.backgroundImage.fromData(data.backgroundImageState);
         }
         return this;
     }
@@ -259,7 +284,7 @@ export class Scene extends Constructable<
         return new Transform<ImageTransformProps>([
             {
                 props: {
-                    ...this.backgroundImage.state,
+                    ...this.state.backgroundImage.state,
                     opacity: 1,
                 },
                 options: {
@@ -285,12 +310,21 @@ export class Scene extends Constructable<
             return v;
         }).flat(2);
 
-        const images = this
-            .getAllChildrenElements(userActions)
-            .filter(element => (element instanceof Image) && !Chained.isChained(element));
+        const images: Image[] = [], texts: Text[] = [];
+        this.getAllChildrenElements(userActions).forEach(element => {
+            if (Chained.isChained(element)) {
+                return;
+            }
+            if (element instanceof Image) {
+                images.push(element);
+            } else if (element instanceof Text) {
+                texts.push(element);
+            }
+        });
         const futureActions = [
             this._init(this),
             ...images.map(image => (image as Image)._init()),
+            ...texts.map(text => (text as Text)._init()),
             ...userActions,
         ];
 
@@ -322,8 +356,8 @@ export class Scene extends Constructable<
         const queue: Actions[] = [this.sceneRoot];
         const futureScene = new Set<Scene>();
 
-        if (Utils.backgroundToSrc(this.config.background)) {
-            this.srcManager.register(new Image({src: Utils.backgroundToSrc(this.config.background)}));
+        if (Utils.isImageSrc(this.config.background)) {
+            this.srcManager.register(new Image({src: Utils.toBackgroundSrc(this.config.background)}));
         }
 
         while (queue.length) {
@@ -345,10 +379,11 @@ export class Scene extends Constructable<
                     seenJump.add(jumpTo);
                     futureScene.add(scene);
                     seen.add(scene);
-                } else if (action.type === SceneActionTypes.setBackground) {
-                    const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
-                    this.srcManager.register(new Image({src: Utils.backgroundToSrc(content)}));
                 }
+                // else if (action.type === SceneActionTypes.setBackground) {
+                //     const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
+                //     this.srcManager.register(new Image({src: Utils.backgroundToSrc(content)}));
+                // }
             } else if (action instanceof ImageAction) {
                 const imageAction = action as ImageAction;
                 this.srcManager.register(imageAction.callee);
@@ -398,7 +433,12 @@ export class Scene extends Constructable<
     /**@internal */
     override reset() {
         this.state = deepMerge<SceneConfig & SceneState>(Scene.defaultState, this.config);
-        this.backgroundImage.reset();
+        this.state.backgroundImage.reset();
+    }
+
+    /**@internal */
+    toDisplayableTransform(): Transform {
+        return this.state.backgroundImage.toDisplayableTransform();
     }
 
     /**@internal */
@@ -431,12 +471,15 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _transitionToScene(scene?: Scene, transition?: ITransition, src?: Background["background"]): ChainedScene {
+    private _transitionToScene(scene?: Scene, transition?: IImageTransition, src?: ImageSrc | ImageColor): ChainedScene {
         const chain = this.chain();
         if (transition) {
             const copy = transition.copy();
-            if (scene) copy.setSrc(Utils.backgroundToSrc(scene.state.background));
-            if (src) copy.setSrc(Utils.backgroundToSrc(src));
+
+            if (scene && scene.config.background) {
+                copy.setSrc(scene.config.background);
+            }
+            if (src) copy.setSrc(src);
             chain._applyTransition(copy);
         }
         return chain;

@@ -1,13 +1,13 @@
 import {deepMerge} from "@lib/util/data";
 import {ContentNode, RenderableNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
-import {ConditionAction} from "@core/action/actions";
 import {Actionable} from "@core/action/actionable";
 import {GameState} from "@player/gameState";
 import {Chained, ChainedActions, Proxied} from "@core/action/chain";
 import {ScriptCtx} from "@core/elements/script";
 import {StaticScriptWarning} from "@core/common/Utils";
 import Actions = LogicAction.Actions;
+import {ConditionAction} from "@core/action/actions/conditionAction";
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type ConditionConfig = {};
@@ -58,8 +58,10 @@ export type ConditionData = {
 };
 
 export class Condition extends Actionable {
+    /**@internal */
     static defaultConfig: ConditionConfig = {};
 
+    /**@internal */
     static getInitialState(): ConditionData {
         return {
             If: {

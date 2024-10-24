@@ -1,182 +1,27 @@
 import {Image as GameImage} from "@core/elements/image";
-import React, {useEffect, useRef, useState} from "react";
-import type {DOMKeyframesDefinition} from "framer-motion";
+import React, {useEffect, useState} from "react";
 import {m} from "framer-motion";
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
-import {Transform} from "@core/elements/transform/transform";
 import {Utils} from "@core/common/core";
-import {CSSElementProp, ImgElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";
-import Isolated from "@player/lib/isolated";
+import {ImgElementProp} from "@core/elements/transition/type";
 import {useGame} from "@player/provider/game-state";
+import {DisplayableChildProps} from "@player/elements/displayable/type";
+import Displayable from "@player/elements/displayable/Displayable";
 
 export default function Image({
                                   image,
                                   state,
-                                  onAnimationEnd
                               }: Readonly<{
     image: GameImage;
     state: GameState;
-    onAnimationEnd?: () => any;
 }>) {
-    const scope = useRef<HTMLDivElement | null>(null);
-    const [transform, setTransform] =
-        useState<Transform<any> | null>(null);
-    const [transformProps, setTransformProps] =
-        useState<CSSElementProp<DOMKeyframesDefinition>>({style: {}});
-    const [transition, setTransition] =
-        useState<null | ITransition>(null);
-    const [, setTransitionProps] =
-        useState<ImgElementProp[]>([]);
     const [startTime, setStartTime] = useState<number>(0);
     const {game} = useGame();
 
     useEffect(() => {
-        image.setScope(scope);
-
-        image.events.emit(GameImage.EventTypes["event:image.mount"]);
-
-        /**
-         * Listen to image events
-         */
-        const imageEventToken = image.events.onEvents([...[
-            GameImage.EventTypes["event:image.show"],
-            GameImage.EventTypes["event:image.hide"],
-            GameImage.EventTypes["event:image.applyTransform"]
-        ].map((type) => {
-            return {
-                type,
-                listener: image.events.on(type, async (transform) => {
-                    if (!scope.current) {
-                        throw new Error("scope not ready");
-                    }
-
-                    assignTo(transform.propToCSS(state, image.state));
-
-                    setTransform(transform);
-
-                    state.logger.debug("transform", transform, transform.propToCSS(state, image.state));
-                    await transform.animate({scope, image}, state, image.state, (after) => {
-                        image.state = deepMerge(image.state, after);
-                        setTransformProps({
-                            style: transform.propToCSS(state, image.state) as any,
-                        });
-
-                        setTransform(null);
-                        state.logger.debug("transform end", transform, transform.propToCSS(state, image.state), image.state);
-
-                        if (onAnimationEnd) {
-                            onAnimationEnd();
-                        }
-                    });
-                    return true;
-                }),
-            };
-        }), {
-            type: GameImage.EventTypes["event:image.init"],
-            listener: image.events.on(GameImage.EventTypes["event:image.init"], async () => {
-                await image.toTransform().animate({scope, image}, state, image.state, (after) => {
-                    image.state = deepMerge(image.state, after);
-                    setTransformProps({
-                        style: image.toTransform().propToCSS(state, image.state) as any,
-                    });
-                });
-            })
-        }]);
-
-        const imageTransitionEventToken = image.events.onEvents([
-            {
-                type: GameImage.EventTypes["event:image.applyTransition"],
-                listener: image.events.on(GameImage.EventTypes["event:image.applyTransition"], (t) => {
-                    if (t && t.controller) {
-                        t.controller.complete();
-                        state.logger.warn("processing transform not completed");
-                    }
-
-                    setTransition(t);
-                    if (!t) {
-                        state.logger.warn("transition not set");
-                        return Promise.resolve();
-                    }
-                    return new Promise<void>(resolve => {
-                        const eventToken = t.events.onEvents([
-                            {
-                                type: TransitionEventTypes.update,
-                                listener: t.events.on(TransitionEventTypes.update, (progress) => {
-                                    setTransitionProps(progress);
-                                }),
-                            },
-                            {
-                                type: TransitionEventTypes.end,
-                                listener: t.events.on(TransitionEventTypes.end, () => {
-                                    setTransition(null);
-
-                                    state.logger.debug("image transition end", t);
-                                })
-                            },
-                            {
-                                type: TransitionEventTypes.start,
-                                listener: t.events.on(TransitionEventTypes.start, () => {
-                                    state.logger.debug("image transition start", t);
-                                })
-                            }
-                        ]);
-                        t.start(() => {
-                            eventToken.cancel();
-                            resolve();
-                        });
-                    });
-                })
-            },
-            {
-                type: GameImage.EventTypes["event:image.flushComponent"],
-                listener: image.events.on(GameImage.EventTypes["event:image.flushComponent"], async () => {
-                    return true;
-                })
-            }
-        ]);
-
-        assignTo(image.toTransform().propToCSS(state, image.state));
-
-        image.events.emit(GameImage.EventTypes["event:image.ready"], scope);
-
-        return () => {
-            imageEventToken.cancel();
-            imageTransitionEventToken.cancel();
-            image.events.emit(GameImage.EventTypes["event:image.unmount"]);
-        };
-    }, []);
-
-    useEffect(() => {
         setStartTime(performance.now());
     }, []);
-
-    /**
-     * Listen to player events
-     */
-    useEffect(() => {
-        const gameEvents = state.events.onEvents([
-            {
-                type: GameState.EventTypes["event:state.player.skip"],
-                listener: state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
-                    if (transform && transform.getControl()) {
-                        transform.getControl()!.complete();
-                        transform.setControl(null);
-                        state.logger.debug("transform skip");
-                    }
-                    if (transition && transition.controller) {
-                        transition.controller.complete();
-                        setTransition(null);
-                        state.logger.debug("transition skip");
-                    }
-                }),
-            }
-        ]);
-
-        return () => {
-            gameEvents.cancel();
-        };
-    }, [transition, transform]);
 
     /**
      * Slow load warning
@@ -196,36 +41,51 @@ export default function Image({
         }
     };
 
-    function assignTo(arg0: Transform | Record<string, any>) {
-        if (transform && transform.getControl()) {
-            console.warn("processing transform not completed");
-            transform.getControl()!.complete();
-            transform.setControl(null);
-        }
-        if (!scope.current) {
-            throw new Error("scope not ready");
-        }
-        if (arg0 instanceof Transform) {
-            Object.assign(scope.current.style, arg0.propToCSS(state, image.state));
-        } else {
-            Object.assign(scope.current.style, arg0);
-        }
-    }
+    return (
+        <Displayable
+            displayable={{
+                element: image,
+                skipTransition: state.game.config.elements.img.allowSkipTransition,
+                skipTransform: state.game.config.elements.img.allowSkipTransform,
+            }}
+            child={(props) => (
+                <DisplayableImage
+                    {...props}
+                    image={image}
+                    handleLoad={handleLoad}
+                />
+            )} state={state}
+        />
+    );
+};
+
+function DisplayableImage(
+    {
+        transition,
+        transformProps,
+        transformRef,
+        state,
+        image,
+        handleLoad
+    }: Readonly<DisplayableChildProps & {
+        image: GameImage;
+        handleLoad: () => void;
+    }>) {
 
     const defaultProps: ImgElementProp = {
         src: Utils.staticImageDataToSrc(image.state.src),
         style: {
-            ...(game.config.app.debug ? {
+            ...(state.game.config.app.debug ? {
                 border: "1px solid red",
-            } : {})
+            } : {}),
         },
     };
 
     return (
-        <Isolated className={"absolute overflow-hidden"}>
+        <div className={""}>
             <m.div
                 layout
-                ref={(ref) => (scope.current = ref)}
+                ref={transformRef}
                 className={"absolute"}
                 {...(deepMerge<any>({
                     style: {
@@ -238,7 +98,7 @@ export default function Image({
                         const mergedProps =
                             deepMerge<ImgElementProp>(defaultProps, elementProps, {
                                 style: {
-                                    transform: "translate(0%, -50%)"
+                                    transform: "translate(-50%, -50%)"
                                 }
                             }) as any;
                         return (
@@ -256,7 +116,11 @@ export default function Image({
                     <m.img
                         alt={"image"}
                         key={"last"}
-                        {...deepMerge<any>(defaultProps, {})}
+                        {...deepMerge<any>(defaultProps, {
+                            style: {
+                                transform: "translate(-50%, 50%)"
+                            }
+                        })}
                         onLoad={handleLoad}
                         layout
                     />
@@ -266,6 +130,7 @@ export default function Image({
                     return null;
                 })()}
             </m.div>
-        </Isolated>
+        </div>
     );
-};
+}
+

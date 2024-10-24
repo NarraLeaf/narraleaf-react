@@ -1,10 +1,10 @@
 import {LogicAction} from "@core/action/logicAction";
 import {BaseElement} from "@core/action/baseElement";
-import {ControlAction} from "@core/action/actions";
 import {ContentNode} from "@core/action/tree/actionTree";
 import type {Control} from "@core/elements/control";
 import Actions = LogicAction.Actions;
 import GameElement = LogicAction.GameElement;
+import {ControlAction} from "@core/action/actions/controlAction";
 
 export type Proxied<T extends Record<any, any>, U extends Record<any, any>> =
     T & U;

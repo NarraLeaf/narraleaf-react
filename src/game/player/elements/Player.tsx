@@ -3,7 +3,7 @@ import "@player/lib/styles/style.css";
 
 import clsx from "clsx";
 import React, {useEffect, useReducer, useState} from "react";
-import {Awaitable} from "@lib/util/data";
+import {Awaitable, MultiLock} from "@lib/util/data";
 import {CalledActionResult} from "@core/gameTypes";
 import {SceneEventTypes} from "@core/elements/scene";
 
@@ -20,6 +20,7 @@ import {useGame} from "@player/provider/game-state";
 import {PlayerProps} from "@player/elements/type";
 import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 import {flushSync} from "react-dom";
+import Displayables from "@player/elements/displayable/Displayables";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -54,15 +55,22 @@ export default function Player(
     function next() {
         let exited = false;
         while (!exited) {
-            const next = game.getLiveGame().next(state);
-            if (!next) {
+            const nextResult = game.getLiveGame().next(state);
+            if (!nextResult) {
                 break;
             }
-            if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(next)) {
+            if (Awaitable.isAwaitable<CalledActionResult>(nextResult)) {
                 exited = true;
                 break;
             }
-            dispatch(next);
+            if (nextResult instanceof MultiLock) {
+                nextResult.nextUnlock().then(() => {
+                    next();
+                });
+                exited = true;
+                break;
+            }
+            dispatch(nextResult);
         }
         state.stage.update();
     }
@@ -190,6 +198,7 @@ export default function Player(
                                                 );
                                             }))
                                         }
+                                        <Displayables state={state} displayable={ele.displayable}/>
                                         {
                                             ele.texts.map(({action, onClick}) => {
                                                 return (

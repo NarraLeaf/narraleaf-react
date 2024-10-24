@@ -4,18 +4,18 @@ import type {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, getCallStack} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 
-export class Action<ContentNodeType = any, Callee = LogicAction.GameElement> {
+export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Type extends string = any> {
     static ActionTypes = {
         action: "action",
     };
     callee: Callee;
-    type: ContentNodeType;
+    type: Type;
     contentNode: ContentNode<ContentNodeType>;
     _id: string;
 
     readonly __stack: string;
 
-    constructor(callee: Callee, type: ContentNodeType, contentNode: ContentNode<ContentNodeType>) {
+    constructor(callee: Callee, type: Type, contentNode: ContentNode<ContentNodeType>) {
         this.callee = callee;
         this.type = type;
         this.contentNode = contentNode;

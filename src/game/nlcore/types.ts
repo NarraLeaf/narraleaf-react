@@ -1,4 +1,8 @@
 import {IPosition, RawPosition} from "@core/elements/transform/position";
+import {ITransition} from "@core/elements/transition/type";
+import {Transform} from "@core/elements/transform/transform";
+import {EventDispatcher} from "@lib/util/data";
+import React from "react";
 
 export type color = string | {
     r: number;
@@ -19,7 +23,14 @@ export type RGBAColor = RGBColor & {
 
 export type Color = {
     color: color;
-}
+};
+
+export type Font = {
+    italic?: boolean;
+    bold?: boolean;
+    fontFamily?: React.CSSProperties["fontFamily"];
+    fontSize?: React.CSSProperties["fontSize"];
+};
 
 export type CommonText = {
     text: string;
@@ -41,9 +52,12 @@ export type Background = {
         url: string;
     } | color | null | undefined | StaticImageData;
 }
+export type ImageSrc = string | StaticImageData;
+export type HexColor = `#${string}`;
+export type ImageColor = color | HexColor;
 
 export type CommonImagePosition = "left" | "center" | "right";
-export type CommonImage = {
+export type CommonDisplayable = {
     scale?: number;
     rotation?: number;
     position?: RawPosition | IPosition;
@@ -58,3 +72,21 @@ export const ImagePosition: {
     left: "left",
     right: "right"
 } as const;
+
+export type DisplayableAnimationEvents =
+    | "event:displayable.applyTransform"
+    | "event:displayable.applyTransition"
+    | "event:displayable.init";
+export type EventfulDisplayableEvents = {
+    [K in DisplayableAnimationEvents]:
+    K extends "event:displayable.applyTransform" ? [Transform] :
+        K extends "event:displayable.applyTransition" ? [ITransition] :
+            K extends "event:displayable.init" ? [] :
+                never;
+}
+
+export interface EventfulDisplayable {
+    events: EventDispatcher<EventfulDisplayableEvents>;
+
+    toDisplayableTransform(): Transform;
+}
