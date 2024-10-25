@@ -9,6 +9,7 @@ export type AspectRatioState = {
     minWidth: number;
     minHeight: number;
     paused: boolean;
+    scale: number;
 };
 
 type AspectRatioEvents = {
@@ -29,6 +30,7 @@ class AspectRatio {
         minWidth: 800,
         minHeight: 450,
         paused: false,
+        scale: 0,
     };
 
     public readonly events = new EventDispatcher<AspectRatioEvents>();
@@ -38,9 +40,10 @@ class AspectRatio {
     constructor() {
     }
 
-    update(width: number, height: number) {
+    update(width: number, height: number, scale: number) {
         this.state.width = width;
         this.state.height = height;
+        this.state.scale = scale;
         this.events.emit(AspectRatio.EventTypes["event:aspectRatio.update"], width, height);
     }
 

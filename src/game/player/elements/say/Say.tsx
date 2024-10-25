@@ -1,6 +1,5 @@
 import clsx from "clsx";
 import React, {useEffect, useState} from "react";
-import Isolated from "@player/lib/isolated";
 import {SayElementProps} from "@player/elements/say/type";
 import {GameState} from "@core/common/game";
 import Sentence from "@player/elements/say/Sentence";
@@ -74,7 +73,7 @@ export default function Say(
     });
 
     return (
-        <Isolated className={"absolute"}>
+        <div>
             {sentence.state.display &&
                 (
                     <div className={
@@ -100,6 +99,6 @@ export default function Say(
                     </div>
                 )
             }
-        </Isolated>
+        </div>
     );
 };

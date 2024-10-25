@@ -25,12 +25,14 @@ export default function Text({state, text}: Readonly<{
         },
         "transform": (props: TransformDefinitions.Types) => {
             return {
-                transform: Transform.propToCSSTransform(state, props, [
-                    text.config.alignX === "left" ? "0%"
-                        : (text.config.alignX === "right" ? "-100%" : void 0),
-                    text.config.alignY === "top" ? "100%"
-                        : (text.config.alignY === "bottom" ? "0%" : void 0),
-                ]),
+                transform: Transform.propToCSSTransform(state, props, {
+                    translate: [
+                        text.config.alignX === "left" ? "0%"
+                            : (text.config.alignX === "right" ? "-100%" : void 0),
+                        text.config.alignY === "top" ? "100%"
+                            : (text.config.alignY === "bottom" ? "0%" : void 0),
+                    ],
+                }),
             };
         }
     };
