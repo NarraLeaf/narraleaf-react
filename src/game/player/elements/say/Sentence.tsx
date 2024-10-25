@@ -14,23 +14,24 @@ type SplitWord = {
     tag2?: any;
 } | "\n" | Pausing;
 
-export default function Sentence({
-                                     sentence,
-                                     gameState,
-                                     useTypeEffect = true,
-                                     onCompleted,
-                                     finished,
-                                     count,
-                                     className,
-                                 }: Readonly<{
-    sentence: GameSentence;
-    gameState: GameState;
-    useTypeEffect?: boolean;
-    onCompleted?: () => void;
-    finished?: boolean;
-    count?: number;
-    className?: string;
-}>) {
+export default function Sentence(
+    {
+        sentence,
+        gameState,
+        useTypeEffect = true,
+        onCompleted,
+        finished,
+        count,
+        className,
+    }: Readonly<{
+        sentence: GameSentence;
+        gameState: GameState;
+        useTypeEffect?: boolean;
+        onCompleted?: () => void;
+        finished?: boolean;
+        count?: number;
+        className?: string;
+    }>) {
     const [isFinished, setIsFinished] = useState(false);
     const words = useMemo(() => sentence.evaluate(Script.getCtx({gameState})), []);
     const {game} = gameState;
@@ -48,9 +49,10 @@ export default function Sentence({
             skipToNext(true);
         }
 
-        if (pauseTimerRef.current && finished && !isFinished) {
-            clearTimeout(pauseTimerRef.current);
+        if (finished && !isFinished) {
+            if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
             pauseTimerRef.current = null;
+            skipToNext(true);
             if (onCompleted) {
                 gameState.logger.info("Say", "Completed", pauseTimerRef.current, finished, isFinished);
                 onCompleted();
