@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.2] - 2024/10/24
+
+### Incompatible Changes
+
+- `game.config.player.width` and `game.config.player.height` cannot be string anymore
+
+### Fixed
+
+- Image scale incorrect when resizing the stage
+
 ## [0.1.1] - 2024/10/23
 
 ### Fixed
