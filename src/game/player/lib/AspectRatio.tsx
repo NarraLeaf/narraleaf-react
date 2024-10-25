@@ -60,7 +60,8 @@ export default function AspectRatio(
                     justifyContent: "center"
                 });
 
-                ratio.update(width, height);
+                const scale = width / game.config.player.width;
+                ratio.update(width, height, scale);
                 ratio.updateMin(MIN_WIDTH, MIN_HEIGHT);
                 forceUpdate();
             }

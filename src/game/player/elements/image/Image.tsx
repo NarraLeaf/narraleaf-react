@@ -8,6 +8,7 @@ import {ImgElementProp} from "@core/elements/transition/type";
 import {useGame} from "@player/provider/game-state";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
 import Displayable from "@player/elements/displayable/Displayable";
+import {useRatio} from "@player/provider/ratio";
 
 export default function Image({
                                   image,
@@ -47,9 +48,7 @@ export default function Image({
                 element: image,
                 skipTransition: state.game.config.elements.img.allowSkipTransition,
                 skipTransform: state.game.config.elements.img.allowSkipTransform,
-                transformOverwrites: {
-                    "scale": () => ({}),
-                },
+                transformOverwrites: {},
             }}
             child={(props) => (
                 <DisplayableImage
@@ -74,6 +73,7 @@ function DisplayableImage(
         image: GameImage;
         handleLoad: () => void;
     }>) {
+    const {ratio} = useRatio();
 
     const defaultProps: ImgElementProp = {
         src: Utils.staticImageDataToSrc(image.state.src),
@@ -96,7 +96,7 @@ function DisplayableImage(
             style: {
                 top: "50%",
                 left: "50%",
-                transform: "translate(-50%, -50%)",
+                transform: `translate(-50%, -50%) scale(${ratio.state.scale})`,
             }
         }
     ];
@@ -123,7 +123,7 @@ function DisplayableImage(
                         const mergedProps =
                             deepMerge<ImgElementProp>(defaultProps, elementProps, {
                                 style: {
-                                    // transform: "translate(-50%, -50%)"
+                                    transform: `scale(${ratio.state.scale})`,
                                 }
                             }, transitionProps[index] || {}) as any;
                         return (
@@ -143,7 +143,7 @@ function DisplayableImage(
                         key={"last"}
                         {...deepMerge<any>(defaultProps, {
                             style: {
-                                // transform: "translate(-50%, 50%)"
+                                transform: `scale(${ratio.state.scale})`,
                             }
                         })}
                         onLoad={handleLoad}

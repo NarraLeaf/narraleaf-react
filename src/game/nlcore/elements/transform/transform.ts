@@ -127,7 +127,16 @@ export class Transform<T extends TransformDefinitions.Types = object> {
     }
 
     /**@internal */
-    static propToCSSTransform(state: GameState, prop: Record<string, any>, translate: [string?, string?] = []): string {
+    static propToCSSTransform(
+        state: GameState,
+        prop: Record<string, any>,
+        {
+            translate = [],
+            scale = 1,
+        }: {
+            translate?: [string?, string?];
+            scale?: number;
+        } = {}): string {
         if (!state.getLastScene()) {
             throw new Error("No scene found in state, make sure you called \"scene.activate()\" before this method.");
         }
@@ -135,7 +144,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
         const Transforms = [
             `translate(${translate[0] || ((invertX ? "" : "-") + "50%")}, ${translate[1] || ((invertY ? "" : "-") + "50%")})`,
             (prop["rotation"] !== undefined) && `rotate(${prop["rotation"]}deg)`,
-            (prop["scale"] !== undefined) && `scale(${prop["scale"]})`,
+            (prop["scale"] !== undefined) && `scale(${prop["scale"] * scale})`,
         ];
         return Transforms.filter(Boolean).join(" ");
     }

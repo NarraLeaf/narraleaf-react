@@ -37,8 +37,8 @@ export type GameConfig = {
          * The minimum width and height of the player in pixels
          */
         minHeight: number;
-        width: number | string;
-        height: number | string;
+        width: number;
+        height: number;
         /**
          * When player presses one of these keys, the game will skip the current action
          *
