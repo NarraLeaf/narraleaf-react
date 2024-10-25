@@ -21,6 +21,7 @@ import {PlayerProps} from "@player/elements/type";
 import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 import {flushSync} from "react-dom";
 import Displayables from "@player/elements/displayable/Displayables";
+import {ErrorBoundary} from "@player/lib/errorBoundary";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -174,73 +175,75 @@ export default function Player(
     const playerHeight = height || game.config.player.height;
 
     return (
-        <Motion>
-            <div style={{
-                width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
-                height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
-            }} className={clsx(className, "__narraleaf_content-player")}>
-                <AspectRatio className={clsx("flex-grow overflow-auto")}>
-                    <Isolated className="relative">
-                        <Preload state={state}/>
-                        <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
-                            <KeyEventAnnouncer state={state}/>
-                            {
-                                state.getSceneElements().map(({scene, ele}) => (
-                                    <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
-                                        {
-                                            (ele.images.map((image) => {
-                                                return (
-                                                    <StageImage
-                                                        key={"image-" + image.getId()}
-                                                        image={image}
-                                                        state={state}
-                                                    />
-                                                );
-                                            }))
-                                        }
-                                        <Displayables state={state} displayable={ele.displayable}/>
-                                        {
-                                            ele.texts.map(({action, onClick}) => {
-                                                return (
-                                                    <Say
-                                                        state={state}
-                                                        key={"say-" + action.id}
-                                                        action={action}
-                                                        onClick={() => {
-                                                            onClick();
-                                                            next();
-                                                        }}
-                                                    />
-                                                );
-                                            })
-                                        }
-                                        {
-                                            ele.menus.map((action, i) => {
-                                                return (
-                                                    <div key={"menu-" + i}>
-                                                        {
-                                                            <Menu
-                                                                state={state}
-                                                                prompt={action.action.prompt}
-                                                                choices={action.action.choices}
-                                                                afterChoose={(choice) => {
-                                                                    action.onClick(choice);
-                                                                    next();
-                                                                }}
-                                                            />
-                                                        }
-                                                    </div>
-                                                );
-                                            })
-                                        }
-                                    </StageScene>
-                                ))
-                            }
-                        </OnlyPreloaded>
-                    </Isolated>
-                </AspectRatio>
-            </div>
-        </Motion>
+        <ErrorBoundary>
+            <Motion>
+                <div style={{
+                    width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
+                    height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
+                }} className={clsx(className, "__narraleaf_content-player")}>
+                    <AspectRatio className={clsx("flex-grow overflow-auto")}>
+                        <Isolated className="relative">
+                            <Preload state={state}/>
+                            <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
+                                <KeyEventAnnouncer state={state}/>
+                                {
+                                    state.getSceneElements().map(({scene, ele}) => (
+                                        <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
+                                            {
+                                                (ele.images.map((image) => {
+                                                    return (
+                                                        <StageImage
+                                                            key={"image-" + image.getId()}
+                                                            image={image}
+                                                            state={state}
+                                                        />
+                                                    );
+                                                }))
+                                            }
+                                            <Displayables state={state} displayable={ele.displayable}/>
+                                            {
+                                                ele.texts.map(({action, onClick}) => {
+                                                    return (
+                                                        <Say
+                                                            state={state}
+                                                            key={"say-" + action.id}
+                                                            action={action}
+                                                            onClick={() => {
+                                                                onClick();
+                                                                next();
+                                                            }}
+                                                        />
+                                                    );
+                                                })
+                                            }
+                                            {
+                                                ele.menus.map((action, i) => {
+                                                    return (
+                                                        <div key={"menu-" + i}>
+                                                            {
+                                                                <Menu
+                                                                    state={state}
+                                                                    prompt={action.action.prompt}
+                                                                    choices={action.action.choices}
+                                                                    afterChoose={(choice) => {
+                                                                        action.onClick(choice);
+                                                                        next();
+                                                                    }}
+                                                                />
+                                                            }
+                                                        </div>
+                                                    );
+                                                })
+                                            }
+                                        </StageScene>
+                                    ))
+                                }
+                            </OnlyPreloaded>
+                        </Isolated>
+                    </AspectRatio>
+                </div>
+            </Motion>
+        </ErrorBoundary>
     );
 }
 
