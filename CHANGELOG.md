@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.1] - 2024/10/23
+
+### Fixed
+
+- Image transform position incorrect
+- throw error when color is not in correct format
+- image disappear during transition
+- text skipping does not work correctly
+
 ## [0.1.0] - 2024/10/23
 
 ### _Feature_
@@ -44,7 +53,7 @@
 - newline support for `Say`
 - more customization for dialogue text
 - ruby text support
-- [pause](./src/game/nlcore/elements/character/pause.ts) text when the character is speaking
+- [pause](src/game/nlcore/elements/character/pause.ts) text when the character is speaking
 
 ### Deprecated
 
@@ -60,7 +69,7 @@
 
 ### Fixed
 
-- Constructing story will enter cycle and cost unexpected time. See [story.ts](./src/game/nlcore/elements/story.ts)
+- Constructing story will enter cycle and cost unexpected time. See [story.ts](src/game/nlcore/elements/story.ts)
   #Story.prototype.constructStory
 - Skipping text does not show the complete text
 

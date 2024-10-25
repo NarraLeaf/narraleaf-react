@@ -87,8 +87,6 @@ export default function Displayable(
         if (!scope.current) {
             throw new Error(`Scope not ready. Using element: ${element.constructor.name}`);
         }
-
-        assignStyle(displayableState.state);
     }, []);
 
     useEffect(() => {

@@ -47,6 +47,9 @@ export default function Image({
                 element: image,
                 skipTransition: state.game.config.elements.img.allowSkipTransition,
                 skipTransform: state.game.config.elements.img.allowSkipTransform,
+                transformOverwrites: {
+                    "scale": () => ({}),
+                },
             }}
             child={(props) => (
                 <DisplayableImage
@@ -78,11 +81,28 @@ function DisplayableImage(
             ...(state.game.config.app.debug ? {
                 border: "1px solid red",
             } : {}),
+            transformOrigin: "center",
         },
     };
 
+    const transitionProps: ImgElementProp[] = [
+        {
+            style: {
+                display: "block",
+                position: "unset"
+            }
+        },
+        {
+            style: {
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+            }
+        }
+    ];
+
     return (
-        <div className={""}>
+        <div>
             <m.div
                 layout
                 ref={transformRef}
@@ -90,17 +110,22 @@ function DisplayableImage(
                 {...(deepMerge<any>({
                     style: {
                         opacity: 0,
+                        border: state.game.config.app.debug ? "1px dashed yellow" : undefined,
                     }
-                }, transformProps))}
+                }, transformProps, {
+                    style: {
+                        display: "inline-block",
+                    }
+                }))}
             >
                 {transition ? (<>
                     {transition.toElementProps().map((elementProps, index, arr) => {
                         const mergedProps =
                             deepMerge<ImgElementProp>(defaultProps, elementProps, {
                                 style: {
-                                    transform: "translate(-50%, -50%)"
+                                    // transform: "translate(-50%, -50%)"
                                 }
-                            }) as any;
+                            }, transitionProps[index] || {}) as any;
                         return (
                             <m.img
                                 className={"absolute"}
@@ -118,7 +143,7 @@ function DisplayableImage(
                         key={"last"}
                         {...deepMerge<any>(defaultProps, {
                             style: {
-                                transform: "translate(-50%, 50%)"
+                                // transform: "translate(-50%, 50%)"
                             }
                         })}
                         onLoad={handleLoad}
