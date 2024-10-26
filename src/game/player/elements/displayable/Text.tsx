@@ -5,7 +5,6 @@ import {Transform, TransformersMap, TransformHandler} from "@core/elements/trans
 import {SpanElementProp} from "@core/elements/transition/type";
 import {m} from "framer-motion";
 import {deepMerge} from "@lib/util/data";
-import Isolated from "@player/lib/isolated";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
 import Displayable from "@player/elements/displayable/Displayable";
 import clsx from "clsx";
@@ -80,7 +79,7 @@ function DisplayableText(
     const spanClassName = clsx(text.config.className);
 
     return (
-        <Isolated className={"absolute overflow-hidden pointer-events-none"}>
+        <div className={"absolute overflow-hidden pointer-events-none"}>
             <m.div
                 layout
                 ref={transformRef}
@@ -126,6 +125,6 @@ function DisplayableText(
                     </m.div>
                 )}
             </m.div>
-        </Isolated>
+        </div>
     );
 }

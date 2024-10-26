@@ -21,7 +21,7 @@ import {PlayerProps} from "@player/elements/type";
 import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 import {flushSync} from "react-dom";
 import Displayables from "@player/elements/displayable/Displayables";
-import {ErrorBoundary} from "@player/lib/errorBoundary";
+import {ErrorBoundary} from "@player/lib/ErrorBoundary";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);

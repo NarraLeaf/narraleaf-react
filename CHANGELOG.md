@@ -9,6 +9,7 @@
 ### Fixed
 
 - Image scale incorrect when resizing the stage
+- Menu position incorrect
 
 ## [0.1.1] - 2024/10/23
 

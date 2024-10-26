@@ -110,7 +110,7 @@ function DisplayableImage(
                 {...(deepMerge<any>({
                     style: {
                         opacity: 0,
-                        border: state.game.config.app.debug ? "1px dashed yellow" : undefined,
+                        border: state.game.config.app.debug ? "1px dashed red" : undefined,
                     }
                 }, transformProps, {
                     style: {
