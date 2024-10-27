@@ -58,6 +58,9 @@ export class Game {
             text: {
                 allowSkipTransform: true,
                 allowSkipTransition: true,
+                useAspectScale: true,
+                width: 1920,
+                height: 1080 * 0.2,
             },
         },
         elementStyles: {

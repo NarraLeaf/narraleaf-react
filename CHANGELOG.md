@@ -11,6 +11,10 @@
 - Image scale incorrect when resizing the stage
 - Menu position incorrect
 
+### Feature
+
+- auto resize aspect scale for dialog
+
 ## [0.1.1] - 2024/10/23
 
 ### Fixed

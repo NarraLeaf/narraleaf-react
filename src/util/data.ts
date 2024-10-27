@@ -487,3 +487,7 @@ export class MultiLock {
         return this.locks.some(lock => lock.isLocked());
     }
 }
+
+export function onlyIf<T>(condition: boolean, value: T, fallback: object = {}): T | object {
+    return condition ? value : fallback;
+}

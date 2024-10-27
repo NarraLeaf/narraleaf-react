@@ -37,7 +37,13 @@ export type GameConfig = {
          * The minimum width and height of the player in pixels
          */
         minHeight: number;
+        /**
+         * Base width of the player in pixels, Image scale will be calculated based on this value
+         */
         width: number;
+        /**
+         * Base height of the player in pixels, Image scale will be calculated based on this value
+         */
         height: number;
         /**
          * When player presses one of these keys, the game will skip the current action
@@ -87,6 +93,20 @@ export type GameConfig = {
         text: {
             allowSkipTransform: boolean;
             allowSkipTransition: boolean;
+            /**
+             * If true, the game will scale the dialog to fit the screen
+             *
+             * Text will look smaller when this is enabled
+             */
+            useAspectScale: boolean;
+            /**
+             * Base width of the dialog in pixels
+             */
+            width: number;
+            /**
+             * Base height of the dialog in pixels
+             */
+            height: number;
         }
     },
     elementStyles: {
