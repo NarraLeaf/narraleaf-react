@@ -1,6 +1,5 @@
 import {Image as GameImage} from "@core/elements/image";
 import React, {useEffect, useState} from "react";
-import {m} from "framer-motion";
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
 import {Utils} from "@core/common/core";
@@ -9,6 +8,7 @@ import {useGame} from "@player/provider/game-state";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
 import Displayable from "@player/elements/displayable/Displayable";
 import {useRatio} from "@player/provider/ratio";
+import {m} from "framer-motion";
 
 export default function Image({
                                   image,
@@ -110,7 +110,7 @@ function DisplayableImage(
                 {...(deepMerge<any>({
                     style: {
                         opacity: 0,
-                        border: state.game.config.app.debug ? "1px dashed red" : undefined,
+                        border: state.game.config.app.debug ? "1px dashed green" : undefined,
                     }
                 }, transformProps, {
                     style: {
@@ -127,18 +127,17 @@ function DisplayableImage(
                                 }
                             }, transitionProps[index] || {}) as any;
                         return (
-                            <m.img
+                            <img
                                 className={"absolute"}
                                 key={index === (arr.length - 1) ? "last" : index}
                                 alt={mergedProps.alt}
                                 {...mergedProps}
                                 onLoad={handleLoad}
-                                layout
                             />
                         );
                     })}
                 </>) : (
-                    <m.img
+                    <img
                         alt={"image"}
                         key={"last"}
                         {...deepMerge<any>(defaultProps, {
@@ -147,7 +146,6 @@ function DisplayableImage(
                             }
                         })}
                         onLoad={handleLoad}
-                        layout
                     />
                 )}
                 {(() => {

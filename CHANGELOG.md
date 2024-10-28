@@ -13,7 +13,8 @@
 
 ### Feature
 
-- auto resize aspect scale for dialog
+- auto scale for dialog
+- element inspector
 
 ## [0.1.1] - 2024/10/23
 

@@ -5,6 +5,7 @@ import {GameState} from "@core/common/game";
 import Sentence from "@player/elements/say/Sentence";
 import {onlyIf} from "@lib/util/data";
 import {useRatio} from "@player/provider/ratio";
+import Inspect from "@player/lib/Inspect";
 
 export default function Say(
     {
@@ -79,38 +80,31 @@ export default function Say(
         <div>
             {sentence.state.display &&
                 (
-                    <div
+                    <Inspect.Div
+                        tag={"say.aspectScaleContainer"}
+                        color={"blue"}
+                        border={"dashed"}
                         className={
                             clsx(
                                 "absolute bottom-0 w-[calc(100%-40px)]",
                                 className,
-                                {
-                                    "min-h-[calc(33%-40px)] bg-white flex flex-col items-start justify-between":
-                                        !game.config.elements.text.useAspectScale,
-                                    [game.config.elementStyles.say.containerClassName]: !game.config.elements.text.useAspectScale,
-                                }
                             )
                         }
                         onClick={onElementClick}
                         style={{
-                            ...onlyIf<React.CSSProperties>(game.config.elements.text.useAspectScale, {
+                            ...onlyIf<React.CSSProperties>(game.config.elements.say.useAspectScale, {
                                 width: game.config.elements.text.width,
                                 height: game.config.elements.text.height,
                             }),
-                            ...onlyIf<React.CSSProperties>(game.config.app.debug, {
-                                border: "1px solid green",
-                            }),
                         }}
                     >
-                        <div
+                        <Inspect.Div
+                            tag={"say.containerClassName"}
                             className={clsx(
-                                {
-                                    "bg-white flex flex-col items-start justify-between": game.config.elements.text.useAspectScale,
-                                    [game.config.elementStyles.say.containerClassName]: game.config.elements.text.useAspectScale,
-                                }
+                                game.config.elementStyles.say.containerClassName
                             )}
                             style={{
-                                ...onlyIf<React.CSSProperties>(game.config.elements.text.useAspectScale, {
+                                ...onlyIf<React.CSSProperties>(game.config.elements.say.useAspectScale, {
                                     transform: `scale(${ratio.state.scale})`,
                                     transformOrigin: "bottom left",
                                     width: "100%",
@@ -119,20 +113,29 @@ export default function Say(
                             }}
                         >
                             <div
-                                className={clsx("rounded-br-md", game.config.elementStyles.say.nameTextClassName)}>
-                                {sentence.config.character?.state.name}
+                                className={clsx(
+                                    "bg-white flex flex-col items-start justify-between",
+                                    game.config.elementStyles.say.contentContainerClassName,
+                                    "w-full h-full"
+                                )}
+                            >
+                                <Inspect.Div
+                                    tag={"say.nameTextClassName"}
+                                    className={clsx("rounded-br-md", game.config.elementStyles.say.nameTextClassName)}>
+                                    {sentence.config.character?.state.name}
+                                </Inspect.Div>
+                                <Sentence
+                                    sentence={sentence}
+                                    gameState={state}
+                                    finished={isFinished}
+                                    useTypeEffect={useTypeEffect}
+                                    onCompleted={handleComplete}
+                                    count={count}
+                                />
+                                <div></div>
                             </div>
-                            <Sentence
-                                sentence={sentence}
-                                gameState={state}
-                                finished={isFinished}
-                                useTypeEffect={useTypeEffect}
-                                onCompleted={handleComplete}
-                                count={count}
-                            />
-                            <div></div>
-                        </div>
-                    </div>
+                        </Inspect.Div>
+                    </Inspect.Div>
                 )
             }
         </div>

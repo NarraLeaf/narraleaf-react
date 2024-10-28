@@ -73,6 +73,12 @@ export type GameConfig = {
              */
             textInterval: number;
             use: SayComponent;
+            /**
+             * If true, the game will scale the dialog to fit the screen
+             *
+             * Text will look smaller when this is enabled
+             */
+            useAspectScale: boolean;
         },
         img: {
             /**
@@ -94,12 +100,6 @@ export type GameConfig = {
             allowSkipTransform: boolean;
             allowSkipTransition: boolean;
             /**
-             * If true, the game will scale the dialog to fit the screen
-             *
-             * Text will look smaller when this is enabled
-             */
-            useAspectScale: boolean;
-            /**
              * Base width of the dialog in pixels
              */
             width: number;
@@ -115,6 +115,7 @@ export type GameConfig = {
              * Custom class for the say container
              * Ex: "rounded-md shadow-md" for rounded and shadowed container
              */
+            contentContainerClassName: string;
             containerClassName: string;
             nameTextClassName: string;
             textContainerClassName: string;
@@ -152,7 +153,8 @@ export type GameConfig = {
             error: boolean;
             debug: boolean;
             trace: boolean;
-        }
+        },
+        inspector: boolean;
     };
 };
 export type GameSettings = {

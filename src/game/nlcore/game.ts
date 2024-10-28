@@ -41,6 +41,7 @@ export class Game {
                 nextKey: [" "],
                 textInterval: 50,
                 use: DefaultElements.say,
+                useAspectScale: true,
             },
             img: {
                 slowLoadWarning: true,
@@ -58,13 +59,13 @@ export class Game {
             text: {
                 allowSkipTransform: true,
                 allowSkipTransition: true,
-                useAspectScale: true,
                 width: 1920,
                 height: 1080 * 0.2,
             },
         },
         elementStyles: {
             say: {
+                contentContainerClassName: "",
                 containerClassName: "",
                 nameTextClassName: "",
                 textContainerClassName: "",
@@ -87,6 +88,7 @@ export class Game {
                 debug: false,
                 trace: false,
             },
+            inspector: false,
         }
     };
     static GameSettingsNamespace = GameSettingsNamespace;

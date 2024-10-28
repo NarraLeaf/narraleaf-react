@@ -6,6 +6,7 @@ import {Word, WordConfig} from "@core/elements/character/word";
 import {toHex} from "@lib/util/data";
 import clsx from "clsx";
 import {Pause, Pausing} from "@core/elements/character/pause";
+import Inspect from "@player/lib/Inspect";
 
 type SplitWord = {
     text: string;
@@ -211,7 +212,8 @@ export default function Sentence(
                     return <br key={index}/>;
                 }
                 return (
-                    <span
+                    <Inspect.Span
+                        tag={`say.word.${index}`}
                         key={index}
                         style={{
                             color: toHex(word.config.color || sentence.config.color || Word.defaultColor),
@@ -239,7 +241,7 @@ export default function Sentence(
                         ) : (
                             word.text
                         )}
-                    </span>
+                    </Inspect.Span>
                 );
             })}
         </div>
