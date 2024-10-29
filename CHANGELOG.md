@@ -15,6 +15,7 @@
 
 - Image scale incorrect when resizing the stage
 - Menu position incorrect
+- image position incorrect when transitioning
 
 ### Added
 

@@ -35,6 +35,7 @@ export class Game {
             height: 1080,
             skipKey: ["Control"],
             skipInterval: 100,
+            ratioUpdateInterval: 50,
         },
         elements: {
             say: {

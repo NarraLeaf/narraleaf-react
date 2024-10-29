@@ -57,6 +57,10 @@ export type GameConfig = {
          * higher value means faster skipping.
          */
         skipInterval: number;
+        /**
+         * The interval in milliseconds between each ratio update.
+         */
+        ratioUpdateInterval: number;
     };
     elements: {
         say: {
