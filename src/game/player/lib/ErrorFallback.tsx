@@ -6,12 +6,12 @@ export default function ErrorFallback({error, errorInfo}: { error: Error, errorI
 
     if (game.config.app.debug) {
         return (
-            <div>
+            <div className={"text-left"}>
                 <h1>It is my fault, NarraLeaf-React cannot initialize the player correctly.</h1>
-                <p>Message: {error.message}</p>
-                <pre>Error Stack: {error.stack}</pre>
-                <pre>Component Stack: {errorInfo.componentStack}</pre>
-                <pre>Digest: {errorInfo.digest}</pre>
+                <p className={"text-red-700"}>Message: {error.message}</p>
+                <pre>Error Stack: {error?.stack}</pre>
+                <pre>Component Stack: {errorInfo?.componentStack}</pre>
+                <pre>Digest: {errorInfo?.digest}</pre>
             </div>
         );
     }

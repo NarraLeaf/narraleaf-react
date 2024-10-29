@@ -23,7 +23,6 @@ export type Transformers =
     | "backgroundColor"
     | "backgroundOpacity"
     | "transform"
-    | "fontSize"
     | "fontColor";
 export type TransformHandler<T> = (value: T) => DOMKeyframesDefinition;
 export type TransformersMap = {
@@ -36,7 +35,6 @@ export type TransformersMap = {
     "backgroundColor": Background["background"],
     "backgroundOpacity": number,
     "transform": TransformDefinitions.Types,
-    "fontSize": number,
     "fontColor": color;
 }
 
@@ -140,11 +138,14 @@ export class Transform<T extends TransformDefinitions.Types = object> {
         if (!state.getLastScene()) {
             throw new Error("No scene found in state, make sure you called \"scene.activate()\" before this method.");
         }
+
+        const propScale = (prop["scale"] !== undefined) ? prop["scale"] : 1;
+
         const {invertY, invertX} = state.getLastScene()?.config || {};
         const Transforms = [
             `translate(${translate[0] || ((invertX ? "" : "-") + "50%")}, ${translate[1] || ((invertY ? "" : "-") + "50%")})`,
             (prop["rotation"] !== undefined) && `rotate(${prop["rotation"]}deg)`,
-            (prop["scale"] !== undefined) && `scale(${prop["scale"] * scale})`,
+            `scale(${propScale * scale})`,
         ];
         return Transforms.filter(Boolean).join(" ");
     }
@@ -301,7 +302,6 @@ export class Transform<T extends TransformDefinitions.Types = object> {
             "rotation": () => ({}),
             "display": () => ({}),
             "src": () => ({}),
-            "fontSize": (value: number) => ({fontSize: value}),
             "fontColor": (value: color) => {
                 if (typeof value === "string") {
                     return {color: value};

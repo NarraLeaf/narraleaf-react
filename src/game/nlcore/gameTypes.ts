@@ -37,7 +37,13 @@ export type GameConfig = {
          * The minimum width and height of the player in pixels
          */
         minHeight: number;
+        /**
+         * Base width of the player in pixels, Image scale will be calculated based on this value
+         */
         width: number;
+        /**
+         * Base height of the player in pixels, Image scale will be calculated based on this value
+         */
         height: number;
         /**
          * When player presses one of these keys, the game will skip the current action
@@ -51,6 +57,10 @@ export type GameConfig = {
          * higher value means faster skipping.
          */
         skipInterval: number;
+        /**
+         * The interval in milliseconds between each ratio update.
+         */
+        ratioUpdateInterval: number;
     };
     elements: {
         say: {
@@ -67,6 +77,12 @@ export type GameConfig = {
              */
             textInterval: number;
             use: SayComponent;
+            /**
+             * If true, the game will scale the dialog to fit the screen
+             *
+             * Text will look smaller when this is enabled
+             */
+            useAspectScale: boolean;
         },
         img: {
             /**
@@ -87,6 +103,14 @@ export type GameConfig = {
         text: {
             allowSkipTransform: boolean;
             allowSkipTransition: boolean;
+            /**
+             * Base width of the dialog in pixels
+             */
+            width: number;
+            /**
+             * Base height of the dialog in pixels
+             */
+            height: number;
         }
     },
     elementStyles: {
@@ -95,6 +119,7 @@ export type GameConfig = {
              * Custom class for the say container
              * Ex: "rounded-md shadow-md" for rounded and shadowed container
              */
+            contentContainerClassName: string;
             containerClassName: string;
             nameTextClassName: string;
             textContainerClassName: string;
@@ -132,7 +157,8 @@ export type GameConfig = {
             error: boolean;
             debug: boolean;
             trace: boolean;
-        }
+        },
+        inspector: boolean;
     };
 };
 export type GameSettings = {

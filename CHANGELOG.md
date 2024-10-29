@@ -1,8 +1,27 @@
 # Changelog
 
+## [0.1.3] - 2024/10/29
+
+### _Feature_
+
+- auto scale for displayable elements
+- element inspector
+
+### Fixed
+
+- Menu position incorrect
+- image position incorrect when transitioning
+- "No scope found" when inspect mode is disabled
+- some type errors
+
+### Added
+
+- auto scale for displayable elements
+- element inspector
+
 ## [0.1.2] - 2024/10/24
 
-### Incompatible Changes
+### _Incompatible Changes_
 
 - `game.config.player.width` and `game.config.player.height` cannot be string anymore
 

@@ -2,6 +2,7 @@ import clsx from "clsx";
 import React, {useEffect, useReducer, useState} from "react";
 import {useRatio} from "@player/provider/ratio";
 import {useGame} from "@player/provider/game-state";
+import {debounce} from "@lib/util/data";
 
 export default function AspectRatio(
     {
@@ -24,7 +25,7 @@ export default function AspectRatio(
         let resizeTimeout: NodeJS.Timeout;
         const updateStyle = () => {
             if (ratio.isLocked()) {
-                console.warn("Ratio is locked, skipping update");
+                console.warn("NarraLeaf-React: Ratio is locked, skipping update");
                 return;
             }
 
@@ -79,11 +80,13 @@ export default function AspectRatio(
             }, 100);
         };
 
+        const listener = debounce(handleResize, game.config.player.ratioUpdateInterval);
+
         updateStyle();
-        window.addEventListener("resize", handleResize);
+        window.addEventListener("resize", listener);
 
         return () => {
-            window.removeEventListener("resize", handleResize);
+            window.removeEventListener("resize", listener);
             clearTimeout(resizeTimeout);
         };
     }, [ratio]);

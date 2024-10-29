@@ -1,6 +1,5 @@
 import {Image as GameImage} from "@core/elements/image";
-import React, {useEffect, useState} from "react";
-import {m} from "framer-motion";
+import React, {useEffect, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
 import {Utils} from "@core/common/core";
@@ -8,6 +7,8 @@ import {ImgElementProp} from "@core/elements/transition/type";
 import {useGame} from "@player/provider/game-state";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
 import Displayable from "@player/elements/displayable/Displayable";
+import Inspect from "@player/lib/Inspect";
+import AspectScaleImage from "@player/elements/image/AspectScaleImage";
 import {useRatio} from "@player/provider/ratio";
 
 export default function Image({
@@ -74,6 +75,7 @@ function DisplayableImage(
         handleLoad: () => void;
     }>) {
     const {ratio} = useRatio();
+    const ref = useRef<HTMLImageElement>(null);
 
     const defaultProps: ImgElementProp = {
         src: Utils.staticImageDataToSrc(image.state.src),
@@ -96,65 +98,56 @@ function DisplayableImage(
             style: {
                 top: "50%",
                 left: "50%",
-                transform: `translate(-50%, -50%) scale(${ratio.state.scale})`,
+                transform: "translate(-50%, -50%)",
+                maxWidth: "none"
             }
         }
     ];
 
     return (
         <div>
-            <m.div
+            <Inspect.mDiv
+                tag={"image.aspectScaleContainer"}
+                color={"green"}
+                border={"dashed"}
                 layout
-                ref={transformRef}
+                Ref={transformRef}
                 className={"absolute"}
                 {...(deepMerge<any>({
                     style: {
                         opacity: 0,
-                        border: state.game.config.app.debug ? "1px dashed yellow" : undefined,
                     }
                 }, transformProps, {
                     style: {
                         display: "inline-block",
+                        width: ref.current ? `${ref.current.naturalWidth * ratio.state.scale}px` : "auto",
+                        height: ref.current ? `${ref.current.naturalHeight * ratio.state.scale}px` : "auto",
                     }
                 }))}
             >
-                {transition ? (<>
-                    {transition.toElementProps().map((elementProps, index, arr) => {
+                {(<>
+                    {(transition ? transition.toElementProps() : [{}]).map((elementProps, index) => {
                         const mergedProps =
-                            deepMerge<ImgElementProp>(defaultProps, elementProps, {
-                                style: {
-                                    transform: `scale(${ratio.state.scale})`,
-                                }
-                            }, transitionProps[index] || {}) as any;
+                            deepMerge<ImgElementProp>(defaultProps, elementProps, transitionProps[index] || {});
                         return (
-                            <m.img
-                                className={"absolute"}
-                                key={index === (arr.length - 1) ? "last" : index}
-                                alt={mergedProps.alt}
-                                {...mergedProps}
+                            <AspectScaleImage
+                                key={index}
+                                props={{
+                                    className: "absolute",
+                                    ...mergedProps,
+                                }}
+                                id={mergedProps.src}
                                 onLoad={handleLoad}
-                                layout
+                                Ref={index === 0 ? ref : undefined}
                             />
                         );
                     })}
-                </>) : (
-                    <m.img
-                        alt={"image"}
-                        key={"last"}
-                        {...deepMerge<any>(defaultProps, {
-                            style: {
-                                transform: `scale(${ratio.state.scale})`,
-                            }
-                        })}
-                        onLoad={handleLoad}
-                        layout
-                    />
-                )}
+                </>)}
                 {(() => {
                     image.events.emit(GameImage.EventTypes["event:image.flush"]);
                     return null;
                 })()}
-            </m.div>
+            </Inspect.mDiv>
         </div>
     );
 }
