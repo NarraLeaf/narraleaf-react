@@ -1,19 +1,14 @@
 # Changelog
 
-## [0.1.2] - 2024/10/24
+## [0.1.3] - 2024/10/29
 
 ### _Feature_
 
 - auto scale for displayable elements
 - element inspector
 
-### _Incompatible Changes_
-
-- `game.config.player.width` and `game.config.player.height` cannot be string anymore
-
 ### Fixed
 
-- Image scale incorrect when resizing the stage
 - Menu position incorrect
 - image position incorrect when transitioning
 - "No scope found" when inspect mode is disabled
@@ -23,6 +18,16 @@
 
 - auto scale for displayable elements
 - element inspector
+
+## [0.1.2] - 2024/10/24
+
+### _Incompatible Changes_
+
+- `game.config.player.width` and `game.config.player.height` cannot be string anymore
+
+### Fixed
+
+- Image scale incorrect when resizing the stage
 
 ## [0.1.1] - 2024/10/23
 
