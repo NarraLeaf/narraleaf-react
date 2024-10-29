@@ -102,11 +102,12 @@ function DisplayableText(
                 {transition ? (function (): React.JSX.Element[] {
                     return transition.toElementProps().map((elementProps, index) => {
                         const mergedProps =
-                            deepMerge(defaultProps, elementProps, {
+                            deepMerge<SpanElementProp>(defaultProps, elementProps, ({
                                 style: {
                                     transform: `scale(${ratio.state.scale})`,
+                                    transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
                                 }
-                            }, transitionProps[index] || {}) as any;
+                            } satisfies SpanElementProp), transitionProps[index] || {}) as any;
                         return (
                             <Inspect.Span
                                 tag={"text.transition." + index}
@@ -128,6 +129,7 @@ function DisplayableText(
                             style: {
                                 width: "fit-content",
                                 transform: `scale(${ratio.state.scale})`,
+                                transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
                             }
                         })}
                     >

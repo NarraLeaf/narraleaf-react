@@ -17,6 +17,7 @@
 - Menu position incorrect
 - image position incorrect when transitioning
 - "No scope found" when inspect mode is disabled
+- some type errors
 
 ### Added
 
