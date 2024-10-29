@@ -377,7 +377,7 @@ export class LiveGame {
                 if (this._lockedCount > 1000) {
                     // sometimes react will make it stuck and enter a dead cycle
                     // that's not cool, so we need to throw an error to break it
-                    throw new Error("Locked awaiting");
+                    throw new Error("LiveGame locked: dead cycle detected\nPlease refresh the page");
                 }
 
                 this._nextLock.unlock();

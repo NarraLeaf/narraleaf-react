@@ -3,12 +3,13 @@ import {Text as GameText} from "@core/elements/text";
 import React from "react";
 import {Transform, TransformersMap, TransformHandler} from "@core/elements/transform/transform";
 import {SpanElementProp} from "@core/elements/transition/type";
-import {m} from "framer-motion";
 import {deepMerge} from "@lib/util/data";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
 import Displayable from "@player/elements/displayable/Displayable";
 import clsx from "clsx";
 import {TransformDefinitions} from "@core/elements/transform/type";
+import Inspect from "@player/lib/Inspect";
+import {useRatio} from "@player/provider/ratio";
 
 export default function Text({state, text}: Readonly<{
     state: GameState;
@@ -60,29 +61,33 @@ function DisplayableText(
         transformRef,
         transformProps,
         transition,
-        state,
         text,
     }: Readonly<DisplayableChildProps & {
         text: GameText;
     }>
 ) {
+    const {ratio} = useRatio();
     const defaultProps: SpanElementProp = {
         style: {
             width: "fit-content",
-            ...(state.game.config.app.debug ? {
-                border: "1px solid red",
-            } : {}),
             whiteSpace: "nowrap",
+            fontSize: text.state.fontSize,
         },
     };
+    const transitionProps: SpanElementProp[] = [
+        {}
+    ];
 
     const spanClassName = clsx(text.config.className);
 
     return (
-        <div className={"absolute overflow-hidden pointer-events-none"}>
-            <m.div
+        <Inspect.Div>
+            <Inspect.mDiv
+                tag={"text.container"}
+                color={"green"}
+                border={"dashed"}
                 layout
-                ref={transformRef}
+                Ref={transformRef}
                 className={"absolute"}
                 {...(deepMerge<any>({
                     style: {
@@ -97,34 +102,41 @@ function DisplayableText(
                 {transition ? (function (): React.JSX.Element[] {
                     return transition.toElementProps().map((elementProps, index) => {
                         const mergedProps =
-                            deepMerge(defaultProps, transformProps, elementProps);
+                            deepMerge(defaultProps, elementProps, {
+                                style: {
+                                    transform: `scale(${ratio.state.scale})`,
+                                }
+                            }, transitionProps[index] || {}) as any;
                         return (
-                            <m.span
+                            <Inspect.Span
+                                tag={"text.transition." + index}
                                 key={index}
-                                layout
                                 {...mergedProps}
                                 className={spanClassName}
                             >
                                 <span>{text.state.text}</span>
-                            </m.span>
+                            </Inspect.Span>
                         );
                     });
                 })() : (
-                    <m.div
+                    <Inspect.Div
+                        tag={"text.transition.last"}
+                        color={"green"}
+                        border={"dashed"}
                         key={"last"}
                         {...deepMerge<any>(defaultProps, {
                             style: {
                                 width: "fit-content",
+                                transform: `scale(${ratio.state.scale})`,
                             }
                         })}
-                        layout
                     >
-                        <span
+                        <Inspect.Span
                             className={spanClassName}
-                        >{text.state.text}</span>
-                    </m.div>
+                        >{text.state.text}</Inspect.Span>
+                    </Inspect.Div>
                 )}
-            </m.div>
-        </div>
+            </Inspect.mDiv>
+        </Inspect.Div>
     );
 }

@@ -8,7 +8,7 @@ import {useGame} from "@player/provider/game-state";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
 import Displayable from "@player/elements/displayable/Displayable";
 import {useRatio} from "@player/provider/ratio";
-import {m} from "framer-motion";
+import Inspect from "@player/lib/Inspect";
 
 export default function Image({
                                   image,
@@ -103,14 +103,16 @@ function DisplayableImage(
 
     return (
         <div>
-            <m.div
+            <Inspect.mDiv
+                tag={"image.aspectScaleContainer"}
+                color={"green"}
+                border={"dashed"}
                 layout
-                ref={transformRef}
+                Ref={transformRef}
                 className={"absolute"}
                 {...(deepMerge<any>({
                     style: {
                         opacity: 0,
-                        border: state.game.config.app.debug ? "1px dashed green" : undefined,
                     }
                 }, transformProps, {
                     style: {
@@ -152,7 +154,7 @@ function DisplayableImage(
                     image.events.emit(GameImage.EventTypes["event:image.flush"]);
                     return null;
                 })()}
-            </m.div>
+            </Inspect.mDiv>
         </div>
     );
 }

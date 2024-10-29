@@ -2,7 +2,12 @@
 
 ## [0.1.2] - 2024/10/24
 
-### Incompatible Changes
+### _Feature_
+
+- auto scale for displayable elements
+- element inspector
+
+### _Incompatible Changes_
 
 - `game.config.player.width` and `game.config.player.height` cannot be string anymore
 
@@ -11,9 +16,9 @@
 - Image scale incorrect when resizing the stage
 - Menu position incorrect
 
-### Feature
+### Added
 
-- auto scale for dialog
+- auto scale for displayable elements
 - element inspector
 
 ## [0.1.1] - 2024/10/23

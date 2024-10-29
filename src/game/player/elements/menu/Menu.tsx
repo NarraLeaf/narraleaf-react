@@ -7,6 +7,7 @@ import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
 import Sentence from "@player/elements/say/Sentence";
 import Inspect from "@player/lib/Inspect";
+import {useRatio} from "@player/provider/ratio";
 
 export default function Menu(
     {
@@ -16,6 +17,7 @@ export default function Menu(
         state,
     }: Readonly<MenuElementProps>) {
     const {game} = useGame();
+    const {ratio} = useRatio();
 
     const Say = game.config.elements.say.use;
 
@@ -34,34 +36,53 @@ export default function Menu(
                 />}
             </Isolated>
             <Inspect.Div
-                tag={"menu.containerClassName"}
-                className={clsx(
-                    "absolute flex flex-col items-center justify-center min-w-full w-full h-full",
-                    game.config.elementStyles.menu.containerClassName
-                )}
+                color={"green"}
+                border={"dashed"}
+                className={clsx("absolute")}
+                style={{
+                    width: `${game.config.player.width}px`,
+                    height: `${game.config.player.height}px`,
+                }}
             >
-                <div className="p-4 rounded-lg w-full z-20">
-                    <div className="flex flex-col items-center mt-4 w-full">
-                        {choices.map((choice, i) => (
-                            <Inspect.Button
-                                tag={"menu.choiceButtonClassName." + i}
-                                key={i}
-                                className={clsx(
-                                    "bg-white text-black p-2 mt-2 w-1/2",
-                                    game.config.elementStyles.menu.choiceButtonClassName
-                                )}
-                                onClick={() => choose(choice)}
-                            >
-                                <Sentence
-                                    sentence={choice.prompt}
-                                    gameState={state}
-                                    useTypeEffect={false}
-                                    className={clsx(game.config.elementStyles.menu.choiceButtonTextClassName)}
-                                />
-                            </Inspect.Button>
-                        ))}
-                    </div>
-                </div>
+                <Inspect.Div
+                    tag={"menu.aspectScaleContainer"}
+                    style={{
+                        transform: `scale(${ratio.state.scale})`,
+                        transformOrigin: "left top",
+                    }}
+                    className={clsx("w-full h-full")}
+                >
+                    <Inspect.Div
+                        tag={"menu.containerClassName"}
+                        className={clsx(
+                            "absolute flex flex-col items-center justify-center min-w-full w-full h-full",
+                            game.config.elementStyles.menu.containerClassName
+                        )}
+                    >
+                        <div className="p-4 rounded-lg w-full z-20">
+                            <div className="flex flex-col items-center mt-4 w-full">
+                                {choices.map((choice, i) => (
+                                    <Inspect.Button
+                                        tag={"menu.choiceButtonClassName." + i}
+                                        key={i}
+                                        className={clsx(
+                                            "bg-white text-black p-2 mt-2 w-1/2",
+                                            game.config.elementStyles.menu.choiceButtonClassName
+                                        )}
+                                        onClick={() => choose(choice)}
+                                    >
+                                        <Sentence
+                                            sentence={choice.prompt}
+                                            gameState={state}
+                                            useTypeEffect={false}
+                                            className={clsx(game.config.elementStyles.menu.choiceButtonTextClassName)}
+                                        />
+                                    </Inspect.Button>
+                                ))}
+                            </div>
+                        </div>
+                    </Inspect.Div>
+                </Inspect.Div>
             </Inspect.Div>
         </>
     );

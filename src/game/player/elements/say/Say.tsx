@@ -121,7 +121,7 @@ export default function Say(
                             >
                                 <Inspect.Div
                                     tag={"say.nameTextClassName"}
-                                    className={clsx("rounded-br-md", game.config.elementStyles.say.nameTextClassName)}>
+                                    className={clsx("rounded-br-md text-black", game.config.elementStyles.say.nameTextClassName)}>
                                     {sentence.config.character?.state.name}
                                 </Inspect.Div>
                                 <Sentence
