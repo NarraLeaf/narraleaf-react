@@ -16,6 +16,7 @@
 - Image scale incorrect when resizing the stage
 - Menu position incorrect
 - image position incorrect when transitioning
+- "No scope found" when inspect mode is disabled
 
 ### Added
 

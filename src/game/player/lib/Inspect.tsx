@@ -38,7 +38,7 @@ function InspectBase<T extends keyof React.JSX.IntrinsicElements | React.Compone
     const [isHovered, setIsHovered] = useState(false);
 
     if (!game.config.app.inspector) {
-        return <Component {...props}>{children}</Component>;
+        return <Component {...props} ref={Ref}>{children}</Component>;
     }
 
     const commonProps = {
