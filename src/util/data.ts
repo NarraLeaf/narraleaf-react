@@ -487,3 +487,19 @@ export class MultiLock {
         return this.locks.some(lock => lock.isLocked());
     }
 }
+
+export function onlyIf<T>(condition: boolean, value: T, fallback: object = {}): T | object {
+    return condition ? value : fallback;
+}
+
+export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): T {
+    let timer: NodeJS.Timeout | null = null;
+    return function (...args: T extends ((...args: infer P) => any) ? P : never[]) {
+        if (timer) {
+            clearTimeout(timer);
+        }
+        timer = setTimeout(() => {
+            fn(...args);
+        }, delay);
+    } as T;
+}

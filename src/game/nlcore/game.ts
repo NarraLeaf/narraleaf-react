@@ -35,12 +35,14 @@ export class Game {
             height: 1080,
             skipKey: ["Control"],
             skipInterval: 100,
+            ratioUpdateInterval: 50,
         },
         elements: {
             say: {
                 nextKey: [" "],
                 textInterval: 50,
                 use: DefaultElements.say,
+                useAspectScale: true,
             },
             img: {
                 slowLoadWarning: true,
@@ -58,10 +60,13 @@ export class Game {
             text: {
                 allowSkipTransform: true,
                 allowSkipTransition: true,
+                width: 1920,
+                height: 1080 * 0.2,
             },
         },
         elementStyles: {
             say: {
+                contentContainerClassName: "",
                 containerClassName: "",
                 nameTextClassName: "",
                 textContainerClassName: "",
@@ -84,6 +89,7 @@ export class Game {
                 debug: false,
                 trace: false,
             },
+            inspector: false,
         }
     };
     static GameSettingsNamespace = GameSettingsNamespace;
@@ -372,7 +378,7 @@ export class LiveGame {
                 if (this._lockedCount > 1000) {
                     // sometimes react will make it stuck and enter a dead cycle
                     // that's not cool, so we need to throw an error to break it
-                    throw new Error("Locked awaiting");
+                    throw new Error("LiveGame locked: dead cycle detected\nPlease refresh the page");
                 }
 
                 this._nextLock.unlock();

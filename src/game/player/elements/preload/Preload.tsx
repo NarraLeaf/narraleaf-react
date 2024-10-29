@@ -1,4 +1,4 @@
-import {useEffect} from "react";
+import {useEffect, useRef} from "react";
 import {GameState} from "@player/gameState";
 import {Sound} from "@core/elements/sound";
 import {SrcManager} from "@core/action/srcManager";
@@ -14,11 +14,16 @@ export function Preload({
 }>) {
     const {preloaded} = usePreloaded();
     const lastScene = state.getLastScene();
+    const time = useRef<number>(0);
 
     useEffect(() => {
         if (typeof window === "undefined") {
             console.warn("Window is not supported in this environment");
             return;
+        }
+
+        if (window.performance) {
+            time.current = performance.now();
         }
 
         const currentSceneSrc = state.getLastScene()?.srcManager;
@@ -80,6 +85,12 @@ export function Preload({
             state.logger.log("Preloaded", `Preloaded ${src.image.size} images`);
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             state.events.emit(GameState.EventTypes["event:state.preload.loaded"]);
+
+            if (window.performance) {
+                const endTime = performance.now();
+                const loadTime = endTime - time.current;
+                state.logger.info("Preload", `Preloaded ${src.image.size} images in ${loadTime}ms`);
+            }
         });
 
         src.audio.forEach((src: Sound) => {
