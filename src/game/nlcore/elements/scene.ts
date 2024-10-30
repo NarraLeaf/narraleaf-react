@@ -1,6 +1,6 @@
 import {Constructable} from "../action/constructable";
-import {Awaitable, deepMerge, EventDispatcher, safeClone} from "@lib/util/data";
-import {Background, EventfulDisplayable, ImageColor, ImageSrc} from "@core/types";
+import {Awaitable, deepMerge, entriesForEach, EventDispatcher, safeClone} from "@lib/util/data";
+import {color, EventfulDisplayable, ImageColor, ImageSrc, StaticImageData} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Transform} from "@core/elements/transform/transform";
@@ -58,7 +58,7 @@ type ChainedScene = Proxied<Scene, Chained<LogicAction.Actions>>;
 export type SceneDataRaw = {
     state: {
         backgroundMusic?: SoundDataRaw | null;
-        background?: Background["background"];
+        background?: color | StaticImageData | null;
     };
     backgroundImageState?: ImageDataRaw | null;
 }
@@ -269,13 +269,27 @@ export class Scene extends Constructable<
 
     /**@internal */
     override fromData(data: SceneDataRaw): this {
-        this.state = deepMerge<SceneConfig & SceneState>(this.state, data.state);
-        if (data.state.backgroundMusic) {
-            this.state.backgroundMusic = new Sound().fromData(data.state.backgroundMusic);
-        }
-        if (data.backgroundImageState) {
-            this.state.backgroundImage.fromData(data.backgroundImageState);
-        }
+        entriesForEach<SceneDataRaw>(data, {
+            state: (state) => {
+                entriesForEach<SceneDataRaw["state"]>(state, {
+                    backgroundMusic: (backgroundMusic) => {
+                        if (backgroundMusic) {
+                            this.state.backgroundMusic = new Sound().fromData(backgroundMusic);
+                        }
+                    },
+                    background: (background) => {
+                        if (background) {
+                            this.state.background = background;
+                        }
+                    },
+                });
+            },
+            backgroundImageState: (backgroundImageState) => {
+                if (backgroundImageState) {
+                    this.state.backgroundImage = new Image().fromData(backgroundImageState);
+                }
+            },
+        });
         return this;
     }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.4]
+
+### Fixed
+
+- Throw error when deserializing a game state with image state
+
 ## [0.1.3] - 2024/10/29
 
 ### _Feature_

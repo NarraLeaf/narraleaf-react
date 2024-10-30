@@ -115,9 +115,9 @@ export class Image
 
     constructor(name: string, config: DeepPartial<ImageConfig>);
 
-    constructor(config: DeepPartial<ImageConfig>);
+    constructor(config?: DeepPartial<ImageConfig>);
 
-    constructor(arg0: string | DeepPartial<ImageConfig>, config?: DeepPartial<ImageConfig>) {
+    constructor(arg0: string | DeepPartial<ImageConfig> = {}, config?: DeepPartial<ImageConfig>) {
         super();
         if (typeof arg0 === "string") {
             this.name = arg0;
@@ -150,9 +150,6 @@ export class Image
 
     /**@internal */
     checkConfig() {
-        if (!this.config.src) {
-            throw new Error("Image src is required");
-        }
         if (!Transform.isPosition(this.config.position)) {
             throw new Error("Invalid position\nPosition must be one of CommonImagePosition, Align, Coord2D");
         }

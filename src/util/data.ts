@@ -503,3 +503,15 @@ export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number
         }, delay);
     } as T;
 }
+
+export function entriesForEach<T extends object, V = undefined>(
+    obj: T,
+    handler: { [K in keyof T]: (value: Exclude<T[K], V>, key: K) => void },
+    validate: (value: any, key: string) => boolean = (v) => v !== undefined
+): void {
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key) && key in handler && validate(obj[key], key)) {
+            handler[key as keyof T](obj[key] as Exclude<T[keyof T], V>, key as keyof T);
+        }
+    }
+}
