@@ -25,6 +25,8 @@ export type ImageConfig = {
     src: string | StaticImageData;
     display: boolean;
     disposed?: boolean;
+    wearables: Image[];
+    isWearable?: boolean;
 } & CommonDisplayable;
 
 export type ImageDataRaw = {
@@ -32,16 +34,10 @@ export type ImageDataRaw = {
 };
 
 export type ImageEventTypes = {
-    "event:image.init": [];
-    "event:image.mount": [];
-    "event:image.unmount": [];
-    "event:image.ready": [React.MutableRefObject<HTMLDivElement | null>];
-    "event:image.elementLoaded": [];
-    "event:image.flush": [];
-    "event:image.flushComponent": [];
     "event:displayable.applyTransition": [ITransition];
     "event:displayable.applyTransform": [Transform];
     "event:displayable.init": [];
+    "event:wearable.create": [Image];
 };
 
 export class Image
@@ -49,16 +45,10 @@ export class Image
     implements EventfulDisplayable {
     /**@internal */
     static EventTypes: { [K in keyof ImageEventTypes]: K } = {
-        "event:image.init": "event:image.init",
-        "event:image.mount": "event:image.mount",
-        "event:image.unmount": "event:image.unmount",
-        "event:image.ready": "event:image.ready",
-        "event:image.elementLoaded": "event:image.elementLoaded",
-        "event:image.flush": "event:image.flush",
-        "event:image.flushComponent": "event:image.flushComponent",
         "event:displayable.applyTransition": "event:displayable.applyTransition",
         "event:displayable.applyTransform": "event:displayable.applyTransform",
         "event:displayable.init": "event:displayable.init",
+        "event:wearable.create": "event:wearable.create",
     };
     /**@internal */
     static defaultConfig: ImageConfig = {
@@ -68,6 +58,8 @@ export class Image
         scale: 1,
         rotation: 0,
         opacity: 0,
+        isWearable: false,
+        wearables: [],
     };
 
     /**@internal */
@@ -113,11 +105,11 @@ export class Image
     /**@internal */
     state: ImageConfig;
 
-    constructor(name: string, config: DeepPartial<ImageConfig>);
+    constructor(name: string, config: Partial<ImageConfig>);
 
     constructor(config?: DeepPartial<ImageConfig>);
 
-    constructor(arg0: string | DeepPartial<ImageConfig> = {}, config?: DeepPartial<ImageConfig>) {
+    constructor(arg0: string | DeepPartial<ImageConfig> = {}, config?: Partial<ImageConfig>) {
         super();
         if (typeof arg0 === "string") {
             this.name = arg0;
@@ -130,7 +122,7 @@ export class Image
         }
         this.state = deepMerge<ImageConfig>({}, this.config);
 
-        this.checkConfig();
+        this.checkConfig(this.config);
     }
 
     /**
@@ -149,9 +141,16 @@ export class Image
     }
 
     /**@internal */
-    checkConfig() {
-        if (!Transform.isPosition(this.config.position)) {
+    checkConfig(config: ImageConfig) {
+        if (!Transform.isPosition(config.position)) {
             throw new Error("Invalid position\nPosition must be one of CommonImagePosition, Align, Coord2D");
+        }
+        for (const wearable of config.wearables) {
+            if (!wearable.config.isWearable) {
+                throw new Error("Invalid wearable\nWearable must be an Image with isWearable set to true" +
+                    "\nIt seems like you are trying to add a non-wearable image to wearables" +
+                    "\nImage below violates the rule:\n" + JSON.stringify(wearable.config));
+            }
         }
         return this;
     }
@@ -320,6 +319,24 @@ export class Image
     }
 
     /**
+     * Add a wearable to the image
+     * @param child the wearable to add
+     */
+    public addWearable(child: Image): this {
+        this.config.wearables.push(child);
+        child.config.isWearable = true;
+        return this;
+    }
+
+    /**
+     * Bind this image to a parent image as a wearable
+     */
+    public bindWearable(parent: Image): this {
+        parent.addWearable(this);
+        return this;
+    }
+
+    /**
      * @internal
      * @deprecated
      */
@@ -390,6 +407,17 @@ export class Image
     }
 
     /**@internal */
+    _initWearable(child: Image): ImageAction<typeof ImageAction.ActionTypes.initWearable> {
+        return new ImageAction<typeof ImageAction.ActionTypes.initWearable>(
+            this.chain(),
+            ImageAction.ActionTypes.initWearable,
+            new ContentNode<[Image]>().setContent([
+                child
+            ])
+        );
+    }
+
+    /**@internal */
     _flush(): ImageAction<typeof ImageAction.ActionTypes.flush> {
         return new ImageAction<typeof ImageAction.ActionTypes.flush>(
             this.chain(),
@@ -408,6 +436,17 @@ export class Image
         return new Transform<TransformDefinitions.ImageTransformProps>(this.state, {
             duration: 0,
         });
+    }
+
+    /**@internal */
+    getTransformState(): TransformDefinitions.ImageTransformProps {
+        return {
+            position: this.state.position,
+            scale: this.state.scale,
+            rotation: this.state.rotation,
+            opacity: this.state.opacity,
+            display: this.state.display,
+        };
     }
 
     /**@internal */

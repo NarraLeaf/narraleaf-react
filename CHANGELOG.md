@@ -2,9 +2,18 @@
 
 ## [0.1.4]
 
+### _Feature_
+
+- Wearable API: Now you can add wearable images to an image,
+  child image will be rendered relative to the parent image.
+
 ### Fixed
 
 - Throw error when deserializing a game state with image state
+
+### Added
+
+- Wearable API
 
 ## [0.1.3] - 2024/10/29
 

@@ -335,9 +335,44 @@ export class Scene extends Constructable<
                 texts.push(element);
             }
         });
+
+        // disable auto initialization for wearables,
+        // wearables cannot be initialized by the scene,
+        // they must be initialized by the image
+
+        const
+            nonWearableImages: Image[] = [],
+            usedWearableImages: Image[] = [],
+            wearableImagesMap = new Map<Image, Image>();
+        images.forEach(image => {
+            if (image.config.isWearable) {
+                usedWearableImages.push(image);
+            } else {
+                nonWearableImages.push(image);
+            }
+            for (const wearable of image.config.wearables) {
+                if (
+                    wearableImagesMap.get(wearable)
+                    && wearableImagesMap.get(wearable) !== image
+                ) {
+                    throw new Error("Wearable image cannot be used multiple times" +
+                        "\nYou may bind the same wearable image to multiple parent images" +
+                        "\nParent Conflict: " + wearableImagesMap.get(wearable)?.getId() +
+                        "\nCurrent Parent: " + image.getId());
+                }
+                wearableImagesMap.set(wearable, image);
+            }
+        });
+
         const futureActions = [
             this._init(this),
-            ...images.map(image => (image as Image)._init()),
+            ...nonWearableImages.map(image => image._init()),
+            ...usedWearableImages.map(image => {
+                if (!wearableImagesMap.has(image)) {
+                    throw new Error("Wearable image must have a parent image");
+                }
+                return wearableImagesMap.get(image)!._initWearable(image);
+            }),
             ...texts.map(text => (text as Text)._init()),
             ...userActions,
         ];
@@ -393,17 +428,22 @@ export class Scene extends Constructable<
                     seenJump.add(jumpTo);
                     futureScene.add(scene);
                     seen.add(scene);
+                } else if (action.type === SceneActionTypes.setBackground) {
+                    const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
+                    const src = Utils.backgroundToSrc(content);
+                    if (src) {
+                        this.srcManager.register(new Image({src}));
+                    }
                 }
-                // else if (action.type === SceneActionTypes.setBackground) {
-                //     const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
-                //     this.srcManager.register(new Image({src: Utils.backgroundToSrc(content)}));
-                // }
             } else if (action instanceof ImageAction) {
                 const imageAction = action as ImageAction;
                 this.srcManager.register(imageAction.callee);
                 if (action.type === ImageActionTypes.setSrc) {
                     const content = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setSrc"]]>).getContent()[0];
                     this.srcManager.register(new Image({src: content}));
+                } else if (action.type === ImageActionTypes.initWearable) {
+                    const image = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["initWearable"]]>).getContent()[0];
+                    this.srcManager.register(image);
                 }
             } else if (action instanceof SoundAction) {
                 this.srcManager.register(action.callee);

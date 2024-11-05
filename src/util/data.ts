@@ -20,14 +20,18 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
             }
             return deepMerge(value1, value2);
         } else if (Array.isArray(value1) && Array.isArray(value2)) {
-            return value1.map((item, index) => {
-                if (typeof item === "object" && item !== null && !Array.isArray(item) && value2[index]) {
-                    return deepMerge(item, value2[index]);
-                }
-                return item;
-            });
+            if (value2 && value2.length > 0) {
+                return [...value2];
+            }
+            return [...value1];
+        } else if (value1 === undefined && Array.isArray(value2)) {
+            return [...value2];
         } else {
-            return value2 === undefined ? value1 : value2;
+            return value2 === undefined ? (
+                Array.isArray(value1) ? [...value1] : value1
+            ) : (
+                Array.isArray(value2) ? [...value2] : value2
+            );
         }
     };
 
@@ -242,11 +246,17 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         }
 
         const promises: any[] = [];
+        let solved = false;
         for (const listener of this.events[event]) {
             const result = listener(...args) as any;
             if (result && (typeof result === "object" && typeof result["then"] === "function")) {
                 promises.push(result);
+            } else {
+                solved = true;
             }
+        }
+        if (solved) {
+            return void 0;
         }
         this.events[event] = this.events[event].filter(l => !promises.includes(l));
 

@@ -11,7 +11,6 @@ import Motion from "@player/lib/Motion";
 import AspectRatio from "@player/lib/AspectRatio";
 import Isolated from "@player/lib/isolated";
 import {default as StageScene} from "@player/elements/scene/Scene";
-import {default as StageImage} from "@player/elements/image/Image";
 import {usePreloaded} from "@player/provider/preloaded";
 import {Preload} from "@player/elements/preload/Preload";
 import {Preloaded} from "@player/lib/Preloaded";
@@ -22,6 +21,7 @@ import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 import {flushSync} from "react-dom";
 import Displayables from "@player/elements/displayable/Displayables";
 import {ErrorBoundary} from "@player/lib/ErrorBoundary";
+import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -49,6 +49,7 @@ export default function Player(
         next,
         dispatch: (action) => dispatch(action),
     }));
+    const containerRef = React.createRef<HTMLDivElement>();
 
     const Say = game.config.elements.say.use;
     const Menu = game.config.elements.menu.use;
@@ -180,8 +181,9 @@ export default function Player(
                 <div style={{
                     width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
                     height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
-                }} className={clsx(className, "__narraleaf_content-player")}>
+                }} className={clsx(className, "__narraleaf_content-player")} ref={containerRef}>
                     <AspectRatio className={clsx("flex-grow overflow-auto")}>
+                        <SizeUpdateAnnouncer containerRef={containerRef}/>
                         <Isolated className="relative">
                             <Preload state={state}/>
                             <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
@@ -189,17 +191,6 @@ export default function Player(
                                 {
                                     state.getSceneElements().map(({scene, ele}) => (
                                         <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
-                                            {
-                                                (ele.images.map((image) => {
-                                                    return (
-                                                        <StageImage
-                                                            key={"image-" + image.getId()}
-                                                            image={image}
-                                                            state={state}
-                                                        />
-                                                    );
-                                                }))
-                                            }
                                             <Displayables state={state} displayable={ele.displayable}/>
                                             {
                                                 ele.texts.map(({action, onClick}) => {
@@ -254,6 +245,7 @@ function OnlyPreloaded({children, onLoaded, state}: Readonly<{
 }>) {
     const {preloaded} = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
+
     useEffect(() => {
         const listener = preloaded.events.on(Preloaded.EventTypes["event:preloaded.ready"], () => {
             setPreloadedReady(true);
@@ -267,6 +259,7 @@ function OnlyPreloaded({children, onLoaded, state}: Readonly<{
             state.events.off(GameState.EventTypes["event:state.preload.unmount"], unmountListener);
         };
     }, [preloadedReady]);
+
     return (
         <>
             {preloadedReady ? children : null}

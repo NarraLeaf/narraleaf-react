@@ -220,7 +220,7 @@ export default function Sentence(
                             fontFamily: word.config.fontFamily,
                             fontSize: word.config.fontSize,
                             ...(game.config.app.debug ? {
-                                border: "1px dashed red",
+                                outline: "1px dashed red",
                             } : {}),
                         }}
                         className={clsx(

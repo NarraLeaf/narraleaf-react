@@ -10,6 +10,7 @@ import Displayable from "@player/elements/displayable/Displayable";
 import Inspect from "@player/lib/Inspect";
 import AspectScaleImage from "@player/elements/image/AspectScaleImage";
 import {useRatio} from "@player/provider/ratio";
+import clsx from "clsx";
 
 export default function Image({
                                   image,
@@ -76,12 +77,13 @@ function DisplayableImage(
     }>) {
     const {ratio} = useRatio();
     const ref = useRef<HTMLImageElement>(null);
+    const [wearables, setWearables] = useState<GameImage[]>([]);
 
     const defaultProps: ImgElementProp = {
         src: Utils.staticImageDataToSrc(image.state.src),
         style: {
             ...(state.game.config.app.debug ? {
-                border: "1px solid red",
+                outline: "1px solid red",
             } : {}),
             transformOrigin: "center",
         },
@@ -103,6 +105,20 @@ function DisplayableImage(
             }
         }
     ];
+
+    useEffect(() => {
+        const token = image.events.onEvents([
+            {
+                type: GameImage.EventTypes["event:wearable.create"],
+                listener: image.events.on(GameImage.EventTypes["event:wearable.create"], (wearable: GameImage) => {
+                    setWearables((prev) => [...prev, wearable]);
+                })
+            }
+        ]);
+        return () => {
+            token.cancel();
+        };
+    }, []);
 
     return (
         <div>
@@ -143,10 +159,18 @@ function DisplayableImage(
                         );
                     })}
                 </>)}
-                {(() => {
-                    image.events.emit(GameImage.EventTypes["event:image.flush"]);
-                    return null;
-                })()}
+                <div
+                    className={clsx("w-full h-full top-0 left-0 absolute")}
+                >
+                    {wearables.map((wearable) => (
+                        <div
+                            className={clsx("w-full h-full relative")}
+                            key={"wearable-" + wearable.getId()}
+                        >
+                            <Image image={wearable} state={state}/>
+                        </div>
+                    ))}
+                </div>
             </Inspect.mDiv>
         </div>
     );
