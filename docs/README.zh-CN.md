@@ -1,4 +1,4 @@
-![](./nlr-logo-banner.png)
+![](nlr-logo-banner.png)
 
 # NarraLeaf-React
 
@@ -34,7 +34,7 @@ npm install narraleaf-react
 ### 例子
 
 ```bash
-npx create-react-app my-first-narraleaf-app --template my-first-narraleaf-app
+npx create-react-app nlr-app --template my-first-narraleaf-app
 ```
 
 然后开始
@@ -43,38 +43,10 @@ npx create-react-app my-first-narraleaf-app --template my-first-narraleaf-app
 npm start
 ```
 
-### 性能
-
-请启用图像缓存以获得更好的性能。  
-Narraleaf-React 尝试在显示图像之前缓存它们，但建议在服务器上启用缓存。
-
-如果您使用NextJS，请将以下内容添加到您的 `next.config.js`:
-
-```js
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-        async headers() {
-            return [
-                {
-                    source: '/YOUR_IMAGE_ENDPOINT/(.*)', // ex: /static/images/(.*)
-                    headers: [
-                        {
-                            key: 'Cache-Control',
-                            value: 'public, max-age=31536000, immutable',
-                        },
-                    ],
-                }
-            ]
-        }
-    };
-
-export default nextConfig;
-```
-
 ## 许可
 
 > NarraLeaf-React 在 MPL 许可下发布。
-> 
+>
 > 我们在2024年9月24日更新了许可证。
 
 ## 贡献

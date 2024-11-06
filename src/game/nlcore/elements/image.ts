@@ -320,11 +320,14 @@ export class Image
 
     /**
      * Add a wearable to the image
-     * @param child the wearable to add
+     * @param children - Wearable image or images
      */
-    public addWearable(child: Image): this {
-        this.config.wearables.push(child);
-        child.config.isWearable = true;
+    public addWearable(children: Image | Image[]): this {
+        const wearables = Array.isArray(children) ? children : [children];
+        for (const child of wearables) {
+            this.config.wearables.push(child);
+            child.config.isWearable = true;
+        }
         return this;
     }
 
