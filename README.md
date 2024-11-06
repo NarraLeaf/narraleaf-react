@@ -45,9 +45,9 @@ npm start
 
 ## License
 
-> NarraLeaf-React is licensed under the MPL License.
+> NarraLeaf-React is licensed under the MPL-2.0 License.
 >
-> We updated the license to MPL on 2024-9-24.
+> We updated the license to MPL-2.0 on 2024-9-24.
 
 ## Contributing
 

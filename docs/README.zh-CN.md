@@ -45,9 +45,9 @@ npm start
 
 ## 许可
 
-> NarraLeaf-React 在 MPL 许可下发布。
+> NarraLeaf-React 在 MPL-2.0 许可下发布。
 >
-> 我们在2024年9月24日更新了许可证。
+> 我们在2024年9月24日更新了许可证
 
 ## 贡献
 
