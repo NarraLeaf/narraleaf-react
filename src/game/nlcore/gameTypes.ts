@@ -23,6 +23,9 @@ export interface SavedGame {
 
 export type GameConfig = {
     player: {
+        /**
+         * The id of the container element for the game
+         */
         contentContainerId: string;
         /**
          * The aspect ratio of the game
@@ -39,10 +42,14 @@ export type GameConfig = {
         minHeight: number;
         /**
          * Base width of the player in pixels, Image scale will be calculated based on this value
+         *
+         * For 16/9, recommended value is 1920
          */
         width: number;
         /**
          * Base height of the player in pixels, Image scale will be calculated based on this value
+         *
+         * For 16/9, recommended value is 1080
          */
         height: number;
         /**
@@ -90,25 +97,47 @@ export type GameConfig = {
              */
             slowLoadWarning: boolean;
             slowLoadThreshold: number;
+            /**
+             * If true, when you press [GameConfig.player.skipKey], the game will skip the image transform
+             */
             allowSkipTransform: boolean;
+            /**
+             * If true, when you press [GameConfig.player.skipKey], the game will skip the image transition
+             */
             allowSkipTransition: boolean;
         },
         menu: {
             use: MenuComponent;
         },
         background: {
+            /**
+             * If true, when you press [GameConfig.player.skipKey], the game will skip the background transform
+             */
             allowSkipTransform: boolean;
+            /**
+             * If true, when you press [GameConfig.player.skipKey], the game will skip the background transition
+             */
             allowSkipTransition: boolean;
         },
         text: {
+            /**
+             * If true, when you press [GameConfig.player.skipKey], the game will skip the text transform
+             */
             allowSkipTransform: boolean;
+            /**
+             * If true, when you press [GameConfig.player.skipKey], the game will skip the text transition
+             */
             allowSkipTransition: boolean;
             /**
              * Base width of the dialog in pixels
+             *
+             * For 16/9, recommended value is 1920
              */
             width: number;
             /**
              * Base height of the dialog in pixels
+             *
+             * For 16/9, recommended value is 1080 * 0.2
              */
             height: number;
         }
@@ -158,6 +187,9 @@ export type GameConfig = {
             debug: boolean;
             trace: boolean;
         },
+        /**
+         * If true, the game will show the inspector when you hover over the element
+         */
         inspector: boolean;
     };
 };

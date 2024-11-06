@@ -64,7 +64,7 @@ function DisplayableBackground(
         src: emptyImage,
         style: {
             ...(state.game.config.app.debug ? {
-                border: "1px solid red",
+                outline: "1px solid red",
             } : {})
         }
     };

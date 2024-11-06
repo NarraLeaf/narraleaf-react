@@ -2,6 +2,8 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Action} from "@core/action/action";
 import {Chained, Proxied} from "@core/action/chain";
+import {Awaitable} from "@lib/util/data";
+import {CalledActionResult} from "@core/gameTypes";
 
 export class TypedAction<
     ContentType extends Record<string, any> = Record<string, any>,
@@ -18,5 +20,16 @@ export class TypedAction<
 
     unknownType() {
         throw new Error("Unknown action type: " + this.type);
+    }
+
+    resolveAwaitable<T extends CalledActionResult = any>(
+        handler: (resolve: ((value: T) => void), awaitable: Awaitable<CalledActionResult, T>) => Promise<void> | void,
+        awaitable?: Awaitable<CalledActionResult, T>
+    ): Awaitable<CalledActionResult, T> {
+        const a = awaitable || new Awaitable<CalledActionResult, T>(v => v as T);
+        (async () => {
+            await handler(a.resolve.bind(a), a);
+        })();
+        return a;
     }
 }

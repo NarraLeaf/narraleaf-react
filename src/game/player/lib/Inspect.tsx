@@ -47,7 +47,7 @@ function InspectBase<T extends keyof React.JSX.IntrinsicElements | React.Compone
         onMouseLeave: () => setIsHovered(false),
         style: {
             ...(props.style || {}),
-            border: `${border} ${borderWidth}px ${color}`,
+            outline: `${borderWidth}px ${border} ${color}`,
             zIndex: isHovered ? 1000 : "auto",
         },
     };
@@ -94,7 +94,7 @@ function InspectCloseBase<T extends keyof React.JSX.IntrinsicElements | React.Co
         onMouseLeave: () => setIsHovered(false),
         style: {
             ...(props.style || {}),
-            border: `${border} ${borderWidth}px ${color}`,
+            outline: `${border} ${borderWidth}px ${color}`,
             zIndex: isHovered ? 1000 : "auto",
         },
     };

@@ -1,6 +1,6 @@
 import {Constructable} from "../action/constructable";
-import {Awaitable, deepMerge, EventDispatcher, safeClone} from "@lib/util/data";
-import {Background, EventfulDisplayable, ImageColor, ImageSrc} from "@core/types";
+import {Awaitable, deepMerge, entriesForEach, EventDispatcher, safeClone} from "@lib/util/data";
+import {color, EventfulDisplayable, ImageColor, ImageSrc, StaticImageData} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Transform} from "@core/elements/transform/transform";
@@ -58,7 +58,7 @@ type ChainedScene = Proxied<Scene, Chained<LogicAction.Actions>>;
 export type SceneDataRaw = {
     state: {
         backgroundMusic?: SoundDataRaw | null;
-        background?: Background["background"];
+        background?: color | StaticImageData | null;
     };
     backgroundImageState?: ImageDataRaw | null;
 }
@@ -269,13 +269,27 @@ export class Scene extends Constructable<
 
     /**@internal */
     override fromData(data: SceneDataRaw): this {
-        this.state = deepMerge<SceneConfig & SceneState>(this.state, data.state);
-        if (data.state.backgroundMusic) {
-            this.state.backgroundMusic = new Sound().fromData(data.state.backgroundMusic);
-        }
-        if (data.backgroundImageState) {
-            this.state.backgroundImage.fromData(data.backgroundImageState);
-        }
+        entriesForEach<SceneDataRaw>(data, {
+            state: (state) => {
+                entriesForEach<SceneDataRaw["state"]>(state, {
+                    backgroundMusic: (backgroundMusic) => {
+                        if (backgroundMusic) {
+                            this.state.backgroundMusic = new Sound().fromData(backgroundMusic);
+                        }
+                    },
+                    background: (background) => {
+                        if (background) {
+                            this.state.background = background;
+                        }
+                    },
+                });
+            },
+            backgroundImageState: (backgroundImageState) => {
+                if (backgroundImageState) {
+                    this.state.backgroundImage = new Image().fromData(backgroundImageState);
+                }
+            },
+        });
         return this;
     }
 
@@ -321,9 +335,44 @@ export class Scene extends Constructable<
                 texts.push(element);
             }
         });
+
+        // disable auto initialization for wearables,
+        // wearables cannot be initialized by the scene,
+        // they must be initialized by the image
+
+        const
+            nonWearableImages: Image[] = [],
+            usedWearableImages: Image[] = [],
+            wearableImagesMap = new Map<Image, Image>();
+        images.forEach(image => {
+            if (image.config.isWearable) {
+                usedWearableImages.push(image);
+            } else {
+                nonWearableImages.push(image);
+            }
+            for (const wearable of image.config.wearables) {
+                if (
+                    wearableImagesMap.get(wearable)
+                    && wearableImagesMap.get(wearable) !== image
+                ) {
+                    throw new Error("Wearable image cannot be used multiple times" +
+                        "\nYou may bind the same wearable image to multiple parent images" +
+                        "\nParent Conflict: " + wearableImagesMap.get(wearable)?.getId() +
+                        "\nCurrent Parent: " + image.getId());
+                }
+                wearableImagesMap.set(wearable, image);
+            }
+        });
+
         const futureActions = [
             this._init(this),
-            ...images.map(image => (image as Image)._init()),
+            ...nonWearableImages.map(image => image._init()),
+            ...usedWearableImages.map(image => {
+                if (!wearableImagesMap.has(image)) {
+                    throw new Error("Wearable image must have a parent image");
+                }
+                return wearableImagesMap.get(image)!._initWearable(image);
+            }),
             ...texts.map(text => (text as Text)._init()),
             ...userActions,
         ];
@@ -379,17 +428,22 @@ export class Scene extends Constructable<
                     seenJump.add(jumpTo);
                     futureScene.add(scene);
                     seen.add(scene);
+                } else if (action.type === SceneActionTypes.setBackground) {
+                    const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
+                    const src = Utils.backgroundToSrc(content);
+                    if (src) {
+                        this.srcManager.register(new Image({src}));
+                    }
                 }
-                // else if (action.type === SceneActionTypes.setBackground) {
-                //     const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
-                //     this.srcManager.register(new Image({src: Utils.backgroundToSrc(content)}));
-                // }
             } else if (action instanceof ImageAction) {
                 const imageAction = action as ImageAction;
                 this.srcManager.register(imageAction.callee);
                 if (action.type === ImageActionTypes.setSrc) {
                     const content = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setSrc"]]>).getContent()[0];
                     this.srcManager.register(new Image({src: content}));
+                } else if (action.type === ImageActionTypes.initWearable) {
+                    const image = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["initWearable"]]>).getContent()[0];
+                    this.srcManager.register(image);
                 }
             } else if (action instanceof SoundAction) {
                 this.srcManager.register(action.callee);

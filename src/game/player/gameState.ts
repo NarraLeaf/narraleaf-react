@@ -18,7 +18,6 @@ import {Text, TextEventTypes} from "@core/elements/text";
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Choice>[];
-    images: Image[];
     displayable: LogicAction.Displayable[];
 };
 export type PlayerState = {
@@ -30,7 +29,7 @@ export type PlayerStateData = {
     scenes: {
         sceneId: string;
         elements: {
-            images: string[];
+            displayable: string[];
         };
     }[]
 };
@@ -82,10 +81,6 @@ export class GameState {
 
     public findElementByScene(scene: Scene): { scene: Scene, ele: PlayerStateElement } | null {
         return this.state.elements.find(e => e.scene === scene) || null;
-    }
-
-    public findElementByImage(image: Image): { scene: Scene, ele: PlayerStateElement } | null {
-        return this.state.elements.find(e => e.ele.images.includes(image)) || null;
     }
 
     public findElementByDisplayable(displayable: LogicAction.Displayable): {
@@ -184,13 +179,17 @@ export class GameState {
         const targetScene = this._getLastSceneIfNot(scene);
         const targetElement = this.findElementByScene(targetScene);
         if (!targetElement) return this;
-        targetElement.ele.images.push(image);
+        targetElement.ele.displayable.push(image);
         return this;
+    }
+
+    public createWearable(parent: Image, image: Image): Promise<any> {
+        return parent.events.any(Image.EventTypes["event:wearable.create"], image);
     }
 
     public disposeImage(image: Image, scene?: Scene) {
         const targetScene = this._getLastSceneIfNot(scene);
-        const images = this.findElementByScene(targetScene)?.ele.images;
+        const images = this.findElementByScene(targetScene)?.ele.displayable;
         if (!images) {
             throw new Error("Scene not found");
         }
@@ -347,7 +346,7 @@ export class GameState {
                 return {
                     sceneId: e.scene.getId(),
                     elements: {
-                        images: e.ele.images.map(i => i.getId())
+                        displayable: e.ele.displayable.map(d => d.getId())
                     }
                 };
             })
@@ -371,19 +370,19 @@ export class GameState {
                 throw new Error("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");
             }
 
-            const images = elements.images.map(i => {
-                if (!elementMap.has(i)) {
-                    throw new Error("Image not found, id: " + i + "\nNarraLeaf cannot find the element with the id from the saved game");
+            const displayable = elements.displayable.map(d => {
+                if (!elementMap.has(d)) {
+                    throw new Error("Displayable not found, id: " + d + "\nNarraLeaf cannot find the element with the id from the saved game" +
+                        "\nThis may be caused by the damage of the saved game file or the change of the story file");
                 }
-                return elementMap.get(i) as Image;
+                return elementMap.get(d) as LogicAction.Displayable;
             });
             const element: { scene: Scene; ele: PlayerStateElement; } = {
                 scene,
                 ele: {
-                    images,
                     menus: [],
                     texts: [],
-                    displayable: []
+                    displayable,
                 }
             };
 
@@ -403,7 +402,6 @@ export class GameState {
         return {
             texts: [],
             menus: [],
-            images: [],
             displayable: [],
         };
     }

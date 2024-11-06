@@ -17,7 +17,6 @@ export default function AspectRatio(
     const {game} = useGame();
     const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
-
     const MIN_WIDTH = game.config.player.minWidth;
     const MIN_HEIGHT = game.config.player.minHeight;
 
@@ -82,12 +81,15 @@ export default function AspectRatio(
 
         const listener = debounce(handleResize, game.config.player.ratioUpdateInterval);
 
-        updateStyle();
+        listener();
         window.addEventListener("resize", listener);
+
+        const updateRequestListenerToken = ratio.onRequestedUpdate(listener);
 
         return () => {
             window.removeEventListener("resize", listener);
             clearTimeout(resizeTimeout);
+            updateRequestListenerToken();
         };
     }, [ratio]);
 
