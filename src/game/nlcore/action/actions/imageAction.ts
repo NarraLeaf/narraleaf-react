@@ -12,7 +12,14 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
 
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === ImageActionTypes.init) {
-            const lastScene = state.findElementByImage(this.callee);
+            if (this.callee.config.isWearable) {
+                throw new Error(
+                    "Cannot init wearable image with init action" +
+                    "\nIt seems like you are trying to init a wearable image with an init action, or use this wearable image without parent."
+                );
+            }
+
+            const lastScene = state.findElementByDisplayable(this.callee);
             if (lastScene) {
                 state.disposeImage(this.callee, lastScene.scene);
             }
@@ -20,17 +27,22 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             const scene = (this.contentNode as ContentNode<ImageActionContentType["image:init"]>).getContent()[0];
             state.createImage(this.callee, scene);
 
-            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-
-            (async () => {
+            return this.resolveAwaitable(async (resolve) => {
                 await this.callee.events.any("event:displayable.init");
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                });
+
+                resolve(super.executeAction(state));
                 state.stage.next();
-            })();
-            return awaitable;
+            });
+        } else if (this.type === ImageActionTypes.initWearable) {
+            const [image] = (this.contentNode as ContentNode<ImageActionContentType["image:initWearable"]>).getContent();
+
+            return this.resolveAwaitable(async (resolve) => {
+                await this.callee.events.any("event:wearable.create", image);
+                await image.events.any("event:displayable.init");
+
+                resolve(super.executeAction(state));
+                state.stage.next();
+            });
         } else if (this.type === ImageActionTypes.setSrc) {
             this.callee.state.src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
             state.logger.debug("Image - Set Src", this.callee.state.src);

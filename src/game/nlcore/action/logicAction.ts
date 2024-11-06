@@ -41,7 +41,7 @@ import {Text} from "@core/elements/text";
 import {TextAction} from "@core/action/actions/textAction";
 
 export namespace LogicAction {
-    export type Displayable = Text;
+    export type Displayable = Text | Image;
     export type GameElement = Character | Scene | Story | Image | Condition | Script | Menu | Sound | Control | Text;
     export type Actions =
         (TypedAction

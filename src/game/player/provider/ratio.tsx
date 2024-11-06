@@ -16,6 +16,7 @@ type AspectRatioEvents = {
     "event:aspectRatio.update": [width: number, height: number];
     "event:aspectRatio.pause": [];
     "event:aspectRatio.resume": [];
+    "event:aspectRatio.requestUpdate": [];
 };
 
 class AspectRatio {
@@ -23,6 +24,7 @@ class AspectRatio {
         "event:aspectRatio.update": "event:aspectRatio.update",
         "event:aspectRatio.pause": "event:aspectRatio.pause",
         "event:aspectRatio.resume": "event:aspectRatio.resume",
+        "event:aspectRatio.requestUpdate": "event:aspectRatio.requestUpdate",
     };
     state: AspectRatioState = {
         width: 0,
@@ -96,6 +98,17 @@ class AspectRatio {
         this.events.on(AspectRatio.EventTypes["event:aspectRatio.update"], callback);
         return () => {
             this.events.off(AspectRatio.EventTypes["event:aspectRatio.update"], callback);
+        };
+    }
+
+    requestUpdate() {
+        this.events.emit(AspectRatio.EventTypes["event:aspectRatio.requestUpdate"]);
+    }
+
+    onRequestedUpdate(callback: () => void) {
+        this.events.on(AspectRatio.EventTypes["event:aspectRatio.requestUpdate"], callback);
+        return () => {
+            this.events.off(AspectRatio.EventTypes["event:aspectRatio.requestUpdate"], callback);
         };
     }
 

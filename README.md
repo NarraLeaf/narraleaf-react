@@ -1,8 +1,8 @@
-![](./docs/nlr-logo-banner.png)
+![](docs/nlr-logo-banner.png)
 
 # NarraLeaf-React
 
-English | [简体中文](./docs/README.zh-CN.md)
+English | [简体中文](docs/README.zh-CN.md)
 
 A React visual novel player framework
 
@@ -34,7 +34,7 @@ Read more in [🛠React.NarraLeaf.com](https://react.narraleaf.com)
 ### Example
 
 ```bash
-npx create-react-app my-first-narraleaf-app --template my-first-narraleaf-app
+npx create-react-app nlr-app --template my-first-narraleaf-app
 ```
 
 to start
@@ -43,39 +43,11 @@ to start
 npm start
 ```
 
-### Performance
-
-Please enable image cache for a better performance.  
-Narraleaf-React tries to cache the images before showing them, but it is recommended to enable cache on your server.
-
-for NextJS, add this to your `next.config.js`:
-
-```js
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-        async headers() {
-            return [
-                {
-                    source: '/YOUR_IMAGE_ENDPOINT/(.*)', // ex: /static/images/(.*)
-                    headers: [
-                        {
-                            key: 'Cache-Control',
-                            value: 'public, max-age=31536000, immutable',
-                        },
-                    ],
-                }
-            ]
-        }
-    };
-
-export default nextConfig;
-```
-
 ## License
 
 > NarraLeaf-React is licensed under the MPL-2.0 License.
-> 
-> We updated the license to MPL-2.0 on 2024-9-24. 
+>
+> We updated the license to MPL-2.0 on 2024-9-24.
 
 ## Contributing
 

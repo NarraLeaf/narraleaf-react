@@ -11,6 +11,7 @@ import type {Sound} from "@core/elements/sound";
 import type {Script} from "@core/elements/script";
 import {Sentence} from "@core/elements/character/sentence";
 import type {TransformDefinitions} from "@core/elements/transform/type";
+import {Image} from "@core/elements/image";
 
 /* Character */
 export const CharacterActionTypes = {
@@ -79,6 +80,7 @@ export const ImageActionTypes = {
     setTransition: "image:setTransition",
     applyTransition: "image:applyTransition",
     flush: "image:flush",
+    initWearable: "image:initWearable",
 } as const;
 export type ImageActionContentType = {
     [K in typeof ImageActionTypes[keyof typeof ImageActionTypes]]:
@@ -92,7 +94,8 @@ export type ImageActionContentType = {
                                 K extends "image:setTransition" ? [ITransition | null] :
                                     K extends "image:applyTransition" ? [ITransition] :
                                         K extends "image:flush" ? [] :
-                                            any;
+                                            K extends "image:initWearable" ? [Image] :
+                                                any;
 }
 /* Condition */
 export const ConditionActionTypes = {
