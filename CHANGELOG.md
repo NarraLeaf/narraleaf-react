@@ -10,6 +10,7 @@
 
 - Auto-forward mode
 - `game.preference`
+- Configure text skipping using preference
 
 ## [0.1.5] - 2024/11/05
 

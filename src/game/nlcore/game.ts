@@ -12,7 +12,8 @@ enum GameSettingsNamespace {
 
 export type GamePreference = {
     autoForward: boolean;
-}
+    skip: boolean;
+};
 
 export class Game {
     /**@internal */
@@ -28,12 +29,14 @@ export class Game {
     /**@internal */
     static DefaultPreference: GamePreference = {
         autoForward: false,
+        skip: false,
     };
     /**@internal */
     static Preferences: {
         readonly [K in keyof GamePreference]: K;
     } = {
         autoForward: "autoForward",
+        skip: "skip",
     };
     /**@internal */
     static DefaultConfig: GameConfig = {
