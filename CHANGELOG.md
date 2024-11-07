@@ -1,6 +1,17 @@
 # Changelog
 
-## [0.1.5]
+## [0.1.6]
+
+### _Feature_
+
+- Auto-forward mode
+
+### Added
+
+- Auto-forward mode
+- `game.preference`
+
+## [0.1.5] - 2024/11/05
 
 ### _Feature_
 

@@ -90,6 +90,10 @@ export type GameConfig = {
              * Text will look smaller when this is enabled
              */
             useAspectScale: boolean;
+            /**
+             * The delay in milliseconds before the game automatically shows the next sentence
+             */
+            autoForwardDelay: number;
         },
         img: {
             /**

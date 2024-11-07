@@ -3,9 +3,10 @@ import React, {useEffect, useState} from "react";
 import {SayElementProps} from "@player/elements/say/type";
 import {GameState} from "@core/common/game";
 import Sentence from "@player/elements/say/Sentence";
-import {onlyIf} from "@lib/util/data";
+import {onlyIf, Scheduler} from "@lib/util/data";
 import {useRatio} from "@player/provider/ratio";
 import Inspect from "@player/lib/Inspect";
+import {Game} from "@core/game";
 
 export default function Say(
     {
@@ -20,14 +21,17 @@ export default function Say(
     const {game} = state;
     const [count, setCount] = useState(0);
     const {ratio} = useRatio();
+    const [scheduler] = useState(new Scheduler());
 
     const handleComplete = () => {
         setIsFinished(true);
+        scheduleAutoForward();
     };
 
     function onElementClick() {
         if (isFinished) {
             if (onClick) onClick();
+            scheduleAutoForward();
         } else {
             setCount((count) => count + 1);
         }
@@ -74,7 +78,33 @@ export default function Say(
         return () => {
             gameEvents.cancel();
         };
-    });
+    }, []);
+
+    useEffect(() => {
+        const event = game.preference.onPreferenceChange(Game.Preferences.autoForward, (autoForward) => {
+            if (autoForward && isFinished) {
+                scheduleAutoForward();
+            } else {
+                scheduler.cancelTask();
+            }
+        });
+        return () => {
+            event.cancel();
+        };
+    }, [isFinished]);
+
+    useEffect(() => () => {
+        scheduler.cancelTask();
+    }, []);
+
+    function scheduleAutoForward() {
+        if (!game.preference.getPreference(Game.Preferences.autoForward)) return;
+        scheduler
+            .cancelTask()
+            .scheduleTask(() => {
+                if (onClick) onClick();
+            }, game.config.elements.say.autoForwardDelay);
+    }
 
     return (
         <div>
