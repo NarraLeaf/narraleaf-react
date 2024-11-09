@@ -47,4 +47,30 @@ export class Preference<T extends Record<string, string | boolean | number | nul
             cancel: () => this.events.off(Preference.EventTypes["event:game.preference.change"], event),
         };
     }
+
+    /**
+     * Import preferences
+     *
+     * Note: This will override the existing preferences, and trigger the change event
+     */
+    public importPreferences(preferences: Partial<T>) {
+        for (const key in preferences) {
+            if (Object.prototype.hasOwnProperty.call(preferences, key)) {
+                this.setPreference(key as StringKeyof<T>, preferences[key] as T[StringKeyof<T>]);
+            }
+        }
+    }
+
+    /**
+     * Export preferences
+     */
+    public exportPreferences(): Partial<T> {
+        const preferences: Partial<T> = {};
+        for (const key in this.settings) {
+            if (Object.prototype.hasOwnProperty.call(this.settings, key)) {
+                preferences[key] = this.settings[key];
+            }
+        }
+        return preferences;
+    }
 }

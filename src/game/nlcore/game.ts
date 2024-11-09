@@ -29,7 +29,7 @@ export class Game {
     /**@internal */
     static DefaultPreference: GamePreference = {
         autoForward: false,
-        skip: false,
+        skip: true,
     };
     /**@internal */
     static Preferences: {
