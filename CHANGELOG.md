@@ -5,12 +5,15 @@
 ### _Feature_
 
 - Auto-forward mode
+- Position Utils
 
 ### Added
 
 - Auto-forward mode
 - `game.preference`
 - Configure text skipping using preference
+- Position Utils: use some utility components to position elements.
+  For example, you can use `Top.Left` component to create your quick menu
 
 ## [0.1.5] - 2024/11/05
 

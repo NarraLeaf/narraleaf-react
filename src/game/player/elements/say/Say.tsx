@@ -78,7 +78,7 @@ export default function Say(
         return () => {
             gameEvents.cancel();
         };
-    }, []);
+    }, [isFinished]);
 
     useEffect(() => {
         const event = game.preference.onPreferenceChange(Game.Preferences.autoForward, (autoForward) => {

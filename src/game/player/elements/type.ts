@@ -36,13 +36,14 @@ export interface PlayerProps {
     /**
      * Once the game is ready to be played
      *
-     * only called once each lifecycle
+     * only called each lifecycle once
      */
     onReady?: (ctx: PlayerEventContext) => void;
     /**
      * Once the game is ended
      *
-     * only called once each lifecycle
+     * only called each lifecycle once
      */
     onEnd?: (ctx: PlayerEventContext) => void;
+    children?: React.ReactNode;
 }
