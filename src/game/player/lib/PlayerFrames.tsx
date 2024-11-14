@@ -36,8 +36,8 @@ function BaseFrame(
         bottom: alignY === "bottom" ? "0" : undefined,
     };
     const transform = {
-        x: alignX === "center" ? "-50%" : "0",
-        y: alignY === "center" ? "-50%" : "0",
+        x: alignX === "center" ? "-100%" : "0",
+        y: alignY === "center" ? "-100%" : "0",
     };
 
     return (

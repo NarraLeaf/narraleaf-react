@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.1.6]
+## [0.1.7]
+
+### Fixed
+
+- Position utils position incorrect
+
+## [0.1.6] - 2024/11/13
 
 ### _Feature_
 
