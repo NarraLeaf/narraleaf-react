@@ -35,6 +35,7 @@ export default function Player(
         className,
         onReady,
         onEnd,
+        children,
     }: Readonly<PlayerProps>) {
     const [, update] = useReducer((x) => x + 1, 0);
     const {game} = useGame();
@@ -184,7 +185,7 @@ export default function Player(
                 }} className={clsx(className, "__narraleaf_content-player")} ref={containerRef}>
                     <AspectRatio className={clsx("flex-grow overflow-auto")}>
                         <SizeUpdateAnnouncer containerRef={containerRef}/>
-                        <Isolated className="relative">
+                        <Isolated>
                             <Preload state={state}/>
                             <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
                                 <KeyEventAnnouncer state={state}/>
@@ -230,6 +231,7 @@ export default function Player(
                                     ))
                                 }
                             </OnlyPreloaded>
+                            {children}
                         </Isolated>
                     </AspectRatio>
                 </div>
