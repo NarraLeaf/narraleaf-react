@@ -86,7 +86,9 @@ export type EventfulDisplayableEvents = {
 }
 
 export interface EventfulDisplayable {
+    /**@internal */
     events: EventDispatcher<EventfulDisplayableEvents>;
 
+    /**@internal */
     toDisplayableTransform(): Transform;
 }

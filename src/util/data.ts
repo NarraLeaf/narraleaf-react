@@ -525,3 +525,43 @@ export function entriesForEach<T extends object, V = undefined>(
         }
     }
 }
+
+type ScheduleTaskToken = {
+    cancel: () => void;
+    isCancelled: () => boolean;
+};
+
+export class Scheduler {
+    private taskToken: ScheduleTaskToken | null = null;
+
+    scheduleTask(handler: () => void, delay: number): ScheduleTaskToken {
+        if (this.taskToken) {
+            this.taskToken.cancel();
+        }
+
+        let cancelled = false;
+        const timeoutId = setTimeout(() => {
+            if (!cancelled) {
+                handler();
+            }
+        }, delay);
+
+        this.taskToken = {
+            cancel: () => {
+                clearTimeout(timeoutId);
+                cancelled = true;
+            },
+            isCancelled: () => cancelled,
+        };
+
+        return this.taskToken!;
+    }
+
+    cancelTask() {
+        if (this.taskToken) {
+            this.taskToken.cancel();
+            this.taskToken = null;
+        }
+        return this;
+    }
+}

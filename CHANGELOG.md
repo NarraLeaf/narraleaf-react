@@ -1,6 +1,22 @@
 # Changelog
 
-## [0.1.5]
+## [0.1.6]
+
+### _Feature_
+
+- Auto-forward mode
+- Components Utils
+
+### Added
+
+- Auto-forward mode
+- `game.preference`
+- Configure text skipping using preference
+- Position Utils: use some utility components to position elements.
+  For example, you can use `Top.Left` component to create your quick menu
+- Use `VBox` and `HBox` to create a vertical or horizontal box of elements
+
+## [0.1.5] - 2024/11/05
 
 ### _Feature_
 
