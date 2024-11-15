@@ -2,6 +2,14 @@
 
 ## [0.1.7]
 
+### _Feature_
+
+- Shorthand for `character.say`
+
+### Added
+
+- Tag function signature for `character.say`
+
 ### Fixed
 
 - Position utils position incorrect

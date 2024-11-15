@@ -19,6 +19,27 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
         return obj instanceof Word;
     }
 
+    public static color(text: string | Word, color: color): Word {
+        if (Word.isWord(text)) {
+            return text.copy().inherit({color});
+        }
+        return new Word(text, {color});
+    }
+
+    public static bold(text: string | Word): Word {
+        if (Word.isWord(text)) {
+            return text.copy().inherit({bold: true});
+        }
+        return new Word(text, {bold: true});
+    }
+
+    public static italic(text: string | Word): Word {
+        if (Word.isWord(text)) {
+            return text.copy().inherit({italic: true});
+        }
+        return new Word(text, {italic: true});
+    }
+
     /**@internal */
     readonly text: T;
     /**@internal */
@@ -57,5 +78,10 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
         this.config.italic = this.config.italic || config.italic;
         this.config.bold = this.config.bold || config.bold;
         return this;
+    }
+
+    /**@internal */
+    copy(): Word<T> {
+        return new Word(this.text, this.config);
     }
 }

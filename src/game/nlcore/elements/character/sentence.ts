@@ -4,7 +4,7 @@ import type {Character} from "@core/elements/character";
 import {Word, WordConfig} from "@core/elements/character/word";
 import {Color, Font} from "@core/types";
 import type {ScriptCtx} from "@core/elements/script";
-import {Pausing} from "@core/elements/character/pause";
+import {Pause, Pausing} from "@core/elements/character/pause";
 
 export type SentenceConfig = {
     pause?: boolean | number;
@@ -83,6 +83,24 @@ export class Sentence {
             return word.map(w => this.formatStaticWord(w, config)).flat(2);
         }
         return [Word.isWord(word) ? word : new Word<T | string | Pausing>(word, config)];
+    }
+
+
+    /**@internal */
+    static isSentencePrompt(input: any): input is SentencePrompt {
+        return Array.isArray(input) ?
+            input.every(Sentence.isSingleWord) :
+            Sentence.isSingleWord(input);
+    }
+
+    /**@internal */
+    static isSingleWord(obj: any): obj is SingleWord {
+        return (
+            typeof obj === "string"
+            || Word.isWord(obj)
+            || Pause.isPause(obj)
+            || typeof obj === "function"
+        );
     }
 
     /**@internal */
