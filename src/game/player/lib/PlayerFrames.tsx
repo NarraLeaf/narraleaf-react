@@ -38,12 +38,14 @@ function BaseFrame(
             "flex absolute",
             justifyContent,
             alignItems,
-            className
+            className,
+            "pointer-events-none"
         )} style={{
             width,
             height,
             transform: `scale(${ratio.state.scale})`,
             transformOrigin: `${alignX} ${alignY}`,
+            pointerEvents: "all"
         }}>
             {children}
         </Isolated>
