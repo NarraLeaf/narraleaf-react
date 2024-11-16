@@ -1,7 +1,7 @@
 import React from "react";
-import clsx from "clsx";
 import {useRatio} from "@player/provider/ratio";
-import Inspect from "@player/lib/Inspect";
+import Isolated from "@player/lib/isolated";
+import clsx from "clsx";
 
 type ForwardSize = {
     width?: React.CSSProperties["width"];
@@ -21,6 +21,7 @@ function BaseFrame(
         children,
         width,
         height,
+        className,
     }: Readonly<{
         alignX?: "left" | "center" | "right",
         alignY?: "top" | "center" | "bottom",
@@ -29,36 +30,25 @@ function BaseFrame(
 ) {
     const {ratio} = useRatio();
 
-    const positions = {
-        top: alignY === "top" ? "0" : alignY === "center" ? "50%" : undefined,
-        left: alignX === "left" ? "0" : alignX === "center" ? "50%" : undefined,
-        right: alignX === "right" ? "0" : undefined,
-        bottom: alignY === "bottom" ? "0" : undefined,
-    };
-    const transform = {
-        x: alignX === "center" ? "-50%" : "0",
-        y: alignY === "center" ? "-50%" : "0",
-    };
+    const justifyContent = alignX === "left" ? "justify-start" : alignX === "right" ? "justify-end" : "justify-center";
+    const alignItems = alignY === "top" ? "items-start" : alignY === "bottom" ? "items-end" : "items-center";
 
     return (
-        <>
-            <Inspect.Div
-                color={"gray"}
-                border={"dashed"}
-                className={clsx(
-                    "absolute",
-                )}
-                style={{
-                    ...positions,
-                    width,
-                    height,
-                    transform: `scale(${ratio.state.scale}) translate(${transform.x}, ${transform.y})`,
-                    transformOrigin: `${alignX} ${alignY}`,
-                }}
-            >
-                {children}
-            </Inspect.Div>
-        </>
+        <Isolated className={clsx(
+            "flex absolute",
+            justifyContent,
+            alignItems,
+            className,
+            "pointer-events-none"
+        )} style={{
+            width,
+            height,
+            transform: `scale(${ratio.state.scale})`,
+            transformOrigin: `${alignX} ${alignY}`,
+            pointerEvents: "all"
+        }}>
+            {children}
+        </Isolated>
     );
 }
 

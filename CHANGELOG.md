@@ -1,6 +1,20 @@
 # Changelog
 
-## [0.1.6]
+## [0.1.7]
+
+### _Feature_
+
+- Shorthand for `character.say`
+
+### Added
+
+- Tag function signature for `character.say`
+
+### Fixed
+
+- Position utils position incorrect
+
+## [0.1.6] - 2024/11/13
 
 ### _Feature_
 

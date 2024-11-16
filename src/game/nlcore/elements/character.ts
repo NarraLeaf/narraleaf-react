@@ -1,10 +1,10 @@
 import {LogicAction} from "../game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Color} from "@core/types";
-import {deepMerge, DeepPartial} from "@lib/util/data";
+import {crossCombine, deepMerge, DeepPartial} from "@lib/util/data";
 import {Actionable} from "@core/action/actionable";
 import {Chained, Proxied} from "@core/action/chain";
-import {Sentence, SentencePrompt, SentenceUserConfig} from "@core/elements/character/sentence";
+import {Sentence, SentencePrompt, SentenceUserConfig, SingleWord} from "@core/elements/character/sentence";
 import {CharacterAction} from "@core/action/actions/characterAction";
 
 export type CharacterConfig = {} & Color;
@@ -54,20 +54,50 @@ export class Character extends Actionable<
      *     "Hello, ",
      *     new Word("world", {color: "#f00"}), // Some words can be colored
      * ]));
+     * @example
+     * ```typescript
+     * character.say`Hello, ${Word.color("world", "#f00")}!`;
+     * ```
      * @chainable
      */
     public say(content: string, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
     public say(content: Sentence): Proxied<Character, Chained<LogicAction.Actions>>;
     public say(content: SentencePrompt, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
-    public say(content: SentencePrompt | Sentence, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>> {
+    public say(texts: TemplateStringsArray, ...words: SingleWord[]): Proxied<Character, Chained<LogicAction.Actions>>;
+    public say(
+        contentOrText: SentencePrompt | Sentence | TemplateStringsArray,
+        configOrArg0?: SentenceUserConfig | Sentence | SingleWord,
+        ...words: SingleWord[]
+    ): Proxied<Character, Chained<LogicAction.Actions>> {
+        if (Array.isArray(contentOrText)
+            && contentOrText.every(text => typeof text === "string")
+            && [configOrArg0, ...words].length > 0
+            && [configOrArg0, ...words].every(word => Sentence.isSingleWord(word))
+        ) {
+            const plainTexts = contentOrText as string[];
+            const inserts = Sentence.format([configOrArg0, ...words] as SingleWord[]);
+
+            const sentence = new Sentence(crossCombine(plainTexts, inserts), {
+                character: this
+            });
+            const action = new CharacterAction<typeof CharacterAction.ActionTypes.say>(
+                this.chain(),
+                CharacterAction.ActionTypes.say,
+                new ContentNode<Sentence>().setContent(sentence)
+            );
+
+            return this.chain(action);
+        }
+        const config = (configOrArg0 || {}) as SentenceUserConfig;
+        const content = contentOrText as SentencePrompt | Sentence;
         const sentence: Sentence =
             Array.isArray(content) ?
                 new Sentence(content, {
-                    ...(config || {}),
+                    ...config,
                     character: this
                 }) :
                 (Sentence.isSentence(content) ? content : new Sentence(content, {
-                    ...(config || {}),
+                    ...config,
                     character: this
                 }))
                     .copy();
