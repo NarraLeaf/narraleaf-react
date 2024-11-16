@@ -6,12 +6,12 @@ import clsx from "clsx";
 import {useRatio} from "@player/provider/ratio";
 
 export default function Isolated(
-    {children, className, props, ref}:
+    {children, className, props, style}:
         Readonly<{
-            children: ReactNode,
-            className?: string,
-            props?: Record<any, any>,
-            ref?: React.MutableRefObject<HTMLDivElement | null>
+            children: ReactNode;
+            className?: string;
+            props?: Record<any, any>;
+            style?: React.CSSProperties;
         }>
 ) {
     const {ratio} = useRatio();
@@ -20,7 +20,7 @@ export default function Isolated(
 
     return (
         <div className={
-            clsx("inset-0 flex items-center justify-center", className)
+            clsx("inset-0", className)
         } style={{
             width: "100%",
             height: "100%",
@@ -31,7 +31,9 @@ export default function Isolated(
                 ...styles,
                 position: "relative",
                 overflow: "hidden",
-            }} {...(props || {})} ref={ref}>
+                ...(props?.style || {}),
+                ...(style || {}),
+            }} {...(props || {})}>
                 {children}
             </div>
         </div>

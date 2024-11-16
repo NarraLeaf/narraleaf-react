@@ -565,3 +565,24 @@ export class Scheduler {
         return this;
     }
 }
+
+/**
+ * Cross combine two arrays
+ * @example
+ * ```typescript
+ * crossCombine([1, 2], ["a", "b"]); // [1, "a", 2, "b"]
+ * ```
+ */
+export function crossCombine<T, U>(a: T[], b: U[]): (T | U)[] {
+    const result: (T | U)[] = [];
+
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if (i < a.length) {
+            result.push(a[i]);
+        }
+        if (i < b.length) {
+            result.push(b[i]);
+        }
+    }
+    return result;
+}
