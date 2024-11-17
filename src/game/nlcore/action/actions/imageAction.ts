@@ -44,6 +44,10 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 state.stage.next();
             });
         } else if (this.type === ImageActionTypes.setSrc) {
+            if (this.callee.state.tags) {
+                throw this.callee._mixedSrcError();
+            }
+
             this.callee.state.src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
             state.logger.debug("Image - Set Src", this.callee.state.src);
 

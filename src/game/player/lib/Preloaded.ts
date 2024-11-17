@@ -1,8 +1,7 @@
 import {Sound} from "@core/elements/sound";
 import {Src} from "@core/action/srcManager";
 import {EventDispatcher} from "@lib/util/data";
-import {Image} from "@core/elements/image";
-import {Utils} from "@core/common/Utils";
+import {Image as GameImage, Image} from "@core/elements/image";
 
 export type PreloadedSrcTypes = "image" | "audio" | "video";
 export type PreloadedSrc<T extends PreloadedSrcTypes = any> = ({
@@ -87,7 +86,7 @@ export class Preloaded {
             return src;
         }
         if (src.type === "image") {
-            return Utils.srcToString(src.src.state.src);
+            return GameImage.getSrc(src.src.state);
         } else if (src.type === "video") {
             return src.src;
         } else if (src.type === "audio") {

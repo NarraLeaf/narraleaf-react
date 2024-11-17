@@ -586,3 +586,15 @@ export function crossCombine<T, U>(a: T[], b: U[]): (T | U)[] {
     }
     return result;
 }
+
+export type SelectElementFromEach<T extends string[][]> = {
+    [K in keyof T]: T[K] extends (infer U)[] ? U : never;
+};
+
+/**
+ * Convert a number-keyed object to array
+ */
+export type AsArray<T extends object> = T[keyof T][];
+export type ArrayElement<A> = A extends readonly (infer T)[] ? T : never;
+export type DeepArrayElement<T> = T extends (infer U)[] ? DeepArrayElement<U> : T;
+export type SomeArray<T> = T extends (infer U)[] ? U : never;

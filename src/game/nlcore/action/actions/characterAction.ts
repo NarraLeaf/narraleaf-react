@@ -7,10 +7,24 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {Sentence} from "@core/elements/character/sentence";
 import {TypedAction} from "@core/action/actions";
 import {SoundAction} from "@core/action/actions/soundAction";
+import {Sound} from "@core/elements/sound";
 
 export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof CharacterActionTypes] = typeof CharacterActionTypes[keyof typeof CharacterActionTypes]>
     extends TypedAction<CharacterActionContentType, T, Character> {
     static ActionTypes = CharacterActionTypes;
+
+    static getVoice(state: GameState, sentence: Sentence): Sound | null {
+        const scene = state.getLastScene();
+        if (!scene) {
+            throw new Error("No scene found when trying to play voice");
+        }
+
+        const {voiceId, voice} = sentence.config;
+        if (!voiceId && !voice) {
+            return null;
+        }
+        return Sound.toSound(scene.getVoice(voiceId) || voice);
+    }
 
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === CharacterActionTypes.say) {
@@ -22,7 +36,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     })));
 
             const sentence = (this.contentNode as ContentNode<Sentence>).getContent();
-            const voice = sentence.config.voice;
+            const voice = CharacterAction.getVoice(state, sentence);
 
             if (voice) {
                 SoundAction.initSound(state, voice);

@@ -1,5 +1,5 @@
 import {Sound} from "@core/elements/sound";
-import {Image} from "@core/elements/image";
+import {Image as GameImage, Image} from "@core/elements/image";
 import {Utils} from "@core/common/core";
 import {StaticImageData} from "@core/types";
 
@@ -39,7 +39,7 @@ export class SrcManager {
             this.src.push({type: "audio", src: arg0});
         } else if (arg0 instanceof Image || Utils.isStaticImageData(arg0)) {
             if (arg0 instanceof Image) {
-                if (this.isSrcRegistered(Utils.srcToString(arg0.state.src))) return this;
+                if (this.isSrcRegistered(GameImage.getSrc(arg0.state))) return this;
             } else {
                 if (this.isSrcRegistered(Utils.srcToString(arg0["src"]))) return this;
             }
@@ -74,7 +74,7 @@ export class SrcManager {
             if (s.type === SrcManager.SrcTypes.audio) {
                 return target === s.src.getSrc();
             } else if (s.type === SrcManager.SrcTypes.image) {
-                return target === Utils.srcToString(s.src.state.src);
+                return target === GameImage.getSrc(s.src.state);
             } else {
                 return target === s.src;
             }

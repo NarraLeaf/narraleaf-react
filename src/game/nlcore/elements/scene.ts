@@ -6,7 +6,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {Transform} from "@core/elements/transform/transform";
 import {IImageTransition, ITransition} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
-import {Sound, SoundDataRaw} from "@core/elements/sound";
+import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
 import {TransformDefinitions} from "@core/elements/transform/type";
 import {
     ImageActionContentType,
@@ -34,6 +34,7 @@ export type SceneConfig = {
     backgroundMusic: Sound | null;
     backgroundMusicFade: number;
     backgroundImage: Image;
+    voices: VoiceIdMap | VoiceSrcGenerator | null;
 } & {
     background: ImageSrc | ImageColor | null;
 };
@@ -44,6 +45,7 @@ export interface ISceneConfig {
     backgroundMusic: Sound | null;
     backgroundMusicFade: number;
     background?: ImageSrc | ImageColor;
+    voices: VoiceIdMap | VoiceSrcGenerator | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -101,6 +103,7 @@ export class Scene extends Constructable<
         invertX: false,
         backgroundMusic: null,
         backgroundMusicFade: 0,
+        voices: null,
     };
     /**@internal */
     static defaultState: SceneState = {};
@@ -147,7 +150,7 @@ export class Scene extends Constructable<
     /**
      * Activate the scene
      *
-     * This is only used when auto activation is not working
+     * This is only used when auto activation isn't working
      * @chainable
      */
     public activate(): ChainedScene {
@@ -157,7 +160,7 @@ export class Scene extends Constructable<
     /**
      * Deactivate the scene
      *
-     * This is only used when auto deactivation is not working
+     * This is only used when auto deactivation isn't working
      * @chainable
      */
     public deactivate(): ChainedScene {
@@ -165,7 +168,7 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Set background, if {@link transition} is provided, it will be applied
+     * Set background, if {@link transition} is provided, it'll be applied
      * @chainable
      */
     public setBackground(background: UserImageInput, transition?: IImageTransition): ChainedScene {
@@ -202,9 +205,10 @@ export class Scene extends Constructable<
     /**
      * Jump to the specified scene
      *
-     * After calling the method, you **will not be able to return to the context of the scene** that called the jump, so the scene will be unloaded
+     * After calling the method, you **won't be able to return to the context of the scene** that called the jump,
+     * so the scene will be unloaded
      *
-     * Any operations after the jump operation will not be executed
+     * Any operations after the jump operation won't be executed
      * @chainable
      */
     public jumpTo(arg0: Scene, config?: Partial<JumpConfig>): ChainedScene {
@@ -337,7 +341,7 @@ export class Scene extends Constructable<
         });
 
         // disable auto initialization for wearables,
-        // wearables cannot be initialized by the scene,
+        // the scene can't initialize wearables,
         // they must be initialized by the image
 
         const
@@ -397,8 +401,8 @@ export class Scene extends Constructable<
         }
 
         // [0.0.5] - 2024/10/04
-        // Without this check, this method will enter cycle and cost a lot of time
-        // For example, Control will add some actions to the scene, ths check will not stop correctly
+        // Without this check, this method will enter the cycle and cost a lot of time,
+        // For example, Control will add some actions to the scene, this check won't stop correctly
         const seenActions = new Set<Actions>();
 
         const seenJump = new Set<SceneAction<typeof SceneActionTypes["jumpTo"]>>();
@@ -482,6 +486,22 @@ export class Scene extends Constructable<
         elements.forEach((element, i) => {
             element.setId(`element-${i}`);
         });
+    }
+
+    /**@internal */
+    getVoice(id: string | number | null): string | Sound | null {
+        if (!id) {
+            return null;
+        }
+
+        const voices = this.config.voices;
+        if (voices) {
+            if (typeof voices === "function") {
+                return voices(id);
+            }
+            return voices[id] || null;
+        }
+        return null;
     }
 
     /**@internal */

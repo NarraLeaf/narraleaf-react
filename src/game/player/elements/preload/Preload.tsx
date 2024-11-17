@@ -5,7 +5,6 @@ import {SrcManager} from "@core/action/srcManager";
 import {usePreloaded} from "@player/provider/preloaded";
 import {Preloaded, PreloadedSrc} from "@player/lib/Preloaded";
 import {Image as GameImage} from "@core/elements/image";
-import {Utils} from "@core/common/Utils";
 
 export function Preload({
                             state,
@@ -72,7 +71,7 @@ export function Preload({
         const promises: Promise<any>[] = [];
         src.image.forEach((src: GameImage) => {
             const htmlImg = new Image();
-            htmlImg.src = Utils.srcToString(src.state.src);
+            htmlImg.src = GameImage.getSrc(src.state);
             htmlImg.onload = () => {
                 state.logger.debug("Image loaded", src.state.src);
             };

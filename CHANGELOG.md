@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8]
+
+### Added
+
+- Voice map generator
+- Image tag src management
+
 ## [0.1.7] - 2024/11/16
 
 ### _Feature_

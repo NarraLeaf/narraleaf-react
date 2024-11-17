@@ -2,7 +2,6 @@ import {Image as GameImage} from "@core/elements/image";
 import React, {useEffect, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
-import {Utils} from "@core/common/core";
 import {ImgElementProp} from "@core/elements/transition/type";
 import {useGame} from "@player/provider/game-state";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
@@ -80,7 +79,7 @@ function DisplayableImage(
     const [wearables, setWearables] = useState<GameImage[]>([]);
 
     const defaultProps: ImgElementProp = {
-        src: Utils.staticImageDataToSrc(image.state.src),
+        src: GameImage.getSrc(image.state),
         style: {
             ...(state.game.config.app.debug ? {
                 outline: "1px solid red",
