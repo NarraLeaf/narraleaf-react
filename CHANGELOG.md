@@ -2,6 +2,10 @@
 
 ## [0.1.8]
 
+### _Incompatible Changes_
+
+- Image constructor signature has changed. Now the first argument must be a config object.
+
 ### Added
 
 - Voice map generator

@@ -93,9 +93,6 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
         } else if (this.type === ImageActionTypes.applyTransition) {
             const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
                 .registerSkipController(new SkipController(() => {
-                    if (this.type === ImageActionTypes.hide) {
-                        this.callee.state.display = false;
-                    }
                     return {
                         type: this.type,
                         node: this.contentNode.getChild()
@@ -112,16 +109,36 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             });
             return awaitable;
         } else if (this.type === ImageActionTypes.flush) {
-            // const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
-            // this.callee.events.any("event:image.flushComponent")
-            //     .then(() => {
-            //         awaitable.resolve({
-            //             type: this.type,
-            //             node: this.contentNode.getChild()
-            //         });
-            //         state.stage.next();
-            //     });
-            // return awaitable;
+            return super.executeAction(state);
+        } else if (this.type === ImageActionTypes.setAppearance) {
+            const [tags, transition] =
+                (this.contentNode as ContentNode<ImageActionContentType["image:setAppearance"]>).getContent();
+            if (!this.callee.state.tags?.length) {
+                throw this.callee._srcNotSpecifiedError();
+            }
+
+            const newTags = this.callee.resolveTags(this.callee.state.tags as [], tags);
+            const newSrc = Image.getSrcFromTags(newTags, this.callee.config.tagResolver);
+
+            if (transition) {
+                const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
+                    .registerSkipController(new SkipController(() => {
+                        return {
+                            type: this.type,
+                            node: this.contentNode.getChild()
+                        };
+                    }));
+                transition.setSrc(newSrc);
+                this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
+                    this.callee.state.tags = newTags;
+                    awaitable.resolve({
+                        type: this.type,
+                        node: this.contentNode.getChild()
+                    });
+                    state.stage.next();
+                });
+            }
+            this.callee.state.tags = newTags;
             return super.executeAction(state);
         }
 

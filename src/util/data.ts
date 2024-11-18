@@ -587,14 +587,27 @@ export function crossCombine<T, U>(a: T[], b: U[]): (T | U)[] {
     return result;
 }
 
-export type SelectElementFromEach<T extends string[][]> = {
-    [K in keyof T]: T[K] extends (infer U)[] ? U : never;
-};
-
-/**
- * Convert a number-keyed object to array
- */
-export type AsArray<T extends object> = T[keyof T][];
-export type ArrayElement<A> = A extends readonly (infer T)[] ? T : never;
-export type DeepArrayElement<T> = T extends (infer U)[] ? DeepArrayElement<U> : T;
-export type SomeArray<T> = T extends (infer U)[] ? U : never;
+export type SelectElementFromEach<T extends string[][]> =
+    T extends [infer First, ...infer Rest]
+        ? First extends string[]
+            ? Rest extends string[][]
+                ? {
+                    [K in First[number]]: [K, ...SelectElementFromEach<ExcludeEach<Rest, K>>];
+                }[First[number]]
+                : []
+            : []
+        : [];
+export type ExcludeEach<T extends string[][], Excluded> =
+    T extends [infer First, ...infer Rest]
+        ? First extends string[]
+            ? Rest extends string[][]
+                ? [[Exclude<First[number], Excluded>], ...ExcludeEach<Rest, Excluded>]
+                : []
+            : []
+        : [];
+export type FlexibleTuple<T extends any[]> =
+    T extends [infer First, ...infer Rest]
+        ? Rest extends any[]
+            ? [First, ...FlexibleTuple<Rest>] | FlexibleTuple<Rest>
+            : [First]
+        : [];

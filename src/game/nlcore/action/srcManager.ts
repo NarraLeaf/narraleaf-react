@@ -45,7 +45,7 @@ export class SrcManager {
             }
             this.src.push({
                 type: "image", src:
-                    arg0 instanceof Image ? arg0 : new Image("", {
+                    arg0 instanceof Image ? arg0 : new Image({
                         src: Utils.staticImageDataToSrc(arg0),
                     })
             });

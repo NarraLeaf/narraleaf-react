@@ -6,11 +6,12 @@ import {usePreloaded} from "@player/provider/preloaded";
 import {Preloaded, PreloadedSrc} from "@player/lib/Preloaded";
 import {Image as GameImage} from "@core/elements/image";
 
-export function Preload({
-                            state,
-                        }: Readonly<{
-    state: GameState;
-}>) {
+export function Preload(
+    {
+        state,
+    }: Readonly<{
+        state: GameState;
+    }>) {
     const {preloaded} = usePreloaded();
     const lastScene = state.getLastScene();
     const time = useRef<number>(0);

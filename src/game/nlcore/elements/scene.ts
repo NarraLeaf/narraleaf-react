@@ -14,7 +14,7 @@ import {
     SceneActionContentType,
     SceneActionTypes
 } from "@core/action/actionTypes";
-import {Image, ImageDataRaw} from "@core/elements/image";
+import {Image, ImageDataRaw, VirtualImageProxy} from "@core/elements/image";
 import {Control, Utils} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
@@ -128,7 +128,7 @@ export class Scene extends Constructable<
 
         this.config = {
             ...rest,
-            backgroundImage: new Image({
+            backgroundImage: new VirtualImageProxy({
                 opacity: 1,
             }),
             background: background || null,

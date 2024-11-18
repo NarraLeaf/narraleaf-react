@@ -16,7 +16,14 @@ import {
     IPosition,
     PositionUtils
 } from "@core/elements/transform/position";
-import {deepEqual, deepMerge, EventDispatcher, getCallStack, SelectElementFromEach} from "@lib/util/data";
+import {
+    deepEqual,
+    deepMerge,
+    EventDispatcher,
+    FlexibleTuple,
+    getCallStack,
+    SelectElementFromEach
+} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {Control} from "@core/elements/control";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -26,6 +33,7 @@ export type ImageConfig = {
     disposed?: boolean;
     wearables: Image[];
     isWearable?: boolean;
+    name?: string;
 } & CommonDisplayable;
 
 export type ImageDataRaw = {
@@ -51,15 +59,14 @@ export type RichImageConfig<T extends TagDefinition> = ImageConfig &
         src: string | StaticImageData;
         tags: never[];
     } | {
-        src: undefined;
+        src: never;
         tags: SelectElementFromEach<T>;
     });
 export type StaticRichConfig = RichImageConfig<TagDefinition>;
 
+
 export class Image<
-    Tags extends TagDefinition = TagDefinition,
-    RichConfig extends RichImageConfig<Tags> = RichImageConfig<Tags>,
-    ResolvedTags extends SelectElementFromEach<Tags> = SelectElementFromEach<Tags>
+    Tags extends TagDefinition = TagDefinition
 >
     extends Actionable<ImageDataRaw, Image>
     implements EventfulDisplayable {
@@ -73,7 +80,7 @@ export class Image<
     };
     /**@internal */
     static defaultConfig: RichImageConfig<TagDefinition> = {
-        src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+        src: "",
         display: false,
         position: new CommonPosition(CommonPositionType.Center),
         scale: 1,
@@ -90,6 +97,8 @@ export class Image<
                 "\nExample: {tagResolver: (emotion, state) => `https://example.com/char_${emotion}_${state}.png`}");
         }
     };
+    /**@internal */
+    public static DefaultImagePlaceholder = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
     /**@internal */
     public static serializeImageState(state: Record<string, any>): Record<string, any> {
@@ -128,38 +137,41 @@ export class Image<
         const {src, tags, tagResolver} = state;
         if (src) {
             return Utils.isStaticImageData(src) ? Utils.staticImageDataToSrc(src) : src;
+        } else if (tags) {
+            return Image.getSrcFromTags(tags as SelectElementFromEach<TagDefinition>, tagResolver);
         }
+        return Image.DefaultImagePlaceholder;
+    }
+
+    /**@internal */
+    public static getSrcFromTags(
+        tags: SelectElementFromEach<TagDefinition>,
+        tagResolver: (...tags: SelectElementFromEach<TagDefinition>) => string
+    ): string {
         return tagResolver(...tags);
     }
 
     /**@internal */
     readonly name: string;
     /**@internal */
-    readonly config: RichConfig;
+    readonly config: RichImageConfig<Tags>;
     /**@internal */
     readonly events: EventDispatcher<ImageEventTypes> = new EventDispatcher();
     /**@internal */
     ref: React.RefObject<HTMLDivElement> | undefined = undefined;
     /**@internal */
-    state: RichConfig;
+    state: RichImageConfig<Tags>;
 
-    constructor(name: string, config: Partial<RichConfig>);
-
-    constructor(config?: Partial<RichConfig>);
-
-    constructor(arg0: string | Partial<RichConfig> = {}, config?: Partial<RichConfig>) {
+    constructor(config: Partial<RichImageConfig<Tags>> = {}, tagDefinitions?: Tags) {
         super();
-        if (typeof arg0 === "string") {
-            this.name = arg0;
-            this.config = deepMerge<RichConfig>(Image.defaultConfig, config || {});
-            if (this.config.position) this.config.position = PositionUtils.tryParsePosition(this.config.position);
-        } else {
-            this.name = "";
-            this.config = deepMerge<RichConfig>(Image.defaultConfig, arg0);
-            if (this.config.position) this.config.position = PositionUtils.tryParsePosition(this.config.position);
-        }
-        this.state = deepMerge<RichConfig>({}, this.config);
+        this.name = config.name || "(anonymous)";
+        this.config = deepMerge<RichImageConfig<Tags>>(Image.defaultConfig, config);
 
+        if (tagDefinitions) this.config.tagDefinitions = tagDefinitions as Tags;
+        if (this.config.position) this.config.position = PositionUtils.tryParsePosition(this.config.position);
+
+        this.config.tags = config.tags || Image.defaultConfig.tags;
+        this.state = deepMerge<RichImageConfig<Tags>>({}, this.config);
         this.checkConfig(this.config);
     }
 
@@ -179,14 +191,14 @@ export class Image<
     }
 
     /**@internal */
-    checkConfig(config: RichConfig) {
+    checkConfig(config: RichImageConfig<Tags>) {
         if (!Transform.isPosition(config.position)) {
             throw new Error("Invalid position\nPosition must be one of CommonImagePosition, Align, Coord2D");
         }
-        if (this.config.src && this.config.tags.length) {
+        if (config.src && config.tags.length && config.src !== Image.DefaultImagePlaceholder) {
             throw this._mixedSrcError();
         }
-        if (!this.config.src && !this.config.tags.length) {
+        if (!config.src && !config.tags.length) {
             throw this._srcNotSpecifiedError();
         }
         for (const wearable of config.wearables) {
@@ -210,7 +222,6 @@ export class Image<
             tagMap.get(tag)?.forEach(t => usedTags.add(t));
         }
 
-
         return this;
     }
 
@@ -232,6 +243,26 @@ export class Image<
     public setSrc(src: string | StaticImageData, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.combineActions(new Control(), chain => {
             return this._setSrc(chain, src, transition);
+        });
+    }
+
+    /**
+     * Set the appearance of the image
+     * @chainable
+     */
+    public setAppearance(tags: FlexibleTuple<SelectElementFromEach<Tags>>, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.combineActions(new Control(), chain => {
+            const action = new ImageAction<typeof ImageAction.ActionTypes.setAppearance>(
+                chain,
+                ImageAction.ActionTypes.setAppearance,
+                new ContentNode<ImageActionContentType["image:setAppearance"]>().setContent([
+                    tags,
+                    transition?.copy(),
+                ])
+            );
+            return chain
+                .chain(action)
+                .chain(this._flush());
         });
     }
 
@@ -405,8 +436,8 @@ export class Image<
         return this.ref;
     }
 
-    public copy(): Image<Tags, RichConfig, ResolvedTags> {
-        return new Image<Tags, RichConfig, ResolvedTags>(this.name, this.config);
+    public copy(): Image<Tags> {
+        return new Image<Tags>(this.config, this.config.tagDefinitions);
     }
 
     /**@internal */
@@ -422,7 +453,7 @@ export class Image<
 
     /**@internal */
     fromData(data: ImageDataRaw): this {
-        this.state = deepMerge<RichConfig>(this.state, Image.deserializeImageState(data.state));
+        this.state = deepMerge<RichImageConfig<Tags>>(this.state, Image.deserializeImageState(data.state));
         return this;
     }
 
@@ -476,7 +507,7 @@ export class Image<
 
     /**@internal */
     override reset() {
-        this.state = deepMerge<RichConfig>({}, this.config);
+        this.state = deepMerge<RichImageConfig<Tags>>({}, this.config);
     }
 
     /**@internal */
@@ -501,11 +532,14 @@ export class Image<
      * @internal
      * resolve tags, return the tags that aren't conflicting
      */
-    resolveTags(oldTags: Readonly<ResolvedTags>, newTags: Readonly<ResolvedTags>): ResolvedTags {
+    resolveTags(
+        oldTags: SelectElementFromEach<Tags>,
+        newTags: SelectElementFromEach<Tags>
+    ): SelectElementFromEach<Tags> {
         const tagMap: Map<string, string[]> = this.constructTagMap();
         const resultTags: Set<string> = new Set();
 
-        const resolve = (tags: ResolvedTags) => {
+        const resolve = (tags: SelectElementFromEach<Tags>) => {
             for (const tag of tags) {
                 const conflictGroup = tagMap.get(tag);
                 if (!conflictGroup) continue;
@@ -520,7 +554,7 @@ export class Image<
         resolve(oldTags);
         resolve(newTags);
 
-        return Array.from(resultTags) as ResolvedTags;
+        return Array.from(resultTags) as SelectElementFromEach<Tags>;
     }
 
     /**@internal */
@@ -584,5 +618,17 @@ export class Image<
             ImageAction.ActionTypes.dispose,
             new ContentNode()
         ));
+    }
+}
+
+/**
+ * @class
+ * @internal
+ * This class is only for internal use,
+ * DO NOT USE THIS CLASS DIRECTLY
+ */
+export class VirtualImageProxy extends Image {
+    override checkConfig(_: RichImageConfig<TagDefinition>): this {
+        return this;
     }
 }
