@@ -44,7 +44,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 state.stage.next();
             });
         } else if (this.type === ImageActionTypes.setSrc) {
-            if (this.callee.state.tags) {
+            if (this.callee.state.tag) {
                 throw this.callee._mixedSrcError();
             }
 
@@ -113,12 +113,14 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
         } else if (this.type === ImageActionTypes.setAppearance) {
             const [tags, transition] =
                 (this.contentNode as ContentNode<ImageActionContentType["image:setAppearance"]>).getContent();
-            if (!this.callee.state.tags?.length) {
+            if (!this.callee.state.tag || !this.callee.state.currentTags) {
                 throw this.callee._srcNotSpecifiedError();
             }
 
-            const newTags = this.callee.resolveTags(this.callee.state.tags as [], tags);
-            const newSrc = Image.getSrcFromTags(newTags, this.callee.config.tagResolver);
+            const newTags = this.callee.resolveTags(this.callee.state.currentTags, tags);
+            const newSrc = Image.getSrcFromTags(newTags, this.callee.state.src);
+
+            state.logger.debug("Image - Set Appearance", newTags, newSrc);
 
             if (transition) {
                 const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
@@ -130,7 +132,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     }));
                 transition.setSrc(newSrc);
                 this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
-                    this.callee.state.tags = newTags;
+                    this.callee.state.currentTags = newTags;
                     awaitable.resolve({
                         type: this.type,
                         node: this.contentNode.getChild()
@@ -138,7 +140,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     state.stage.next();
                 });
             }
-            this.callee.state.tags = newTags;
+            this.callee.state.currentTags = newTags;
             return super.executeAction(state);
         }
 

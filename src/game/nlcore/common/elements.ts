@@ -1,7 +1,7 @@
 import {Character} from "../elements/character";
 import {Condition, Lambda} from "../elements/condition";
 import {Control} from "@core/elements/control";
-import {Image as ImageClass, RichImageConfig, TagDefinition} from "../elements/image";
+import {Image as ImageClass, RichImageConfig, TagDefinitions, TagGroupDefinition} from "../elements/image";
 import {Menu} from "../elements/menu";
 import {Scene} from "../elements/scene";
 import {Script} from "../elements/script";
@@ -14,21 +14,23 @@ import {Text} from "@core/elements/text";
 import {Pause} from "@core/elements/character/pause";
 
 interface ImageConstructor {
-    new<T extends TagDefinition>(
-        config: Partial<RichImageConfig<T>>,
-        tagDefinitions: T
+    new<T extends TagGroupDefinition | null>(
+        config: Partial<RichImageConfig<T>> & {
+            tag: T extends TagGroupDefinition ? TagDefinitions<T> : never;
+        }
     ): ImageClass<T>;
 }
 
-const Image: ImageConstructor = function <T extends TagDefinition>(
+const Image: ImageConstructor = function <T extends TagGroupDefinition | null>(
     this: ImageClass<T>,
-    config: Partial<RichImageConfig<T>>,
-    tagDefinitions: T
+    config: Partial<RichImageConfig<T>> & {
+        tag: T extends TagGroupDefinition ? TagDefinitions<T> : never;
+    }
 ): ImageClass<T> {
     if (!new.target) {
         throw new Error("Image is a constructor and should be called with new keyword");
     }
-    return Reflect.construct(ImageClass, [config, tagDefinitions]);
+    return new ImageClass<T>(config, config.tag);
 } as unknown as ImageConstructor;
 
 export {

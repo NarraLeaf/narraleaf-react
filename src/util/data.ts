@@ -1,6 +1,67 @@
 import type {Game} from "@core/game";
 import {HexColor} from "@core/types";
 
+interface ITypeOf {
+    DataTypes: typeof DataTypes;
+    call: typeof TypeOf;
+
+    (value: any): DataTypes;
+}
+
+export enum DataTypes {
+    "string",
+    "number",
+    "boolean",
+    "object",
+    "array",
+    "function",
+    "symbol",
+    "undefined",
+    "null",
+    "date",
+    "regexp",
+    "other",
+}
+
+export const TypeOf = (function (value: any): DataTypes {
+    if (typeof value === "string") {
+        return DataTypes.string;
+    }
+    if (typeof value === "number") {
+        return DataTypes.number;
+    }
+    if (typeof value === "boolean") {
+        return DataTypes.boolean;
+    }
+    if (typeof value === "object") {
+        if (Array.isArray(value)) {
+            return DataTypes.array;
+        }
+        if (value === null) {
+            return DataTypes.null;
+        }
+        if (value instanceof Date) {
+            return DataTypes.date;
+        }
+        if (value instanceof RegExp) {
+            return DataTypes.regexp;
+        }
+        return DataTypes.object;
+    }
+    if (typeof value === "function") {
+        return DataTypes.function;
+    }
+    if (typeof value === "symbol") {
+        return DataTypes.symbol;
+    }
+    if (typeof value === "undefined") {
+        return DataTypes.undefined;
+    }
+    return DataTypes.other;
+}) as unknown as ITypeOf;
+
+TypeOf.DataTypes = DataTypes;
+
 /**
  * @param obj1 source object
  * @param obj2 this object will overwrite the source object
@@ -13,8 +74,7 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
     const result: Record<string, any> = {};
 
     const mergeValue = (_: string, value1: any, value2: any) => {
-        if (typeof value1 === "object" && value1 !== null && !Array.isArray(value1) &&
-            typeof value2 === "object" && value2 !== null && !Array.isArray(value2)) {
+        if (TypeOf(value1) === DataTypes.object && TypeOf(value2) === DataTypes.object) {
             if (value1.constructor !== Object || value2.constructor !== Object) {
                 return value2 || value1;
             }
@@ -47,6 +107,8 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
             if (typeof obj2[key] === "object" && obj2[key] !== null) {
                 if (obj2[key].constructor === Object) {
                     result[key] = deepMerge({}, obj2[key]);
+                } else if (Array.isArray(obj2[key])) {
+                    result[key] = [...obj2[key]];
                 } else {
                     result[key] = obj2[key];
                 }
@@ -587,7 +649,7 @@ export function crossCombine<T, U>(a: T[], b: U[]): (T | U)[] {
     return result;
 }
 
-export type SelectElementFromEach<T extends string[][]> =
+export type SelectElementFromEach<T extends string[][] | null> =
     T extends [infer First, ...infer Rest]
         ? First extends string[]
             ? Rest extends string[][]

@@ -1,5 +1,5 @@
-import {TagDefinition} from "@core/elements/image";
+import {TagGroupDefinition} from "@core/elements/image";
 
 export type {
-    TagDefinition,
+    TagGroupDefinition,
 };

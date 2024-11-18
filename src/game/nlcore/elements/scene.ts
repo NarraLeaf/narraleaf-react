@@ -436,7 +436,7 @@ export class Scene extends Constructable<
                     const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
                     const src = Utils.backgroundToSrc(content);
                     if (src) {
-                        this.srcManager.register(new Image({src}));
+                        this.srcManager.register(new Image({src: src}));
                     }
                 }
             } else if (action instanceof ImageAction) {

@@ -11,7 +11,7 @@ import type {Sound} from "@core/elements/sound";
 import type {Script} from "@core/elements/script";
 import {Sentence} from "@core/elements/character/sentence";
 import type {TransformDefinitions} from "@core/elements/transform/type";
-import {Image, TagDefinition} from "@core/elements/image";
+import {Image, TagGroupDefinition} from "@core/elements/image";
 
 /* Character */
 export const CharacterActionTypes = {
@@ -96,7 +96,7 @@ export type ImageActionContentType = {
                                     K extends "image:applyTransition" ? [ITransition] :
                                         K extends "image:flush" ? [] :
                                             K extends "image:initWearable" ? [Image] :
-                                                K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagDefinition>>, IImageTransition | undefined] :
+                                                K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagGroupDefinition>>, IImageTransition | undefined] :
                                                     any;
 }
 /* Condition */

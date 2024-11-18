@@ -22,7 +22,8 @@ import {
     EventDispatcher,
     FlexibleTuple,
     getCallStack,
-    SelectElementFromEach
+    SelectElementFromEach,
+    TypeOf
 } from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {Control} from "@core/elements/control";
@@ -30,6 +31,7 @@ import {ImageAction} from "@core/action/actions/imageAction";
 
 export type ImageConfig = {
     display: boolean;
+    /**@internal */
     disposed?: boolean;
     wearables: Image[];
     isWearable?: boolean;
@@ -46,27 +48,33 @@ export type ImageEventTypes = {
     "event:displayable.init": [];
     "event:wearable.create": [Image];
 };
-export type TagDefinition = string[][];
-export type RichImageConfig<T extends TagDefinition> = ImageConfig &
-    {
-        tagDefinitions: T;
-        /**
-         * Given the tags, return the URL of the image
-         */
-        tagResolver: (...tags: SelectElementFromEach<T>) => string;
-    } &
-    ({
-        src: string | StaticImageData;
-        tags: never[];
-    } | {
-        src: never;
-        tags: SelectElementFromEach<T>;
-    });
-export type StaticRichConfig = RichImageConfig<TagDefinition>;
+export type TagDefinitions<T extends TagGroupDefinition | null> =
+    T extends TagGroupDefinition ? {
+        groups: T;
+        defaults: SelectElementFromEach<T>;
+    } : never;
+export type TagGroupDefinition = string[][];
+export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectElementFromEach<T>) => string;
+export type RichImageUserConfig<T extends TagGroupDefinition | null> = ImageConfig & {
+    /**@internal */
+    currentTags?: SelectElementFromEach<T> | null;
+} &
+    (T extends null ?
+        {
+            src: string;
+            tag?: never;
+        } : T extends TagGroupDefinition ?
+            {
+                src: TagSrcResolver<T>;
+                tag: TagDefinitions<T>;
+            }
+            : never);
+export type RichImageConfig<T extends TagGroupDefinition | null> = RichImageUserConfig<T> & {};
+export type StaticRichConfig = RichImageUserConfig<TagGroupDefinition | null>;
 
 
 export class Image<
-    Tags extends TagDefinition = TagDefinition
+    Tags extends TagGroupDefinition | null = TagGroupDefinition | null
 >
     extends Actionable<ImageDataRaw, Image>
     implements EventfulDisplayable {
@@ -79,8 +87,9 @@ export class Image<
         "event:wearable.create": "event:wearable.create",
     };
     /**@internal */
-    static defaultConfig: RichImageConfig<TagDefinition> = {
-        src: "",
+    public static DefaultImagePlaceholder = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+    /**@internal */
+    static defaultConfig: RichImageUserConfig<null> = {
         display: false,
         position: new CommonPosition(CommonPositionType.Center),
         scale: 1,
@@ -88,17 +97,9 @@ export class Image<
         opacity: 0,
         isWearable: false,
         wearables: [],
-        tagDefinitions: [],
-        tags: [],
-        tagResolver: () => {
-            throw new Error("Tag resolver not implemented\nIf you are using tags, you must provide a tag resolver" +
-                ",Tag resolver is a function that takes tags and returns the URL of the image" +
-                ",You can provide a tag resolver in the config of the image. " +
-                "\nExample: {tagResolver: (emotion, state) => `https://example.com/char_${emotion}_${state}.png`}");
-        }
+        src: Image.DefaultImagePlaceholder,
+        currentTags: null,
     };
-    /**@internal */
-    public static DefaultImagePlaceholder = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
     /**@internal */
     public static serializeImageState(state: Record<string, any>): Record<string, any> {
@@ -134,19 +135,21 @@ export class Image<
 
     /**@internal */
     public static getSrc(state: StaticRichConfig): string {
-        const {src, tags, tagResolver} = state;
-        if (src) {
+        if (typeof state.src === "string") {
+            const {src} = state as RichImageConfig<null>;
             return Utils.isStaticImageData(src) ? Utils.staticImageDataToSrc(src) : src;
-        } else if (tags) {
-            return Image.getSrcFromTags(tags as SelectElementFromEach<TagDefinition>, tagResolver);
         }
-        return Image.DefaultImagePlaceholder;
+        const {src, currentTags} = state as RichImageConfig<TagGroupDefinition>;
+        if (!currentTags) {
+            throw new Error("Tags not resolved\nTags must be resolved before getting the src");
+        }
+        return Image.getSrcFromTags(currentTags, src);
     }
 
     /**@internal */
     public static getSrcFromTags(
-        tags: SelectElementFromEach<TagDefinition>,
-        tagResolver: (...tags: SelectElementFromEach<TagDefinition>) => string
+        tags: SelectElementFromEach<TagGroupDefinition>,
+        tagResolver: (...tags: SelectElementFromEach<TagGroupDefinition>) => string
     ): string {
         return tagResolver(...tags);
     }
@@ -154,7 +157,7 @@ export class Image<
     /**@internal */
     readonly name: string;
     /**@internal */
-    readonly config: RichImageConfig<Tags>;
+    readonly config: RichImageUserConfig<Tags>;
     /**@internal */
     readonly events: EventDispatcher<ImageEventTypes> = new EventDispatcher();
     /**@internal */
@@ -162,15 +165,17 @@ export class Image<
     /**@internal */
     state: RichImageConfig<Tags>;
 
-    constructor(config: Partial<RichImageConfig<Tags>> = {}, tagDefinitions?: Tags) {
+    constructor(config: Partial<RichImageUserConfig<Tags>> = {}, tagDefinition?: TagDefinitions<Tags>) {
         super();
         this.name = config.name || "(anonymous)";
-        this.config = deepMerge<RichImageConfig<Tags>>(Image.defaultConfig, config);
+        this.config = deepMerge<RichImageUserConfig<Tags>>(Image.defaultConfig, config, {
+            tag: tagDefinition || config.tag,
+            position: config.position ? PositionUtils.tryParsePosition(config.position) : new CommonPosition(CommonPositionType.Center),
+            currentTags: config.tag?.defaults
+                ? [...config.tag.defaults] as SelectElementFromEach<Tags>
+                : null
+        });
 
-        if (tagDefinitions) this.config.tagDefinitions = tagDefinitions as Tags;
-        if (this.config.position) this.config.position = PositionUtils.tryParsePosition(this.config.position);
-
-        this.config.tags = config.tags || Image.defaultConfig.tags;
         this.state = deepMerge<RichImageConfig<Tags>>({}, this.config);
         this.checkConfig(this.config);
     }
@@ -191,35 +196,38 @@ export class Image<
     }
 
     /**@internal */
-    checkConfig(config: RichImageConfig<Tags>) {
+    checkConfig(config: RichImageUserConfig<Tags>) {
+        // invalid-position error
         if (!Transform.isPosition(config.position)) {
             throw new Error("Invalid position\nPosition must be one of CommonImagePosition, Align, Coord2D");
         }
-        if (config.src && config.tags.length && config.src !== Image.DefaultImagePlaceholder) {
+        // mixed-src error
+        if (TypeOf(config.src) === TypeOf.DataTypes.string && config.tag) {
             throw this._mixedSrcError();
         }
-        if (!config.src && !config.tags.length) {
+        // src-not-specified error
+        if (!config.src && !config.tag) {
             throw this._srcNotSpecifiedError();
         }
+        // invalid-wearable error
         for (const wearable of config.wearables) {
             if (!wearable.config.isWearable) {
-                throw new Error("Invalid wearable\nWearable must be an Image with isWearable set to true" +
-                    "\nIt seems like you are trying to add a non-wearable image to wearables" +
-                    "\nImage below violates the rule:\n" + JSON.stringify(wearable.config));
+                throw this._invalidWearableError(JSON.stringify(wearable.config));
             }
         }
-
-        // tags
-        const tagMap: Map<string, string[]> = this.constructTagMap();
-        const usedTags = new Set<string>();
-        for (const tag of config.tags) {
-            if (usedTags.has(tag)) {
-                throw new Error(`Tag conflict\nTag "${tag}" is conflicting with another tag`);
+        // conflict-tag error
+        if (config.tag) {
+            const tagMap: Map<string, string[]> = this.constructTagMap(config.tag.groups);
+            const usedTags = new Set<string>();
+            for (const tag of config.tag.defaults) {
+                if (usedTags.has(tag)) {
+                    throw new Error(`Tag conflict\nTag "${tag}" is conflicting with another tag\nError found in config.tag.defaults`);
+                }
+                if (!tagMap.has(tag)) {
+                    throw new Error(`Tag not found\nTag "${tag}" is not defined in tagDefinitions\nError found in config.tag.defaults`);
+                }
+                tagMap.get(tag)?.forEach(t => usedTags.add(t));
             }
-            if (!tagMap.has(tag)) {
-                throw new Error(`Tag not found\nTag "${tag}" is not defined in tagDefinitions`);
-            }
-            tagMap.get(tag)?.forEach(t => usedTags.add(t));
         }
 
         return this;
@@ -437,7 +445,7 @@ export class Image<
     }
 
     public copy(): Image<Tags> {
-        return new Image<Tags>(this.config, this.config.tagDefinitions);
+        return new Image<Tags>(this.config);
     }
 
     /**@internal */
@@ -536,7 +544,10 @@ export class Image<
         oldTags: SelectElementFromEach<Tags>,
         newTags: SelectElementFromEach<Tags>
     ): SelectElementFromEach<Tags> {
-        const tagMap: Map<string, string[]> = this.constructTagMap();
+        if (!this.state.tag) {
+            throw new Error("Tag not defined\nTag must be defined in the image config");
+        }
+        const tagMap: Map<string, string[]> = this.constructTagMap(this.state.tag.groups);
         const resultTags: Set<string> = new Set();
 
         const resolve = (tags: SelectElementFromEach<Tags>) => {
@@ -571,9 +582,16 @@ export class Image<
     }
 
     /**@internal */
-    private constructTagMap(): Map<string, string[]> {
+    _invalidWearableError(trace: string): Error {
+        throw new Error("Invalid wearable\nWearable must be an Image with isWearable set to true" +
+            "\nIt seems like you are trying to add a non-wearable image to wearables" +
+            "\nImage below violates the rule:\n" + trace);
+    }
+
+    /**@internal */
+    private constructTagMap(definitions: TagGroupDefinition): Map<string, string[]> {
         const tagMap: Map<string, string[]> = new Map();
-        for (const tags of this.config.tagDefinitions) {
+        for (const tags of definitions) {
             for (const tag of tags) {
                 tagMap.set(tag, tags);
             }
@@ -628,7 +646,7 @@ export class Image<
  * DO NOT USE THIS CLASS DIRECTLY
  */
 export class VirtualImageProxy extends Image {
-    override checkConfig(_: RichImageConfig<TagDefinition>): this {
+    override checkConfig(_: RichImageUserConfig<TagGroupDefinition>): this {
         return this;
     }
 }
