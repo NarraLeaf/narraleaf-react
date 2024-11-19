@@ -370,7 +370,9 @@ export class Scene extends Constructable<
 
         const futureActions = [
             this._init(this),
-            ...nonWearableImages.map(image => image._init()),
+            ...nonWearableImages
+                .filter(image => image.config.autoInit)
+                .map(image => image._init()),
             ...usedWearableImages.map(image => {
                 if (!wearableImagesMap.has(image)) {
                     throw new Error("Wearable image must have a parent image");

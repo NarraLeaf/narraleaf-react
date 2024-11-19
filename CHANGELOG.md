@@ -18,6 +18,7 @@
 - Image tag src management
 - Displayable actions
 - Layer actions
+- Disable image auto initialize using image.config
 
 ## [0.1.7] - 2024/11/16
 

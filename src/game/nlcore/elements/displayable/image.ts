@@ -36,6 +36,10 @@ export type ImageConfig = {
     wearables: Image[];
     isWearable?: boolean;
     name?: string;
+    /**
+     * If set to false, the image won't be initialized unless you call `init` method
+     */
+    autoInit: boolean;
 } & CommonDisplayable;
 
 export type ImageDataRaw = {
@@ -94,6 +98,7 @@ export class Image<
         wearables: [],
         src: Image.DefaultImagePlaceholder,
         currentTags: null,
+        autoInit: true,
     };
 
     /**@internal */
