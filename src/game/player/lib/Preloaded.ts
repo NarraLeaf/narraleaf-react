@@ -1,7 +1,7 @@
 import {Sound} from "@core/elements/sound";
 import {Src} from "@core/action/srcManager";
 import {EventDispatcher} from "@lib/util/data";
-import {Image as GameImage, Image} from "@core/elements/image";
+import {Image as GameImage, Image} from "@core/elements/displayable/image";
 
 export type PreloadedSrcTypes = "image" | "audio" | "video";
 export type PreloadedSrc<T extends PreloadedSrcTypes = any> = ({

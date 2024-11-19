@@ -1,10 +1,9 @@
 import React from "react";
 import type {TransformDefinitions} from "@core/elements/transform/type";
 import {ContentNode} from "@core/action/tree/actionTree";
-import {Actionable} from "@core/action/actionable";
 import {Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
-import {Transform} from "./transform/transform";
+import {Transform} from "../transform/transform";
 import {CommonDisplayable, EventfulDisplayable, StaticImageData} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
@@ -28,6 +27,7 @@ import {
 import {Chained, Proxied} from "@core/action/chain";
 import {Control} from "@core/elements/control";
 import {ImageAction} from "@core/action/actions/imageAction";
+import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
 
 export type ImageConfig = {
     display: boolean;
@@ -43,11 +43,8 @@ export type ImageDataRaw = {
 };
 
 export type ImageEventTypes = {
-    "event:displayable.applyTransition": [ITransition];
-    "event:displayable.applyTransform": [Transform];
-    "event:displayable.init": [];
     "event:wearable.create": [Image];
-};
+} & DisplayableEventTypes;
 export type TagDefinitions<T extends TagGroupDefinition | null> =
     T extends TagGroupDefinition ? {
         groups: T;
@@ -61,7 +58,7 @@ export type RichImageUserConfig<T extends TagGroupDefinition | null> = ImageConf
 } &
     (T extends null ?
         {
-            src: string;
+            src: string | StaticImageData;
             tag?: never;
         } : T extends TagGroupDefinition ?
             {
@@ -76,14 +73,12 @@ export type StaticRichConfig = RichImageUserConfig<TagGroupDefinition | null>;
 export class Image<
     Tags extends TagGroupDefinition | null = TagGroupDefinition | null
 >
-    extends Actionable<ImageDataRaw, Image>
+    extends Displayable<ImageDataRaw, Image>
     implements EventfulDisplayable {
 
     /**@internal */
     static EventTypes: { [K in keyof ImageEventTypes]: K } = {
-        "event:displayable.applyTransition": "event:displayable.applyTransition",
-        "event:displayable.applyTransform": "event:displayable.applyTransform",
-        "event:displayable.init": "event:displayable.init",
+        ...Displayable.EventTypes,
         "event:wearable.create": "event:wearable.create",
     };
     /**@internal */

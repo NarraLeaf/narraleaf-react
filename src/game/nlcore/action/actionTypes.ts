@@ -11,7 +11,7 @@ import type {Sound} from "@core/elements/sound";
 import type {Script} from "@core/elements/script";
 import {Sentence} from "@core/elements/character/sentence";
 import type {TransformDefinitions} from "@core/elements/transform/type";
-import {Image, TagGroupDefinition} from "@core/elements/image";
+import {Image, TagGroupDefinition} from "@core/elements/displayable/image";
 
 /* Character */
 export const CharacterActionTypes = {
@@ -193,4 +193,19 @@ export type TextActionContentType = {
                         K extends "text:applyTransition" ? [ITransition] :
                             K extends "text:setFontSize" ? [number] :
                                 any;
+}
+export const DisplayableActionTypes = {
+    action: "displayable:action",
+    layerMoveUp: "displayable:layerMoveUp",
+    layerMoveDown: "displayable:layerMoveDown",
+    layerMoveTop: "displayable:layerMoveTop",
+    layerMoveBottom: "displayable:layerMoveBottom",
+} as const;
+export type DisplayableActionContentType = {
+    [K in typeof DisplayableActionTypes[keyof typeof DisplayableActionTypes]]:
+    K extends "displayable:layerMoveUp" ? [void] :
+        K extends "displayable:layerMoveDown" ? [void] :
+            K extends "displayable:layerMoveTop" ? [void] :
+                K extends "displayable:layerMoveBottom" ? [void] :
+                    any;
 }

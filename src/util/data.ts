@@ -673,3 +673,39 @@ export type FlexibleTuple<T extends any[]> =
             ? [First, ...FlexibleTuple<Rest>] | FlexibleTuple<Rest>
             : [First]
         : [];
+
+export function moveElement<T>(arr: T[], element: T, direction: "up" | "down" | "top" | "bottom"): T[] {
+    const index = arr.indexOf(element);
+    if (index === -1) return arr;
+
+    const result = [...arr];
+    result.splice(index, 1);
+
+    switch (direction) {
+        case "up":
+            result.splice(Math.max(index - 1, 0), 0, element);
+            break;
+        case "down":
+            result.splice(Math.min(index + 1, arr.length), 0, element);
+            break;
+        case "top":
+            result.unshift(element);
+            break;
+        case "bottom":
+            result.push(element);
+            break;
+    }
+
+    return result;
+}
+
+export function moveElementInArray<T>(arr: T[], element: T, newIndex: number): T[] {
+    const index = arr.indexOf(element);
+    if (index === -1) return arr;
+
+    const result = [...arr];
+    result.splice(index, 1);
+    result.splice(newIndex, 0, element);
+
+    return result;
+}

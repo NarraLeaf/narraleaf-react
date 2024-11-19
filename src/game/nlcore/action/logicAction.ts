@@ -1,7 +1,7 @@
 import type {Character} from "@core/elements/character";
 import type {Scene} from "@core/elements/scene";
 import type {Story} from "@core/elements/story";
-import type {Image} from "@core/elements/image";
+import type {Image} from "@core/elements/displayable/image";
 import type {Condition} from "@core/elements/condition";
 import type {Script} from "@core/elements/script";
 import type {Menu} from "@core/elements/menu";
@@ -15,6 +15,8 @@ import {
     ConditionActionContentType,
     ConditionActionTypes,
     ControlActionContentType,
+    DisplayableActionContentType,
+    DisplayableActionTypes,
     ImageActionContentType,
     ImageActionTypes,
     MenuActionContentType,
@@ -37,24 +39,38 @@ import {ScriptAction} from "@core/action/actions/scriptAction";
 import {MenuAction} from "@core/action/actions/menuAction";
 import {SoundAction} from "@core/action/actions/soundAction";
 import {ControlAction} from "@core/action/actions/controlAction";
-import {Text} from "@core/elements/text";
+import {Text} from "@core/elements/displayable/text";
 import {TextAction} from "@core/action/actions/textAction";
+import {Displayable as AbstractDisplayable} from "@core/elements/displayable/displayable";
+import {DisplayableAction} from "@core/action/actions/displayableAction";
 
 export namespace LogicAction {
-    export type Displayable = Text | Image;
-    export type GameElement = Character | Scene | Story | Image | Condition | Script | Menu | Sound | Control | Text;
+    export type DisplayableElements = Text | Image | AbstractDisplayable<any, any>;
+    export type GameElement =
+        Character
+        | Scene
+        | Story
+        | Image
+        | Condition
+        | Script
+        | Menu
+        | Sound
+        | Control
+        | Text
+        | AbstractDisplayable<any, any>;
     export type Actions =
-        (TypedAction
-            | CharacterAction
-            | ConditionAction
-            | ImageAction
-            | SceneAction
-            | ScriptAction
-            | StoryAction
-            | MenuAction
-            | SoundAction
-            | ControlAction
-            | TextAction);
+        TypedAction
+        | CharacterAction
+        | ConditionAction
+        | ImageAction
+        | SceneAction
+        | ScriptAction
+        | StoryAction
+        | MenuAction
+        | SoundAction
+        | ControlAction
+        | TextAction
+        | DisplayableAction;
     export type ActionTypes =
         Values<typeof CharacterActionTypes>
         | Values<typeof ConditionActionTypes>
@@ -65,7 +81,8 @@ export namespace LogicAction {
         | Values<typeof MenuActionTypes>
         | Values<typeof SoundAction.ActionTypes>
         | Values<typeof ControlAction.ActionTypes>
-        | Values<typeof TextAction.ActionTypes>;
+        | Values<typeof TextAction.ActionTypes>
+        | Values<typeof DisplayableActionTypes>;
     export type ActionContents =
         CharacterActionContentType
         & ConditionActionContentType
@@ -76,5 +93,6 @@ export namespace LogicAction {
         & MenuActionContentType
         & SoundActionContentType
         & ControlActionContentType
-        & TextActionContentType;
+        & TextActionContentType
+        & DisplayableActionContentType;
 }

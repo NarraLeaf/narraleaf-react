@@ -1,4 +1,4 @@
-import {Image as GameImage} from "@core/elements/image";
+import {Image as GameImage} from "@core/elements/displayable/image";
 import React, {useEffect, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";

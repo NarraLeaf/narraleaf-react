@@ -6,6 +6,7 @@
 
 - Assign voice using generator or voice map
 - Use `image.tag` to manage image src
+- Use displayable actions to reorder layers
 
 ### _Incompatible Changes_
 
@@ -15,6 +16,8 @@
 
 - Voice map generator
 - Image tag src management
+- Displayable actions
+- Layer actions
 
 ## [0.1.7] - 2024/11/16
 

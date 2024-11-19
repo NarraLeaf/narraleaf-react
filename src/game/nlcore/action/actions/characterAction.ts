@@ -62,6 +62,6 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             return super.executeAction(state);
         }
 
-        throw super.unknownType();
+        throw super.unknownTypeError();
     }
 }

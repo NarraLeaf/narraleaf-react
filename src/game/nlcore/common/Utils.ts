@@ -1,6 +1,6 @@
 import type {Background, color, HexColor, ImageColor, ImageSrc, NextJSStaticImageData} from "@core/types";
 import type {Scene} from "@core/elements/scene";
-import type {Image} from "@core/elements/image";
+import type {Image} from "@core/elements/displayable/image";
 import type {LogicAction} from "@core/action/logicAction";
 import {
     ImageActionContentType,

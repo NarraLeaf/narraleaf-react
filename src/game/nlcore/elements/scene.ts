@@ -14,14 +14,14 @@ import {
     SceneActionContentType,
     SceneActionTypes
 } from "@core/action/actionTypes";
-import {Image, ImageDataRaw, VirtualImageProxy} from "@core/elements/image";
+import {Image, ImageDataRaw, VirtualImageProxy} from "@core/elements/displayable/image";
 import {Control, Utils} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
 import {SoundAction} from "@core/action/actions/soundAction";
 import {ControlAction} from "@core/action/actions/controlAction";
-import {Text} from "@core/elements/text";
+import {Text} from "@core/elements/displayable/text";
 import {RGBColor} from "@core/common/Utils";
 import Actions = LogicAction.Actions;
 import ImageTransformProps = TransformDefinitions.ImageTransformProps;

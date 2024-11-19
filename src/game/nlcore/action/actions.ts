@@ -18,7 +18,7 @@ export class TypedAction<
         this.contentNode.action = this;
     }
 
-    unknownType() {
+    unknownTypeError() {
         throw new Error("Unknown action type: " + this.type);
     }
 

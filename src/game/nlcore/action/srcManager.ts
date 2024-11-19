@@ -1,5 +1,5 @@
 import {Sound} from "@core/elements/sound";
-import {Image as GameImage, Image} from "@core/elements/image";
+import {Image as GameImage, Image} from "@core/elements/displayable/image";
 import {Utils} from "@core/common/core";
 import {StaticImageData} from "@core/types";
 

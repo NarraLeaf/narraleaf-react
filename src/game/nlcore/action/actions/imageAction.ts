@@ -1,5 +1,5 @@
 import {ImageActionContentType, ImageActionTypes} from "@core/action/actionTypes";
-import {Image} from "@core/elements/image";
+import {Image} from "@core/elements/displayable/image";
 import {GameState} from "@player/gameState";
 import type {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, SkipController} from "@lib/util/data";
@@ -144,6 +144,6 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             return super.executeAction(state);
         }
 
-        throw super.unknownType();
+        throw super.unknownTypeError();
     }
 }
