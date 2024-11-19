@@ -148,8 +148,8 @@ export class Image<
 
     /**@internal */
     public static getSrcFromTags(
-        tags: SelectElementFromEach<TagGroupDefinition>,
-        tagResolver: (...tags: SelectElementFromEach<TagGroupDefinition>) => string
+        tags: SelectElementFromEach<TagGroupDefinition> | string[],
+        tagResolver: (...tags: SelectElementFromEach<TagGroupDefinition> | string[]) => string
     ): string {
         return tagResolver(...tags);
     }
@@ -279,7 +279,10 @@ export class Image<
      * Note: using a full set of tags will help the library preload the images.
      * @chainable
      */
-    public setAppearance(tags: FlexibleTuple<SelectElementFromEach<Tags>>, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
+    public setAppearance(
+        tags: Tags extends TagGroupDefinition ? FlexibleTuple<SelectElementFromEach<Tags>> : string[],
+        transition?: IImageTransition
+    ): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.combineActions(new Control(), chain => {
             const action = new ImageAction<typeof ImageAction.ActionTypes.setAppearance>(
                 chain,
@@ -562,8 +565,8 @@ export class Image<
      * resolve tags, return the tags that aren't conflicting
      */
     resolveTags(
-        oldTags: SelectElementFromEach<Tags>,
-        newTags: SelectElementFromEach<Tags>
+        oldTags: SelectElementFromEach<Tags> | string[],
+        newTags: SelectElementFromEach<Tags> | string[]
     ): SelectElementFromEach<Tags> {
         if (!this.state.tag) {
             throw new Error("Tag not defined\nTag must be defined in the image config");
@@ -571,7 +574,7 @@ export class Image<
         const tagMap: Map<string, string[]> = this.constructTagMap(this.state.tag.groups);
         const resultTags: Set<string> = new Set();
 
-        const resolve = (tags: SelectElementFromEach<Tags>) => {
+        const resolve = (tags: SelectElementFromEach<Tags> | string[]) => {
             for (const tag of tags) {
                 const conflictGroup = tagMap.get(tag);
                 if (!conflictGroup) continue;

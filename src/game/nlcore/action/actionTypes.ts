@@ -96,7 +96,7 @@ export type ImageActionContentType = {
                                     K extends "image:applyTransition" ? [ITransition] :
                                         K extends "image:flush" ? [] :
                                             K extends "image:initWearable" ? [Image] :
-                                                K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagGroupDefinition>>, IImageTransition | undefined] :
+                                                K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagGroupDefinition>> | string[], IImageTransition | undefined] :
                                                     any;
 }
 /* Condition */
