@@ -448,6 +448,17 @@ export class Scene extends Constructable<
                 } else if (action.type === ImageActionTypes.initWearable) {
                     const image = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["initWearable"]]>).getContent()[0];
                     this.srcManager.register(image);
+                } else if (action.type === ImageActionTypes.setAppearance) {
+                    const tags = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setAppearance"]]>).getContent()[0];
+                    if (typeof imageAction.callee.config.src !== "function") {
+                        throw imageAction.callee._invalidSrcHandlerError();
+                    }
+                    if (tags.length === imageAction.callee.config.tag?.groups.length) {
+                        this.srcManager.register({
+                            type: "image",
+                            src: Image.fromSrc(Image.getSrcFromTags(tags, imageAction.callee.config.src)),
+                        });
+                    }
                 }
             } else if (action instanceof SoundAction) {
                 this.srcManager.register(action.callee);

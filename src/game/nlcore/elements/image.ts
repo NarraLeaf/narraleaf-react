@@ -155,6 +155,13 @@ export class Image<
     }
 
     /**@internal */
+    public static fromSrc(src: string): Image {
+        return new Image({
+            src: src,
+        });
+    }
+
+    /**@internal */
     readonly name: string;
     /**@internal */
     readonly config: RichImageUserConfig<Tags>;
@@ -215,6 +222,18 @@ export class Image<
                 throw this._invalidWearableError(JSON.stringify(wearable.config));
             }
         }
+        // invalid-tag-group-definition error
+        if (config.tag) {
+            const seen: Set<string> = new Set();
+            for (const tags of config.tag.groups) {
+                for (const tag of tags) {
+                    if (seen.has(tag)) {
+                        throw this._invalidTagGroupDefinitionError();
+                    }
+                    seen.add(tag);
+                }
+            }
+        }
         // conflict-tag error
         if (config.tag) {
             const tagMap: Map<string, string[]> = this.constructTagMap(config.tag.groups);
@@ -256,6 +275,8 @@ export class Image<
 
     /**
      * Set the appearance of the image
+     *
+     * Note: using a full set of tags will help the library preload the images.
      * @chainable
      */
     public setAppearance(tags: FlexibleTuple<SelectElementFromEach<Tags>>, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
@@ -577,6 +598,13 @@ export class Image<
     }
 
     /**@internal */
+    _invalidSrcHandlerError(): Error {
+        throw new Error("Invalid src handler, " +
+            "If you are using tags, config.src must be a function that resolves the src from the tags. " +
+            "If you are using src, config.src must be a string or StaticImageData");
+    }
+
+    /**@internal */
     _srcNotSpecifiedError(): TypeError {
         throw new TypeError("Src not specified\nPlease provide a src or tags in the image config");
     }
@@ -586,6 +614,12 @@ export class Image<
         throw new Error("Invalid wearable\nWearable must be an Image with isWearable set to true" +
             "\nIt seems like you are trying to add a non-wearable image to wearables" +
             "\nImage below violates the rule:\n" + trace);
+    }
+
+    /**@internal */
+    _invalidTagGroupDefinitionError(): Error {
+        throw new Error("Invalid tag group definition. " +
+            "Tags in groups must be unique and not conflicting with each other.");
     }
 
     /**@internal */

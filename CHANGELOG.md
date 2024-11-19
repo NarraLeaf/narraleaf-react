@@ -2,6 +2,11 @@
 
 ## [0.1.8]
 
+### _Feature_
+
+- Assign voice using generator or voice map
+- Use `image.tag` to manage image src
+
 ### _Incompatible Changes_
 
 - Image constructor signature has changed. Now the first argument must be a config object.
