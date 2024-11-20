@@ -2,6 +2,16 @@ import {Sound} from "@core/elements/sound";
 import {Image as GameImage, Image} from "@core/elements/displayable/image";
 import {Utils} from "@core/common/core";
 import {StaticImageData} from "@core/types";
+import {LogicAction} from "@core/action/logicAction";
+import {ImageAction} from "@core/action/actions/imageAction";
+import {
+    ImageActionContentType,
+    ImageActionTypes,
+    SceneActionContentType,
+    SceneActionTypes
+} from "@core/action/actionTypes";
+import {ContentNode} from "@core/action/tree/actionTree";
+import {SceneAction} from "@core/action/actions/sceneAction";
 
 export type SrcType = "image" | "video" | "audio";
 export type Src = {
@@ -65,6 +75,56 @@ export class SrcManager {
             return src.src.getSrc();
         }
         return "";
+    }
+
+    static getPreloadableSrc(action: LogicAction.Actions): Src | null {
+        if (action instanceof SceneAction) {
+            if (action.type === SceneActionTypes.setBackground) {
+                const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
+                const src = Utils.backgroundToSrc(content);
+                if (src) {
+                    return {
+                        type: "image",
+                        src: new Image({src})
+                    };
+                }
+            }
+        } else if (action instanceof ImageAction) {
+            const imageAction = action as ImageAction;
+            if (imageAction.callee.config.tag) {
+                return {
+                    type: "image",
+                    src: new Image({
+                        src: Image.getSrcFromTags(imageAction.callee.config.tag.defaults, imageAction.callee.config.src)
+                    })
+                };
+            }
+            if (action.type === ImageActionTypes.setSrc) {
+                const content = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setSrc"]]>).getContent()[0];
+                return {
+                    type: "image",
+                    src: new Image({src: content})
+                };
+            } else if (action.type === ImageActionTypes.initWearable) {
+                const image = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["initWearable"]]>).getContent()[0];
+                return {
+                    type: "image",
+                    src: image
+                };
+            } else if (action.type === ImageActionTypes.setAppearance) {
+                const tags = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setAppearance"]]>).getContent()[0];
+                if (typeof imageAction.callee.config.src !== "function") {
+                    throw imageAction.callee._invalidSrcHandlerError();
+                }
+                if (tags.length === imageAction.callee.state.tag?.groups.length) {
+                    return {
+                        type: "image",
+                        src: Image.fromSrc(Image.getSrcFromTags(tags, imageAction.callee.config.src)),
+                    };
+                }
+            }
+        }
+        return null;
     }
 
     src: Src[] = [];

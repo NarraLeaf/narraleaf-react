@@ -28,6 +28,10 @@ export function Preload(
             state.logger.warn(LogTag, "Fetch is not supported in this environment, skipping preload");
             return;
         }
+        if (game.config.player.forceClearCache) {
+            cacheManager.clear();
+            state.logger.weakWarn(LogTag, "Cache cleared");
+        }
 
         const timeStart = performance.now();
         const sceneSrc = SrcManager.catSrc([

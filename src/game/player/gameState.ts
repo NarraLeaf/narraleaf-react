@@ -6,7 +6,7 @@ import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
 import {HowlOptions} from "howler";
-import {SrcManager} from "@core/action/srcManager";
+import {Src, SrcManager} from "@core/action/srcManager";
 import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/store/storable";
 import {Game} from "@core/game";
@@ -452,6 +452,21 @@ export class GameState {
             throw new Error("Scene not found, please call \"scene.activate()\" first.");
         }
         return targetScene;
+    }
+
+    getFuturePreloadSrc(): Src[] {
+        const actions = this.game.getLiveGame().getAllPredictableActions(
+            this.game.getLiveGame().getCurrentAction(),
+            this.game.config.player.maxPreloadActions
+        );
+        const results: Src[] = [];
+        for (const action of actions) {
+            const src = SrcManager.getPreloadableSrc(action);
+            if (src) {
+                results.push(src);
+            }
+        }
+        return results;
     }
 
     private getElementMap(): PlayerStateElement {

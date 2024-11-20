@@ -8,12 +8,7 @@ import {IImageTransition, ITransition} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
 import {TransformDefinitions} from "@core/elements/transform/type";
-import {
-    ImageActionContentType,
-    ImageActionTypes,
-    SceneActionContentType,
-    SceneActionTypes
-} from "@core/action/actionTypes";
+import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw, VirtualImageProxy} from "@core/elements/displayable/image";
 import {Control, Utils} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
@@ -222,9 +217,8 @@ export class Scene extends Constructable<
                 ))
                 ._transitionToScene(arg0, jumpConfig.transition)
                 .chain(arg0._init())
-                .chain(this._exit())
-                ._jumpTo(arg0);
-        });
+                .chain(this._exit());
+        })._jumpTo(arg0);
     }
 
     /**
@@ -435,37 +429,15 @@ export class Scene extends Constructable<
                     futureScene.add(scene);
                     seen.add(scene);
                 } else if (action.type === SceneActionTypes.setBackground) {
-                    const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
-                    const src = Utils.backgroundToSrc(content);
+                    const src = SrcManager.getPreloadableSrc(action);
                     if (src) {
-                        this.srcManager.register(new Image({src: src}));
+                        this.srcManager.register(src);
                     }
                 }
             } else if (action instanceof ImageAction) {
-                const imageAction = action as ImageAction;
-                if (imageAction.callee.config.tag) {
-                    // If the image has tags, register the image
-                    this.srcManager.register(new Image({
-                        src: Image.getSrcFromTags(imageAction.callee.config.tag.defaults, imageAction.callee.config.src)
-                    }));
-                }
-                if (action.type === ImageActionTypes.setSrc) {
-                    const content = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setSrc"]]>).getContent()[0];
-                    this.srcManager.register(new Image({src: content}));
-                } else if (action.type === ImageActionTypes.initWearable) {
-                    const image = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["initWearable"]]>).getContent()[0];
-                    this.srcManager.register(image);
-                } else if (action.type === ImageActionTypes.setAppearance) {
-                    const tags = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setAppearance"]]>).getContent()[0];
-                    if (typeof imageAction.callee.config.src !== "function") {
-                        throw imageAction.callee._invalidSrcHandlerError();
-                    }
-                    if (tags.length === imageAction.callee.config.tag?.groups.length) {
-                        this.srcManager.register({
-                            type: "image",
-                            src: Image.fromSrc(Image.getSrcFromTags(tags, imageAction.callee.config.src)),
-                        });
-                    }
+                const src = SrcManager.getPreloadableSrc(action);
+                if (src) {
+                    this.srcManager.register(src);
                 }
             } else if (action instanceof SoundAction) {
                 this.srcManager.register(action.callee);

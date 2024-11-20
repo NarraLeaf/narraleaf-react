@@ -427,6 +427,12 @@ export class Logger {
         }
     }
 
+    weakWarn(tag: string, ...args: any[]) {
+        if (this.game.config.app.logger.warn) {
+            console.log(...this.colorLog("yellow", tag, ...args));
+        }
+    }
+
     private _log(tag: string, ...args: any[]) {
         if (args.length === 0) {
             return [this.prefix || "", tag];

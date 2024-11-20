@@ -53,6 +53,9 @@ export class Game {
             preloadDelay: 100,
             preloadConcurrency: 5,
             waitForPreload: false,
+            preloadAllImages: true,
+            forceClearCache: false,
+            maxPreloadActions: 10,
         },
         elements: {
             say: {

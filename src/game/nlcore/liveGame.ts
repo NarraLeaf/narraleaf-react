@@ -6,6 +6,10 @@ import {Namespace, Storable} from "@core/store/storable";
 import {LogicAction} from "@core/action/logicAction";
 import {StorableType} from "@core/store/type";
 import {Game} from "@core/game";
+import {ContentNode} from "@core/action/tree/actionTree";
+import {ConditionAction} from "@core/action/actions/conditionAction";
+import {SceneAction} from "@core/action/actions/sceneAction";
+import {SceneActionTypes} from "@core/action/actionTypes";
 
 export class LiveGame {
     static DefaultNamespaces = {
@@ -67,7 +71,7 @@ export class LiveGame {
      *
      * You can use this to save the game state to a file or a database
      *
-     * Note: Even if you change just a single line of script, the saved game might not be compatible with the new version
+     * Note: even if you change just a single line of script, the saved game might not be compatible with the new version
      */
     public serialize(): SavedGame {
         if (!this.gameState) {
@@ -104,7 +108,7 @@ export class LiveGame {
     /**
      * Load a saved game
      *
-     * Note: Even if you change just a single line of script, the saved game might not be compatible with the new version
+     * Note: even if you change just a single line of script, the saved game might not be compatible with the new version
      *
      * After calling this method, the current game state will be lost, and the stage will trigger force reset
      */
@@ -317,6 +321,34 @@ export class LiveGame {
 
     getGameState() {
         return this.gameState;
+    }
+
+    /**@internal */
+    getAllPredictableActions(action?: LogicAction.Actions | null, limit?: number): LogicAction.Actions[] {
+        if (!this.story) {
+            throw new Error("No story loaded");
+        }
+
+        let current: ContentNode | null = action?.contentNode || null;
+        const actions: LogicAction.Actions[] = [];
+        while (current) {
+            if (limit && actions.length >= limit) {
+                break;
+            }
+            if (
+                ([ConditionAction].some(a => current?.action && (current.action instanceof a)))
+                || (current?.action
+                    && current.action instanceof SceneAction
+                    && current.action.type === SceneActionTypes.jumpTo
+                )
+            ) {
+                current = null;
+                continue;
+            }
+            if (current.action) actions.push(current.action);
+            current = current.getChild();
+        }
+        return actions;
     }
 
     /**@internal */

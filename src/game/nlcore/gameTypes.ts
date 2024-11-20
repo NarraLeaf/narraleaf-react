@@ -80,6 +80,20 @@ export type GameConfig = {
          * Wait for the images to load before showing the game
          */
         waitForPreload: boolean;
+        /**
+         * Preload all possible images in the scene
+         *
+         * Enabling this may have a performance impact but is better for the user experience
+         */
+        preloadAllImages: boolean;
+        /**
+         * Force the game to clear the cache when the scene changes
+         */
+        forceClearCache: boolean;
+        /**
+         * The number of actions will be predicted and preloaded
+         */
+        maxPreloadActions: number;
     };
     elements: {
         say: {
