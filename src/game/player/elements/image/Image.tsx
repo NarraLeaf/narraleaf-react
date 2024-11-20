@@ -3,7 +3,6 @@ import React, {useEffect, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
 import {ImgElementProp} from "@core/elements/transition/type";
-import {useGame} from "@player/provider/game-state";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
 import Displayable from "@player/elements/displayable/Displayable";
 import Inspect from "@player/lib/Inspect";
@@ -18,29 +17,10 @@ export default function Image({
     image: GameImage;
     state: GameState;
 }>) {
-    const [startTime, setStartTime] = useState<number>(0);
-    const {game} = useGame();
-
-    useEffect(() => {
-        setStartTime(performance.now());
-    }, []);
-
     /**
      * Slow load warning
      */
     const handleLoad = () => {
-        const endTime = performance.now();
-        const loadTime = endTime - startTime;
-        const threshold = game.config.elements.img.slowLoadThreshold;
-
-        if (loadTime > threshold && game.config.elements.img.slowLoadWarning) {
-            state.logger.warn(
-                "NarraLeaf-React",
-                `Image took ${loadTime}ms to load, which exceeds the threshold of ${threshold}ms. ` +
-                "Consider enable cache for the image, so Preloader can preload it before it's used. " +
-                "To disable this warning, set `elements.img.slowLoadWarning` to false in the game config."
-            );
-        }
     };
 
     return (

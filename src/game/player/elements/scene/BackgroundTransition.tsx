@@ -9,6 +9,7 @@ import {DisplayableChildProps} from "@player/elements/displayable/type";
 import {m} from "framer-motion";
 import Displayable from "@player/elements/displayable/Displayable";
 import {useRatio} from "@player/provider/ratio";
+import {usePreloaded} from "@player/provider/preloaded";
 
 export default function BackgroundTransition({scene, props, state}: {
     scene: GameScene,
@@ -47,6 +48,7 @@ function DisplayableBackground(
     }>
 ) {
     const {ratio} = useRatio();
+    const {cacheManager} = usePreloaded();
     const [imageLoaded, setImageLoaded] = React.useState<boolean>(false);
 
     function handleImageOnload() {
@@ -68,6 +70,10 @@ function DisplayableBackground(
             } : {})
         }
     };
+
+    function tryGetCache(src: string): string {
+        return cacheManager.get(src) || src;
+    }
 
     return (
         <div>
@@ -91,7 +97,7 @@ function DisplayableBackground(
                                     alt={mergedProps.alt}
                                     {...mergedProps}
                                     onLoad={handleImageOnload}
-                                    src={(mergedProps.src) ? mergedProps.src : emptyImage}
+                                    src={(mergedProps.src) ? tryGetCache(mergedProps.src) : emptyImage}
                                     className={"absolute"}
                                     key={index}
                                 />
@@ -106,7 +112,7 @@ function DisplayableBackground(
                                 alt={mergedProps.alt}
                                 {...mergedProps}
                                 onLoad={handleImageOnload}
-                                src={mergedProps.src || emptyImage}
+                                src={mergedProps.src ? tryGetCache(mergedProps.src) : emptyImage}
                                 className={"absolute"}
                             />
                         );

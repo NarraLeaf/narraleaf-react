@@ -1,5 +1,6 @@
 import type {Game} from "@core/game";
 import {HexColor} from "@core/types";
+import React from "react";
 
 interface ITypeOf {
     DataTypes: typeof DataTypes;
@@ -392,7 +393,7 @@ export class Logger {
 
     log(tag: string, ...args: any[]) {
         if (this.game.config.app.logger.log) {
-            console.log(...this._log(tag, ...args));
+            console.log(...this.colorLog("gray", tag, ...args));
         }
     }
 
@@ -416,7 +417,7 @@ export class Logger {
 
     debug(tag: string, ...args: any[]) {
         if (this.game.config.app.logger.debug) {
-            console.debug(...this._log(tag, ...args));
+            console.debug(...this.colorLog("gray", tag, ...args));
         }
     }
 
@@ -432,6 +433,36 @@ export class Logger {
         } else {
             return [`${this.prefix || ""} [${tag}]`, ...args];
         }
+    }
+
+    private colorLog(color: React.CSSProperties["color"], tag: string, ...args: any[]) {
+        if (args.length === 0) {
+            return [`%c${this.prefix || ""} ${tag}`, `color: ${color}`];
+        }
+        const messages: string[] = [];
+        const styles: string[] = [];
+        const logArgs: any[] = [];
+
+        if (this.prefix) {
+            messages.push(`%c${this.prefix} [${tag}]`);
+            styles.push(`color: ${color}`);
+        } else {
+            messages.push(`%c[${tag}]`);
+            styles.push(`color: ${color}`);
+        }
+
+        args.forEach(arg => {
+            if (typeof arg === "string") {
+                messages.push(`%c${arg}`);
+                styles.push(`color: ${color}`);
+            } else {
+                messages.push("%O");
+                logArgs.push(arg);
+                styles.push("");
+            }
+        });
+
+        return [messages.join(" ")].concat(styles, logArgs);
     }
 }
 
@@ -708,4 +739,39 @@ export function moveElementInArray<T>(arr: T[], element: T, newIndex: number): T
     result.splice(newIndex, 0, element);
 
     return result;
+}
+
+export async function getImageDataUrl(src: string, options?: RequestInit): Promise<string> {
+    const response = await fetch(src, options);
+    const blob = await response.blob();
+    return new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            resolve(reader.result as string);
+        };
+        reader.readAsDataURL(blob);
+    });
+}
+
+export class TaskPool {
+    private tasks: (() => Promise<void>)[] = [];
+
+    constructor(private readonly concurrency: number, private readonly delay: number) {}
+
+    addTask(task: () => Promise<void>) {
+        this.tasks.push(task);
+    }
+
+    async start(): Promise<void> {
+        const run = async () => {
+            if (this.tasks.length === 0) {
+                return;
+            }
+            const tasks = this.tasks.splice(0, this.concurrency);
+            await Promise.all(tasks.map(task => task()));
+            await sleep(this.delay);
+            await run();
+        };
+        await run();
+    }
 }

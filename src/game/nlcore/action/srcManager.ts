@@ -23,6 +23,50 @@ export class SrcManager {
         video: "video",
         audio: "audio",
     } as const;
+
+    static catSrc(src: Src[]): {
+        image: Image[];
+        video: string[];
+        audio: Sound[];
+    } {
+        const images: Set<Image> = new Set();
+        const videos: Set<string> = new Set();
+        const audios: Set<Sound> = new Set();
+
+        src.forEach(({type, src}) => {
+            if (type === SrcManager.SrcTypes.image) {
+                images.add(src);
+            } else if (type === SrcManager.SrcTypes.video) {
+                videos.add(src);
+            } else {
+                audios.add(src);
+            }
+        });
+
+        return {
+            image: Array.from(images),
+            video: Array.from(videos),
+            audio: Array.from(audios),
+        };
+    }
+
+    static getSrc(src: Src | string | Image): string {
+        if (typeof src === "string") {
+            return src;
+        }
+        if (src instanceof Image) {
+            return GameImage.getSrc(src.state);
+        }
+        if (src.type === "image") {
+            return GameImage.getSrc(src.src.state);
+        } else if (src.type === "video") {
+            return src.src;
+        } else if (src.type === "audio") {
+            return src.src.getSrc();
+        }
+        return "";
+    }
+
     src: Src[] = [];
     future: SrcManager[] = [];
 
@@ -99,6 +143,10 @@ export class SrcManager {
 
     hasFuture(s: SrcManager): boolean {
         return this.future.includes(s);
+    }
+
+    getFutureSrc(): Src[] {
+        return this.future.map(s => s.getSrc()).flat(2);
     }
 }
 

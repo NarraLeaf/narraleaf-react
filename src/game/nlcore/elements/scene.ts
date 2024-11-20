@@ -443,7 +443,12 @@ export class Scene extends Constructable<
                 }
             } else if (action instanceof ImageAction) {
                 const imageAction = action as ImageAction;
-                this.srcManager.register(imageAction.callee);
+                if (imageAction.callee.config.tag) {
+                    // If the image has tags, register the image
+                    this.srcManager.register(new Image({
+                        src: Image.getSrcFromTags(imageAction.callee.config.tag.defaults, imageAction.callee.config.src)
+                    }));
+                }
                 if (action.type === ImageActionTypes.setSrc) {
                     const content = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setSrc"]]>).getContent()[0];
                     this.srcManager.register(new Image({src: content}));

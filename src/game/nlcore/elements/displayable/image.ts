@@ -135,7 +135,7 @@ export class Image<
 
     /**@internal */
     public static getSrc(state: StaticRichConfig): string {
-        if (typeof state.src === "string") {
+        if (typeof state.src === "string" || Utils.isStaticImageData(state.src)) {
             const {src} = state as RichImageConfig<null>;
             return Utils.isStaticImageData(src) ? Utils.staticImageDataToSrc(src) : src;
         }

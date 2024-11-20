@@ -75,6 +75,12 @@ export class Condition extends Actionable {
         };
     }
 
+    public static If(
+        condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
+    ): Proxied<Condition, Chained<LogicAction.Actions>> {
+        return new Condition().If(condition, action);
+    }
+
     /**@internal */
     readonly config: ConditionConfig;
     /**@internal */

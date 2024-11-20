@@ -7,6 +7,7 @@
 - Assign voice using generator or voice map
 - Use `image.tag` to manage image src
 - Use displayable actions to reorder layers
+- Better image preloading
 
 ### _Incompatible Changes_
 
@@ -19,6 +20,10 @@
 - Displayable actions
 - Layer actions
 - Disable image auto initialize using image.config
+
+### Updated
+
+- Image preloader now stores images in stack, so the lib can easily control the process of preloading/unloading images
 
 ## [0.1.7] - 2024/11/16
 
