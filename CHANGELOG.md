@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.8]
+## [0.2.0-beta.1]
 
 ### _Feature_
 

@@ -52,6 +52,24 @@ export class Logger {
         }
     }
 
+    group(tag: string, collapsed = false) {
+        const groupTag = this._log(tag).join(" ");
+        if (this.game.config.app.logger.info) {
+            if (collapsed) {
+                console.groupCollapsed(groupTag);
+            } else {
+                console.group(groupTag);
+            }
+        }
+        return {
+            end: () => {
+                if (this.game.config.app.logger.info) {
+                    console.groupEnd();
+                }
+            }
+        };
+    }
+
     private _log(tag: string, ...args: any[]) {
         if (args.length === 0) {
             return [this.prefix || "", tag];

@@ -51,6 +51,7 @@ export function Preload(
             game.config.player.preloadDelay,
         );
         const loadedSrc: string[] = [];
+        const logGroup = state.logger.group(LogTag, true);
 
         state.logger.debug(LogTag, "preloading:", sceneSrc);
 
@@ -70,6 +71,8 @@ export function Preload(
                     });
             }));
         }
+
+        logGroup.end();
 
         taskPool.start().then(() => {
             state.logger.info(LogTag, "Image preload", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
@@ -141,6 +144,7 @@ export function Preload(
             game.config.player.preloadDelay,
         );
         const preloadSrc: string[] = [];
+        const logGroup = state.logger.group(LogTag);
 
         state.logger.debug(LogTag, "preloading:", actionSrc);
 
@@ -160,6 +164,8 @@ export function Preload(
                     });
             }));
         }
+
+        logGroup.end();
 
         taskPool.start().then(() => {
             state.logger.info(LogTag, "Image preload (quick reload)", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);

@@ -9,8 +9,9 @@ import {Game} from "@core/game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {ConditionAction} from "@core/action/actions/conditionAction";
 import {SceneAction} from "@core/action/actions/sceneAction";
-import {SceneActionTypes} from "@core/action/actionTypes";
+import {ControlActionTypes, SceneActionTypes} from "@core/action/actionTypes";
 import {Scene} from "@core/elements/scene";
+import {ControlAction} from "@core/action/actions/controlAction";
 
 export class LiveGame {
     static DefaultNamespaces = {
@@ -182,6 +183,7 @@ export class LiveGame {
             throw new Error("No game state");
         }
         const gameState = this.gameState;
+        const logGroup = gameState.logger.group("LiveGame");
 
         this.reset({gameState});
         this.initNamespaces();
@@ -203,6 +205,7 @@ export class LiveGame {
 
         gameState.stage.forceUpdate();
         gameState.stage.next();
+        logGroup.end();
 
         return this;
     }
@@ -328,11 +331,17 @@ export class LiveGame {
     getAllPredictableActions(action?: LogicAction.Actions | null, limit?: number): LogicAction.Actions[] {
         let current: ContentNode | null = action?.contentNode || null;
         const actions: LogicAction.Actions[] = [];
+        const queue: LogicAction.Actions[] = [];
         const seenScene = new Set<Scene>();
-        while (current) {
+
+        while (current || queue.length) {
             if (limit && actions.length >= limit) {
                 break;
             }
+            if (!current) {
+                current = queue.pop()!.contentNode;
+            }
+
             if ([ConditionAction].some(a => current?.action && current.action instanceof a)) {
                 current = null;
                 continue;
@@ -347,10 +356,17 @@ export class LiveGame {
 
                 current = scene.sceneRoot?.contentNode || null;
                 continue;
+            } else if (current.action &&
+                current.action.is<ControlAction<"control:do">>(ControlAction as any, ControlActionTypes.do)
+            ) {
+                const [content] = current.action.contentNode.getContent();
+                if (current.getChild()?.action) queue.push(current.getChild()!.action!);
+                current = content[0]?.contentNode || null;
             }
             if (current.action) actions.push(current.action);
             current = current.getChild();
         }
+
         return actions;
     }
 

@@ -85,7 +85,7 @@ export class SrcManager {
                 return {
                     type: "image",
                     src: new Image({src}),
-                    activeType: "once"
+                    activeType: "scene"
                 };
             }
         } else if (action.is<SceneAction<typeof SceneActionTypes["jumpTo"]>>(SceneAction, SceneActionTypes.jumpTo)) {
@@ -106,7 +106,7 @@ export class SrcManager {
                     src: new Image({
                         src: Image.getSrcFromTags(imageAction.callee.config.tag.defaults, imageAction.callee.config.src)
                     }),
-                    activeType: "once"
+                    activeType: "scene"
                 };
             }
             if (action.is<ImageAction<typeof ImageActionTypes["setSrc"]>>(ImageAction, ImageActionTypes.setSrc)) {
@@ -114,14 +114,14 @@ export class SrcManager {
                 return {
                     type: "image",
                     src: new Image({src: content}),
-                    activeType: "once"
+                    activeType: "scene"
                 };
             } else if (action.type === ImageActionTypes.initWearable) {
                 const image = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["initWearable"]]>).getContent()[0];
                 return {
                     type: "image",
                     src: image,
-                    activeType: "once"
+                    activeType: "scene"
                 };
             } else if (action.type === ImageActionTypes.setAppearance) {
                 const tags = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setAppearance"]]>).getContent()[0];
@@ -132,7 +132,7 @@ export class SrcManager {
                     return {
                         type: "image",
                         src: Image.fromSrc(Image.getSrcFromTags(tags, imageAction.callee.config.src)),
-                        activeType: "once"
+                        activeType: "scene"
                     };
                 }
             } else if (action.type === ImageActionTypes.init) {
