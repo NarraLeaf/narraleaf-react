@@ -4,12 +4,7 @@ import {Utils} from "@core/common/core";
 import {StaticImageData} from "@core/types";
 import {LogicAction} from "@core/action/logicAction";
 import {ImageAction} from "@core/action/actions/imageAction";
-import {
-    ImageActionContentType,
-    ImageActionTypes,
-    SceneActionContentType,
-    SceneActionTypes
-} from "@core/action/actionTypes";
+import {ImageActionContentType, ImageActionTypes, SceneActionTypes} from "@core/action/actionTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
 
@@ -23,6 +18,9 @@ export type Src = {
 } | {
     type: "audio";
     src: Sound;
+};
+export type ActiveSrc<T extends "scene" | "once" = "scene" | "once"> = Src & {
+    activeType: T;
 };
 
 export class SrcManager {
@@ -77,17 +75,28 @@ export class SrcManager {
         return "";
     }
 
-    static getPreloadableSrc(action: LogicAction.Actions): Src | null {
-        if (action instanceof SceneAction) {
-            if (action.type === SceneActionTypes.setBackground) {
-                const content = (action.contentNode as ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackground"]]>).getContent()[0];
-                const src = Utils.backgroundToSrc(content);
-                if (src) {
-                    return {
-                        type: "image",
-                        src: new Image({src})
-                    };
-                }
+    static getPreloadableSrc(action: LogicAction.Actions): (Src & {
+        activeType: "scene" | "once"
+    }) | null {
+        if (action.is<SceneAction<typeof SceneActionTypes["setBackground"]>>(SceneAction, SceneActionTypes.setBackground)) {
+            const content = action.contentNode.getContent()[0];
+            const src = Utils.backgroundToSrc(content);
+            if (src) {
+                return {
+                    type: "image",
+                    src: new Image({src}),
+                    activeType: "once"
+                };
+            }
+        } else if (action.is<SceneAction<typeof SceneActionTypes["jumpTo"]>>(SceneAction, SceneActionTypes.jumpTo)) {
+            const scene = action.contentNode.getContent()[0];
+            const sceneBackground = scene.config.background;
+            if (Utils.isStaticImageData(sceneBackground) || typeof sceneBackground === "string") {
+                return {
+                    type: "image",
+                    src: new Image({src: sceneBackground}),
+                    activeType: "once"
+                };
             }
         } else if (action instanceof ImageAction) {
             const imageAction = action as ImageAction;
@@ -96,20 +105,23 @@ export class SrcManager {
                     type: "image",
                     src: new Image({
                         src: Image.getSrcFromTags(imageAction.callee.config.tag.defaults, imageAction.callee.config.src)
-                    })
+                    }),
+                    activeType: "once"
                 };
             }
-            if (action.type === ImageActionTypes.setSrc) {
-                const content = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setSrc"]]>).getContent()[0];
+            if (action.is<ImageAction<typeof ImageActionTypes["setSrc"]>>(ImageAction, ImageActionTypes.setSrc)) {
+                const content = action.contentNode.getContent()[0];
                 return {
                     type: "image",
-                    src: new Image({src: content})
+                    src: new Image({src: content}),
+                    activeType: "once"
                 };
             } else if (action.type === ImageActionTypes.initWearable) {
                 const image = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["initWearable"]]>).getContent()[0];
                 return {
                     type: "image",
-                    src: image
+                    src: image,
+                    activeType: "once"
                 };
             } else if (action.type === ImageActionTypes.setAppearance) {
                 const tags = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setAppearance"]]>).getContent()[0];
@@ -120,6 +132,16 @@ export class SrcManager {
                     return {
                         type: "image",
                         src: Image.fromSrc(Image.getSrcFromTags(tags, imageAction.callee.config.src)),
+                        activeType: "once"
+                    };
+                }
+            } else if (action.type === ImageActionTypes.init) {
+                const src = action.callee.config.src;
+                if (typeof src === "string" || Utils.isStaticImageData(src)) {
+                    return {
+                        type: "image",
+                        src: new Image({src}),
+                        activeType: "scene"
                     };
                 }
             }

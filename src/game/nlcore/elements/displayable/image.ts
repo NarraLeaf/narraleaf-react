@@ -162,7 +162,7 @@ export class Image<
     }
 
     /**@internal */
-    readonly name: string;
+    name: string;
     /**@internal */
     readonly config: RichImageUserConfig<Tags>;
     /**@internal */
@@ -683,6 +683,13 @@ export class Image<
  * DO NOT USE THIS CLASS DIRECTLY
  */
 export class VirtualImageProxy extends Image {
+    constructor(config: Partial<RichImageUserConfig<null>> = {}) {
+        super();
+        this.name = config.name || "(anonymous [virtual image proxy])";
+        this.config.opacity = 1;
+        this.state.opacity = 1;
+    }
+
     override checkConfig(_: RichImageUserConfig<TagGroupDefinition>): this {
         return this;
     }

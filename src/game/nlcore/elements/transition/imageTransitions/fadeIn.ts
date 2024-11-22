@@ -15,7 +15,7 @@ export class FadeIn extends BaseImageTransition<ImgElementProp> implements IImag
         transform: ""
     };
     private src?: ImageSrc | ImageColor;
-    private readonly easing: TransformDefinitions.EasingDefinition | undefined;
+    private readonly easing: TransformDefinitions.EasingDefinition;
 
     /**
      * The next image will fade-in in a direction
@@ -29,7 +29,7 @@ export class FadeIn extends BaseImageTransition<ImgElementProp> implements IImag
         this.duration = duration;
         this.direction = direction;
         this.offset = offset;
-        this.easing = easing;
+        this.easing = easing || BaseImageTransition.DefaultEasing;
         this.__stack = getCallStack();
     }
 

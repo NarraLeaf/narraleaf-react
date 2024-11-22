@@ -10,6 +10,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {ConditionAction} from "@core/action/actions/conditionAction";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {SceneActionTypes} from "@core/action/actionTypes";
+import {Scene} from "@core/elements/scene";
 
 export class LiveGame {
     static DefaultNamespaces = {
@@ -325,24 +326,26 @@ export class LiveGame {
 
     /**@internal */
     getAllPredictableActions(action?: LogicAction.Actions | null, limit?: number): LogicAction.Actions[] {
-        if (!this.story) {
-            throw new Error("No story loaded");
-        }
-
         let current: ContentNode | null = action?.contentNode || null;
         const actions: LogicAction.Actions[] = [];
+        const seenScene = new Set<Scene>();
         while (current) {
             if (limit && actions.length >= limit) {
                 break;
             }
-            if (
-                ([ConditionAction].some(a => current?.action && (current.action instanceof a)))
-                || (current?.action
-                    && current.action instanceof SceneAction
-                    && current.action.type === SceneActionTypes.jumpTo
-                )
-            ) {
+            if ([ConditionAction].some(a => current?.action && current.action instanceof a)) {
                 current = null;
+                continue;
+            }
+            if (current.action && current.action.is<SceneAction<"scene:jumpTo">>(SceneAction, SceneActionTypes.jumpTo)) {
+                const [scene] = current.action.contentNode.getContent();
+                if (seenScene.has(scene)) {
+                    current = null;
+                    continue;
+                }
+                seenScene.add(scene);
+
+                current = scene.sceneRoot?.contentNode || null;
                 continue;
             }
             if (current.action) actions.push(current.action);

@@ -20,6 +20,7 @@
 - Displayable actions
 - Layer actions
 - Disable image auto initialize using image.config
+- Quick image preloading only preloads images when needed
 
 ### Updated
 

@@ -47,6 +47,7 @@ export interface ISceneConfig {
 export type SceneState = {};
 export type JumpConfig = {
     transition: IImageTransition;
+    unloadScene: boolean;
 }
 
 type ChainableAction = Proxied<GameElement, Chained<LogicAction.Actions>> | Actions;
@@ -125,6 +126,7 @@ export class Scene extends Constructable<
             ...rest,
             backgroundImage: new VirtualImageProxy({
                 opacity: 1,
+                src: Image.DefaultImagePlaceholder,
             }),
             background: background || null,
         };
@@ -206,19 +208,23 @@ export class Scene extends Constructable<
      * Any operations after the jump operation won't be executed
      * @chainable
      */
-    public jumpTo(arg0: Scene, config?: Partial<JumpConfig>): ChainedScene {
+    public jumpTo(scene: Scene, config: Partial<JumpConfig> = {}): ChainedScene {
         return this.combineActions(new Control(), chain => {
-            const jumpConfig: Partial<JumpConfig> = config || {};
-            return chain
+            const defaultJumpConfig: Partial<JumpConfig> = {unloadScene: true};
+            const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig, config);
+            chain
                 .chain(new SceneAction(
                     chain,
                     "scene:preUnmount",
                     new ContentNode().setContent([])
                 ))
-                ._transitionToScene(arg0, jumpConfig.transition)
-                .chain(arg0._init())
-                .chain(this._exit());
-        })._jumpTo(arg0);
+                ._transitionToScene(scene, jumpConfig.transition)
+                .chain(scene._init());
+            if (jumpConfig.unloadScene) {
+                chain.chain(this._exit());
+            }
+            return chain;
+        })._jumpTo(scene);
     }
 
     /**
@@ -421,6 +427,11 @@ export class Scene extends Constructable<
                     const jumpTo = action as SceneAction<typeof SceneActionTypes["jumpTo"]>;
                     const scene = jumpTo.contentNode.getContent()[0];
 
+                    const background = SrcManager.getPreloadableSrc(action);
+                    if (background) {
+                        this.srcManager.register(background);
+                    }
+
                     if (seenJump.has(jumpTo) || seen.has(scene)) {
                         continue;
                     }
@@ -503,6 +514,16 @@ export class Scene extends Constructable<
     /**@internal */
     toDisplayableTransform(): Transform {
         return this.state.backgroundImage.toDisplayableTransform();
+    }
+
+    /**
+     * Manually register an image to preload
+     */
+    public requestImagePreload(src: ImageSrc) {
+        this.srcManager.register({
+            type: "image",
+            src: new Image({src}),
+        });
     }
 
     /**@internal */

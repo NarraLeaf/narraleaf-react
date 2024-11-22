@@ -71,8 +71,11 @@ function DisplayableBackground(
         }
     };
 
-    function tryGetCache(src: string): string {
-        return cacheManager.get(src) || src;
+    function tryGetCache(src: string | undefined): string {
+        if (src) {
+            return cacheManager.has(src) ? cacheManager.get(src)! : src;
+        }
+        return emptyImage;
     }
 
     return (
@@ -87,37 +90,20 @@ function DisplayableBackground(
                     }
                 }, transformProps))}
             >
-                {
-                    transition ? (() => {
-                        return transition.toElementProps().map((elementProps, index) => {
-                            const mergedProps =
-                                deepMerge<ImgElementProp>(defaultProps, props, elementProps);
-                            return (
-                                <img
-                                    alt={mergedProps.alt}
-                                    {...mergedProps}
-                                    onLoad={handleImageOnload}
-                                    src={(mergedProps.src) ? tryGetCache(mergedProps.src) : emptyImage}
-                                    className={"absolute"}
-                                    key={index}
-                                />
-                            );
-                        });
-                    })() : (() => {
-                        const mergedProps =
-                            deepMerge<ImgElementProp>(defaultProps, props);
-                        return (
-                            <img
-                                key={"last"}
-                                alt={mergedProps.alt}
-                                {...mergedProps}
-                                onLoad={handleImageOnload}
-                                src={mergedProps.src ? tryGetCache(mergedProps.src) : emptyImage}
-                                className={"absolute"}
-                            />
-                        );
-                    })()
-                }
+                {(transition ? transition.toElementProps() : [{}]).map((elementProps, index) => {
+                    const mergedProps =
+                        deepMerge<ImgElementProp>(defaultProps, props, elementProps);
+                    return (
+                        <img
+                            alt={mergedProps.alt}
+                            {...mergedProps}
+                            onLoad={handleImageOnload}
+                            src={tryGetCache(mergedProps.src)}
+                            className={"absolute"}
+                            key={index}
+                        />
+                    );
+                })}
             </m.div>
         </div>
     );

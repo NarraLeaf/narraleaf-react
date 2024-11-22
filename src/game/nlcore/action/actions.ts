@@ -32,4 +32,8 @@ export class TypedAction<
         })();
         return a;
     }
+
+    is<T extends LogicAction.Actions>(parent: new (...args: any[]) => T, type: string): this is T {
+        return this instanceof parent && this.type === type;
+    }
 }

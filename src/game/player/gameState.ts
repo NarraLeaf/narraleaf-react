@@ -1,5 +1,5 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher, Logger, moveElementInArray, sleep} from "@lib/util/data";
+import {EventDispatcher, moveElementInArray, sleep} from "@lib/util/data";
 import {Choice, MenuData} from "@core/elements/menu";
 import {Image, ImageEventTypes} from "@core/elements/displayable/image";
 import {Scene} from "@core/elements/scene";
@@ -14,6 +14,7 @@ import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 import {Sentence} from "@core/elements/character/sentence";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {Text, TextEventTypes} from "@core/elements/displayable/text";
+import {Logger} from "@lib/util/logger";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];

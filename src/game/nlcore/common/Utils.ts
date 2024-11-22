@@ -72,7 +72,7 @@ export class Utils {
     }
 
     public static isStaticImageData(src: any): src is NextJSStaticImageData {
-        return src?.src !== undefined;
+        return src?.src !== undefined && typeof src.src === "string";
     }
 
     public static backgroundToSrc(background: Background["background"]): string | null {

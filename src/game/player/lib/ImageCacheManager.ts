@@ -46,6 +46,10 @@ export class ImageCacheManager {
         return this.src.size;
     }
 
+    public isPreloading(src: string): boolean {
+        return this.preloadTasks.has(src);
+    }
+
     public preload(url: string): PreloadedToken {
         if (this.src.has(url) || this.preloadTasks.has(url)) return {
             abort: () => {
