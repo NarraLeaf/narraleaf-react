@@ -15,7 +15,12 @@ export class Actionable<
         return null;
     }
 
-    /**@internal */
+    /**
+     * @internal
+     * override this method can override the default behavior of chaining
+     *
+     * When converting a chain to actions, this method is called to convert the chain to actions
+     */
     public fromChained(chained: Proxied<GameElement, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return chained.getActions();
     }

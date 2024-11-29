@@ -1,4 +1,3 @@
-import {deepMerge} from "@lib/util/data";
 import {ContentNode, RenderableNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Actionable} from "@core/action/actionable";
@@ -6,18 +5,17 @@ import {GameState} from "@player/gameState";
 import {Chained, ChainedActions, Proxied} from "@core/action/chain";
 import {ScriptCtx} from "@core/elements/script";
 import {StaticScriptWarning} from "@core/common/Utils";
-import Actions = LogicAction.Actions;
 import {ConditionAction} from "@core/action/actions/conditionAction";
+import Actions = LogicAction.Actions;
 
-/* eslint-disable @typescript-eslint/no-empty-object-type */
-export type ConditionConfig = {};
-
-interface LambdaCtx extends ScriptCtx {
-}
-
+type LambdaCtx = ScriptCtx;
 type LambdaHandler<T = any> = (ctx: LambdaCtx) => T;
 
 export class Lambda {
+    public static isLambda(value: any): value is Lambda {
+        return value instanceof Lambda && "handler" in value;
+    }
+
     handler: LambdaHandler;
 
     constructor(handler: LambdaHandler) {
@@ -57,10 +55,7 @@ export type ConditionData = {
     }
 };
 
-export class Condition extends Actionable {
-    /**@internal */
-    static defaultConfig: ConditionConfig = {};
-
+export class Condition<Closed extends true | false = false> extends Actionable {
     /**@internal */
     static getInitialState(): ConditionData {
         return {
@@ -75,14 +70,15 @@ export class Condition extends Actionable {
         };
     }
 
+    /**
+     * @chainable
+     */
     public static If(
         condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
-        return new Condition().If(condition, action);
+        return new Condition().createIfCondition(condition, action);
     }
 
-    /**@internal */
-    readonly config: ConditionConfig;
     /**@internal */
     conditions: ConditionData = {
         If: {
@@ -95,54 +91,25 @@ export class Condition extends Actionable {
         }
     };
 
-    constructor(config: ConditionConfig = {}) {
+    /**@internal */
+    private constructor() {
         super();
-        this.config = deepMerge<ConditionConfig>(Condition.defaultConfig, config);
-    }
-
-    /**
-     * @chainable
-     */
-    public If(
-        condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
-    ): Proxied<Condition, Chained<LogicAction.Actions>> {
-        // when IF condition already set
-        if (this.conditions.If.condition) {
-            throw new StaticScriptWarning("IF condition already set\nYou are trying to set multiple IF conditions for the same condition");
-        }
-
-        // when ELSE-IF condition already set
-        if (this.conditions.ElseIf.length) {
-            throw new StaticScriptWarning("ELSE-IF condition already set\nYou are trying to set an IF condition after an ELSE-IF condition");
-        }
-
-        // when ELSE condition already set
-        if (this.conditions.Else.action) {
-            throw new StaticScriptWarning("ELSE condition already set\nYou are trying to set an IF condition after an ELSE condition");
-        }
-        this.conditions.If.condition = condition instanceof Lambda ? condition : new Lambda(condition);
-        this.conditions.If.action = this.construct(Array.isArray(action) ? action : [action]);
-        return this.chain();
     }
 
     /**
      * @chainable
      */
     public ElseIf(
-        condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
-    ): Proxied<Condition, Chained<LogicAction.Actions>> {
-        // when there is no IF condition
-        if (!this.conditions.If.condition) {
-            throw new StaticScriptWarning("IF condition not set\nYou are trying to set an ELSE-IF condition without an IF condition");
-        }
-
+        condition: Closed extends false ? (Lambda | LambdaHandler<boolean>) : never,
+        action: Closed extends false ? ChainedActions : never
+    ): Closed extends false ? Proxied<Condition, Chained<LogicAction.Actions>> : never {
         // when ELSE condition already set
         if (this.conditions.Else.action) {
             throw new StaticScriptWarning("ELSE condition already set\nYou are trying to set an ELSE-IF condition after an ELSE condition");
         }
 
         this.conditions.ElseIf.push({
-            condition: condition instanceof Lambda ? condition : new Lambda(condition),
+            condition: Lambda.isLambda(condition) ? condition : new Lambda(condition),
             action: this.construct(Array.isArray(action) ? action : [action])
         });
         return this.chain();
@@ -152,13 +119,8 @@ export class Condition extends Actionable {
      * @chainable
      */
     public Else(
-        action: ChainedActions
-    ): Proxied<Condition, Chained<LogicAction.Actions>> {
-        // when there is no IF condition
-        if (!this.conditions.If.condition) {
-            throw new StaticScriptWarning("IF condition not set\nYou are trying to set an ELSE condition without an IF condition");
-        }
-
+        action: Closed extends false ? ChainedActions : never
+    ): Closed extends false ? Proxied<Condition<true>, Chained<LogicAction.Actions>> : never {
         // when ELSE condition already set
         if (this.conditions.Else.action) {
             throw new StaticScriptWarning("ELSE condition already set\nYou are trying to set multiple ELSE conditions for the same condition");
@@ -224,5 +186,14 @@ export class Condition extends Actionable {
             ...this.conditions.ElseIf.flatMap(e => e.action?.[0] || []),
             (this.conditions.Else.action?.[0] || [])
         ]);
+    }
+
+    /**@internal */
+    private createIfCondition(
+        condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
+    ): Proxied<Condition, Chained<LogicAction.Actions>> {
+        this.conditions.If.condition = condition instanceof Lambda ? condition : new Lambda(condition);
+        this.conditions.If.action = this.construct(Array.isArray(action) ? action : [action]);
+        return this.chain();
     }
 }

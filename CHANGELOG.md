@@ -9,7 +9,7 @@
 - Use displayable actions to reorder layers
 - Better image preloading
 - Scene config inheritance
-- Use scene name to jump between two cross-referenced scenes
+- Use the scene name to jump between two cross-referenced scenes
 
 ### _Incompatible Changes_
 
@@ -24,7 +24,8 @@
 - Disable image auto initialize using image.config
 - Quick image preloading only preloads images when needed
 - Use `scene.inherit` to inherit scene config
-- Use scene name to jump between two cross-referenced scenes
+- Use the scene name to jump between two cross-referenced scenes
+- Better signatures for `Condition`
 
 ### Updated
 
