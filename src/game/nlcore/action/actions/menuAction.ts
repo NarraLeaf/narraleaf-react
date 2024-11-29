@@ -5,6 +5,7 @@ import {Awaitable} from "@lib/util/data";
 import type {CalledActionResult} from "@core/gameTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {TypedAction} from "@core/action/actions";
+import {Story} from "@core/elements/story";
 
 export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuActionTypes] = typeof MenuActionTypes[keyof typeof MenuActionTypes]>
     extends TypedAction<MenuActionContentType, T, Menu> {
@@ -27,8 +28,8 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
         return awaitable;
     }
 
-    getFutureActions() {
+    getFutureActions(story: Story) {
         const menu = (this.contentNode as ContentNode<MenuActionContentType["menu:action"]>).getContent();
-        return [...this.callee._getFutureActions(menu.choices), ...super.getFutureActions()];
+        return [...this.callee._getFutureActions(menu.choices), ...super.getFutureActions(story)];
     }
 }

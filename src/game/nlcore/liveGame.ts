@@ -140,7 +140,7 @@ export class LiveGame {
         } = savedGame;
 
         // construct maps
-        story.forEachChild(story.entryScene?.sceneRoot || [], action => {
+        story.forEachChild(story, story.entryScene?.getSceneRoot() || [], action => {
             actionMaps.set(action.getId(), action);
             elementMaps.set(action.callee.getId(), action.callee);
         });
@@ -193,7 +193,7 @@ export class LiveGame {
         this.currentSavedGame = newGame;
 
         const elements: Map<string, LogicAction.GameElement> | undefined =
-            this.story?.getAllElementMap(this.story?.entryScene?.sceneRoot || []);
+            this.story?.getAllElementMap(this.story, this.story?.entryScene?.getSceneRoot() || []);
         if (elements) {
             elements.forEach((element) => {
                 gameState.logger.debug("reset element", element);
@@ -216,7 +216,7 @@ export class LiveGame {
             this.lockedAwaiting.abort();
         }
 
-        this.currentAction = this.story?.entryScene?.sceneRoot || null;
+        this.currentAction = this.story?.entryScene?.getSceneRoot() || null;
         this.lockedAwaiting = null;
         this.currentSavedGame = null;
 
@@ -255,7 +255,7 @@ export class LiveGame {
 
                 if (this._lockedCount > 1000) {
                     // sometimes react will make it stuck and enter a dead cycle
-                    // that's not cool, so we need to throw an error to break it
+                    // that's not cool, so it need to throw an error to break it
                     throw new Error("LiveGame locked: dead cycle detected\nPlease refresh the page");
                 }
 
@@ -265,7 +265,7 @@ export class LiveGame {
             const next = this.lockedAwaiting.result;
             this.currentAction = next?.node?.action || null;
 
-            state.logger.debug("next action", next);
+            state.logger.debug("next action (lockedAwaiting)", next);
 
             this.lockedAwaiting = null;
 
@@ -275,7 +275,7 @@ export class LiveGame {
 
         if (!this.currentAction) {
             state.events.emit(GameState.EventTypes["event:state.end"]);
-            state.logger.warn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
+            state.logger.weakWarn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
 
             this._nextLock.unlock();
             return null;
@@ -292,7 +292,6 @@ export class LiveGame {
         state.logger.debug("next action", nextAction);
 
         this._lockedCount = 0;
-
         this.currentAction = nextAction.node?.action || null;
 
         this._nextLock.unlock();
@@ -328,7 +327,7 @@ export class LiveGame {
     }
 
     /**@internal */
-    getAllPredictableActions(action?: LogicAction.Actions | null, limit?: number): LogicAction.Actions[] {
+    getAllPredictableActions(story: Story, action?: LogicAction.Actions | null, limit?: number): LogicAction.Actions[] {
         let current: ContentNode | null = action?.contentNode || null;
         const actions: LogicAction.Actions[] = [];
         const queue: LogicAction.Actions[] = [];
@@ -347,14 +346,19 @@ export class LiveGame {
                 continue;
             }
             if (current.action && current.action.is<SceneAction<"scene:jumpTo">>(SceneAction, SceneActionTypes.jumpTo)) {
-                const [scene] = current.action.contentNode.getContent();
+                const [targetScene] = current.action.contentNode.getContent();
+                const scene = story.getScene(targetScene);
+                if (!scene) {
+                    throw current.action._sceneNotFoundError(current.action.getSceneName(targetScene));
+                }
+
                 if (seenScene.has(scene)) {
                     current = null;
                     continue;
                 }
                 seenScene.add(scene);
 
-                current = scene.sceneRoot?.contentNode || null;
+                current = scene.getSceneRoot()?.contentNode || null;
                 continue;
             } else if (current.action &&
                 current.action.is<ControlAction<"control:do">>(ControlAction as any, ControlActionTypes.do)
@@ -384,7 +388,7 @@ export class LiveGame {
                     scenes: [],
                 },
                 elementStates: [],
-                currentAction: this.story?.entryScene?.sceneRoot?.getId() || null,
+                currentAction: this.story?.entryScene?.getSceneRoot().getId() || null,
             }
         };
     }

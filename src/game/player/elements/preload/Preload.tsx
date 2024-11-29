@@ -19,6 +19,7 @@ export function Preload(
     const LogTag = "Preload";
     const lastScene = state.getLastScene();
     const currentAction = game.getLiveGame().getCurrentAction();
+    const story = game.getLiveGame().story;
 
     /**
      * preload logic 2.0
@@ -39,6 +40,10 @@ export function Preload(
         if (game.config.player.forceClearCache) {
             cacheManager.clear();
             state.logger.weakWarn(LogTag, "Cache cleared");
+        }
+        if (!story) {
+            state.logger.weakWarn(LogTag, "Story not found, skipping preload");
+            return;
         }
 
         const timeStart = performance.now();
@@ -93,7 +98,7 @@ export function Preload(
             state.events.emit(GameState.EventTypes["event:state.preload.unmount"]);
             state.logger.debug(LogTag, "Preload unmounted");
         };
-    }, [lastScene]);
+    }, [lastScene, story]);
 
     /**
      * Remove cached src when scenes changed
@@ -114,12 +119,16 @@ export function Preload(
         if (game.config.player.preloadAllImages) {
             return;
         }
+        if (!story) {
+            state.logger.weakWarn(LogTag, "Story not found, skipping preload");
+            return;
+        }
 
         const timeStart = performance.now();
         const allSrc: ActiveSrc[] = game
             .getLiveGame()
-            .getAllPredictableActions(currentAction, game.config.player.maxPreloadActions)
-            .map(s => SrcManager.getPreloadableSrc(s))
+            .getAllPredictableActions(story, currentAction, game.config.player.maxPreloadActions)
+            .map(s => SrcManager.getPreloadableSrc(story, s))
             .filter<ActiveSrc>(function (src): src is ActiveSrc {
                 return src !== null;
             });
@@ -171,7 +180,7 @@ export function Preload(
             state.logger.info(LogTag, "Image preload (quick reload)", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
             cacheManager.filter(preloadSrc);
         });
-    }, [currentAction]);
+    }, [currentAction, story]);
 
     return null;
 }

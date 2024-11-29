@@ -6,7 +6,7 @@ import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
 import {HowlOptions} from "howler";
-import {Src, SrcManager} from "@core/action/srcManager";
+import {SrcManager} from "@core/action/srcManager";
 import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/store/storable";
 import {Game} from "@core/game";
@@ -15,6 +15,8 @@ import {Sentence} from "@core/elements/character/sentence";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {Text, TextEventTypes} from "@core/elements/displayable/text";
 import {Logger} from "@lib/util/logger";
+import {RuntimeGameError} from "@core/common/Utils";
+import {Story} from "@core/elements/story";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -378,6 +380,17 @@ export class GameState {
         return this.game.getLiveGame().getStorable();
     }
 
+    public getSceneByName(name: string): Scene | null {
+        return this.game.getLiveGame().story?.getScene(name) || null;
+    }
+
+    public getStory(): Story {
+        if (!this.game.getLiveGame().story) {
+            throw new RuntimeGameError("Story not loaded");
+        }
+        return this.game.getLiveGame().story!;
+    }
+
     /**
      * Dispose the game state
      *
@@ -416,12 +429,12 @@ export class GameState {
 
             const scene = elementMap.get(sceneId) as Scene;
             if (!scene) {
-                throw new Error("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");
+                throw new RuntimeGameError("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");
             }
 
             const displayable = elements.displayable.map(d => {
                 if (!elementMap.has(d)) {
-                    throw new Error("Displayable not found, id: " + d + "\nNarraLeaf cannot find the element with the id from the saved game" +
+                    throw new RuntimeGameError("Displayable not found, id: " + d + "\nNarraLeaf cannot find the element with the id from the saved game" +
                         "\nThis may be caused by the damage of the saved game file or the change of the story file");
                 }
                 return elementMap.get(d) as LogicAction.DisplayableElements;
@@ -450,24 +463,9 @@ export class GameState {
     public getLastSceneIfNot(scene: Scene | null | void) {
         const targetScene = scene || this.getLastScene();
         if (!targetScene || !this.sceneExists(targetScene)) {
-            throw new Error("Scene not found, please call \"scene.activate()\" first.");
+            throw new RuntimeGameError("Scene not found, please call \"scene.activate()\" first.");
         }
         return targetScene;
-    }
-
-    getFuturePreloadSrc(): Src[] {
-        const actions = this.game.getLiveGame().getAllPredictableActions(
-            this.game.getLiveGame().getCurrentAction(),
-            this.game.config.player.maxPreloadActions
-        );
-        const results: Src[] = [];
-        for (const action of actions) {
-            const src = SrcManager.getPreloadableSrc(action);
-            if (src) {
-                results.push(src);
-            }
-        }
-        return results;
     }
 
     private getElementMap(): PlayerStateElement {

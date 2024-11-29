@@ -689,3 +689,5 @@ export class TaskPool {
         await run();
     }
 }
+
+export type StringKeyOf<T> = Extract<keyof T, string>;

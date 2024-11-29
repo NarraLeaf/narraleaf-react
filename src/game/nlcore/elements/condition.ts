@@ -220,9 +220,9 @@ export class Condition extends Actionable {
     /**@internal */
     _getFutureActions(): LogicAction.Actions[] {
         return Chained.toActions([
-            ...(this.conditions.If.action || []),
-            ...this.conditions.ElseIf.flatMap(e => e.action || []),
-            ...(this.conditions.Else.action || [])
+            (this.conditions.If.action?.[0] || []),
+            ...this.conditions.ElseIf.flatMap(e => e.action?.[0] || []),
+            (this.conditions.Else.action?.[0] || [])
         ]);
     }
 }

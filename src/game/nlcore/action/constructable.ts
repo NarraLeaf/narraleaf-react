@@ -1,7 +1,7 @@
 import {RenderableNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Chainable, Chained, Proxied} from "@core/action/chain";
-import {TypedAction} from "@core/action/actions";
+import type {Story} from "@core/elements/story";
 import GameElement = LogicAction.GameElement;
 
 export class Constructable<
@@ -19,7 +19,7 @@ export class Constructable<
     }
 
     /**@internal */
-    forEachChild(actionOrActions: LogicAction.Actions | LogicAction.Actions[], cb: ((action: TypedAction) => void)): void {
+    forEachChild(story: Story, actionOrActions: LogicAction.Actions | LogicAction.Actions[], cb: ((action: LogicAction.Actions) => void)): void {
         const seen = new Set<LogicAction.Actions>();
         const queue: LogicAction.Actions[] = [];
 
@@ -38,36 +38,36 @@ export class Constructable<
 
             cb(action);
 
-            const children = action.getFutureActions()
+            const children = action.getFutureActions(story)
                 .filter(action => !seen.has(action));
             queue.push(...children);
         }
     }
 
     /**@internal */
-    getAllChildren(action: LogicAction.Actions | LogicAction.Actions[]): LogicAction.Actions[] {
+    getAllChildren(story: Story, action: LogicAction.Actions | LogicAction.Actions[]): LogicAction.Actions[] {
         const children: LogicAction.Actions[] = [];
-        this.forEachChild(action, action => children.push(action));
+        this.forEachChild(story, action, action => children.push(action));
         return children;
     }
 
     /**@internal */
-    getAllChildrenMap(action: LogicAction.Actions | LogicAction.Actions[]): Map<string, LogicAction.Actions> {
+    getAllChildrenMap(story: Story, action: LogicAction.Actions | LogicAction.Actions[]): Map<string, LogicAction.Actions> {
         const map = new Map<string, LogicAction.Actions>();
-        this.forEachChild(action, action => map.set(action.getId(), action));
+        this.forEachChild(story, action, action => map.set(action.getId(), action));
         return map;
     }
 
     /**@internal */
-    getAllElementMap(action: LogicAction.Actions | LogicAction.Actions[]): Map<string, LogicAction.GameElement> {
+    getAllElementMap(story: Story, action: LogicAction.Actions | LogicAction.Actions[]): Map<string, LogicAction.GameElement> {
         const map = new Map<string, LogicAction.GameElement>();
-        this.forEachChild(action, action => map.set(action.callee.getId(), action.callee));
+        this.forEachChild(story, action, action => map.set(action.callee.getId(), action.callee));
         return map;
     }
 
     /**@internal */
-    getAllChildrenElements(action: LogicAction.Actions | LogicAction.Actions[]): LogicAction.GameElement[] {
-        return Array.from(new Set(this.getAllChildren(action).map(action => action.callee)));
+    getAllChildrenElements(story: Story, action: LogicAction.Actions | LogicAction.Actions[]): LogicAction.GameElement[] {
+        return Array.from(new Set(this.getAllChildren(story, action).map(action => action.callee)));
     }
 
     /**@internal */

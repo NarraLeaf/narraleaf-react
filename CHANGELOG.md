@@ -8,6 +8,8 @@
 - Use `image.tag` to manage image src
 - Use displayable actions to reorder layers
 - Better image preloading
+- Scene config inheritance
+- Use scene name to jump between two cross-referenced scenes
 
 ### _Incompatible Changes_
 
@@ -21,6 +23,8 @@
 - Layer actions
 - Disable image auto initialize using image.config
 - Quick image preloading only preloads images when needed
+- Use `scene.inherit` to inherit scene config
+- Use scene name to jump between two cross-referenced scenes
 
 ### Updated
 

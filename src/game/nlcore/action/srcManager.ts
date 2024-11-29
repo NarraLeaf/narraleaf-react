@@ -1,6 +1,6 @@
 import {Sound} from "@core/elements/sound";
 import {Image as GameImage, Image} from "@core/elements/displayable/image";
-import {Utils} from "@core/common/core";
+import {Story, Utils} from "@core/common/core";
 import {StaticImageData} from "@core/types";
 import {LogicAction} from "@core/action/logicAction";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -75,7 +75,7 @@ export class SrcManager {
         return "";
     }
 
-    static getPreloadableSrc(action: LogicAction.Actions): (Src & {
+    static getPreloadableSrc(story: Story, action: LogicAction.Actions): (Src & {
         activeType: "scene" | "once"
     }) | null {
         if (action.is<SceneAction<typeof SceneActionTypes["setBackground"]>>(SceneAction, SceneActionTypes.setBackground)) {
@@ -89,7 +89,8 @@ export class SrcManager {
                 };
             }
         } else if (action.is<SceneAction<typeof SceneActionTypes["jumpTo"]>>(SceneAction, SceneActionTypes.jumpTo)) {
-            const scene = action.contentNode.getContent()[0];
+            const targetScene = action.contentNode.getContent()[0];
+            const scene = story.getScene(targetScene, true);
             const sceneBackground = scene.config.background;
             if (Utils.isStaticImageData(sceneBackground) || typeof sceneBackground === "string") {
                 return {

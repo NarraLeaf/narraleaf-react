@@ -10,7 +10,7 @@ import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements
 import {TransformDefinitions} from "@core/elements/transform/type";
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw, VirtualImageProxy} from "@core/elements/displayable/image";
-import {Control, Utils} from "@core/common/core";
+import {Control, Story, Utils} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -28,7 +28,6 @@ export type SceneConfig = {
     invertX: boolean;
     backgroundMusic: Sound | null;
     backgroundMusicFade: number;
-    backgroundImage: Image;
     voices: VoiceIdMap | VoiceSrcGenerator | null;
 } & {
     background: ImageSrc | ImageColor | null;
@@ -39,12 +38,13 @@ export interface ISceneConfig {
     invertX: boolean;
     backgroundMusic: Sound | null;
     backgroundMusicFade: number;
+    voices?: VoiceIdMap | VoiceSrcGenerator;
     background?: ImageSrc | ImageColor;
-    voices: VoiceIdMap | VoiceSrcGenerator | null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export type SceneState = {};
+export type SceneState = {
+    backgroundImageProxy: VirtualImageProxy;
+};
 export type JumpConfig = {
     transition: IImageTransition;
     unloadScene: boolean;
@@ -94,20 +94,34 @@ export class Scene extends Constructable<
         "event:displayable.init": "event:displayable.init",
     };
     /**@internal */
-    static defaultConfig: Omit<ISceneConfig, "background"> = {
+    static defaultConfig: ISceneConfig = {
         invertY: false,
         invertX: false,
         backgroundMusic: null,
         backgroundMusicFade: 0,
-        voices: null,
     };
     /**@internal */
-    static defaultState: SceneState = {};
+    static defaultState: SceneState = {
+        backgroundImageProxy: new VirtualImageProxy(),
+    };
+
+    /**@internal */
+    static isScene(object: any): object is Scene {
+        return object instanceof Scene;
+    }
+
+    /**@internal */
+    static getScene(story: Story, targetScene: Scene | string): Scene | null {
+        if (typeof targetScene === "string") {
+            return story.getScene(targetScene);
+        }
+        return targetScene;
+    }
 
     /**@internal */
     readonly name: string;
     /**@internal */
-    readonly config: SceneConfig;
+    config: SceneConfig;
     /**@internal */
     readonly srcManager: SrcManager = new SrcManager();
     /**@internal */
@@ -115,22 +129,26 @@ export class Scene extends Constructable<
     /**@internal */
     state: SceneConfig & SceneState;
     /**@internal */
-    sceneRoot?: SceneAction<"scene:action">;
+    actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[]) = [];
+    /**@internal */
+    private sceneRoot?: SceneAction<"scene:action">;
+    /**@internal */
+    private _userConfig: Partial<ISceneConfig> = {};
 
-    constructor(name: string, config: Partial<ISceneConfig> = Scene.defaultConfig) {
+    constructor(name: string, config?: Partial<ISceneConfig>) {
         super();
         this.name = name;
-        const {background, ...rest} = deepMerge<ISceneConfig>(Scene.defaultConfig, config);
+        this._userConfig = config || {};
+        const {background, voices, ...rest} = deepMerge<ISceneConfig>(Scene.defaultConfig, config || {});
 
         this.config = {
             ...rest,
-            backgroundImage: new VirtualImageProxy({
-                opacity: 1,
-                src: Image.DefaultImagePlaceholder,
-            }),
+            voices: voices || null,
             background: background || null,
         };
-        this.state = deepMerge<SceneConfig & SceneState>(this.config, {});
+        this.state = deepMerge<SceneConfig & SceneState>(this.config, {
+            backgroundImageProxy: this._createImageProxy(),
+        });
     }
 
     /**@internal */
@@ -173,7 +191,7 @@ export class Scene extends Constructable<
             if (transition) {
                 const copy = transition.copy();
                 copy.setSrc(this.toBackground(background));
-                chain._transitionToScene(undefined, copy, this.toBackground(background));
+                chain._transitionToScene(copy, undefined, this.toBackground(background));
             }
             return chain.chain(new SceneAction<"scene:setBackground">(
                 chain,
@@ -208,7 +226,7 @@ export class Scene extends Constructable<
      * Any operations after the jump operation won't be executed
      * @chainable
      */
-    public jumpTo(scene: Scene, config: Partial<JumpConfig> = {}): ChainedScene {
+    public jumpTo(scene: Scene | string, config: Partial<JumpConfig> = {}): ChainedScene {
         return this.combineActions(new Control(), chain => {
             const defaultJumpConfig: Partial<JumpConfig> = {unloadScene: true};
             const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig, config);
@@ -218,8 +236,8 @@ export class Scene extends Constructable<
                     "scene:preUnmount",
                     new ContentNode().setContent([])
                 ))
-                ._transitionToScene(scene, jumpConfig.transition)
-                .chain(scene._init());
+                ._transitionToScene(jumpConfig.transition, scene)
+                .chain(this._init(scene));
             if (jumpConfig.unloadScene) {
                 chain.chain(this._exit());
             }
@@ -267,7 +285,7 @@ export class Scene extends Constructable<
                 backgroundMusic: this.state.backgroundMusic?.toData(),
                 background: this.state.background,
             },
-            backgroundImageState: this.state.backgroundImage.toData(),
+            backgroundImageState: this.state.backgroundImageProxy.toData(),
         } satisfies SceneDataRaw;
     }
 
@@ -290,7 +308,7 @@ export class Scene extends Constructable<
             },
             backgroundImageState: (backgroundImageState) => {
                 if (backgroundImageState) {
-                    this.state.backgroundImage = new Image().fromData(backgroundImageState);
+                    this.state.backgroundImageProxy = new Image().fromData(backgroundImageState);
                 }
             },
         });
@@ -302,7 +320,7 @@ export class Scene extends Constructable<
         return new Transform<ImageTransformProps>([
             {
                 props: {
-                    ...this.state.backgroundImage.state,
+                    ...this.state.backgroundImageProxy.state,
                     opacity: 1,
                 },
                 options: {
@@ -320,6 +338,19 @@ export class Scene extends Constructable<
     public action(actions: ((scene: Scene) => ChainableAction[])): this;
 
     public action(actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[])): this {
+        this.actions = actions;
+        return this;
+    }
+
+    /**@internal */
+    constructSceneRoot(story: Story): this {
+        this.sceneRoot = new SceneAction<"scene:action">(
+            this.chain(),
+            "scene:action",
+            new ContentNode(),
+        );
+
+        const actions = this.actions;
         const userChainedActions: ChainableAction[] = Array.isArray(actions) ? actions.flat(2) : actions(this).flat(2);
         const userActions = userChainedActions.map(v => {
             if (Chained.isChained(v)) {
@@ -329,7 +360,7 @@ export class Scene extends Constructable<
         }).flat(2);
 
         const images: Image[] = [], texts: Text[] = [];
-        this.getAllChildrenElements(userActions).forEach(element => {
+        this.getAllChildrenElements(story, userActions).forEach(element => {
             if (Chained.isChained(element)) {
                 return;
             }
@@ -384,20 +415,37 @@ export class Scene extends Constructable<
         ];
 
         const constructed = super.constructNodes(futureActions);
-        const sceneRoot = new ContentNode<this>(undefined, undefined, constructed || void 0).setContent(this);
+        const sceneRoot = new ContentNode<this>(this.sceneRoot, undefined, constructed || void 0).setContent(this);
         constructed?.setParent(sceneRoot);
 
-        this.sceneRoot = new SceneAction(
-            this.chain(),
-            "scene:action",
-            sceneRoot
-        );
+        this.sceneRoot?.setContentNode(sceneRoot);
 
         return this;
     }
 
     /**@internal */
-    registerSrc(seen: Set<Scene> = new Set<Scene>()) {
+    isSceneRootConstructed(): boolean {
+        return !!this.sceneRoot;
+    }
+
+    /**
+     * Inherit configuration from another scene
+     */
+    public inherit(scene: Scene): this {
+        const {background, ...rest} = deepMerge<SceneConfig>(Scene.defaultConfig, scene.config, this._userConfig);
+
+        this.config = {
+            ...rest,
+            background: background || null,
+        };
+        this.state = deepMerge<SceneConfig & SceneState>(this.config, {
+            backgroundImageProxy: this._createImageProxy(),
+        });
+        return this;
+    }
+
+    /**@internal */
+    registerSrc(story: Story, seen: Set<Scene> = new Set<Scene>()) {
         if (!this.sceneRoot) {
             return;
         }
@@ -425,9 +473,12 @@ export class Scene extends Constructable<
             if (action instanceof SceneAction) {
                 if (action.type === SceneActionTypes.jumpTo) {
                     const jumpTo = action as SceneAction<typeof SceneActionTypes["jumpTo"]>;
-                    const scene = jumpTo.contentNode.getContent()[0];
+                    const scene = Scene.getScene(story, jumpTo.contentNode.getContent()[0]);
+                    if (!scene) {
+                        throw action._sceneNotFoundError(action.getSceneName(jumpTo.contentNode.getContent()[0]));
+                    }
 
-                    const background = SrcManager.getPreloadableSrc(action);
+                    const background = SrcManager.getPreloadableSrc(story, action);
                     if (background) {
                         this.srcManager.register(background);
                     }
@@ -440,13 +491,13 @@ export class Scene extends Constructable<
                     futureScene.add(scene);
                     seen.add(scene);
                 } else if (action.type === SceneActionTypes.setBackground) {
-                    const src = SrcManager.getPreloadableSrc(action);
+                    const src = SrcManager.getPreloadableSrc(story, action);
                     if (src) {
                         this.srcManager.register(src);
                     }
                 }
             } else if (action instanceof ImageAction) {
-                const src = SrcManager.getPreloadableSrc(action);
+                const src = SrcManager.getPreloadableSrc(story, action);
                 if (src) {
                     this.srcManager.register(src);
                 }
@@ -454,15 +505,15 @@ export class Scene extends Constructable<
                 this.srcManager.register(action.callee);
             } else if (action instanceof ControlAction) {
                 const controlAction = action as ControlAction;
-                const actions = controlAction.getFutureActions();
+                const actions = controlAction.getFutureActions(story);
 
                 queue.push(...actions);
             }
-            queue.push(...action.getFutureActions());
+            queue.push(...action.getFutureActions(story));
         }
 
         futureScene.forEach(scene => {
-            scene.registerSrc(seen);
+            scene.registerSrc(story, seen);
             this.srcManager.registerFuture(scene.srcManager);
         });
     }
@@ -470,8 +521,8 @@ export class Scene extends Constructable<
     /**
      * @internal STILL IN DEVELOPMENT
      */
-    assignActionId() {
-        const actions = this.getAllChildren(this.sceneRoot || []);
+    assignActionId(story: Story) {
+        const actions = this.getAllChildren(story, this.sceneRoot || []);
 
         actions.forEach((action, i) => {
             action.setId(`action-${i}`);
@@ -481,8 +532,8 @@ export class Scene extends Constructable<
     /**
      * @internal STILL IN DEVELOPMENT
      */
-    assignElementId() {
-        const elements = this.getAllChildrenElements(this.sceneRoot || []);
+    assignElementId(story: Story) {
+        const elements = this.getAllChildrenElements(story, this.sceneRoot || []);
 
         elements.forEach((element, i) => {
             element.setId(`element-${i}`);
@@ -506,14 +557,22 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
+    getSceneRoot(): SceneAction<"scene:action"> {
+        if (!this.sceneRoot) {
+            throw new Error("Scene root is not constructed");
+        }
+        return this.sceneRoot;
+    }
+
+    /**@internal */
     override reset() {
         this.state = deepMerge<SceneConfig & SceneState>(Scene.defaultState, this.config);
-        this.state.backgroundImage.reset();
+        this.state.backgroundImageProxy.reset();
     }
 
     /**@internal */
     toDisplayableTransform(): Transform {
-        return this.state.backgroundImage.toDisplayableTransform();
+        return this.state.backgroundImageProxy.toDisplayableTransform();
     }
 
     /**
@@ -527,20 +586,19 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _applyTransition(transition: ITransition): ChainedScene {
-        return this.chain(new SceneAction<"scene:applyTransition">(
-            this.chain(),
-            "scene:applyTransition",
-            new ContentNode<SceneActionContentType["scene:applyTransition"]>().setContent([transition])
-        ));
+    private _createImageProxy(): VirtualImageProxy {
+        return new VirtualImageProxy({
+            opacity: 1,
+            src: Image.DefaultImagePlaceholder,
+        });
     }
 
     /**@internal */
-    private _jumpTo(scene: Scene): ChainedScene {
-        return this.chain(new SceneAction(
+    private _jumpTo(scene: Scene | string): ChainedScene {
+        return this.chain(new SceneAction<"scene:jumpTo">(
             this.chain(),
             "scene:jumpTo",
-            new ContentNode<[Scene]>().setContent([
+            new ContentNode<SceneActionContentType["scene:jumpTo"]>().setContent([
                 scene
             ])
         ));
@@ -556,26 +614,26 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _transitionToScene(scene?: Scene, transition?: IImageTransition, src?: ImageSrc | ImageColor): ChainedScene {
+    private _transitionToScene(transition?: IImageTransition, scene?: Scene | string, src?: ImageSrc | ImageColor): ChainedScene {
         const chain = this.chain();
         if (transition) {
             const copy = transition.copy();
-
-            if (scene && scene.config.background) {
-                copy.setSrc(scene.config.background);
-            }
-            if (src) copy.setSrc(src);
-            chain._applyTransition(copy);
+            const action = new SceneAction<typeof SceneActionTypes["transitionToScene"]>(
+                chain,
+                SceneActionTypes["transitionToScene"],
+                new ContentNode<SceneActionContentType[typeof SceneActionTypes["transitionToScene"]]>().setContent([copy, scene, src])
+            );
+            chain.chain(action);
         }
         return chain;
     }
 
     /**@internal */
-    private _init(target = this): SceneAction<"scene:init"> {
-        return new SceneAction(
-            target.chain(),
+    private _init(target: Scene | string): SceneAction<"scene:init"> {
+        return new SceneAction<"scene:init">(
+            this.chain(),
             "scene:init",
-            new ContentNode().setContent([])
+            new ContentNode<SceneActionContentType["scene:init"]>().setContent([target])
         );
     }
 }
