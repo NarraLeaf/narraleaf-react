@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.0] - 2024/11/22
+## [0.2.0] - 2024/11/29
 
 ### _Feature_
 
@@ -26,12 +26,12 @@
 - Quick image preloading only preloads images when needed
 - Use `scene.inherit` to inherit scene config
 - Use the scene name to jump between two cross-referenced scenes
-- Better signatures for `Condition`
 - `Persistent` data management (storable actions wrapper)
 
 ### Updated
 
 - Image preloader now stores images in stack, so the lib can easily control the process of preloading/unloading images
+- Better signatures for `Condition`
 
 ## [0.1.7] - 2024/11/16
 
