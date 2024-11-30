@@ -1,5 +1,5 @@
 import {GameState} from "@player/gameState";
-import {Text as GameText} from "@core/elements/displayable/text";
+import {Text as GameText} from "@core/elements/text";
 import React from "react";
 import {Transform, TransformersMap, TransformHandler} from "@core/elements/transform/transform";
 import {SpanElementProp} from "@core/elements/transition/type";

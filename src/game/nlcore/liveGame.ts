@@ -2,16 +2,10 @@ import {Awaitable, Lock, MultiLock} from "@lib/util/data";
 import type {CalledActionResult, SavedGame} from "@core/gameTypes";
 import {Story} from "@core/elements/story";
 import {GameState} from "@player/gameState";
-import {Namespace, Storable} from "@core/elements/persistent/storable";
+import {Namespace, Storable} from "@core/store/storable";
 import {LogicAction} from "@core/action/logicAction";
-import {StorableType} from "@core/elements/persistent/type";
+import {StorableType} from "@core/store/type";
 import {Game} from "@core/game";
-import {ContentNode} from "@core/action/tree/actionTree";
-import {ConditionAction} from "@core/action/actions/conditionAction";
-import {SceneAction} from "@core/action/actions/sceneAction";
-import {ControlActionTypes, SceneActionTypes} from "@core/action/actionTypes";
-import {Scene} from "@core/elements/scene";
-import {ControlAction} from "@core/action/actions/controlAction";
 
 export class LiveGame {
     static DefaultNamespaces = {
@@ -54,9 +48,6 @@ export class LiveGame {
         this.storable.clear().addNamespace(new Namespace<Partial<{
             [key: string]: StorableType | undefined
         }>>(LiveGame.GameSpacesKey.game, LiveGame.DefaultNamespaces.game));
-        if (this.story) {
-            this.story.initPersistent(this.storable);
-        }
         return this;
     }
 
@@ -67,8 +58,7 @@ export class LiveGame {
     /* Game */
     /**@internal */
     loadStory(story: Story) {
-        this.story = story
-            .constructStory();
+        this.story = story.constructStory();
         return this;
     }
 
@@ -77,7 +67,7 @@ export class LiveGame {
      *
      * You can use this to save the game state to a file or a database
      *
-     * Note: even if you change just a single line of script, the saved game might not be compatible with the new version
+     * Note: Even if you change just a single line of script, the saved game might not be compatible with the new version
      */
     public serialize(): SavedGame {
         if (!this.gameState) {
@@ -114,7 +104,7 @@ export class LiveGame {
     /**
      * Load a saved game
      *
-     * Note: even if you change just a single line of script, the saved game might not be compatible with the new version
+     * Note: Even if you change just a single line of script, the saved game might not be compatible with the new version
      *
      * After calling this method, the current game state will be lost, and the stage will trigger force reset
      */
@@ -144,7 +134,7 @@ export class LiveGame {
         } = savedGame;
 
         // construct maps
-        story.forEachChild(story, story.entryScene?.getSceneRoot() || [], action => {
+        story.forEachChild(story.entryScene?.sceneRoot || [], action => {
             actionMaps.set(action.getId(), action);
             elementMaps.set(action.callee.getId(), action.callee);
         });
@@ -187,7 +177,6 @@ export class LiveGame {
             throw new Error("No game state");
         }
         const gameState = this.gameState;
-        const logGroup = gameState.logger.group("LiveGame");
 
         this.reset({gameState});
         this.initNamespaces();
@@ -197,7 +186,7 @@ export class LiveGame {
         this.currentSavedGame = newGame;
 
         const elements: Map<string, LogicAction.GameElement> | undefined =
-            this.story?.getAllElementMap(this.story, this.story?.entryScene?.getSceneRoot() || []);
+            this.story?.getAllElementMap(this.story?.entryScene?.sceneRoot || []);
         if (elements) {
             elements.forEach((element) => {
                 gameState.logger.debug("reset element", element);
@@ -209,7 +198,6 @@ export class LiveGame {
 
         gameState.stage.forceUpdate();
         gameState.stage.next();
-        logGroup.end();
 
         return this;
     }
@@ -220,7 +208,7 @@ export class LiveGame {
             this.lockedAwaiting.abort();
         }
 
-        this.currentAction = this.story?.entryScene?.getSceneRoot() || null;
+        this.currentAction = this.story?.entryScene?.sceneRoot || null;
         this.lockedAwaiting = null;
         this.currentSavedGame = null;
 
@@ -259,7 +247,7 @@ export class LiveGame {
 
                 if (this._lockedCount > 1000) {
                     // sometimes react will make it stuck and enter a dead cycle
-                    // that's not cool, so it need to throw an error to break it
+                    // that's not cool, so we need to throw an error to break it
                     throw new Error("LiveGame locked: dead cycle detected\nPlease refresh the page");
                 }
 
@@ -269,7 +257,7 @@ export class LiveGame {
             const next = this.lockedAwaiting.result;
             this.currentAction = next?.node?.action || null;
 
-            state.logger.debug("next action (lockedAwaiting)", next);
+            state.logger.debug("next action", next);
 
             this.lockedAwaiting = null;
 
@@ -279,7 +267,7 @@ export class LiveGame {
 
         if (!this.currentAction) {
             state.events.emit(GameState.EventTypes["event:state.end"]);
-            state.logger.weakWarn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
+            state.logger.warn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
 
             this._nextLock.unlock();
             return null;
@@ -296,6 +284,7 @@ export class LiveGame {
         state.logger.debug("next action", nextAction);
 
         this._lockedCount = 0;
+
         this.currentAction = nextAction.node?.action || null;
 
         this._nextLock.unlock();
@@ -331,54 +320,6 @@ export class LiveGame {
     }
 
     /**@internal */
-    getAllPredictableActions(story: Story, action?: LogicAction.Actions | null, limit?: number): LogicAction.Actions[] {
-        let current: ContentNode | null = action?.contentNode || null;
-        const actions: LogicAction.Actions[] = [];
-        const queue: LogicAction.Actions[] = [];
-        const seenScene = new Set<Scene>();
-
-        while (current || queue.length) {
-            if (limit && actions.length >= limit) {
-                break;
-            }
-            if (!current) {
-                current = queue.pop()!.contentNode;
-            }
-
-            if ([ConditionAction].some(a => current?.action && current.action instanceof a)) {
-                current = null;
-                continue;
-            }
-            if (current.action && current.action.is<SceneAction<"scene:jumpTo">>(SceneAction, SceneActionTypes.jumpTo)) {
-                const [targetScene] = current.action.contentNode.getContent();
-                const scene = story.getScene(targetScene);
-                if (!scene) {
-                    throw current.action._sceneNotFoundError(current.action.getSceneName(targetScene));
-                }
-
-                if (seenScene.has(scene)) {
-                    current = null;
-                    continue;
-                }
-                seenScene.add(scene);
-
-                current = scene.getSceneRoot()?.contentNode || null;
-                continue;
-            } else if (current.action &&
-                current.action.is<ControlAction<"control:do">>(ControlAction as any, ControlActionTypes.do)
-            ) {
-                const [content] = current.action.contentNode.getContent();
-                if (current.getChild()?.action) queue.push(current.getChild()!.action!);
-                current = content[0]?.contentNode || null;
-            }
-            if (current.action) actions.push(current.action);
-            current = current.getChild();
-        }
-
-        return actions;
-    }
-
-    /**@internal */
     private getNewSavedGame(): SavedGame {
         return {
             name: "",
@@ -392,7 +333,7 @@ export class LiveGame {
                     scenes: [],
                 },
                 elementStates: [],
-                currentAction: this.story?.entryScene?.getSceneRoot().getId() || null,
+                currentAction: this.story?.entryScene?.sceneRoot?.getId() || null,
             }
         };
     }

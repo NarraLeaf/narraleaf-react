@@ -3,7 +3,7 @@ import {TypedAction} from "@core/action/actions";
 import {GameState} from "@player/gameState";
 import {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, SkipController} from "@lib/util/data";
-import {Text} from "@core/elements/displayable/text";
+import {Text} from "@core/elements/text";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Transform} from "@core/elements/transform/transform";
 
@@ -96,6 +96,6 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
             return awaitable;
         }
 
-        throw super.unknownTypeError();
+        throw super.unknownType();
     }
 }

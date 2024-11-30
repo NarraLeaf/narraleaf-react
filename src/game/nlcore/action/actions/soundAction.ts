@@ -78,6 +78,6 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             return super.executeAction(state);
         }
 
-        throw super.unknownTypeError();
+        throw super.unknownType();
     }
 }

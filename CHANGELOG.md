@@ -1,39 +1,6 @@
 # Changelog
 
-## [0.2.0] - 2024/11/29
-
-### _Feature_
-
-- Assign voice using generator or voice map
-- Use `image.tag` to manage image src
-- Use displayable actions to reorder layers
-- Better image preloading
-- Scene config inheritance
-- Use the scene name to jump between two cross-referenced scenes
-- Use `Persistent` to manage persistent data
-
-### _Incompatible Changes_
-
-- Image constructor signature has changed. Now the first argument must be a config object.
-
-### Added
-
-- Voice map generator
-- Image tag src management
-- Displayable actions
-- Layer actions
-- Disable image auto initialize using image.config
-- Quick image preloading only preloads images when needed
-- Use `scene.inherit` to inherit scene config
-- Use the scene name to jump between two cross-referenced scenes
-- `Persistent` data management (storable actions wrapper)
-
-### Updated
-
-- Image preloader now stores images in stack, so the lib can easily control the process of preloading/unloading images
-- Better signatures for `Condition`
-
-## [0.1.7] - 2024/11/16
+## [0.1.7]
 
 ### _Feature_
 

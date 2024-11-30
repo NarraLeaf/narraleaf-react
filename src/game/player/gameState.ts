@@ -1,27 +1,24 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher, moveElementInArray, sleep} from "@lib/util/data";
+import {EventDispatcher, Logger, sleep} from "@lib/util/data";
 import {Choice, MenuData} from "@core/elements/menu";
-import {Image, ImageEventTypes} from "@core/elements/displayable/image";
+import {Image, ImageEventTypes} from "@core/elements/image";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
 import {HowlOptions} from "howler";
 import {SrcManager} from "@core/action/srcManager";
 import {LogicAction} from "@core/action/logicAction";
-import {Storable} from "@core/elements/persistent/storable";
+import {Storable} from "@core/store/storable";
 import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 import {Sentence} from "@core/elements/character/sentence";
 import {SceneAction} from "@core/action/actions/sceneAction";
-import {Text, TextEventTypes} from "@core/elements/displayable/text";
-import {Logger} from "@lib/util/logger";
-import {RuntimeGameError} from "@core/common/Utils";
-import {Story} from "@core/elements/story";
+import {Text, TextEventTypes} from "@core/elements/text";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Choice>[];
-    displayable: LogicAction.DisplayableElements[];
+    displayable: LogicAction.Displayable[];
 };
 export type PlayerState = {
     sounds: Sound[];
@@ -86,7 +83,7 @@ export class GameState {
         return this.state.elements.find(e => e.scene === scene) || null;
     }
 
-    public findElementByDisplayable(displayable: LogicAction.DisplayableElements): {
+    public findElementByDisplayable(displayable: LogicAction.Displayable): {
         scene: Scene,
         ele: PlayerStateElement
     } | null {
@@ -134,54 +131,6 @@ export class GameState {
         return false;
     }
 
-    public moveUpElement(scene: Scene, element: LogicAction.DisplayableElements): this {
-        const targetElement = this.findElementByScene(scene);
-        if (!targetElement) return this;
-
-        targetElement.ele.displayable = moveElementInArray(
-            targetElement.ele.displayable,
-            element,
-            Math.min(targetElement.ele.displayable.indexOf(element) + 1, targetElement.ele.displayable.length - 1)
-        );
-        return this;
-    }
-
-    public moveDownElement(scene: Scene, element: LogicAction.DisplayableElements): this {
-        const targetElement = this.findElementByScene(scene);
-        if (!targetElement) return this;
-
-        targetElement.ele.displayable = moveElementInArray(
-            targetElement.ele.displayable,
-            element,
-            Math.max(targetElement.ele.displayable.indexOf(element) - 1, 0)
-        );
-        return this;
-    }
-
-    public moveTopElement(scene: Scene, element: LogicAction.DisplayableElements): this {
-        const targetElement = this.findElementByScene(scene);
-        if (!targetElement) return this;
-
-        targetElement.ele.displayable = moveElementInArray(
-            targetElement.ele.displayable,
-            element,
-            targetElement.ele.displayable.length - 1
-        );
-        return this;
-    }
-
-    public moveBottomElement(scene: Scene, element: LogicAction.DisplayableElements): this {
-        const targetElement = this.findElementByScene(scene);
-        if (!targetElement) return this;
-
-        targetElement.ele.displayable = moveElementInArray(
-            targetElement.ele.displayable,
-            element,
-            0
-        );
-        return this;
-    }
-
     handle(action: PlayerAction): this {
         if (this.currentHandling === action) return this;
         this.currentHandling = action;
@@ -194,7 +143,7 @@ export class GameState {
     }
 
     public createText(id: string, sentence: Sentence, afterClick?: () => void, scene?: Scene) {
-        const texts = this.findElementByScene(this.getLastSceneIfNot(scene))?.ele.texts;
+        const texts = this.findElementByScene(this._getLastSceneIfNot(scene))?.ele.texts;
         if (!texts) {
             throw new Error("Scene not found");
         }
@@ -214,7 +163,7 @@ export class GameState {
         if (!menu.choices.length) {
             throw new Error("Menu must have at least one choice");
         }
-        const menus = this.findElementByScene(this.getLastSceneIfNot(scene))?.ele.menus;
+        const menus = this.findElementByScene(this._getLastSceneIfNot(scene))?.ele.menus;
         if (!menus) {
             throw new Error("Scene not found");
         }
@@ -227,7 +176,7 @@ export class GameState {
     }
 
     public createImage(image: Image, scene?: Scene) {
-        const targetScene = this.getLastSceneIfNot(scene);
+        const targetScene = this._getLastSceneIfNot(scene);
         const targetElement = this.findElementByScene(targetScene);
         if (!targetElement) return this;
         targetElement.ele.displayable.push(image);
@@ -239,7 +188,7 @@ export class GameState {
     }
 
     public disposeImage(image: Image, scene?: Scene) {
-        const targetScene = this.getLastSceneIfNot(scene);
+        const targetScene = this._getLastSceneIfNot(scene);
         const images = this.findElementByScene(targetScene)?.ele.displayable;
         if (!images) {
             throw new Error("Scene not found");
@@ -253,16 +202,16 @@ export class GameState {
         return this;
     }
 
-    public createDisplayable(displayable: LogicAction.DisplayableElements, scene?: Scene) {
-        const targetScene = this.getLastSceneIfNot(scene);
+    public createDisplayable(displayable: LogicAction.Displayable, scene?: Scene) {
+        const targetScene = this._getLastSceneIfNot(scene);
         const targetElement = this.findElementByScene(targetScene);
         if (!targetElement) return this;
         targetElement.ele.displayable.push(displayable);
         return this;
     }
 
-    public disposeDisplayable(displayable: LogicAction.DisplayableElements, scene?: Scene) {
-        const targetScene = this.getLastSceneIfNot(scene);
+    public disposeDisplayable(displayable: LogicAction.Displayable, scene?: Scene) {
+        const targetScene = this._getLastSceneIfNot(scene);
         const displayables = this.findElementByScene(targetScene)?.ele.displayable;
         if (!displayables) {
             throw new Error("Scene not found");
@@ -380,17 +329,6 @@ export class GameState {
         return this.game.getLiveGame().getStorable();
     }
 
-    public getSceneByName(name: string): Scene | null {
-        return this.game.getLiveGame().story?.getScene(name) || null;
-    }
-
-    public getStory(): Story {
-        if (!this.game.getLiveGame().story) {
-            throw new RuntimeGameError("Story not loaded");
-        }
-        return this.game.getLiveGame().story!;
-    }
-
     /**
      * Dispose the game state
      *
@@ -429,15 +367,15 @@ export class GameState {
 
             const scene = elementMap.get(sceneId) as Scene;
             if (!scene) {
-                throw new RuntimeGameError("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");
+                throw new Error("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");
             }
 
             const displayable = elements.displayable.map(d => {
                 if (!elementMap.has(d)) {
-                    throw new RuntimeGameError("Displayable not found, id: " + d + "\nNarraLeaf cannot find the element with the id from the saved game" +
+                    throw new Error("Displayable not found, id: " + d + "\nNarraLeaf cannot find the element with the id from the saved game" +
                         "\nThis may be caused by the damage of the saved game file or the change of the story file");
                 }
-                return elementMap.get(d) as LogicAction.DisplayableElements;
+                return elementMap.get(d) as LogicAction.Displayable;
             });
             const element: { scene: Scene; ele: PlayerStateElement; } = {
                 scene,
@@ -460,14 +398,6 @@ export class GameState {
         });
     }
 
-    public getLastSceneIfNot(scene: Scene | null | void) {
-        const targetScene = scene || this.getLastScene();
-        if (!targetScene || !this.sceneExists(targetScene)) {
-            throw new RuntimeGameError("Scene not found, please call \"scene.activate()\" first.");
-        }
-        return targetScene;
-    }
-
     private getElementMap(): PlayerStateElement {
         return {
             texts: [],
@@ -481,6 +411,14 @@ export class GameState {
         if (index === -1) return this;
         this.state.elements.splice(index, 1);
         return this;
+    }
+
+    private _getLastSceneIfNot(scene: Scene | null | void) {
+        const targetScene = scene || this.getLastScene();
+        if (!targetScene || !this.sceneExists(targetScene)) {
+            throw new Error("Scene not found, please call \"scene.activate()\" first.");
+        }
+        return targetScene;
     }
 
     private anyEvent(type: any, target: any, onEnd: () => void, ...args: any[]) {

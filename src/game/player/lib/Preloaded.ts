@@ -1,7 +1,8 @@
 import {Sound} from "@core/elements/sound";
-import {Src, SrcManager} from "@core/action/srcManager";
+import {Src} from "@core/action/srcManager";
 import {EventDispatcher} from "@lib/util/data";
-import {Image} from "@core/elements/displayable/image";
+import {Image} from "@core/elements/image";
+import {Utils} from "@core/common/Utils";
 
 export type PreloadedSrcTypes = "image" | "audio" | "video";
 export type PreloadedSrc<T extends PreloadedSrcTypes = any> = ({
@@ -82,7 +83,16 @@ export class Preloaded {
     }
 
     getSrc(src: Src | string): string {
-        return SrcManager.getSrc(src);
+        if (typeof src === "string") {
+            return src;
+        }
+        if (src.type === "image") {
+            return Utils.srcToString(src.src.state.src);
+        } else if (src.type === "video") {
+            return src.src;
+        } else if (src.type === "audio") {
+            return src.src.getSrc();
+        }
+        return "";
     }
 }
-

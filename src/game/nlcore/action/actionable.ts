@@ -3,7 +3,7 @@ import {Chainable, Chained, Proxied} from "@core/action/chain";
 import GameElement = LogicAction.GameElement;
 
 export class Actionable<
-    StateData extends Record<string, any> | null = Record<string, any>,
+    StateData extends Record<string, any> = Record<string, any>,
     Self extends Actionable = any
 > extends Chainable<LogicAction.Actions, Self> {
     constructor() {
@@ -15,12 +15,7 @@ export class Actionable<
         return null;
     }
 
-    /**
-     * @internal
-     * override this method can override the default behavior of chaining
-     *
-     * When converting a chain to actions, this method is called to convert the chain to actions
-     */
+    /**@internal */
     public fromChained(chained: Proxied<GameElement, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return chained.getActions();
     }

@@ -9,7 +9,7 @@ import {CSSProps} from "@core/elements/transition/type";
 import {Utils} from "@core/common/Utils";
 import {animate} from "framer-motion/dom";
 import React from "react";
-import {ImageConfig} from "@core/elements/displayable/image";
+import {ImageConfig} from "@core/elements/image";
 import Sequence = TransformDefinitions.Sequence;
 import SequenceProps = TransformDefinitions.SequenceProps;
 

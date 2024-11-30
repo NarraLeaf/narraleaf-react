@@ -3,7 +3,6 @@ import type {Condition} from "@core/elements/condition";
 import {GameState} from "@player/gameState";
 import {LogicAction} from "@core/action/logicAction";
 import {TypedAction} from "@core/action/actions";
-import {Story} from "@core/elements/story";
 
 export class ConditionAction<T extends typeof ConditionActionTypes[keyof typeof ConditionActionTypes] = typeof ConditionActionTypes[keyof typeof ConditionActionTypes]>
     extends TypedAction<ConditionActionContentType, T, Condition> {
@@ -21,7 +20,7 @@ export class ConditionAction<T extends typeof ConditionActionTypes[keyof typeof 
         };
     }
 
-    getFutureActions(story: Story): LogicAction.Actions[] {
-        return [...this.callee._getFutureActions(), ...super.getFutureActions(story)];
+    getFutureActions(): LogicAction.Actions[] {
+        return [...this.callee._getFutureActions(), ...super.getFutureActions()];
     }
 }

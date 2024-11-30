@@ -18,7 +18,7 @@ export class TypedAction<
         this.contentNode.action = this;
     }
 
-    unknownTypeError() {
+    unknownType() {
         throw new Error("Unknown action type: " + this.type);
     }
 
@@ -31,9 +31,5 @@ export class TypedAction<
             await handler(a.resolve.bind(a), a);
         })();
         return a;
-    }
-
-    is<T extends LogicAction.Actions>(parent: new (...args: any[]) => T, type: string): this is T {
-        return this instanceof parent && this.type === type;
     }
 }

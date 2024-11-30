@@ -9,7 +9,6 @@ import {DisplayableChildProps} from "@player/elements/displayable/type";
 import {m} from "framer-motion";
 import Displayable from "@player/elements/displayable/Displayable";
 import {useRatio} from "@player/provider/ratio";
-import {usePreloaded} from "@player/provider/preloaded";
 
 export default function BackgroundTransition({scene, props, state}: {
     scene: GameScene,
@@ -48,7 +47,6 @@ function DisplayableBackground(
     }>
 ) {
     const {ratio} = useRatio();
-    const {cacheManager} = usePreloaded();
     const [imageLoaded, setImageLoaded] = React.useState<boolean>(false);
 
     function handleImageOnload() {
@@ -71,13 +69,6 @@ function DisplayableBackground(
         }
     };
 
-    function tryGetCache(src: string | undefined): string {
-        if (src) {
-            return cacheManager.has(src) ? cacheManager.get(src)! : src;
-        }
-        return emptyImage;
-    }
-
     return (
         <div>
             <m.div
@@ -90,20 +81,37 @@ function DisplayableBackground(
                     }
                 }, transformProps))}
             >
-                {(transition ? transition.toElementProps() : [{}]).map((elementProps, index) => {
-                    const mergedProps =
-                        deepMerge<ImgElementProp>(defaultProps, props, elementProps);
-                    return (
-                        <img
-                            alt={mergedProps.alt}
-                            {...mergedProps}
-                            onLoad={handleImageOnload}
-                            src={tryGetCache(mergedProps.src)}
-                            className={"absolute"}
-                            key={index}
-                        />
-                    );
-                })}
+                {
+                    transition ? (() => {
+                        return transition.toElementProps().map((elementProps, index) => {
+                            const mergedProps =
+                                deepMerge<ImgElementProp>(defaultProps, props, elementProps);
+                            return (
+                                <img
+                                    alt={mergedProps.alt}
+                                    {...mergedProps}
+                                    onLoad={handleImageOnload}
+                                    src={(mergedProps.src) ? mergedProps.src : emptyImage}
+                                    className={"absolute"}
+                                    key={index}
+                                />
+                            );
+                        });
+                    })() : (() => {
+                        const mergedProps =
+                            deepMerge<ImgElementProp>(defaultProps, props);
+                        return (
+                            <img
+                                key={"last"}
+                                alt={mergedProps.alt}
+                                {...mergedProps}
+                                onLoad={handleImageOnload}
+                                src={mergedProps.src || emptyImage}
+                                className={"absolute"}
+                            />
+                        );
+                    })()
+                }
             </m.div>
         </div>
     );
