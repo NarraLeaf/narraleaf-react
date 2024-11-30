@@ -691,3 +691,9 @@ export class TaskPool {
 }
 
 export type StringKeyOf<T> = Extract<keyof T, string>;
+export type ValuesWithin<T, U> = {
+    [K in keyof T]: T[K] extends U ? K : never;
+}[keyof T];
+export type BooleanKeys<T> = {
+    [K in keyof T]: T[K] extends boolean ? K : never;
+}[keyof T];

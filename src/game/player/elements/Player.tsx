@@ -79,7 +79,10 @@ export default function Player(
     }
 
     useEffect(() => {
-        game.getLiveGame().setGameState(state).loadStory(story);
+        game.getLiveGame().setGameState(state);
+        if (story) {
+            game.getLiveGame().loadStory(story);
+        }
 
         return () => {
             game.getLiveGame().setGameState(undefined);

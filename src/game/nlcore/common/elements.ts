@@ -19,6 +19,7 @@ import {Word} from "@core/elements/character/word";
 import {Text} from "@core/elements/displayable/text";
 import {Pause} from "@core/elements/character/pause";
 import {StaticImageData} from "@core/types";
+import {Persistent} from "@core/elements/persistent";
 
 interface ImageConstructor {
     new<T extends TagGroupDefinition | null>(
@@ -75,5 +76,6 @@ export {
     Transform,
     Word,
     Text,
-    Pause
+    Pause,
+    Persistent,
 };

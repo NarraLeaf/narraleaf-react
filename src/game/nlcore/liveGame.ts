@@ -2,9 +2,9 @@ import {Awaitable, Lock, MultiLock} from "@lib/util/data";
 import type {CalledActionResult, SavedGame} from "@core/gameTypes";
 import {Story} from "@core/elements/story";
 import {GameState} from "@player/gameState";
-import {Namespace, Storable} from "@core/store/storable";
+import {Namespace, Storable} from "@core/elements/persistent/storable";
 import {LogicAction} from "@core/action/logicAction";
-import {StorableType} from "@core/store/type";
+import {StorableType} from "@core/elements/persistent/type";
 import {Game} from "@core/game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {ConditionAction} from "@core/action/actions/conditionAction";
@@ -54,6 +54,9 @@ export class LiveGame {
         this.storable.clear().addNamespace(new Namespace<Partial<{
             [key: string]: StorableType | undefined
         }>>(LiveGame.GameSpacesKey.game, LiveGame.DefaultNamespaces.game));
+        if (this.story) {
+            this.story.initPersistent(this.storable);
+        }
         return this;
     }
 
@@ -64,7 +67,8 @@ export class LiveGame {
     /* Game */
     /**@internal */
     loadStory(story: Story) {
-        this.story = story.constructStory();
+        this.story = story
+            .constructStory();
         return this;
     }
 

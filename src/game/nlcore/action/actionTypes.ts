@@ -209,3 +209,14 @@ export type DisplayableActionContentType = {
                 K extends "displayable:layerMoveBottom" ? [void] :
                     any;
 }
+/* Persistent */
+export const PersistentActionTypes = {
+    action: "persistent:action",
+    set: "persistent:set",
+} as const;
+export type PersistentActionContentType = {
+    [K in typeof PersistentActionTypes[keyof typeof PersistentActionTypes]]:
+    K extends "persistent:action" ? any :
+        K extends "persistent:set" ? [string, any] :
+            any;
+}

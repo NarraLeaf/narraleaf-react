@@ -2,7 +2,7 @@ import {ContentNode, RawData} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {ElementStateRaw} from "@core/elements/story";
 import {PlayerStateData} from "@player/gameState";
-import {StorableData} from "@core/store/type";
+import {StorableData} from "@core/elements/persistent/type";
 import {MenuComponent, SayComponent} from "@player/elements/type";
 import React from "react";
 

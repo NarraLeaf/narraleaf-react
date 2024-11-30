@@ -8,7 +8,7 @@ import * as Howler from "howler";
 import {HowlOptions} from "howler";
 import {SrcManager} from "@core/action/srcManager";
 import {LogicAction} from "@core/action/logicAction";
-import {Storable} from "@core/store/storable";
+import {Storable} from "@core/elements/persistent/storable";
 import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 import {Sentence} from "@core/elements/character/sentence";

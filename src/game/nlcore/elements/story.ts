@@ -5,6 +5,8 @@ import {RuntimeScriptError, StaticChecker} from "@core/common/Utils";
 import {RawData} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {LogicAction} from "@core/action/logicAction";
+import {Persistent} from "@core/elements/persistent";
+import {Storable} from "@core/elements/persistent/storable";
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type StoryConfig = {};
@@ -28,6 +30,8 @@ export class Story extends Constructable<
     entryScene: Scene | null = null;
     /**@internal */
     scenes: Map<string, Scene> = new Map();
+    /**@internal */
+    persistent: Persistent<any>[] = [];
 
     constructor(name: string, config: StoryConfig = {}) {
         super();
@@ -53,6 +57,7 @@ export class Story extends Constructable<
      * Register a scene to the story
      * @example
      * ```typescript
+     * // register a scene
      * const story = new Story("story");
      * const scene1 = new Scene("scene1");
      * const scene2 = new Scene("scene2");
@@ -62,12 +67,11 @@ export class Story extends Constructable<
      * scene2.action([
      *   scene2.jump("scene1") // Jump to scene1
      * ]);
-     *
      * ```
      */
-    public register(name: string, scene: Scene): this;
-    public register(scene: Scene): this;
-    public register(arg0: string | Scene, arg1?: Scene): this {
+    public registerScene(name: string, scene: Scene): this;
+    public registerScene(scene: Scene): this;
+    public registerScene(arg0: string | Scene, arg1?: Scene): this {
         const name = typeof arg0 === "string" ? arg0 : arg0.name;
         const scene = typeof arg0 === "string" ? arg1! : arg0;
 
@@ -75,6 +79,16 @@ export class Story extends Constructable<
             throw new Error(`Scene with name ${name} already exists when registering scene`);
         }
         this.scenes.set(name, scene);
+        return this;
+    }
+
+    /**
+     * Register a Persistent to the story
+     *
+     * You can't use a Persistent that isn't registered to the story
+     */
+    public registerPersistent(persistent: Persistent<any>): this {
+        this.persistent.push(persistent);
         return this;
     }
 
@@ -152,6 +166,14 @@ export class Story extends Constructable<
             const children = action.getFutureActions(this);
             queue.push(...children);
         }
+        return this;
+    }
+
+    /**@internal */
+    initPersistent(storable: Storable): this {
+        this.persistent.forEach(persistent => {
+            persistent.init(storable);
+        });
         return this;
     }
 

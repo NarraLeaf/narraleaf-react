@@ -10,6 +10,7 @@
 - Better image preloading
 - Scene config inheritance
 - Use the scene name to jump between two cross-referenced scenes
+- Use `Persistent` to manage persistent data
 
 ### _Incompatible Changes_
 
@@ -26,6 +27,7 @@
 - Use `scene.inherit` to inherit scene config
 - Use the scene name to jump between two cross-referenced scenes
 - Better signatures for `Condition`
+- `Persistent` data management (storable actions wrapper)
 
 ### Updated
 

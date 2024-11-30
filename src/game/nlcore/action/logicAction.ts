@@ -20,7 +20,7 @@ import {
     ImageActionContentType,
     ImageActionTypes,
     MenuActionContentType,
-    MenuActionTypes,
+    MenuActionTypes, PersistentActionContentType, PersistentActionTypes,
     SceneActionContentType,
     SceneActionTypes,
     ScriptActionContentType,
@@ -43,6 +43,8 @@ import {Text} from "@core/elements/displayable/text";
 import {TextAction} from "@core/action/actions/textAction";
 import {Displayable as AbstractDisplayable} from "@core/elements/displayable/displayable";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
+import {Persistent} from "@core/elements/persistent";
+import {PersistentAction} from "@core/action/actions/persistentAction";
 
 export namespace LogicAction {
     export type DisplayableElements = Text | Image | AbstractDisplayable<any, any>;
@@ -57,7 +59,8 @@ export namespace LogicAction {
         | Sound
         | Control
         | Text
-        | AbstractDisplayable<any, any>;
+        | AbstractDisplayable<any, any>
+        | Persistent<any>;
     export type Actions =
         TypedAction
         | CharacterAction
@@ -70,7 +73,8 @@ export namespace LogicAction {
         | SoundAction
         | ControlAction
         | TextAction
-        | DisplayableAction;
+        | DisplayableAction
+        | PersistentAction;
     export type ActionTypes =
         Values<typeof CharacterActionTypes>
         | Values<typeof ConditionActionTypes>
@@ -82,7 +86,8 @@ export namespace LogicAction {
         | Values<typeof SoundAction.ActionTypes>
         | Values<typeof ControlAction.ActionTypes>
         | Values<typeof TextAction.ActionTypes>
-        | Values<typeof DisplayableActionTypes>;
+        | Values<typeof DisplayableActionTypes>
+        | Values<typeof PersistentActionTypes>;
     export type ActionContents =
         CharacterActionContentType
         & ConditionActionContentType
@@ -94,5 +99,6 @@ export namespace LogicAction {
         & SoundActionContentType
         & ControlActionContentType
         & TextActionContentType
-        & DisplayableActionContentType;
+        & DisplayableActionContentType
+        & PersistentActionContentType;
 }

@@ -39,6 +39,10 @@ export type ContentNodeData = {
 }
 
 export class ContentNode<T = any> extends Node<T> {
+    static create<T>(content: T): ContentNode<T> {
+        return new ContentNode<T>().setContent(content);
+    }
+
     static forEachParent(node: RenderableNode, callback: (node: RenderableNode) => void) {
         const seen: Set<RenderableNode> = new Set();
         let current: RenderableNode | null = node;

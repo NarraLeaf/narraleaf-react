@@ -3,27 +3,33 @@ import {LogicAction} from "@core/action/logicAction";
 import {Actionable} from "@core/action/actionable";
 import {GameState} from "@player/gameState";
 import {Chained, ChainedActions, Proxied} from "@core/action/chain";
-import {ScriptCtx} from "@core/elements/script";
 import {StaticScriptWarning} from "@core/common/Utils";
 import {ConditionAction} from "@core/action/actions/conditionAction";
+import {LambdaCtx, LambdaHandler} from "@core/elements/type";
 import Actions = LogicAction.Actions;
 
-type LambdaCtx = ScriptCtx;
-type LambdaHandler<T = any> = (ctx: LambdaCtx) => T;
-
-export class Lambda {
+export class Lambda<T = any> {
+    /**@internal */
     public static isLambda(value: any): value is Lambda {
         return value instanceof Lambda && "handler" in value;
     }
 
-    handler: LambdaHandler;
+    /**@internal */
+    public static from<T>(obj: Lambda<T> | LambdaHandler<T>): Lambda<T> {
+        return Lambda.isLambda(obj) ? obj : new Lambda(obj);
+    }
 
+    /**@internal */
+    handler: LambdaHandler<T>;
+
+    /**@internal */
     constructor(handler: LambdaHandler) {
         this.handler = handler;
     }
 
+    /**@internal */
     evaluate({gameState}: { gameState: GameState }): {
-        value: any;
+        value: T;
     } {
         const value = this.handler(this.getCtx({gameState}));
         return {
@@ -31,6 +37,7 @@ export class Lambda {
         };
     }
 
+    /**@internal */
     getCtx({gameState}: { gameState: GameState }): LambdaCtx {
         return {
             gameState,
