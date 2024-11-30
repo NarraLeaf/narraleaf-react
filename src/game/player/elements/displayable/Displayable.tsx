@@ -150,13 +150,13 @@ export default function Displayable(
                     listener: transition.events.on(TransitionEventTypes.end, () => {
                         setTransition(null);
 
-                        gameState.logger.debug("transition end", transition);
+                        gameState.logger.debug("scene background transition end", transition);
                     })
                 },
                 {
                     type: TransitionEventTypes.start,
                     listener: transition.events.on(TransitionEventTypes.start, () => {
-                        gameState.logger.debug("transition start", transition);
+                        gameState.logger.debug("scene background transition start", transition);
                     })
                 }
             ]);

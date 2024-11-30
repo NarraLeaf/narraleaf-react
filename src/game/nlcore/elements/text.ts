@@ -11,10 +11,9 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {TextActionContentType} from "@core/action/actionTypes";
 import {TextAction} from "@core/action/actions/textAction";
 import {Scene} from "@core/elements/scene";
-import {ITextTransition} from "@core/elements/transition/type";
+import {ITextTransition, ITransition} from "@core/elements/transition/type";
 import {Control} from "@core/elements/control";
 import {FontSizeTransition} from "@core/elements/transition/textTransitions/fontSizeTransition";
-import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
 
 export type TextConfig = {
     alignX: "left" | "center" | "right";
@@ -33,16 +32,21 @@ export type TextDataRaw = {
 export type TextEventTypes = {
     "event:text.show": [Transform];
     "event:text.hide": [Transform];
-} & DisplayableEventTypes;
+    "event:displayable.applyTransition": [ITransition];
+    "event:displayable.applyTransform": [Transform];
+    "event:displayable.init": [];
+};
 
 export class Text
     extends Actionable<TextDataRaw, Text>
     implements EventfulDisplayable {
     /**@internal */
     static EventTypes: { [K in keyof TextEventTypes]: K } = {
-        ...Displayable.EventTypes,
         "event:text.show": "event:text.show",
         "event:text.hide": "event:text.hide",
+        "event:displayable.applyTransition": "event:displayable.applyTransition",
+        "event:displayable.applyTransform": "event:displayable.applyTransform",
+        "event:displayable.init": "event:displayable.init",
     };
     /**@internal */
     static defaultConfig: TextConfig = {

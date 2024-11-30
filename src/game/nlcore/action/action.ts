@@ -3,7 +3,6 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import type {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, getCallStack} from "@lib/util/data";
 import {GameState} from "@player/gameState";
-import {Story} from "@core/elements/story";
 
 export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Type extends string = any> {
     static ActionTypes = {
@@ -39,17 +38,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Typ
         this._id = id;
     }
 
-    setContent(content: ContentNodeType) {
-        this.contentNode.setContent(content);
-        return this;
-    }
-
-    setContentNode(contentNode: ContentNode<ContentNodeType>) {
-        this.contentNode = contentNode;
-        return this;
-    }
-
-    getFutureActions(_story: Story): LogicAction.Actions[] {
+    getFutureActions(): LogicAction.Actions[] {
         const action = this.contentNode.getChild();
         return (action && action.action) ? [action.action] : [];
     }

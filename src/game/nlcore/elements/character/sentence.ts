@@ -10,7 +10,6 @@ export type SentenceConfig = {
     pause?: boolean | number;
     voice: Sound | null;
     character: Character | null;
-    voiceId: string | number | null;
 } & Color & Font;
 
 export type SentenceDataRaw = {
@@ -38,7 +37,6 @@ export class Sentence {
         pause: true,
         voice: null,
         character: null,
-        voiceId: null,
     };
     /**@internal */
     static defaultState: SentenceState = {
