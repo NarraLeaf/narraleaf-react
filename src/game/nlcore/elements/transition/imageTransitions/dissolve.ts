@@ -18,7 +18,7 @@ export class Dissolve extends BaseImageTransition<ImgElementProp> implements IIm
         opacity: 0,
     };
     private src?: ImageSrc | ImageColor;
-    private readonly easing: TransformDefinitions.EasingDefinition | undefined;
+    private readonly easing: TransformDefinitions.EasingDefinition;
 
     /**
      * Image will dissolve from one image to another
@@ -26,7 +26,7 @@ export class Dissolve extends BaseImageTransition<ImgElementProp> implements IIm
     constructor(duration: number = 1000, easing?: TransformDefinitions.EasingDefinition) {
         super();
         this.duration = duration;
-        this.easing = easing;
+        this.easing = easing || BaseImageTransition.DefaultEasing;
     }
 
     setSrc(src: ImageSrc | ImageColor | undefined): this {

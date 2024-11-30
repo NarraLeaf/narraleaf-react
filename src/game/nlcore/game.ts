@@ -50,6 +50,12 @@ export class Game {
             skipKey: ["Control"],
             skipInterval: 100,
             ratioUpdateInterval: 50,
+            preloadDelay: 100,
+            preloadConcurrency: 5,
+            waitForPreload: false,
+            preloadAllImages: true,
+            forceClearCache: false,
+            maxPreloadActions: 10,
         },
         elements: {
             say: {

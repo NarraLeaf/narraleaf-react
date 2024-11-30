@@ -20,6 +20,8 @@ export enum SoundType {
 export type SoundDataRaw = {
     config: SoundConfig;
 };
+export type VoiceIdMap = Record<string | number, string | Sound>;
+export type VoiceSrcGenerator = (id: string | number) => string | Sound;
 
 export type SoundConfig = {
     /**

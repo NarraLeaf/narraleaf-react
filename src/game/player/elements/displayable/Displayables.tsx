@@ -1,16 +1,16 @@
 import React from "react";
 import {GameState} from "@player/gameState";
 import {LogicAction} from "@core/action/logicAction";
-import {Text as GameText} from "@core/elements/text";
+import {Text as GameText} from "@core/elements/displayable/text";
 import {default as StageText} from "@player/elements/displayable/Text";
-import {Image as GameImage} from "@core/elements/image";
+import {Image as GameImage} from "@core/elements/displayable/image";
 import {default as StageImage} from "@player/elements/image/Image";
 
 
 export default function Displayables(
     {state, displayable}: Readonly<{
         state: GameState;
-        displayable: LogicAction.Displayable[];
+        displayable: LogicAction.DisplayableElements[];
     }>) {
     return (<>
         {displayable.map((displayable) => {
