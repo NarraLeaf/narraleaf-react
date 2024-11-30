@@ -6,8 +6,9 @@ import {
     StorableData,
     StorableType,
     WrappedStorableData
-} from "@core/store/type";
+} from "@core/elements/persistent/type";
 import {deepMerge} from "@lib/util/data";
+import {RuntimeGameError} from "@core/common/Utils";
 
 export class Namespace<T extends NameSpaceContent<keyof T>> {
     static isSerializable(value: any): boolean {
@@ -43,7 +44,7 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
 
     public set<Key extends keyof T>(key: Key, value: T[Key]): this {
         if (!Namespace.isSerializable(value)) {
-            console.warn(`Value "${value}" in key "${String(key)}" is not serializable, and will not be set\nat namespace "${this.name}"`);
+            console.warn(`Value "${value}" in key "${String(key)}" is not serializable, and will not be set\n    at namespace "${this.name}"`);
             this.content[key] = value;
             return this;
         }
@@ -53,6 +54,17 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
 
     public get<Key extends keyof T = any>(key: Key): T[Key] {
         return this.content[key] as T[Key];
+    }
+
+    public equals<Key extends keyof T = any>(key: Key, value: T[Key]): boolean {
+        return this.content[key] === value;
+    }
+
+    public assign(values: Partial<T>): this {
+        Object.entries(values).forEach(([key, value]) => {
+            this.set(key as keyof T, value as any);
+        });
+        return this;
     }
 
     /**@internal */
@@ -131,19 +143,26 @@ export class Storable {
 
     public addNamespace<T extends NameSpaceContent<keyof T>>(namespace: Namespace<T>) {
         if (this.namespaces[namespace.key]) {
-            console.warn(`Namespace ${namespace.key} already exists`);
+            return;
         }
         this.namespaces[namespace.key] = namespace;
         return this;
     }
 
     public getNamespace<T extends NameSpaceContent<keyof T> = any>(key: string): Namespace<T> {
+        if (!this.namespaces[key]) {
+            throw new RuntimeGameError(`Namespace ${key} is not initialized`);
+        }
         return this.namespaces[key];
     }
 
     public setNamespace<T extends NameSpaceContent<keyof T> = any>(key: string, namespace: Namespace<T>) {
         this.namespaces[key] = namespace;
         return this;
+    }
+
+    public hasNamespace(key: string) {
+        return !!this.namespaces[key];
     }
 
     public getNamespaces() {

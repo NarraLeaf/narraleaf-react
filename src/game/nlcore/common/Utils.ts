@@ -1,6 +1,6 @@
 import type {Background, color, HexColor, ImageColor, ImageSrc, NextJSStaticImageData} from "@core/types";
 import type {Scene} from "@core/elements/scene";
-import type {Image} from "@core/elements/image";
+import type {Image} from "@core/elements/displayable/image";
 import type {LogicAction} from "@core/action/logicAction";
 import {
     ImageActionContentType,
@@ -12,6 +12,8 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
 import {toHex, Values} from "@lib/util/data";
+import {Action} from "@core/action/action";
+import {Story} from "@core/elements/story";
 
 export class RGBColor {
     static isHexString(color: any): color is HexColor {
@@ -72,7 +74,7 @@ export class Utils {
     }
 
     public static isStaticImageData(src: any): src is NextJSStaticImageData {
-        return src?.src !== undefined;
+        return src?.src !== undefined && typeof src.src === "string";
     }
 
     public static backgroundToSrc(background: Background["background"]): string | null {
@@ -139,7 +141,7 @@ export class StaticScriptWarning extends UseError<{
     }
 
     constructor(message: string, info?: any) {
-        super(message, {info}, "NarraLeafReact-StaticScriptWarning");
+        super(message, {info}, "StaticScriptWarning");
     }
 }
 
@@ -155,18 +157,14 @@ export class StaticChecker {
         this.scene = target;
     }
 
-    public run() {
-        if (!this.scene.sceneRoot) {
-            return null;
-        }
-
+    public run(story: Story) {
         const imageStates = new Map<Image, ImageState>();
         const scenes = new Map<string, Scene>();
 
         const queue: LogicAction.Actions[] = [];
         const seen: Set<Scene> = new Set();
 
-        const sceneActions = this.scene.getAllChildren(this.scene.sceneRoot);
+        const sceneActions = this.scene.getAllChildren(story, this.scene.getSceneRoot());
 
         if (!sceneActions.length) {
             return null;
@@ -177,6 +175,7 @@ export class StaticChecker {
             const action = queue.shift()!;
 
             this.checkAction(
+                story,
                 action,
                 {imageStates, scenes},
                 seen
@@ -191,9 +190,11 @@ export class StaticChecker {
         return imageStates;
     }
 
-    private checkAction(action: LogicAction.Actions,
-                        {imageStates, scenes}: { imageStates: Map<Image, ImageState>, scenes: Map<string, Scene> },
-                        seen: Set<Scene>
+    private checkAction(
+        story: Story,
+        action: LogicAction.Actions,
+        {imageStates, scenes}: { imageStates: Map<Image, ImageState>, scenes: Map<string, Scene> },
+        seen: Set<Scene>
     ) {
         if (action instanceof ImageAction) {
             if (!imageStates.has(action.callee)) {
@@ -218,10 +219,11 @@ export class StaticChecker {
             if (action.type === SceneActionTypes.jumpTo) {
                 const targetScene =
                     (action.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
-                if (seen.has(targetScene)) {
+                const scene = story.getScene(targetScene, true);
+                if (seen.has(scene)) {
                     return;
                 } else {
-                    seen.add(targetScene);
+                    seen.add(scene);
                 }
             }
         }
@@ -252,6 +254,38 @@ export class StaticChecker {
                 state.usedExternalSrc = true;
             }
         }
+    }
+}
+
+export class RuntimeScriptError extends Error {
+    static toMessage(msg: string | string[], trace?: Action | Action[]) {
+        const messages: string[] = [];
+        messages.push(...(Array.isArray(msg) ? msg : [msg]));
+        if (trace) {
+            messages.push(...(
+                Array.isArray(trace)
+                    ? trace.map(RuntimeScriptError.getActionTrace)
+                    : [RuntimeScriptError.getActionTrace(trace)]
+            ));
+        }
+        return messages.join("");
+    }
+
+    static getActionTrace(action: Action): string {
+        return `\nUsing action (id: ${action.getId()})` +
+            `\n    at: ${action.__stack}`;
+    }
+
+    constructor(message: string | string[], trace?: Action | Action[]) {
+        super(RuntimeScriptError.toMessage(message, trace));
+        this.name = "RuntimeScriptError";
+    }
+}
+
+export class RuntimeGameError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "RuntimeGameError";
     }
 }
 

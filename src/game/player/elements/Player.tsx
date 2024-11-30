@@ -42,7 +42,7 @@ export default function Player(
     const [state, dispatch] = useReducer(handleAction, new GameState(game, {
         update,
         forceUpdate: () => {
-            (state as GameState).logger.warn("Player", "force update");
+            (state as GameState).logger.weakWarn("Player", "force update");
             flushSync(() => {
                 update();
             });
@@ -79,7 +79,10 @@ export default function Player(
     }
 
     useEffect(() => {
-        game.getLiveGame().setGameState(state).loadStory(story);
+        game.getLiveGame().setGameState(state);
+        if (story) {
+            game.getLiveGame().loadStory(story);
+        }
 
         return () => {
             game.getLiveGame().setGameState(undefined);
