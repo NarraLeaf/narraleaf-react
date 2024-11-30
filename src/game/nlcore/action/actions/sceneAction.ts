@@ -7,13 +7,21 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {TypedAction} from "@core/action/actions";
 import {SoundAction} from "@core/action/actions/soundAction";
+import {ITransition} from "@core/elements/transition/type";
+import {Story} from "@core/elements/story";
+import {RuntimeScriptError} from "@core/common/Utils";
 
 export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneActionTypes] = typeof SceneActionTypes[keyof typeof SceneActionTypes]>
     extends TypedAction<SceneActionContentType, T, Scene> {
     static ActionTypes = SceneActionTypes;
 
-    static handleSceneInit(sceneAction: SceneAction, state: GameState, awaitable: Awaitable<CalledActionResult, any>) {
-        if (state.isSceneActive(sceneAction.callee)) {
+    static handleSceneInit(sceneAction: SceneAction<typeof SceneActionTypes["init"]>, state: GameState, awaitable: Awaitable<CalledActionResult, any>) {
+        const [targetScene] = sceneAction.contentNode.getContent();
+        const scene = typeof targetScene === "string" ? state.getSceneByName(targetScene) : targetScene;
+        if (!scene) {
+            throw sceneAction._sceneNotFoundError(sceneAction.getSceneName(targetScene));
+        }
+        if (state.isSceneActive(scene)) {
             return {
                 type: sceneAction.type,
                 node: sceneAction.contentNode.getChild()
@@ -21,10 +29,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         }
 
         state
-            .registerSrcManager(sceneAction.callee.srcManager)
-            .addScene(sceneAction.callee);
+            .registerSrcManager(scene.srcManager)
+            .addScene(scene);
 
-        SceneAction.registerEventListeners(sceneAction.callee, state, () => {
+        SceneAction.registerEventListeners(scene, state, () => {
             awaitable.resolve({
                 type: sceneAction.type,
                 node: sceneAction.contentNode.getChild()
@@ -57,6 +65,25 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         });
     }
 
+    applyTransition(state: GameState, transition: ITransition) {
+        const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
+            .registerSkipController(new SkipController(() => {
+                state.logger.info("Background Transition", "Skipped");
+                return {
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                };
+            }));
+        this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
+            awaitable.resolve({
+                type: this.type,
+                node: this.contentNode.getChild()
+            });
+            state.stage.next();
+        });
+        return awaitable;
+    }
+
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === SceneActionTypes.action) {
             return super.executeAction(state);
@@ -86,24 +113,9 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             });
             return awaitable;
         } else if (this.type === SceneActionTypes.applyTransition) {
-            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
-                .registerSkipController(new SkipController(() => {
-                    state.logger.info("NarraLeaf-React: Background Transition", "Skipped");
-                    return {
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    };
-                }));
-            const transition = (this.contentNode as ContentNode<SceneActionContentType["scene:applyTransition"]>).getContent()[0];
-            this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                });
-                state.stage.next();
-            });
-            return awaitable;
-        } else if (this.type === SceneActionTypes.init) {
+            const [transition] = (this.contentNode as ContentNode<SceneActionContentType["scene:applyTransition"]>).getContent();
+            return this.applyTransition(state, transition);
+        } else if (this.is<SceneAction<"scene:init">>(SceneAction, "scene:init")) {
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
             return SceneAction.handleSceneInit(this, state, awaitable);
         } else if (this.type === SceneActionTypes.exit) {
@@ -121,13 +133,20 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             });
             return awaitable;
         } else if (this.type === SceneActionTypes.jumpTo) {
-            const scene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
+            const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
             const current = this.contentNode;
+            const scene = state.getStory().getScene(targetScene);
+            if (!scene) {
+                throw this._sceneNotFoundError(this.getSceneName(targetScene));
+            }
 
-            const future = scene.sceneRoot?.contentNode || null;
+            const future = scene.getSceneRoot().contentNode;
             if (future) current.addChild(future);
 
-            return super.executeAction(state);
+            return {
+                type: this.type,
+                node: future
+            };
         } else if (this.type === SceneActionTypes.setBackgroundMusic) {
             const [sound, fade] = (this.contentNode as ContentNode<SceneActionContentType["scene:setBackgroundMusic"]>).getContent();
 
@@ -155,19 +174,53 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                     state.stage.next();
                 });
             return awaitable;
+        } else if (this.type === SceneActionTypes.transitionToScene) {
+            const [transition, targetScene, src] = (this.contentNode as ContentNode<SceneActionContentType["scene:transitionToScene"]>).getContent();
+            if (targetScene) {
+                const scene = state.getStory().getScene(targetScene);
+                if (!scene) {
+                    throw this._sceneNotFoundError(this.getSceneName(targetScene));
+                }
+                if (!scene.config.background) {
+                    return super.executeAction(state);
+                }
+                transition.setSrc(scene.config.background);
+            } else if (src) {
+                transition.setSrc(src);
+            }
+
+            return this.applyTransition(state, transition);
         }
 
         throw new Error("Unknown scene action type: " + this.type);
     }
 
-    getFutureActions(): LogicAction.Actions[] {
+    getFutureActions(story: Story): LogicAction.Actions[] {
         if (this.type === SceneActionTypes.jumpTo) {
-            // We don't care about the actions after jumpTo
+            // It doesn't care about the actions after jumpTo
             // because they won't be executed
-            const sceneRootNode = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0]?.sceneRoot?.contentNode;
+            const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
+            const scene = story.getScene(targetScene, true);
+
+            if (!scene.isSceneRootConstructed()) {
+                scene.constructSceneRoot(story);
+            }
+
+            const sceneRootNode = story.getScene(targetScene, true).getSceneRoot()?.contentNode;
             return sceneRootNode?.action ? [sceneRootNode.action] : [];
         }
         const action = this.contentNode.getChild()?.action;
         return action ? [action] : [];
+    }
+
+    _sceneNotFoundError(sceneId: string): Error {
+        return new RuntimeScriptError(`Scene with name ${sceneId} not found`
+            + "\nMake sure you have registered the scene using story.register"
+            + `\nAction: (id: ${this.getId()}) ${this.type}`
+            + `\nAt: ${this.__stack}`);
+    }
+
+    getSceneName(scene: Scene | string): string {
+        return typeof scene === "string" ? scene : scene.name;
     }
 }

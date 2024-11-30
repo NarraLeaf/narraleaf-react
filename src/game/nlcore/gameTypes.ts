@@ -2,7 +2,7 @@ import {ContentNode, RawData} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {ElementStateRaw} from "@core/elements/story";
 import {PlayerStateData} from "@player/gameState";
-import {StorableData} from "@core/store/type";
+import {StorableData} from "@core/elements/persistent/type";
 import {MenuComponent, SayComponent} from "@player/elements/type";
 import React from "react";
 
@@ -43,24 +43,24 @@ export type GameConfig = {
         /**
          * Base width of the player in pixels, Image scale will be calculated based on this value
          *
-         * For 16/9, recommended value is 1920
+         * For 16/9, the recommended value is 1920
          */
         width: number;
         /**
          * Base height of the player in pixels, Image scale will be calculated based on this value
          *
-         * For 16/9, recommended value is 1080
+         * For 16/9, the recommended value is 1080
          */
         height: number;
         /**
-         * When player presses one of these keys, the game will skip the current action
+         * When the player presses one of these keys, the game will skip the current action
          *
          * See [Key_Values](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values)
          */
         skipKey: React.KeyboardEvent["key"][];
         /**
          * The interval in milliseconds between each skip action.
-         * ex: 100ms means the player can skip 10 actions per second.
+         * ex: 100 ms means the player can skip 10 actions per second.
          * higher value means faster skipping.
          */
         skipInterval: number;
@@ -68,6 +68,32 @@ export type GameConfig = {
          * The interval in milliseconds between each ratio update.
          */
         ratioUpdateInterval: number;
+        /**
+         * The game will preload the image with this delay in milliseconds
+         */
+        preloadDelay: number;
+        /**
+         * Maximum number of images to preload at the same time
+         */
+        preloadConcurrency: number;
+        /**
+         * Wait for the images to load before showing the game
+         */
+        waitForPreload: boolean;
+        /**
+         * Preload all possible images in the scene
+         *
+         * Enabling this may have a performance impact but is better for the user experience
+         */
+        preloadAllImages: boolean;
+        /**
+         * Force the game to clear the cache when the scene changes
+         */
+        forceClearCache: boolean;
+        /**
+         * The number of actions will be predicted and preloaded
+         */
+        maxPreloadActions: number;
     };
     elements: {
         say: {
@@ -78,7 +104,7 @@ export type GameConfig = {
              */
             nextKey: React.KeyboardEvent["key"][];
             /**
-             * The speed of the text effect in milliseconds.
+             * The speed of the text effects in milliseconds.
              * higher value means slower text effect.
              * default: 50
              */
@@ -98,8 +124,10 @@ export type GameConfig = {
         img: {
             /**
              * If true, the game will show a warning when loading takes longer than `elements.img.slowLoadThreshold`
+             * @deprecated
              */
             slowLoadWarning: boolean;
+            /**@deprecated */
             slowLoadThreshold: number;
             /**
              * If true, when you press [GameConfig.player.skipKey], the game will skip the image transform
@@ -135,13 +163,13 @@ export type GameConfig = {
             /**
              * Base width of the dialog in pixels
              *
-             * For 16/9, recommended value is 1920
+             * For 16/9, the recommended value is 1920
              */
             width: number;
             /**
              * Base height of the dialog in pixels
              *
-             * For 16/9, recommended value is 1080 * 0.2
+             * For 16/9, the recommended value is 1080 * 0.2
              */
             height: number;
         }
