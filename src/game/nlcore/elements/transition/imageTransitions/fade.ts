@@ -12,7 +12,7 @@ export class Fade extends BaseImageTransition<ImgElementProp> implements IImageT
         opacity: 1,
     };
     private src?: ImageSrc | ImageColor;
-    private readonly easing: TransformDefinitions.EasingDefinition | undefined;
+    private readonly easing: TransformDefinitions.EasingDefinition;
 
     /**
      * The current image will fade out, and the next image will fade in
@@ -20,7 +20,7 @@ export class Fade extends BaseImageTransition<ImgElementProp> implements IImageT
     constructor(duration: number = 1000, ease?: TransformDefinitions.EasingDefinition) {
         super();
         this.duration = duration;
-        this.easing = ease;
+        this.easing = ease || BaseImageTransition.DefaultEasing;
     }
 
     setSrc(src: ImageSrc | ImageColor | undefined): this {

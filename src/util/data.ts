@@ -1,5 +1,65 @@
-import type {Game} from "@core/game";
 import {HexColor} from "@core/types";
+
+interface ITypeOf {
+    DataTypes: typeof DataTypes;
+    call: typeof TypeOf;
+
+    (value: any): DataTypes;
+}
+
+export enum DataTypes {
+    "string",
+    "number",
+    "boolean",
+    "object",
+    "array",
+    "function",
+    "symbol",
+    "undefined",
+    "null",
+    "date",
+    "regexp",
+    "other",
+}
+
+export const TypeOf = (function (value: any): DataTypes {
+    if (typeof value === "string") {
+        return DataTypes.string;
+    }
+    if (typeof value === "number") {
+        return DataTypes.number;
+    }
+    if (typeof value === "boolean") {
+        return DataTypes.boolean;
+    }
+    if (typeof value === "object") {
+        if (Array.isArray(value)) {
+            return DataTypes.array;
+        }
+        if (value === null) {
+            return DataTypes.null;
+        }
+        if (value instanceof Date) {
+            return DataTypes.date;
+        }
+        if (value instanceof RegExp) {
+            return DataTypes.regexp;
+        }
+        return DataTypes.object;
+    }
+    if (typeof value === "function") {
+        return DataTypes.function;
+    }
+    if (typeof value === "symbol") {
+        return DataTypes.symbol;
+    }
+    if (typeof value === "undefined") {
+        return DataTypes.undefined;
+    }
+    return DataTypes.other;
+}) as unknown as ITypeOf;
+
+TypeOf.DataTypes = DataTypes;
 
 /**
  * @param obj1 source object
@@ -13,8 +73,7 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
     const result: Record<string, any> = {};
 
     const mergeValue = (_: string, value1: any, value2: any) => {
-        if (typeof value1 === "object" && value1 !== null && !Array.isArray(value1) &&
-            typeof value2 === "object" && value2 !== null && !Array.isArray(value2)) {
+        if (TypeOf(value1) === DataTypes.object && TypeOf(value2) === DataTypes.object) {
             if (value1.constructor !== Object || value2.constructor !== Object) {
                 return value2 || value1;
             }
@@ -47,6 +106,8 @@ export function deepMerge<T = Record<string, any>>(obj1: Record<string, any>, ob
             if (typeof obj2[key] === "object" && obj2[key] !== null) {
                 if (obj2[key].constructor === Object) {
                     result[key] = deepMerge({}, obj2[key]);
+                } else if (Array.isArray(obj2[key])) {
+                    result[key] = [...obj2[key]];
                 } else {
                     result[key] = obj2[key];
                 }
@@ -319,60 +380,6 @@ export function deepEqual(obj1: any, obj2: any): boolean {
     return true;
 }
 
-export class Logger {
-    private game: Game;
-    private readonly prefix: string | undefined;
-
-    constructor(game: Game, prefix?: string) {
-        this.game = game;
-        this.prefix = prefix;
-    }
-
-    log(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.log) {
-            console.log(...this._log(tag, ...args));
-        }
-    }
-
-    info(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.info) {
-            console.info(...this._log(tag, ...args));
-        }
-    }
-
-    warn(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.warn) {
-            console.warn(...this._log(tag, ...args));
-        }
-    }
-
-    error(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.error) {
-            console.error(...this._log(tag, ...args));
-        }
-    }
-
-    debug(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.debug) {
-            console.debug(...this._log(tag, ...args));
-        }
-    }
-
-    trace(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.trace) {
-            console.trace(this._log(tag, ...args));
-        }
-    }
-
-    private _log(tag: string, ...args: any[]) {
-        if (args.length === 0) {
-            return [this.prefix || "", tag];
-        } else {
-            return [`${this.prefix || ""} [${tag}]`, ...args];
-        }
-    }
-}
-
 type SkipControllerEvents = {
     "event:skipController.abort": [];
 }
@@ -586,3 +593,107 @@ export function crossCombine<T, U>(a: T[], b: U[]): (T | U)[] {
     }
     return result;
 }
+
+export type SelectElementFromEach<T extends string[][] | null> =
+    T extends [infer First, ...infer Rest]
+        ? First extends string[]
+            ? Rest extends string[][]
+                ? {
+                    [K in First[number]]: [K, ...SelectElementFromEach<ExcludeEach<Rest, K>>];
+                }[First[number]]
+                : []
+            : []
+        : [];
+export type ExcludeEach<T extends string[][], Excluded> =
+    T extends [infer First, ...infer Rest]
+        ? First extends string[]
+            ? Rest extends string[][]
+                ? [[Exclude<First[number], Excluded>], ...ExcludeEach<Rest, Excluded>]
+                : []
+            : []
+        : [];
+export type FlexibleTuple<T extends any[]> =
+    T extends [infer First, ...infer Rest]
+        ? Rest extends any[]
+            ? [First, ...FlexibleTuple<Rest>] | FlexibleTuple<Rest>
+            : [First]
+        : [];
+
+export function moveElement<T>(arr: T[], element: T, direction: "up" | "down" | "top" | "bottom"): T[] {
+    const index = arr.indexOf(element);
+    if (index === -1) return arr;
+
+    const result = [...arr];
+    result.splice(index, 1);
+
+    switch (direction) {
+        case "up":
+            result.splice(Math.max(index - 1, 0), 0, element);
+            break;
+        case "down":
+            result.splice(Math.min(index + 1, arr.length), 0, element);
+            break;
+        case "top":
+            result.unshift(element);
+            break;
+        case "bottom":
+            result.push(element);
+            break;
+    }
+
+    return result;
+}
+
+export function moveElementInArray<T>(arr: T[], element: T, newIndex: number): T[] {
+    const index = arr.indexOf(element);
+    if (index === -1) return arr;
+
+    const result = [...arr];
+    result.splice(index, 1);
+    result.splice(newIndex, 0, element);
+
+    return result;
+}
+
+export async function getImageDataUrl(src: string, options?: RequestInit): Promise<string> {
+    const response = await fetch(src, options);
+    const blob = await response.blob();
+    return new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            resolve(reader.result as string);
+        };
+        reader.readAsDataURL(blob);
+    });
+}
+
+export class TaskPool {
+    private tasks: (() => Promise<void>)[] = [];
+
+    constructor(private readonly concurrency: number, private readonly delay: number) {}
+
+    addTask(task: () => Promise<void>) {
+        this.tasks.push(task);
+    }
+
+    async start(): Promise<void> {
+        const run = async () => {
+            if (this.tasks.length === 0) {
+                return;
+            }
+            const tasks = this.tasks.splice(0, this.concurrency);
+            await Promise.all(tasks.map(task => task()));
+            await sleep(this.delay);
+            await run();
+        };
+        await run();
+    }
+}
+
+export type StringKeyOf<T> = Extract<keyof T, string>;
+export type ValuesWithin<T, U> = {
+    [K in keyof T]: T[K] extends U ? K : never;
+}[keyof T];
+export type BooleanKeys<T> = {
+    [K in keyof T]: T[K] extends boolean ? K : never;
+}[keyof T];

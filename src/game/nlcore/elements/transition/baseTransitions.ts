@@ -3,6 +3,7 @@ import {ElementProp, EventTypes, IImageTransition, ITransition, TransitionEventT
 import {animate} from "framer-motion/dom";
 import type {AnimationPlaybackControls, ValueAnimationTransition} from "framer-motion";
 import {ImageColor, ImageSrc} from "@core/types";
+import {TransformDefinitions} from "@core/common/types";
 
 
 export class BaseTransition<T extends ElementProp> implements ITransition<T> {
@@ -64,6 +65,8 @@ export class BaseTransition<T extends ElementProp> implements ITransition<T> {
 export class BaseImageTransition<T extends ElementProp>
     extends BaseTransition<T>
     implements IImageTransition<T> {
+    static DefaultEasing: TransformDefinitions.EasingDefinition = "linear";
+
     public setSrc(_src?: ImageSrc | ImageColor): this {
         throw new Error("Method not implemented.");
     }

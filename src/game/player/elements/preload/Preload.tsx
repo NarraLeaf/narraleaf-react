@@ -1,122 +1,186 @@
 import {useEffect, useRef} from "react";
 import {GameState} from "@player/gameState";
-import {Sound} from "@core/elements/sound";
-import {SrcManager} from "@core/action/srcManager";
+import {ActiveSrc, SrcManager} from "@core/action/srcManager";
 import {usePreloaded} from "@player/provider/preloaded";
-import {Preloaded, PreloadedSrc} from "@player/lib/Preloaded";
-import {Image as GameImage} from "@core/elements/image";
-import {Utils} from "@core/common/Utils";
+import {Preloaded} from "@player/lib/Preloaded";
+import {TaskPool} from "@lib/util/data";
+import {useGame} from "@player/provider/game-state";
 
-export function Preload({
-                            state,
-                        }: Readonly<{
-    state: GameState;
-}>) {
-    const {preloaded} = usePreloaded();
+export function Preload(
+    {
+        state,
+    }: Readonly<{
+        state: GameState;
+    }>) {
+    const {preloaded, cacheManager} = usePreloaded();
+    const {game} = useGame();
+    const cachedSrc = useRef<Set<ActiveSrc>>(new Set());
+
+    const LogTag = "Preload";
     const lastScene = state.getLastScene();
-    const time = useRef<number>(0);
+    const currentAction = game.getLiveGame().getCurrentAction();
+    const story = game.getLiveGame().story;
 
+    /**
+     * preload logic 2.0
+     *
+     * Fetch the images and store them as base64 in the stack
+     */
     useEffect(() => {
-        if (typeof window === "undefined") {
-            console.warn("Window is not supported in this environment");
+        if (typeof fetch === "undefined") {
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
+            state.logger.warn(LogTag, "Fetch is not supported in this environment, skipping preload");
+            return;
+        }
+        if (!game.config.player.preloadAllImages) {
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
+            state.logger.debug(LogTag, "Preload all images is disabled, skipping preload");
+            return;
+        }
+        if (game.config.player.forceClearCache) {
+            cacheManager.clear();
+            state.logger.weakWarn(LogTag, "Cache cleared");
+        }
+        if (!story) {
+            state.logger.weakWarn(LogTag, "Story not found, skipping preload");
             return;
         }
 
-        if (window.performance) {
-            time.current = performance.now();
+        const timeStart = performance.now();
+        const sceneSrc = SrcManager.catSrc([
+            ...(lastScene?.srcManager?.src || []),
+            ...(lastScene?.srcManager?.getFutureSrc() || []),
+        ]);
+        const taskPool = new TaskPool(
+            game.config.player.preloadConcurrency,
+            game.config.player.preloadDelay,
+        );
+        const loadedSrc: string[] = [];
+        const logGroup = state.logger.group(LogTag, true);
+
+        state.logger.debug(LogTag, "preloading:", sceneSrc);
+
+        for (const image of sceneSrc.image) {
+            const src = SrcManager.getSrc(image);
+            loadedSrc.push(src);
+
+            if (cacheManager.has(src) || cacheManager.isPreloading(src)) {
+                state.logger.debug(LogTag, `Image already loaded (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
+                continue;
+            }
+            taskPool.addTask(() => new Promise(resolve => {
+                cacheManager.preload(src)
+                    .onFinished(() => {
+                        state.logger.debug(LogTag, `Image loaded (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
+                        resolve();
+                    });
+            }));
         }
 
-        const currentSceneSrc = state.getLastScene()?.srcManager;
-        const futureSceneSrc = state.getLastScene()?.srcManager.future || [];
-        const combinedSrc = [
-            ...(currentSceneSrc ? currentSceneSrc.src : []),
-            ...(futureSceneSrc.map(v => v.src)).flat(2),
-        ];
+        logGroup.end();
 
-        const src = {
-            image: new Set<GameImage>(),
-            audio: new Set<Sound>(),
-            video: new Set<string>()
-        };
+        taskPool.start().then(() => {
+            state.logger.info(LogTag, "Image preload", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
 
-        combinedSrc.forEach(srcItem => {
-            if (srcItem.type === SrcManager.SrcTypes.image) {
-                src.image.add(srcItem.src);
-            } else if (srcItem.type === SrcManager.SrcTypes.audio) {
-                src.audio.add(srcItem.src);
-            } else if (srcItem.type === SrcManager.SrcTypes.video) {
-                src.video.add(srcItem.src);
+            if (game.config.player.waitForPreload) {
+                preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             }
-        });
-
-        state.logger.debug("Preloading", src, futureSceneSrc);
-
-        preloaded.preloaded = preloaded.preloaded.filter(p => {
-            if (p.type === SrcManager.SrcTypes.audio) {
-                let has = src[p.type].has((p as PreloadedSrc<"audio">).src);
-                if (!has) {
-                    // downgraded check
-                    has = Array.from(src[p.type]).some(s => {
-                        return preloaded.getSrc(p) === preloaded.getSrc(s.config.src);
-                    });
-                }
-                return has;
-            } else if (p.type === SrcManager.SrcTypes.image) {
-                return src[p.type].has((p as PreloadedSrc<"image">).src);
-            }
-            const preloadedSrcP = preloaded.getSrc(p);
-            return src[p.type].has(preloadedSrcP);
-        });
-
-        const newImages: HTMLImageElement[] = [];
-        const promises: Promise<any>[] = [];
-        src.image.forEach((src: GameImage) => {
-            const htmlImg = new Image();
-            htmlImg.src = Utils.srcToString(src.state.src);
-            htmlImg.onload = () => {
-                state.logger.debug("Image loaded", src.state.src);
-            };
-            newImages.push(htmlImg);
-
-            preloaded.add({type: "image", src});
-        });
-
-        Promise.all(promises).then(() => {
-            state.logger.log("Preloaded", `Preloaded ${src.image.size} images`);
-            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             state.events.emit(GameState.EventTypes["event:state.preload.loaded"]);
-
-            if (window.performance) {
-                const endTime = performance.now();
-                const loadTime = endTime - time.current;
-                state.logger.info("Preload", `Preloaded ${src.image.size} images in ${loadTime}ms`);
-            }
+            cacheManager.filter(loadedSrc);
         });
 
-        src.audio.forEach((src: Sound) => {
-            if (!src.getPlaying()) {
-                src.setPlaying(new (state.getHowl())({
-                    src: src.config.src,
-                    loop: src.config.loop,
-                    volume: src.config.volume,
-                    autoplay: false,
-                    preload: true,
-                }));
-            }
-        });
-
+        if (!game.config.player.waitForPreload) {
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
+        }
         preloaded.events.emit(Preloaded.EventTypes["event:preloaded.mount"]);
 
-        // maybe video preload here
-
         return () => {
-            newImages.forEach(img => {
-                img.onload = null;
-            });
             state.events.emit(GameState.EventTypes["event:state.preload.unmount"]);
-            state.logger.debug("Preload unmounted");
+            state.logger.debug(LogTag, "Preload unmounted");
         };
+    }, [lastScene, story]);
+
+    /**
+     * Remove cached src when scenes changed
+     */
+    useEffect(() => {
+        cachedSrc.current.clear();
     }, [lastScene]);
+
+    /**
+     * predict preload logic
+     *
+     * Get future src and preload them
+     */
+    useEffect(() => {
+        if (typeof fetch === "undefined") {
+            return;
+        }
+        if (game.config.player.preloadAllImages) {
+            return;
+        }
+        if (!story) {
+            state.logger.weakWarn(LogTag, "Story not found, skipping preload");
+            return;
+        }
+
+        const timeStart = performance.now();
+        const allSrc: ActiveSrc[] = game
+            .getLiveGame()
+            .getAllPredictableActions(story, currentAction, game.config.player.maxPreloadActions)
+            .map(s => SrcManager.getPreloadableSrc(story, s))
+            .filter<ActiveSrc>(function (src): src is ActiveSrc {
+                return src !== null;
+            });
+        const sceneBasedSrc =
+            allSrc.filter(function (src): src is ActiveSrc<"scene"> {
+                return src?.activeType === "scene";
+            });
+        sceneBasedSrc.forEach(src => {
+            if (cachedSrc.current.has(src)) {
+                return;
+            }
+            cachedSrc.current.add(src);
+        });
+
+        const actionSrc = SrcManager.catSrc([
+            ...cachedSrc.current,
+            ...allSrc,
+        ]);
+
+        const taskPool = new TaskPool(
+            game.config.player.preloadConcurrency,
+            game.config.player.preloadDelay,
+        );
+        const preloadSrc: string[] = [];
+        const logGroup = state.logger.group(LogTag);
+
+        state.logger.debug(LogTag, "preloading:", actionSrc);
+
+        for (const image of actionSrc.image) {
+            const src = SrcManager.getSrc(image);
+            preloadSrc.push(src);
+
+            if (cacheManager.has(src) || cacheManager.isPreloading(src)) {
+                state.logger.debug(LogTag, `Image already loaded (${actionSrc.image.indexOf(image) + 1}/${actionSrc.image.length})`, src);
+                continue;
+            }
+            taskPool.addTask(() => new Promise(resolve => {
+                cacheManager.preload(src)
+                    .onFinished(() => {
+                        state.logger.debug(LogTag, `Image loaded (${actionSrc.image.indexOf(image) + 1}/${actionSrc.image.length})`, src);
+                        resolve();
+                    });
+            }));
+        }
+
+        logGroup.end();
+
+        taskPool.start().then(() => {
+            state.logger.info(LogTag, "Image preload (quick reload)", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
+            cacheManager.filter(preloadSrc);
+        });
+    }, [currentAction, story]);
 
     return null;
 }

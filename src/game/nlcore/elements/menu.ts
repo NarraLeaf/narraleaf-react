@@ -93,7 +93,8 @@ export class Menu extends Actionable<any, Menu> {
 
     /**@internal */
     _getFutureActions(choices: Choice[]): LogicAction.Actions[] {
-        return choices.map(choice => choice.action).flat(2);
+        return choices.map(choice => choice.action[0] || null)
+            .filter(action => action !== null);
     }
 
     /**@internal */
