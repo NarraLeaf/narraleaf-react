@@ -6,6 +6,10 @@
 
 - Game Events
 
+### _Incompatible Changes_
+
+- SceneConfig `invertY` is now `true` by default
+
 ### Added
 
 - Event: `event:character.prompt`

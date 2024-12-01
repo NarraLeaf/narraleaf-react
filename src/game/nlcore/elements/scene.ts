@@ -95,7 +95,7 @@ export class Scene extends Constructable<
     };
     /**@internal */
     static defaultConfig: ISceneConfig = {
-        invertY: false,
+        invertY: true,
         invertX: false,
         backgroundMusic: null,
         backgroundMusicFade: 0,
