@@ -14,6 +14,7 @@
 
 - Event: `event:character.prompt`
 - Event: `event:menu.choose`
+- Some utility functions for `Persistent` and `Transform`
 
 ### Fixed
 

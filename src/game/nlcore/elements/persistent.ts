@@ -101,6 +101,13 @@ export class Persistent<T extends PersistentContent>
     }
 
     /**
+     * Alias of {@link toWord}
+     */
+    public get<K extends StringKeyOf<T>>(key: K): Word<DynamicWord> {
+        return this.toWord(key);
+    }
+
+    /**
      * Create a conditional word
      *
      * @example
@@ -123,6 +130,15 @@ export class Persistent<T extends PersistentContent>
         return new Word((ctx) => {
             const isTrue = Lambda.from(condition).evaluate(ctx).value;
             return isTrue ? ifTrue : ifFalse;
+        });
+    }
+
+    /**
+     * Evaluate the JavaScript function and determine whether the result is true
+     */
+    public evaluate<K extends StringKeyOf<T>>(key: K, fn: (value: T[K]) => boolean): Lambda<boolean> {
+        return new Lambda(({storable}) => {
+            return fn(storable.getNamespace<T>(this.namespace).get<K>(key));
         });
     }
 
