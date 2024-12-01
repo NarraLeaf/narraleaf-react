@@ -16,7 +16,7 @@ export default function Say(
         className,
         state,
     }: Readonly<SayElementProps>) {
-    const {sentence} = action;
+    const {sentence, words} = action;
     const [isFinished, setIsFinished] = useState(false);
     const {game} = state;
     const [count, setCount] = useState(0);
@@ -161,6 +161,7 @@ export default function Say(
                                     useTypeEffect={useTypeEffect}
                                     onCompleted={handleComplete}
                                     count={count}
+                                    words={words}
                                 />
                                 <div></div>
                             </div>

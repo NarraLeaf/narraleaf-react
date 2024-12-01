@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.1]
+
+### _Feature_
+
+- Game Events
+
+### Added
+
+- Event: `event:character.prompt`
+- Event: `event:menu.choose`
+
+### Fixed
+
+- Game `onReady` handler runs twice
+
 ## [0.2.0] - 2024/11/29
 
 ### _Feature_

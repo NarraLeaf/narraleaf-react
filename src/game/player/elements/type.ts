@@ -6,7 +6,7 @@ import clsx from "clsx";
 import {Game} from "@core/game";
 import {GameState} from "@player/gameState";
 import {Storable} from "@core/elements/persistent/storable";
-import {LiveGame} from "@core/liveGame";
+import {LiveGame} from "@core/game/liveGame";
 
 export type Components<T extends Record<string, any>> = (props: Readonly<T>) => React.JSX.Element;
 export type SayComponent = Components<SayElementProps>;

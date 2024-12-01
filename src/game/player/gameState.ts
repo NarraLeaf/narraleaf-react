@@ -17,10 +17,14 @@ import {Text, TextEventTypes} from "@core/elements/displayable/text";
 import {Logger} from "@lib/util/logger";
 import {RuntimeGameError} from "@core/common/Utils";
 import {Story} from "@core/elements/story";
+import {Script} from "@core/elements/script";
+import {LiveGame} from "@core/game/liveGame";
+import {Word} from "@core/elements/character/word";
+import {Chosen} from "@player/type";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
-    menus: Clickable<MenuElement, Choice>[];
+    menus: Clickable<MenuElement, Chosen>[];
     displayable: LogicAction.DisplayableElements[];
 };
 export type PlayerState = {
@@ -199,10 +203,18 @@ export class GameState {
             throw new Error("Scene not found");
         }
 
+        const words = sentence.evaluate(Script.getCtx({gameState: this}));
+        this.game.getLiveGame().events.emit(LiveGame.EventTypes["event:character.prompt"], {
+            character: sentence.config.character,
+            sentence,
+            text: Word.getText(words),
+        });
+
         const action = this.createWaitableAction<TextElement, undefined>({
             character: sentence.config.character,
             sentence,
-            id
+            id,
+            words,
         }, () => {
             texts.splice(texts.indexOf(action as any), 1);
             if (afterClick) afterClick();
@@ -219,9 +231,18 @@ export class GameState {
             throw new Error("Scene not found");
         }
 
-        const action = this.createWaitableAction<MenuElement, Choice>(menu, (choice) => {
+        const words = menu.prompt.evaluate(Script.getCtx({gameState: this}));
+        const action = this.createWaitableAction<MenuElement, Chosen>({
+            ...menu,
+            words,
+        }, (choice) => {
             menus.splice(menus.indexOf(action as any), 1);
             if (afterChoose) afterChoose(choice);
+            this.game.getLiveGame().events.emit(LiveGame.EventTypes["event:character.prompt"], {
+                character: choice.prompt.config.character,
+                sentence: choice.prompt,
+                text: choice.evaluated,
+            });
         });
         menus.push(action);
     }
@@ -392,11 +413,11 @@ export class GameState {
     }
 
     /**
-     * Dispose the game state
+     * Dispose of the game state
      *
-     * This is an irreversible action, once disposed, the game state cannot be used again.
+     * This is an irreversible action; once disposed of, the game state can't be used again.
      *
-     * Do not call this method directly
+     * Don't call this method directly
      */
     dispose() {
         this.forceReset();
