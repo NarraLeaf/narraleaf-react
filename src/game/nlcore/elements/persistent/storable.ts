@@ -206,7 +206,7 @@ export class Storable {
             if (this.namespaces[key]) {
                 this.namespaces[key].load(content);
             } else {
-                console.warn(`Namespace ${key} not found in ${this.constructor.name}`);
+                this.namespaces[key] = new Namespace(key, content as any);
             }
         });
     }

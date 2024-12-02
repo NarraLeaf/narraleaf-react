@@ -475,12 +475,6 @@ export class GameState {
         });
     }
 
-    initScenes() {
-        this.state.elements.forEach(({scene}) => {
-            SceneAction.registerEventListeners(scene, this);
-        });
-    }
-
     public getLastSceneIfNot(scene: Scene | null | void) {
         const targetScene = scene || this.getLastScene();
         if (!targetScene || !this.sceneExists(targetScene)) {

@@ -185,7 +185,7 @@ export class LiveGame {
         });
 
         // restore storable
-        this.storable.load(store);
+        this.storable.clear().load(store);
 
         // restore elements
         elementStates.forEach(({id, data}) => {
@@ -218,10 +218,6 @@ export class LiveGame {
      * When a character says something
      */
     public onCharacterPrompt(fc: LiveGameEventHandler<LiveGameEvent["event:character.prompt"]>): LiveGameEventToken {
-        // return this.events.onEvents([{
-        //     type: LiveGame.EventTypes["event:character.prompt"],
-        //     listener: fc
-        // }]);
         const eventName = LiveGame.EventTypes["event:character.prompt"];
         const event = this.events.on(eventName, fc);
         return {
@@ -235,10 +231,6 @@ export class LiveGame {
      * When a player chooses a menu
      */
     public onMenuChoose(fc: LiveGameEventHandler<LiveGameEvent["event:menu.choose"]>): LiveGameEventToken {
-        // return this.events.onEvents([{
-        //     type: LiveGame.EventTypes["event:menu.choose"],
-        //     listener: fc
-        // }]);
         const eventName = LiveGame.EventTypes["event:menu.choose"];
         const event = this.events.on(eventName, fc);
         return {
@@ -264,6 +256,7 @@ export class LiveGame {
         const newGame = this.getNewSavedGame();
         newGame.name = "NewGame-" + Date.now();
         this.currentSavedGame = newGame;
+        this.currentAction = this.story?.entryScene?.getSceneRoot() || null;
 
         const elements: Map<string, LogicAction.GameElement> | undefined =
             this.story?.getAllElementMap(this.story, this.story?.entryScene?.getSceneRoot() || []);
@@ -289,10 +282,9 @@ export class LiveGame {
             this.lockedAwaiting.abort();
         }
 
-        this.currentAction = this.story?.entryScene?.getSceneRoot() || null;
+        this.currentAction = null;
         this.lockedAwaiting = null;
         this.currentSavedGame = null;
-        this.storable.clear();
 
         gameState.forceReset();
     }
@@ -310,14 +302,14 @@ export class LiveGame {
 
     /**@internal */
     next(state: GameState): CalledActionResult | Awaitable<CalledActionResult> | MultiLock | null {
+        if (this.gameLock.isLocked()) {
+            return this.gameLock;
+        }
+
         if (this._nextLock.isLocked()) {
             return null;
         }
         this._nextLock.lock();
-
-        if (this.gameLock.isLocked()) {
-            return this.gameLock;
-        }
 
         if (!this.story) {
             throw new Error("No story loaded");
@@ -338,17 +330,18 @@ export class LiveGame {
             }
             const next = this.lockedAwaiting.result;
             this.currentAction = next?.node?.action || null;
+            this.lockedAwaiting = null;
+            if (!this.currentAction) {
+                state.events.emit(GameState.EventTypes["event:state.end"]);
+            }
 
             state.logger.debug("next action (lockedAwaiting)", next);
-
-            this.lockedAwaiting = null;
 
             this._nextLock.unlock();
             return next || null;
         }
 
         if (!this.currentAction) {
-            state.events.emit(GameState.EventTypes["event:state.end"]);
             state.logger.weakWarn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
 
             this._nextLock.unlock();
