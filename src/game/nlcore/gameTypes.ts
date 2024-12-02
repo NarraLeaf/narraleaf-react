@@ -95,7 +95,7 @@ export type GameConfig = {
          */
         maxPreloadActions: number;
         /**
-         * Src of the cursor image, if null, the game won't show the cursor
+         * Src of the cursor image, if null, the game will show the default cursor
          */
         cursor: string | null;
         /**
