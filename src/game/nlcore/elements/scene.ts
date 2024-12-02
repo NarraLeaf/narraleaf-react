@@ -10,7 +10,7 @@ import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements
 import {TransformDefinitions} from "@core/elements/transform/type";
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw, VirtualImageProxy} from "@core/elements/displayable/image";
-import {Control, Story, Utils} from "@core/common/core";
+import {Control, Persistent, Story, Utils} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -21,6 +21,7 @@ import {RGBColor} from "@core/common/Utils";
 import Actions = LogicAction.Actions;
 import ImageTransformProps = TransformDefinitions.ImageTransformProps;
 import GameElement = LogicAction.GameElement;
+import {DynamicPersistent} from "@core/elements/persistent";
 
 export type UserImageInput = ImageSrc | RGBColor | ImageColor;
 export type SceneConfig = {
@@ -133,7 +134,8 @@ export class Scene extends Constructable<
     /**@internal */
     private sceneRoot?: SceneAction<"scene:action">;
     /**@internal */
-    private _userConfig: Partial<ISceneConfig> = {};
+    private readonly _userConfig: Partial<ISceneConfig> = {};
+    public readonly local: Persistent<any>;
 
     constructor(name: string, config?: Partial<ISceneConfig>) {
         super();
@@ -149,6 +151,7 @@ export class Scene extends Constructable<
         this.state = deepMerge<SceneConfig & SceneState>(this.config, {
             backgroundImageProxy: this._createImageProxy(),
         });
+        this.local = new DynamicPersistent(name);
     }
 
     /**@internal */

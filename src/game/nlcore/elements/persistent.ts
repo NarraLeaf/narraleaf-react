@@ -13,15 +13,28 @@ import {LambdaHandler} from "@core/elements/type";
 import {Namespace, Storable} from "@core/elements/persistent/storable";
 
 type PersistentContent = {
-    [key: string]: StorableType;
+    [K in string]: StorableType;
 };
 type ChainedPersistent<T extends PersistentContent> = Proxied<Persistent<T>, Chained<LogicAction.Actions>>;
+type DynamicPersistentData = {
+    [K in string]: StorableType;
+};
 
 export class Persistent<T extends PersistentContent>
     extends Actionable<null> {
 
-    constructor(private namespace: string, private defaultContent: T) {
+    /**@internal */
+    static NamespacePrefix = "persistent";
+
+    /**@internal */
+    protected namespace: string;
+    /**@internal */
+    protected readonly defaultContent: T;
+
+    constructor(namespace: string, defaultContent: T) {
         super();
+        this.namespace = this.prefix(namespace);
+        this.defaultContent = defaultContent;
     }
 
     /**@internal */
@@ -34,12 +47,6 @@ export class Persistent<T extends PersistentContent>
     /**
      * @chainable
      */
-    // public set<K extends StringKeyOf<T>>(key: K, value: T[K]): ChainedPersistent<T> {
-    //     return this.chain(this.createAction(
-    //         PersistentActionTypes.set,
-    //         [key, value]
-    //     ));
-    // }
     public set<K extends StringKeyOf<T>>(key: K, value: T[K]): ChainedPersistent<T>;
     public set<K extends StringKeyOf<T>>(key: K, handler: (value: T[K]) => T[K]): ChainedPersistent<T>;
     public set<K extends StringKeyOf<T>>(key: K, $arg1: T[K] | ((value: T[K]) => T[K])): ChainedPersistent<T> {
@@ -156,6 +163,11 @@ export class Persistent<T extends PersistentContent>
     }
 
     /**@internal */
+    protected prefix(c: string, prefix = Persistent.NamespacePrefix): string {
+        return prefix + ":" + String(c);
+    }
+
+    /**@internal */
     private createAction<U extends Values<typeof PersistentActionTypes>>(
         type: U,
         content: PersistentActionContentType[U]
@@ -165,5 +177,26 @@ export class Persistent<T extends PersistentContent>
             type,
             ContentNode.create(content)
         );
+    }
+}
+
+/**
+ * Only for internal use, don't use this class directly
+ */
+export class DynamicPersistent extends Persistent<DynamicPersistentData> {
+    /**@internal */
+    static LocalNamespacePrefix = "local";
+
+    /**@internal */
+    constructor(namespace: string) {
+        super(namespace, {});
+        this.namespace = this.prefix(namespace, DynamicPersistent.LocalNamespacePrefix);
+    }
+
+    /**@internal */
+    init(storable: Storable) {
+        storable
+            .removeNamespace(this.namespace)
+            .addNamespace(new Namespace(this.namespace, this.defaultContent));
     }
 }

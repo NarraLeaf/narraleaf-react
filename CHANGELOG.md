@@ -5,6 +5,7 @@
 ### _Feature_
 
 - Game Events
+- Use `scene.local` to store temporary data
 
 ### _Incompatible Changes_
 
@@ -16,6 +17,7 @@
 - Event: `event:menu.choose`
 - Some utility functions for `Persistent` and `Transform`
 - Use a handler to set persistent data
+- `scene.local` to store temporary data
 
 ### Fixed
 

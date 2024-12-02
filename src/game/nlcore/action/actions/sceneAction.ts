@@ -31,6 +31,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         state
             .registerSrcManager(scene.srcManager)
             .addScene(scene);
+        scene.local.init(state.game.getLiveGame().getStorable());
 
         SceneAction.registerEventListeners(scene, state, () => {
             awaitable.resolve({
@@ -155,6 +156,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             return super.executeAction(state);
         } else if (this.type === SceneActionTypes.preUnmount) {
             this.callee.events.emit("event:scene.preUnmount");
+            state.game
+                .getLiveGame()
+                .getStorable()
+                .removeNamespace(this.callee.local.getNamespaceName());
             return super.executeAction(state);
         } else if (this.type === SceneActionTypes.applyTransform) {
             const [transform] = (this.contentNode as ContentNode<SceneActionContentType["scene:applyTransform"]>).getContent();

@@ -292,6 +292,7 @@ export class LiveGame {
         this.currentAction = this.story?.entryScene?.getSceneRoot() || null;
         this.lockedAwaiting = null;
         this.currentSavedGame = null;
+        this.storable.clear();
 
         gameState.forceReset();
     }

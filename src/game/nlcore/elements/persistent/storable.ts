@@ -151,7 +151,8 @@ export class Storable {
 
     public getNamespace<T extends NameSpaceContent<keyof T> = any>(key: string): Namespace<T> {
         if (!this.namespaces[key]) {
-            throw new RuntimeGameError(`Namespace ${key} is not initialized`);
+            throw new RuntimeGameError(`Namespace ${key} is not initialized, did you forget to register it?`
+                + "\nUse `story.registerPersistent` to register a persistent namespace");
         }
         return this.namespaces[key];
     }
@@ -163,6 +164,12 @@ export class Storable {
 
     public hasNamespace(key: string) {
         return !!this.namespaces[key];
+    }
+
+    public removeNamespace(key: string) {
+        delete this.namespaces[key];
+        return this;
+
     }
 
     public getNamespaces() {
