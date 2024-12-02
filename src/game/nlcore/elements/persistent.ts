@@ -34,10 +34,18 @@ export class Persistent<T extends PersistentContent>
     /**
      * @chainable
      */
-    public set<K extends StringKeyOf<T>>(key: K, value: T[K]): ChainedPersistent<T> {
+    // public set<K extends StringKeyOf<T>>(key: K, value: T[K]): ChainedPersistent<T> {
+    //     return this.chain(this.createAction(
+    //         PersistentActionTypes.set,
+    //         [key, value]
+    //     ));
+    // }
+    public set<K extends StringKeyOf<T>>(key: K, value: T[K]): ChainedPersistent<T>;
+    public set<K extends StringKeyOf<T>>(key: K, handler: (value: T[K]) => T[K]): ChainedPersistent<T>;
+    public set<K extends StringKeyOf<T>>(key: K, $arg1: T[K] | ((value: T[K]) => T[K])): ChainedPersistent<T> {
         return this.chain(this.createAction(
             PersistentActionTypes.set,
-            [key, value]
+            [key, $arg1]
         ));
     }
 
