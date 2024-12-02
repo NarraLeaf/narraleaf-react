@@ -68,7 +68,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
      */
     public static left(
         duration: number,
-        easing: TransformDefinitions.EasingDefinition
+        easing?: TransformDefinitions.EasingDefinition
     ): Transform<TransformDefinitions.ImageTransformProps> {
         return new Transform<TransformDefinitions.ImageTransformProps>({
             position: CommonPosition.Positions.Left
@@ -80,7 +80,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
      */
     public static right(
         duration: number,
-        easing: TransformDefinitions.EasingDefinition
+        easing?: TransformDefinitions.EasingDefinition
     ): Transform<TransformDefinitions.ImageTransformProps> {
         return new Transform<TransformDefinitions.ImageTransformProps>({
             position: CommonPosition.Positions.Right
@@ -92,7 +92,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
      */
     public static center(
         duration: number,
-        easing: TransformDefinitions.EasingDefinition
+        easing?: TransformDefinitions.EasingDefinition
     ): Transform<TransformDefinitions.ImageTransformProps> {
         return new Transform<TransformDefinitions.ImageTransformProps>({
             position: CommonPosition.Positions.Center
