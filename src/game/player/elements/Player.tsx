@@ -22,6 +22,7 @@ import {flushSync} from "react-dom";
 import Displayables from "@player/elements/displayable/Displayables";
 import {ErrorBoundary} from "@player/lib/ErrorBoundary";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
+import Cursor from "@player/lib/Cursor";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -188,7 +189,16 @@ export default function Player(
                 }} className={clsx(className, "__narraleaf_content-player")} ref={containerRef}>
                     <AspectRatio className={clsx("flex-grow overflow-auto")}>
                         <SizeUpdateAnnouncer containerRef={containerRef}/>
-                        <Isolated>
+                        <Isolated style={{
+                            cursor: state.game.config.player.cursor ? "none" : "auto",
+                        }}>
+                            {game.config.player.cursor && (
+                                <Cursor
+                                    src={game.config.player.cursor}
+                                    width={game.config.player.cursorWidth}
+                                    height={game.config.player.cursorHeight}
+                                />
+                            )}
                             <Preload state={state}/>
                             <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
                                 <KeyEventAnnouncer state={state}/>

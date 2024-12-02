@@ -6,6 +6,7 @@
 
 - Game Events
 - Use `scene.local` to store temporary data
+- Custom cursor
 
 ### _Incompatible Changes_
 
@@ -18,6 +19,7 @@
 - Some utility functions for `Persistent` and `Transform`
 - Use a handler to set persistent data
 - `scene.local` to store temporary data
+- Custom cursor and cursor style
 
 ### Fixed
 

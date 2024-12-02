@@ -56,6 +56,9 @@ export class Game {
             preloadAllImages: true,
             forceClearCache: false,
             maxPreloadActions: 10,
+            cursor: null,
+            cursorHeight: 30,
+            cursorWidth: 30,
         },
         elements: {
             say: {
