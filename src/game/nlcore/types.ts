@@ -92,3 +92,8 @@ export interface EventfulDisplayable {
     /**@internal */
     toDisplayableTransform(): Transform;
 }
+
+export type LiveGameEventHandler<T extends Array<any>> = (...args: T) => void;
+export type LiveGameEventToken = {
+    cancel(): void;
+};

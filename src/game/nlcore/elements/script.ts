@@ -6,7 +6,7 @@ import {GameState} from "@player/gameState";
 import {Chained, Proxied} from "@core/action/chain";
 import type {Storable} from "@core/elements/persistent/storable";
 import {ScriptAction} from "@core/action/actions/scriptAction";
-import {LiveGame} from "@core/liveGame";
+import {LiveGame} from "@core/game/liveGame";
 
 export interface ScriptCtx {
     gameState: GameState;

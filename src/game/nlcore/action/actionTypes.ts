@@ -217,6 +217,6 @@ export const PersistentActionTypes = {
 export type PersistentActionContentType = {
     [K in typeof PersistentActionTypes[keyof typeof PersistentActionTypes]]:
     K extends "persistent:action" ? any :
-        K extends "persistent:set" ? [string, any] :
+        K extends "persistent:set" ? [string, unknown | ((value: unknown) => unknown)] :
             any;
 }

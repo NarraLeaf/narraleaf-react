@@ -10,6 +10,9 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
     extends TypedAction<ImageActionContentType, T, Image> {
     static ActionTypes = ImageActionTypes;
 
+    declare type: T;
+    declare contentNode: ContentNode<ImageActionContentType[T]>;
+
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === ImageActionTypes.init) {
             if (this.callee.config.isWearable) {

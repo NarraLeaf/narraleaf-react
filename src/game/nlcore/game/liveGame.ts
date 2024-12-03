@@ -1,4 +1,4 @@
-import {Awaitable, Lock, MultiLock} from "@lib/util/data";
+import {Awaitable, EventDispatcher, Lock, MultiLock} from "@lib/util/data";
 import type {CalledActionResult, SavedGame} from "@core/gameTypes";
 import {Story} from "@core/elements/story";
 import {GameState} from "@player/gameState";
@@ -12,6 +12,36 @@ import {SceneAction} from "@core/action/actions/sceneAction";
 import {ControlActionTypes, SceneActionTypes} from "@core/action/actionTypes";
 import {Scene} from "@core/elements/scene";
 import {ControlAction} from "@core/action/actions/controlAction";
+import {LiveGameEventHandler, LiveGameEventToken} from "@core/types";
+import {Character} from "@core/elements/character";
+import {Sentence} from "@core/elements/character/sentence";
+
+type LiveGameEvent = {
+    "event:character.prompt": [{
+        /**
+         * The character who says the sentence
+         */
+        character: Character | null,
+        /**
+         * The sentence said by the character
+         */
+        sentence: Sentence,
+        /**
+         * The text of the sentence
+         */
+        text: string;
+    }];
+    "event:menu.choose": [{
+        /**
+         * The sentence selected by the player
+         */
+        sentence: Sentence,
+        /**
+         * The text of the sentence
+         */
+        text: string;
+    }];
+};
 
 export class LiveGame {
     static DefaultNamespaces = {
@@ -20,9 +50,14 @@ export class LiveGame {
     static GameSpacesKey = {
         game: "game",
     } as const;
+    static EventTypes = {
+        "event:character.prompt": "event:character.prompt",
+        "event:menu.choose": "event:menu.choose",
+    } as const;
 
     public game: Game;
     public gameLock = new MultiLock();
+    public events: EventDispatcher<LiveGameEvent> = new EventDispatcher();
     /**@internal */
     currentSavedGame: SavedGame | null = null;
     /**@internal */
@@ -90,7 +125,7 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
-        // get all element state
+        // get all element states
         const store = this.storable.toData();
         const stage = gameState.toData();
         const currentAction = this.getCurrentAction()?.getId() || null;
@@ -150,7 +185,7 @@ export class LiveGame {
         });
 
         // restore storable
-        this.storable.load(store);
+        this.storable.clear().load(store);
 
         // restore elements
         elementStates.forEach(({id, data}) => {
@@ -180,6 +215,32 @@ export class LiveGame {
     }
 
     /**
+     * When a character says something
+     */
+    public onCharacterPrompt(fc: LiveGameEventHandler<LiveGameEvent["event:character.prompt"]>): LiveGameEventToken {
+        const eventName = LiveGame.EventTypes["event:character.prompt"];
+        const event = this.events.on(eventName, fc);
+        return {
+            cancel: () => {
+                this.events.off(eventName, event);
+            }
+        };
+    }
+
+    /**
+     * When a player chooses a menu
+     */
+    public onMenuChoose(fc: LiveGameEventHandler<LiveGameEvent["event:menu.choose"]>): LiveGameEventToken {
+        const eventName = LiveGame.EventTypes["event:menu.choose"];
+        const event = this.events.on(eventName, fc);
+        return {
+            cancel: () => {
+                this.events.off(eventName, event);
+            }
+        };
+    }
+
+    /**
      * Start a new game
      */
     public newGame() {
@@ -195,6 +256,7 @@ export class LiveGame {
         const newGame = this.getNewSavedGame();
         newGame.name = "NewGame-" + Date.now();
         this.currentSavedGame = newGame;
+        this.currentAction = this.story?.entryScene?.getSceneRoot() || null;
 
         const elements: Map<string, LogicAction.GameElement> | undefined =
             this.story?.getAllElementMap(this.story, this.story?.entryScene?.getSceneRoot() || []);
@@ -220,7 +282,7 @@ export class LiveGame {
             this.lockedAwaiting.abort();
         }
 
-        this.currentAction = this.story?.entryScene?.getSceneRoot() || null;
+        this.currentAction = null;
         this.lockedAwaiting = null;
         this.currentSavedGame = null;
 
@@ -240,14 +302,14 @@ export class LiveGame {
 
     /**@internal */
     next(state: GameState): CalledActionResult | Awaitable<CalledActionResult> | MultiLock | null {
+        if (this.gameLock.isLocked()) {
+            return this.gameLock;
+        }
+
         if (this._nextLock.isLocked()) {
             return null;
         }
         this._nextLock.lock();
-
-        if (this.gameLock.isLocked()) {
-            return this.gameLock;
-        }
 
         if (!this.story) {
             throw new Error("No story loaded");
@@ -259,7 +321,7 @@ export class LiveGame {
 
                 if (this._lockedCount > 1000) {
                     // sometimes react will make it stuck and enter a dead cycle
-                    // that's not cool, so it need to throw an error to break it
+                    // that's not cool, so it needs to throw an error to break it
                     throw new Error("LiveGame locked: dead cycle detected\nPlease refresh the page");
                 }
 
@@ -268,17 +330,18 @@ export class LiveGame {
             }
             const next = this.lockedAwaiting.result;
             this.currentAction = next?.node?.action || null;
+            this.lockedAwaiting = null;
+            if (!this.currentAction) {
+                state.events.emit(GameState.EventTypes["event:state.end"]);
+            }
 
             state.logger.debug("next action (lockedAwaiting)", next);
-
-            this.lockedAwaiting = null;
 
             this._nextLock.unlock();
             return next || null;
         }
 
         if (!this.currentAction) {
-            state.events.emit(GameState.EventTypes["event:state.end"]);
             state.logger.weakWarn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
 
             this._nextLock.unlock();

@@ -1,13 +1,16 @@
-import React from "react";
+import React, {useMemo} from "react";
 import clsx from "clsx";
-
-import {Choice} from "@core/elements/menu";
 import {MenuElementProps} from "@player/elements/menu/type";
 import Isolated from "@player/lib/isolated";
 import {useGame} from "@player/provider/game-state";
 import Sentence from "@player/elements/say/Sentence";
 import Inspect from "@player/lib/Inspect";
 import {useRatio} from "@player/provider/ratio";
+import {Chosen} from "@player/type";
+import {Choice} from "@core/elements/menu";
+import {Word} from "@core/elements/character/word";
+import {Pausing} from "@core/elements/character/pause";
+import {Script} from "@core/elements/script";
 
 export default function Menu(
     {
@@ -15,13 +18,23 @@ export default function Menu(
         choices,
         afterChoose,
         state,
+        words,
     }: Readonly<MenuElementProps>) {
     const {game} = useGame();
     const {ratio} = useRatio();
 
     const Say = game.config.elements.say.use;
+    const evaluated: (Choice & { words: Word<Pausing | string>[] })[] =
+        useMemo(
+            () =>
+                choices.map(choice => ({
+                    ...choice,
+                    words: choice.prompt.evaluate(Script.getCtx({gameState: state}))
+                })),
+            []
+        );
 
-    function choose(choice: Choice) {
+    function choose(choice: Chosen) {
         afterChoose(choice);
     }
 
@@ -30,7 +43,7 @@ export default function Menu(
             <Isolated className={"absolute"}>
                 {prompt && <Say
                     state={state}
-                    action={{sentence: prompt, character: null}}
+                    action={{sentence: prompt, character: null, words}}
                     useTypeEffect={false}
                     className="z-10"
                 />}
@@ -61,7 +74,7 @@ export default function Menu(
                     >
                         <div className="p-4 rounded-lg w-full z-20">
                             <div className="flex flex-col items-center mt-4 w-full">
-                                {choices.map((choice, i) => (
+                                {evaluated.map((choice, i) => (
                                     <Inspect.Button
                                         tag={"menu.choiceButtonClassName." + i}
                                         key={i}
@@ -69,13 +82,17 @@ export default function Menu(
                                             "bg-white text-black p-2 mt-2 w-1/2",
                                             game.config.elementStyles.menu.choiceButtonClassName
                                         )}
-                                        onClick={() => choose(choice)}
+                                        onClick={() => choose({
+                                            ...choice,
+                                            evaluated: Word.getText(choice.words),
+                                        })}
                                     >
                                         <Sentence
                                             sentence={choice.prompt}
                                             gameState={state}
                                             useTypeEffect={false}
                                             className={clsx(game.config.elementStyles.menu.choiceButtonTextClassName)}
+                                            words={choice.words}
                                         />
                                     </Inspect.Button>
                                 ))}

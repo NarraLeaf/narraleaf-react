@@ -41,6 +41,14 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
     }
 
     /**@internal */
+    static getText(words: Word<Pausing | string>[]): string {
+        return words
+            .filter(word => !word.isPause())
+            .map(word => word.toString())
+            .join("");
+    }
+
+    /**@internal */
     readonly text: T;
     /**@internal */
     config: Partial<WordConfig>;
@@ -83,5 +91,17 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
     /**@internal */
     copy(): Word<T> {
         return new Word(this.text, this.config);
+    }
+
+    /**@internal */
+    isPause(): this is Word<Pausing> {
+        return Pause.isPause(this.text);
+    }
+
+    toString(): string {
+        if (typeof this.text === "string") {
+            return this.text;
+        }
+        return "";
     }
 }

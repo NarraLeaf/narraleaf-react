@@ -697,3 +697,20 @@ export type ValuesWithin<T, U> = {
 export type BooleanKeys<T> = {
     [K in keyof T]: T[K] extends boolean ? K : never;
 }[keyof T];
+
+export function createMicroTask(t: () => (() => void) | void): () => void {
+    let executed = false;
+    const task = Promise.resolve().then(() => {
+        executed = true;
+        return t();
+    });
+    return () => {
+        if (executed) {
+            task.then(fn => {
+                if (fn) {
+                    fn();
+                }
+            });
+        }
+    };
+}

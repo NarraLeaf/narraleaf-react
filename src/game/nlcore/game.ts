@@ -3,7 +3,7 @@ import {deepMerge, DeepPartial} from "@lib/util/data";
 import {LogicAction} from "@core/action/logicAction";
 import {DefaultElements} from "@player/elements/elements";
 import {ComponentsTypes} from "@player/elements/type";
-import {LiveGame} from "@core/liveGame";
+import {LiveGame} from "@core/game/liveGame";
 import {Preference} from "@core/game/preference";
 
 enum GameSettingsNamespace {
@@ -56,6 +56,9 @@ export class Game {
             preloadAllImages: true,
             forceClearCache: false,
             maxPreloadActions: 10,
+            cursor: null,
+            cursorHeight: 30,
+            cursorWidth: 30,
         },
         elements: {
             say: {
