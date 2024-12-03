@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.2.1]
+
+### _Feature_
+
+- Game Events
+- Use `scene.local` to store temporary data
+- Custom cursor
+
+### _Incompatible Changes_
+
+- SceneConfig `invertY` is now `true` by default
+
+### Added
+
+- Event: `event:character.prompt`
+- Event: `event:menu.choose`
+- Some utility functions for `Persistent` and `Transform`
+- Use a handler to set persistent data
+- `scene.local` to store temporary data
+- Custom cursor and cursor style
+
+### Fixed
+
+- Game `onReady` handler runs twice
+
 ## [0.2.0] - 2024/11/29
 
 ### _Feature_

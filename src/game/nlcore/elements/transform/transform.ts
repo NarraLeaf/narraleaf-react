@@ -63,6 +63,42 @@ export class Transform<T extends TransformDefinitions.Types = object> {
         return CommonPosition.isCommonPositionType(position) || Coord2D.isCoord2DPosition(position) || Align.isAlignPosition(position);
     }
 
+    /**
+     * Go to the left side of the stage
+     */
+    public static left(
+        duration: number,
+        easing?: TransformDefinitions.EasingDefinition
+    ): Transform<TransformDefinitions.ImageTransformProps> {
+        return new Transform<TransformDefinitions.ImageTransformProps>({
+            position: CommonPosition.Positions.Left
+        }, {duration, ease: easing});
+    }
+
+    /**
+     * Go to the right side of the stage
+     */
+    public static right(
+        duration: number,
+        easing?: TransformDefinitions.EasingDefinition
+    ): Transform<TransformDefinitions.ImageTransformProps> {
+        return new Transform<TransformDefinitions.ImageTransformProps>({
+            position: CommonPosition.Positions.Right
+        }, {duration, ease: easing});
+    }
+
+    /**
+     * Go to the center of the stage
+     */
+    public static center(
+        duration: number,
+        easing?: TransformDefinitions.EasingDefinition
+    ): Transform<TransformDefinitions.ImageTransformProps> {
+        return new Transform<TransformDefinitions.ImageTransformProps>({
+            position: CommonPosition.Positions.Center
+        }, {duration, ease: easing});
+    }
+
     /**@internal */
     public static positionToCSS(
         position: RawPosition | IPosition | undefined,

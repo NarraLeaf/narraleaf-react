@@ -12,9 +12,17 @@ export class PersistentAction<T extends Values<typeof PersistentActionTypes> = V
         const action: PersistentAction = this;
         if (action.is<PersistentAction<"persistent:set">>(PersistentAction, "persistent:set")) {
             const [key, value] = action.contentNode.getContent();
-            gameState.getStorable().getNamespace(
+            const namespace = gameState.getStorable().getNamespace(
                 action.callee.getNamespaceName()
-            ).set(key, value);
+            );
+
+            if (typeof value === "function") {
+                const prevValue = namespace.get(key);
+                namespace.set(key, value(prevValue));
+            } else {
+                namespace.set(key, value);
+            }
+
             return super.executeAction(gameState);
         }
 

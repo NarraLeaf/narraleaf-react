@@ -1,12 +1,12 @@
 import React, {useEffect, useMemo, useReducer, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import {Sentence as GameSentence} from "@core/elements/character/sentence";
-import {Script} from "@core/elements/script";
 import {Word, WordConfig} from "@core/elements/character/word";
 import {toHex} from "@lib/util/data";
 import clsx from "clsx";
 import {Pause, Pausing} from "@core/elements/character/pause";
 import Inspect from "@player/lib/Inspect";
+import {Script} from "@core/elements/script";
 
 type SplitWord = {
     text: string;
@@ -24,6 +24,7 @@ export default function Sentence(
         finished,
         count,
         className,
+        words: w,
     }: Readonly<{
         sentence: GameSentence;
         gameState: GameState;
@@ -32,10 +33,13 @@ export default function Sentence(
         finished?: boolean;
         count?: number;
         className?: string;
+        words?: Word<string | Pausing>[];
     }>) {
     const [isFinished, setIsFinished] = useState(false);
-    const words = useMemo(() => sentence.evaluate(Script.getCtx({gameState})), []);
     const {game} = gameState;
+    const words = useMemo(() => w || sentence.evaluate(Script.getCtx({
+        gameState,
+    })), []);
     const [currentWords, setCurrentWords] = useState<Exclude<SplitWord, Pausing>[]>([]);
     const updaterRef = useRef(textUpdater(words));
     const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);

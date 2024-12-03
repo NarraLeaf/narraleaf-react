@@ -94,6 +94,18 @@ export type GameConfig = {
          * The number of actions will be predicted and preloaded
          */
         maxPreloadActions: number;
+        /**
+         * Src of the cursor image, if null, the game will show the default cursor
+         */
+        cursor: string | null;
+        /**
+         * Cursor width in pixels
+         */
+        cursorWidth: number;
+        /**
+         * Cursor height in pixels
+         */
+        cursorHeight: number;
     };
     elements: {
         say: {

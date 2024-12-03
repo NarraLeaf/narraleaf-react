@@ -3,7 +3,7 @@ import "@player/lib/styles/style.css";
 
 import clsx from "clsx";
 import React, {useEffect, useReducer, useState} from "react";
-import {Awaitable, MultiLock} from "@lib/util/data";
+import {Awaitable, createMicroTask, MultiLock} from "@lib/util/data";
 import {CalledActionResult} from "@core/gameTypes";
 import {SceneEventTypes} from "@core/elements/scene";
 
@@ -22,6 +22,7 @@ import {flushSync} from "react-dom";
 import Displayables from "@player/elements/displayable/Displayables";
 import {ErrorBoundary} from "@player/lib/ErrorBoundary";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
+import Cursor from "@player/lib/Cursor";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -51,6 +52,8 @@ export default function Player(
         dispatch: (action) => dispatch(action),
     }));
     const containerRef = React.createRef<HTMLDivElement>();
+    const [ready, setReady] = useState(false);
+    const readyHandlerExecuted = React.useRef(false);
 
     const Say = game.config.elements.say.use;
     const Menu = game.config.elements.menu.use;
@@ -90,19 +93,9 @@ export default function Player(
     }, [game]);
 
     useEffect(() => {
-        let microTaskExecuted = false;
+        return createMicroTask(() => {
 
-        const microTask = Promise.resolve().then(() => {
-            microTaskExecuted = true;
-
-            if (onReady) {
-                onReady({
-                    game,
-                    gameState: state,
-                    liveGame: game.getLiveGame(),
-                    storable: game.getLiveGame().getStorable(),
-                });
-            }
+            setReady(true);
 
             const lastScene = state.getLastScene();
 
@@ -159,13 +152,21 @@ export default function Player(
                 gameKeyEvents.cancel();
             };
         });
-
-        return () => {
-            if (microTaskExecuted) {
-                microTask.then(cancelListeners => cancelListeners());
-            }
-        };
     }, []);
+
+    useEffect(() => {
+        return createMicroTask(() => {
+            if (ready && onReady && !readyHandlerExecuted.current) {
+                readyHandlerExecuted.current = true;
+                onReady({
+                    game,
+                    gameState: state,
+                    liveGame: game.getLiveGame(),
+                    storable: game.getLiveGame().getStorable(),
+                });
+            }
+        });
+    }, [ready]);
 
     state.events.emit(GameState.EventTypes["event:state.player.flush"]);
 
@@ -188,7 +189,16 @@ export default function Player(
                 }} className={clsx(className, "__narraleaf_content-player")} ref={containerRef}>
                     <AspectRatio className={clsx("flex-grow overflow-auto")}>
                         <SizeUpdateAnnouncer containerRef={containerRef}/>
-                        <Isolated>
+                        <Isolated style={{
+                            cursor: state.game.config.player.cursor ? "none" : "auto",
+                        }}>
+                            {game.config.player.cursor && (
+                                <Cursor
+                                    src={game.config.player.cursor}
+                                    width={game.config.player.cursorWidth}
+                                    height={game.config.player.cursorHeight}
+                                />
+                            )}
                             <Preload state={state}/>
                             <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
                                 <KeyEventAnnouncer state={state}/>
@@ -212,18 +222,19 @@ export default function Player(
                                                 })
                                             }
                                             {
-                                                ele.menus.map((action, i) => {
+                                                ele.menus.map(({action, onClick}, i) => {
                                                     return (
                                                         <div key={"menu-" + i}>
                                                             {
                                                                 <Menu
                                                                     state={state}
-                                                                    prompt={action.action.prompt}
-                                                                    choices={action.action.choices}
+                                                                    prompt={action.prompt}
+                                                                    choices={action.choices}
                                                                     afterChoose={(choice) => {
-                                                                        action.onClick(choice);
+                                                                        onClick(choice);
                                                                         next();
                                                                     }}
+                                                                    words={action.words}
                                                                 />
                                                             }
                                                         </div>
