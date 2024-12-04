@@ -1,6 +1,13 @@
 # Changelog
 
-## [0.2.1]
+## [0.2.3]
+
+### Added
+
+- `image.setTags`
+- `image.setPosition`
+
+## [0.2.2] - 2024/12/02
 
 ### _Feature_
 

@@ -332,20 +332,16 @@ export class Image<
      * @chainable
      */
     public applyTransform(transform: Transform<TransformDefinitions.ImageTransformProps>): Proxied<Image, Chained<LogicAction.Actions>> {
-        return this.combineActions(new Control(), chain => {
-            const action = new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
-                chain,
-                ImageAction.ActionTypes.applyTransform,
-                new ContentNode().setContent([
-                    void 0,
-                    transform.copy(),
-                    getCallStack()
-                ])
-            );
-            return chain
-                .chain(action)
-                .chain(this._flush());
-        });
+        const chain = this.chain();
+        return chain.chain(new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
+            chain,
+            ImageAction.ActionTypes.applyTransform,
+            new ContentNode().setContent([
+                void 0,
+                transform.copy(),
+                getCallStack()
+            ])
+        ));
     }
 
     /**
@@ -424,6 +420,34 @@ export class Image<
                     .chain(action)
                     .chain(this._flush());
             });
+    }
+
+    /**
+     * Alia of {@link Image.setAppearance}
+     * @chainable
+     */
+    public setTags(
+        tags: Tags extends TagGroupDefinition ? FlexibleTuple<SelectElementFromEach<Tags>> : string[],
+        transition?: IImageTransition
+    ): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.setAppearance(tags, transition);
+    }
+
+    /**
+     * Set Image Position
+     * @chainable
+     */
+    public setPosition(
+        position: TransformDefinitions.ImageTransformProps["position"],
+        duration?: number,
+        easing?: TransformDefinitions.EasingDefinition
+    ): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.applyTransform(new Transform<TransformDefinitions.ImageTransformProps>({
+            position,
+        }, {
+            duration,
+            ease: easing,
+        }));
     }
 
     /**
