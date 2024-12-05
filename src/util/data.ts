@@ -694,9 +694,9 @@ export type StringKeyOf<T> = Extract<keyof T, string>;
 export type ValuesWithin<T, U> = {
     [K in keyof T]: T[K] extends U ? K : never;
 }[keyof T];
-export type BooleanKeys<T> = {
+export type BooleanValueKeyOf<T> = Extract<{
     [K in keyof T]: T[K] extends boolean ? K : never;
-}[keyof T];
+}[keyof T], string>;
 
 export function createMicroTask(t: () => (() => void) | void): () => void {
     let executed = false;

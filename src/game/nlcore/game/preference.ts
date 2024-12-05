@@ -1,4 +1,4 @@
-import {EventDispatcher} from "@lib/util/data";
+import {BooleanValueKeyOf, EventDispatcher} from "@lib/util/data";
 
 type PreferenceEventToken = {
     cancel: () => void;
@@ -72,5 +72,9 @@ export class Preference<T extends Record<string, string | boolean | number | nul
             }
         }
         return preferences;
+    }
+
+    public togglePreference<K extends BooleanValueKeyOf<T>>(key: K) {
+        this.setPreference(key, !this.getPreference(key) as T[K]);
     }
 }

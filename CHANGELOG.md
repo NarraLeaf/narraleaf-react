@@ -2,11 +2,16 @@
 
 ## [0.2.3]
 
+### _Feature_
+
+- Use `usePreference` to manage preference easier
+
 ### Added
 
 - `image.setTags`
 - `image.setPosition`
 - Utility component: `Full`
+- `usePreference` hook
 
 ## [0.2.2] - 2024/12/02
 
