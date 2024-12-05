@@ -59,6 +59,7 @@ export class Game {
             cursor: null,
             cursorHeight: 30,
             cursorWidth: 30,
+            showOverflow: false,
         },
         elements: {
             say: {

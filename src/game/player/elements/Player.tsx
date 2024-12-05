@@ -191,6 +191,7 @@ export default function Player(
                         <SizeUpdateAnnouncer containerRef={containerRef}/>
                         <Isolated style={{
                             cursor: state.game.config.player.cursor ? "none" : "auto",
+                            overflow: state.game.config.player.showOverflow ? "visible" : "hidden",
                         }}>
                             {game.config.player.cursor && (
                                 <Cursor
