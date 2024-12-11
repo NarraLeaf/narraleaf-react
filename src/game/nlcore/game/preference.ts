@@ -51,7 +51,7 @@ export class Preference<T extends Record<string, string | boolean | number | nul
     /**
      * Import preferences
      *
-     * Note: This will override the existing preferences, and trigger the change event
+     * Note: this will override the existing preferences and trigger the change event
      */
     public importPreferences(preferences: Partial<T>) {
         for (const key in preferences) {
