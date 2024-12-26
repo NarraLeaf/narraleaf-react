@@ -55,10 +55,10 @@
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^5.1.0"
   },
-"peerDependencies": {
-  "react": ">=17.0.0",
-  "react-dom": ">=17.0.0"
-},
+  "peerDependencies": {
+    "react": ">=17.0.0",
+    "react-dom": ">=17.0.0"
+  },
   "files": [
     "dist"
   ],
@@ -78,5 +78,6 @@
     "framer-motion": "^11.11.9",
     "howler": "^2.2.4",
     "prop-types": "^15.8.1"
-  }
+  },
+  "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447"
 }
