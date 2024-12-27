@@ -6,8 +6,6 @@ import React, {useEffect, useReducer, useState} from "react";
 import {Awaitable, createMicroTask, MultiLock} from "@lib/util/data";
 import {CalledActionResult} from "@core/gameTypes";
 import {SceneEventTypes} from "@core/elements/scene";
-
-import Motion from "@player/lib/Motion";
 import AspectRatio from "@player/lib/AspectRatio";
 import Isolated from "@player/lib/isolated";
 import {default as StageScene} from "@player/elements/scene/Scene";
@@ -183,75 +181,73 @@ export default function Player(
 
     return (
         <ErrorBoundary>
-            <Motion>
-                <div style={{
-                    width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
-                    height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
-                }} className={clsx(className, "__narraleaf_content-player")} ref={containerRef}>
-                    <AspectRatio className={clsx("flex-grow overflow-auto")}>
-                        <SizeUpdateAnnouncer containerRef={containerRef}/>
-                        <Isolated style={{
-                            cursor: state.game.config.player.cursor ? "none" : "auto",
-                            overflow: state.game.config.player.showOverflow ? "visible" : "hidden",
-                        }}>
-                            {game.config.player.cursor && (
-                                <Cursor
-                                    src={game.config.player.cursor}
-                                    width={game.config.player.cursorWidth}
-                                    height={game.config.player.cursorHeight}
-                                />
-                            )}
-                            <Preload state={state}/>
-                            <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
-                                <KeyEventAnnouncer state={state}/>
-                                {
-                                    state.getSceneElements().map(({scene, ele}) => (
-                                        <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
-                                            <Displayables state={state} displayable={ele.displayable}/>
-                                            {
-                                                ele.texts.map(({action, onClick}) => {
-                                                    return (
-                                                        <Say
-                                                            state={state}
-                                                            key={"say-" + action.id}
-                                                            action={action}
-                                                            onClick={() => {
-                                                                onClick();
-                                                                next();
-                                                            }}
-                                                        />
-                                                    );
-                                                })
-                                            }
-                                            {
-                                                ele.menus.map(({action, onClick}, i) => {
-                                                    return (
-                                                        <div key={"menu-" + i}>
-                                                            {
-                                                                <Menu
-                                                                    state={state}
-                                                                    prompt={action.prompt}
-                                                                    choices={action.choices}
-                                                                    afterChoose={(choice) => {
-                                                                        onClick(choice);
-                                                                        next();
-                                                                    }}
-                                                                    words={action.words}
-                                                                />
-                                                            }
-                                                        </div>
-                                                    );
-                                                })
-                                            }
-                                        </StageScene>
-                                    ))
-                                }
-                            </OnlyPreloaded>
-                            {children}
-                        </Isolated>
-                    </AspectRatio>
-                </div>
-            </Motion>
+            <div style={{
+                width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
+                height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
+            }} className={clsx(className, "__narraleaf_content-player")} ref={containerRef}>
+                <AspectRatio className={clsx("flex-grow overflow-auto")}>
+                    <SizeUpdateAnnouncer ref={containerRef}/>
+                    <Isolated style={{
+                        cursor: state.game.config.player.cursor ? "none" : "auto",
+                        overflow: state.game.config.player.showOverflow ? "visible" : "hidden",
+                    }}>
+                        {game.config.player.cursor && (
+                            <Cursor
+                                src={game.config.player.cursor}
+                                width={game.config.player.cursorWidth}
+                                height={game.config.player.cursorHeight}
+                            />
+                        )}
+                        <Preload state={state}/>
+                        <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
+                            <KeyEventAnnouncer state={state}/>
+                            {
+                                state.getSceneElements().map(({scene, ele}) => (
+                                    <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
+                                        <Displayables state={state} displayable={ele.displayable}/>
+                                        {
+                                            ele.texts.map(({action, onClick}) => {
+                                                return (
+                                                    <Say
+                                                        state={state}
+                                                        key={"say-" + action.id}
+                                                        action={action}
+                                                        onClick={() => {
+                                                            onClick();
+                                                            next();
+                                                        }}
+                                                    />
+                                                );
+                                            })
+                                        }
+                                        {
+                                            ele.menus.map(({action, onClick}, i) => {
+                                                return (
+                                                    <div key={"menu-" + i}>
+                                                        {
+                                                            <Menu
+                                                                state={state}
+                                                                prompt={action.prompt}
+                                                                choices={action.choices}
+                                                                afterChoose={(choice) => {
+                                                                    onClick(choice);
+                                                                    next();
+                                                                }}
+                                                                words={action.words}
+                                                            />
+                                                        }
+                                                    </div>
+                                                );
+                                            })
+                                        }
+                                    </StageScene>
+                                ))
+                            }
+                        </OnlyPreloaded>
+                        {children}
+                    </Isolated>
+                </AspectRatio>
+            </div>
         </ErrorBoundary>
     );
 }

@@ -1,7 +1,7 @@
 import {EventDispatcher} from "@lib/util/data";
 import {ElementProp, EventTypes, IImageTransition, ITransition, TransitionEventTypes} from "./type";
-import {animate} from "framer-motion/dom";
-import type {AnimationPlaybackControls, ValueAnimationTransition} from "framer-motion";
+import {animate} from "motion/react";
+import type {AnimationPlaybackControls, ValueAnimationTransition} from "motion/react";
 import {ImageColor, ImageSrc} from "@core/types";
 import {TransformDefinitions} from "@core/common/types";
 

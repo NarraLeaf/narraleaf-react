@@ -1,5 +1,4 @@
 import React, {forwardRef, ReactNode} from "react";
-import PropTypes from "prop-types";
 import clsx from "clsx";
 import {DivElementProp} from "@core/elements/transition/type";
 
@@ -12,13 +11,6 @@ type ForwardChildren = {
 type ForwardRef = {
     ref?: React.Ref<HTMLDivElement>;
 };
-
-const ForwardClassNamePropType = {
-    className: PropTypes.string,
-} as const;
-const ForwardChildrenPropType = {
-    children: PropTypes.element,
-} as const;
 
 function forwardBox(
     name: string,
@@ -36,10 +28,6 @@ function forwardBox(
         }
     );
     com.displayName = name;
-    com.propTypes = {
-        ...ForwardClassNamePropType,
-        ...ForwardChildrenPropType,
-    };
     return com;
 }
 

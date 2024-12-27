@@ -1,7 +1,7 @@
 import React, {useState} from "react";
 import {DivElementProp} from "@core/elements/transition/type";
 import {useGame} from "@player/provider/game-state";
-import {m} from "framer-motion";
+import {motion} from "motion/react";
 
 type InspectStyle = {
     border?: "solid" | "dashed" | "dotted";
@@ -135,7 +135,7 @@ function InspectFramerMotionDiv(props: Readonly<DivElementProp & {
     tag?: string;
     Ref?: React.RefObject<HTMLDivElement>;
 } & InspectStyle>) {
-    return <InspectBase {...props} as={m.div} Ref={props.Ref}/>;
+    return <InspectBase {...props} as={motion.div} Ref={props.Ref}/>;
 }
 
 const Inspect = {

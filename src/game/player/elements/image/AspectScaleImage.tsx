@@ -11,12 +11,12 @@ export default function AspectScaleImage(
         props,
         onLoad,
         id,
-        Ref,
+        ref,
     }: Readonly<{
         props: Omit<ImgElementProp, "onLoad">;
         onLoad: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
         id?: string;
-        Ref?: React.RefObject<HTMLImageElement>;
+        ref?: React.RefObject<HTMLImageElement | null>;
     }>
 ) {
     const imgRef = useRef<HTMLImageElement>(null);
@@ -28,9 +28,9 @@ export default function AspectScaleImage(
     const LogTag = "AspectScaleImage";
 
     function updateWidth() {
-        const ref = Ref || imgRef;
-        if (ref.current) {
-            setWidth(ref.current.naturalWidth * ratio.state.scale);
+        const currentRef = ref || imgRef;
+        if (currentRef.current) {
+            setWidth(currentRef.current.naturalWidth * ratio.state.scale);
         }
     }
 
@@ -54,7 +54,7 @@ export default function AspectScaleImage(
 
     return (
         <img
-            ref={Ref || imgRef}
+            ref={ref || imgRef}
             {...props}
             onLoad={onLoad}
             width={width}

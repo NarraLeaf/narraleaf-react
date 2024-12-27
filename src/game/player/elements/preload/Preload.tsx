@@ -58,6 +58,7 @@ export function Preload(
         );
         const loadedSrc: string[] = [];
         const logGroup = state.logger.group(LogTag, true);
+        const preloadingSrc: string[] = [];
 
         state.logger.debug(LogTag, "preloading:", sceneSrc);
 
@@ -65,10 +66,12 @@ export function Preload(
             const src = SrcManager.getSrc(image);
             loadedSrc.push(src);
 
-            if (cacheManager.has(src) || cacheManager.isPreloading(src)) {
+            if (cacheManager.has(src) || cacheManager.isPreloading(src) || preloadingSrc.includes(src)) {
                 state.logger.debug(LogTag, `Image already loaded (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
+                preloadingSrc.push(src);
                 continue;
             }
+            preloadingSrc.push(src);
             taskPool.addTask(() => new Promise(resolve => {
                 cacheManager.preload(src)
                     .onFinished(() => {

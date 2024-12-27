@@ -6,7 +6,7 @@ import {ImgElementProp} from "@core/elements/transition/type";
 import {deepMerge} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
-import {m} from "framer-motion";
+import {motion} from "motion/react";
 import Displayable from "@player/elements/displayable/Displayable";
 import {useRatio} from "@player/provider/ratio";
 import {usePreloaded} from "@player/provider/preloaded";
@@ -82,7 +82,7 @@ function DisplayableBackground(
 
     return (
         <div>
-            <m.div
+            <motion.div
                 layout
                 ref={transformRef}
                 className={"absolute inset-0 flex items-center justify-center bg-cover bg-center overflow-hidden"}
@@ -106,7 +106,7 @@ function DisplayableBackground(
                         />
                     );
                 })}
-            </m.div>
+            </motion.div>
         </div>
     );
 }

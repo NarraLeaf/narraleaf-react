@@ -1,6 +1,6 @@
 import type {EventDispatcher} from "@lib/util/data";
 import React from "react";
-import type {AnimationPlaybackControls, DOMKeyframesDefinition} from "framer-motion";
+import type {AnimationPlaybackControls, DOMKeyframesDefinition} from "motion/react";
 import {ImageColor, ImageSrc} from "@core/types";
 
 /**@internal */

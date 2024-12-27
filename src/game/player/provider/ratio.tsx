@@ -126,21 +126,22 @@ const RatioContext = createContext<null | { ratio: AspectRatio }>(null);
 export function RatioProvider({children}: {
     children: React.ReactNode
 }) {
+    "use client";
     const [ratio] = useState(() => new AspectRatio());
 
     return (
-        <RatioContext.Provider value={{ratio}}>
+        <RatioContext value={{ratio}}>
             {children}
-        </RatioContext.Provider>
+        </RatioContext>
     );
 }
 
 /**@internal */
 export function useRatio(): { ratio: AspectRatio } {
     const context = useContext(RatioContext);
-    if (!RatioContext || !context) throw new Error("useRatio must be used within a RatioProvider");
-
     const [, forceUpdate] = useReducer((x) => x + 1, 0);
+
+    if (!RatioContext || !context) throw new Error("useRatio must be used within a RatioProvider");
     const {ratio} = context;
 
     useEffect(() => {

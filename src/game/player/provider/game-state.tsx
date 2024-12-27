@@ -19,9 +19,9 @@ export function GameProvider({children, game}: { children?: ReactNode, game?: Ga
     const [_game, setGame] = useState<Game>(game || DefaultValue);
 
     return (
-        <GameContext.Provider value={{game: _game, setGame}}>
+        <GameContext value={{game: _game, setGame}}>
             {children}
-        </GameContext.Provider>
+        </GameContext>
     );
 }
 

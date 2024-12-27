@@ -1,13 +1,13 @@
 import type {Background, color, CommonDisplayable, CommonImagePosition,} from "@core/types";
 import {ImagePosition,} from "@core/types";
-import type {AnimationPlaybackControls, DOMKeyframesDefinition, DynamicAnimationOptions} from "framer-motion";
+import type {AnimationPlaybackControls, DOMKeyframesDefinition, DynamicAnimationOptions} from "motion/react";
 import {deepMerge, DeepPartial, sleep, toHex} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {TransformDefinitions} from "./type";
 import {Align, CommonPosition, Coord2D, IPosition, PositionUtils, RawPosition} from "./position";
 import {CSSProps} from "@core/elements/transition/type";
 import {Utils} from "@core/common/Utils";
-import {animate} from "framer-motion/dom";
+import {animate} from "motion/react";
 import React from "react";
 import {ImageConfig} from "@core/elements/displayable/image";
 import Sequence = TransformDefinitions.Sequence;

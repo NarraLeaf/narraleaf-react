@@ -136,7 +136,7 @@ function DisplayableImage(
                                 }}
                                 id={mergedProps.src}
                                 onLoad={handleLoad}
-                                Ref={index === 0 ? ref : undefined}
+                                ref={index === 0 ? ref : undefined}
                             />
                         );
                     })}
