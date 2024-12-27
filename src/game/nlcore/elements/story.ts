@@ -10,8 +10,8 @@ import {Storable} from "@core/elements/persistent/storable";
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type StoryConfig = {};
+/**@internal */
 export type ElementStateRaw = Record<string, any>;
-export type NodeChildIdMap = Map<string, string>;
 
 export class Story extends Constructable<
     SceneAction<"scene:action">,

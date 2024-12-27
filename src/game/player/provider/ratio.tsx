@@ -3,6 +3,7 @@
 import React, {createContext, useContext, useEffect, useReducer, useState} from "react";
 import {EventDispatcher} from "@lib/util/data";
 
+/**@internal */
 export type AspectRatioState = {
     width: number;
     height: number;
@@ -121,6 +122,7 @@ class AspectRatio {
 
 const RatioContext = createContext<null | { ratio: AspectRatio }>(null);
 
+/**@internal */
 export function RatioProvider({children}: {
     children: React.ReactNode
 }) {
@@ -133,6 +135,7 @@ export function RatioProvider({children}: {
     );
 }
 
+/**@internal */
 export function useRatio(): { ratio: AspectRatio } {
     const context = useContext(RatioContext);
     if (!RatioContext || !context) throw new Error("useRatio must be used within a RatioProvider");

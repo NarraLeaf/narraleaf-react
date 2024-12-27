@@ -4,6 +4,7 @@ import {GameState} from "@player/gameState";
 import {throttle} from "@lib/util/data";
 import {Game} from "@core/common/game";
 
+/**@internal */
 export function KeyEventAnnouncer({state}: Readonly<{
     state: GameState;
 }>) {

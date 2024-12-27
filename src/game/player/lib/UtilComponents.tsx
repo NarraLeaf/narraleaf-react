@@ -17,7 +17,7 @@ const ForwardClassNamePropType = {
     className: PropTypes.string,
 } as const;
 const ForwardChildrenPropType = {
-    children: PropTypes.node,
+    children: PropTypes.element,
 } as const;
 
 function forwardBox(

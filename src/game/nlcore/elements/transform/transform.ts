@@ -64,6 +64,18 @@ export class Transform<T extends TransformDefinitions.Types = object> {
     }
 
     /**
+     * Apply transform immediately
+     */
+    public static immediate<T extends TransformDefinitions.Types>(
+        props: SequenceProps<T>,
+    ): Transform<T> {
+        return new Transform<T>(props, {
+            duration: 0,
+            ease: "linear",
+        });
+    }
+
+    /**
      * Go to the left side of the stage
      */
     public static left(

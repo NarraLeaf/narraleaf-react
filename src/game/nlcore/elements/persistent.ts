@@ -12,10 +12,13 @@ import {DynamicWord, DynamicWordResult} from "@core/elements/character/sentence"
 import {LambdaHandler} from "@core/elements/type";
 import {Namespace, Storable} from "@core/elements/persistent/storable";
 
+/**@internal */
 type PersistentContent = {
     [K in string]: StorableType;
 };
+/**@internal */
 type ChainedPersistent<T extends PersistentContent> = Proxied<Persistent<T>, Chained<LogicAction.Actions>>;
+/**@internal */
 type DynamicPersistentData = {
     [K in string]: StorableType;
 };

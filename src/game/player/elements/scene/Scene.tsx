@@ -6,6 +6,7 @@ import {GameState} from "@player/gameState";
 import {Sound} from "@core/elements/sound";
 import {Utils} from "@core/common/Utils";
 
+/**@internal */
 export default function Scene(
     {
         scene,

@@ -40,6 +40,7 @@ export type PlayerStateData = {
         };
     }[]
 };
+/**@internal */
 export type PlayerAction = CalledActionResult;
 
 interface StageUtils {

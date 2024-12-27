@@ -6,6 +6,7 @@ import {Transform, TransformersMap, TransformHandler} from "@core/elements/trans
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
 
+/**@internal */
 export type DisplayableProps = {
     displayable: {
         skipTransition?: boolean;
@@ -26,6 +27,7 @@ export type DisplayableProps = {
     state: GameState;
 };
 
+/**@internal */
 export default function Displayable(
     {
         state: gameState,

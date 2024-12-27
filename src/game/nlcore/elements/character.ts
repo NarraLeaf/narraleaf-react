@@ -8,9 +8,11 @@ import {Sentence, SentencePrompt, SentenceUserConfig, SingleWord} from "@core/el
 import {CharacterAction} from "@core/action/actions/characterAction";
 
 export type CharacterConfig = {} & Color;
+/**@internal */
 export type CharacterStateData = {
     name: string;
 };
+/**@internal */
 export type CharacterState = {
     name: string;
 };

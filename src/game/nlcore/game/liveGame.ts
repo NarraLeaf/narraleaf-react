@@ -16,6 +16,7 @@ import {LiveGameEventHandler, LiveGameEventToken} from "@core/types";
 import {Character} from "@core/elements/character";
 import {Sentence} from "@core/elements/character/sentence";
 
+/**@internal */
 type LiveGameEvent = {
     "event:character.prompt": [{
         /**

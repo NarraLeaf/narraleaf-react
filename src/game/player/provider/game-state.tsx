@@ -10,6 +10,9 @@ type GameContextType = {
 
 const GameContext = React.createContext<GameContextType | null>(null);
 
+/**
+ * @internal
+ */
 export function GameProvider({children, game}: { children?: ReactNode, game?: Game }) {
     "use client";
     const DefaultValue = new Game({});

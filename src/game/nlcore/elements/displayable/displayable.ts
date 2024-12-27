@@ -9,12 +9,14 @@ import {Chained, Proxied} from "@core/action/chain";
 import {LogicAction} from "@core/action/logicAction";
 import {ContentNode} from "@core/action/tree/actionTree";
 
+/**@internal */
 export type DisplayableEventTypes = {
     "event:displayable.applyTransition": [ITransition];
     "event:displayable.applyTransform": [Transform];
     "event:displayable.init": [];
 };
 
+/**@internal */
 export abstract class Displayable<
     StateData extends Record<string, any>,
     Self extends Actionable

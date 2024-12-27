@@ -29,6 +29,7 @@ import {Control} from "@core/elements/control";
 import {ImageAction} from "@core/action/actions/imageAction";
 import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
 
+/**@internal */
 export type ImageConfig = {
     display: boolean;
     /**@internal */
@@ -42,10 +43,12 @@ export type ImageConfig = {
     autoInit: boolean;
 } & CommonDisplayable;
 
+/**@internal */
 export type ImageDataRaw = {
     state: Record<string, any>;
 };
 
+/**@internal */
 export type ImageEventTypes = {
     "event:wearable.create": [Image];
 } & DisplayableEventTypes;
@@ -54,7 +57,9 @@ export type TagDefinitions<T extends TagGroupDefinition | null> =
         groups: T;
         defaults: SelectElementFromEach<T>;
     } : never;
+/**@internal */
 export type TagGroupDefinition = string[][];
+/**@internal */
 export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectElementFromEach<T>) => string;
 export type RichImageUserConfig<T extends TagGroupDefinition | null> = ImageConfig & {
     /**@internal */
@@ -70,8 +75,8 @@ export type RichImageUserConfig<T extends TagGroupDefinition | null> = ImageConf
                 tag: TagDefinitions<T>;
             }
             : never);
-export type RichImageConfig<T extends TagGroupDefinition | null> = RichImageUserConfig<T> & {};
-export type StaticRichConfig = RichImageUserConfig<TagGroupDefinition | null>;
+type RichImageConfig<T extends TagGroupDefinition | null> = RichImageUserConfig<T> & {};
+type StaticRichConfig = RichImageUserConfig<TagGroupDefinition | null>;
 
 
 export class Image<

@@ -11,6 +11,7 @@ type PreloadedContextType = {
 
 const Context = createContext<null | PreloadedContextType>(null);
 
+/**@internal */
 export function PreloadedProvider({children}: {
     children: React.ReactNode
 }) {
@@ -26,6 +27,7 @@ export function PreloadedProvider({children}: {
     );
 }
 
+/**@internal */
 export function usePreloaded(): PreloadedContextType {
     if (!Context) throw new Error("usePreloaded must be used within a PreloadedProvider");
     return useContext(Context) as PreloadedContextType;

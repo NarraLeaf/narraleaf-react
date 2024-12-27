@@ -26,10 +26,11 @@ export type TextConfig = {
     text: string;
 } & CommonDisplayable;
 
+/**@internal */
 export type TextDataRaw = {
     state: Record<string, any>;
 };
-
+/**@internal */
 export type TextEventTypes = {
     "event:text.show": [Transform];
     "event:text.hide": [Transform];

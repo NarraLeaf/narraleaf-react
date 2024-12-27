@@ -17,10 +17,13 @@ export enum SoundType {
     backgroundMusic = "backgroundMusic",
 }
 
+/**@internal */
 export type SoundDataRaw = {
     config: SoundConfig;
 };
+/**@internal */
 export type VoiceIdMap = Record<string | number, string | Sound>;
+/**@internal */
 export type VoiceSrcGenerator = (id: string | number) => string | Sound;
 
 export type SoundConfig = {

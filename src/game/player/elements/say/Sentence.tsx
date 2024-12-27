@@ -8,6 +8,7 @@ import {Pause, Pausing} from "@core/elements/character/pause";
 import Inspect from "@player/lib/Inspect";
 import {Script} from "@core/elements/script";
 
+/**@internal */
 type SplitWord = {
     text: string;
     config: Partial<WordConfig>;
@@ -15,6 +16,7 @@ type SplitWord = {
     tag2?: any;
 } | "\n" | Pausing;
 
+/**@internal */
 export default function Sentence(
     {
         sentence,

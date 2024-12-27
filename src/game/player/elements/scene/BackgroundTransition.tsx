@@ -11,6 +11,7 @@ import Displayable from "@player/elements/displayable/Displayable";
 import {useRatio} from "@player/provider/ratio";
 import {usePreloaded} from "@player/provider/preloaded";
 
+/**@internal */
 export default function BackgroundTransition({scene, props, state}: {
     scene: GameScene,
     props: Record<string, any>,
@@ -34,6 +35,7 @@ export default function BackgroundTransition({scene, props, state}: {
     );
 }
 
+/**@internal */
 function DisplayableBackground(
     {
         transformRef,

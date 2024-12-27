@@ -1,9 +1,11 @@
 import {BooleanValueKeyOf, EventDispatcher} from "@lib/util/data";
 
+/**@internal */
 type PreferenceEventToken = {
     cancel: () => void;
 };
 
+/**@internal */
 type StringKeyof<T> = Extract<keyof T, string>;
 
 export class Preference<T extends Record<string, string | boolean | number | null | undefined>> {

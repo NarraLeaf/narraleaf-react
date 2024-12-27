@@ -7,6 +7,7 @@ import {Image as GameImage} from "@core/elements/displayable/image";
 import {default as StageImage} from "@player/elements/image/Image";
 
 
+/**@internal */
 export default function Displayables(
     {state, displayable}: Readonly<{
         state: GameState;
