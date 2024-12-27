@@ -4,11 +4,13 @@ import type {ReactNode} from "react";
 import React, {useEffect, useRef} from "react";
 import {useGame} from "@player/provider/game-state";
 
-export default function Background({
-                                       children
-                                   }: Readonly<{
-    children: ReactNode;
-}>) {
+/**@internal */
+export default function Background(
+    {
+        children
+    }: Readonly<{
+        children: ReactNode;
+    }>) {
     const {ratio} = useRatio();
     const {game} = useGame();
     const contentContainerRef = useRef<HTMLDivElement | null>(null);

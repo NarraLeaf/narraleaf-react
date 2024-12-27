@@ -1,15 +1,5 @@
 import {color, CommonDisplayable} from "@core/types";
 import {DeepPartial} from "@lib/util/data";
-import type {
-    AnimationPlaybackControls,
-    AnimationScope,
-    AnimationSequence,
-    DOMKeyframesDefinition,
-    DynamicAnimationOptions,
-    ElementOrSelector,
-    MotionValue,
-    ValueAnimationTransition
-} from "framer-motion";
 
 export namespace TransformDefinitions {
     export type BezierDefinition = [number, number, number, number];
@@ -28,15 +18,6 @@ export namespace TransformDefinitions {
         | "backOut"
         | "backInOut"
         | "anticipate";
-
-    export type GenericKeyframesTarget<V> = [null, ...V[]] | V[];
-    export type FramerAnimationScope<T> = AnimationScope<T>;
-    export type FramerAnimate = {
-        <V>(from: V, to: V | GenericKeyframesTarget<V>, options?: ValueAnimationTransition<V> | undefined): AnimationPlaybackControls;
-        <V_1>(value: MotionValue<V_1>, keyframes: V_1 | GenericKeyframesTarget<V_1>, options?: ValueAnimationTransition<V_1> | undefined): AnimationPlaybackControls;
-        (value: ElementOrSelector, keyframes: DOMKeyframesDefinition, options?: DynamicAnimationOptions | undefined): AnimationPlaybackControls;
-        (sequence: AnimationSequence, options?: SequenceOptions | undefined): AnimationPlaybackControls;
-    }
 
     export type CommonTransformProps = {
         duration: number;

@@ -18,21 +18,25 @@ export interface IPosition {
     toCSS(): D2Position;
 }
 
+/**@internal */
 export type Coord2DPosition = {
     x: number | `${"-" | ""}${number}%`;
     y: number | `${"-" | ""}${number}%`;
 } & Partial<OffsetPosition>;
 
+/**@internal */
 export type AlignPosition = {
     xalign: number;
     yalign: number;
 } & Partial<OffsetPosition>;
 
+/**@internal */
 export type OffsetPosition = {
     xoffset: number;
     yoffset: number;
 }
 
+/**@internal */
 export type D2Position<X = any, Y = any> = {
     x: UnknownAble<X>;
     y: UnknownAble<Y>;
@@ -40,13 +44,15 @@ export type D2Position<X = any, Y = any> = {
     yoffset: UnknownAble<number>;
 }
 
+/**@internal */
 export type RawPosition = CommonPositionType
     | (Coord2DPosition & { xalign?: never; yalign?: never })
     | (AlignPosition & { x?: never; y?: never });
 
-export type Unknown = typeof PositionUtils.Unknown;
-export type UnknownAble<T> = T | Unknown;
+type Unknown = typeof PositionUtils.Unknown;
+type UnknownAble<T> = T | Unknown;
 
+/**@internal */
 export class PositionUtils {
     static readonly Unknown: unique symbol = Symbol("Unknown");
 

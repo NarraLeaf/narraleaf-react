@@ -6,6 +6,7 @@ import {Transform, TransformersMap, TransformHandler} from "@core/elements/trans
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
 
+/**@internal */
 export type DisplayableProps = {
     displayable: {
         skipTransition?: boolean;
@@ -26,6 +27,7 @@ export type DisplayableProps = {
     state: GameState;
 };
 
+/**@internal */
 export default function Displayable(
     {
         state: gameState,
@@ -131,47 +133,47 @@ export default function Displayable(
         }
     }
 
-    function applyTransition(transition: ITransition) {
-        setTransition(transition);
-        if (!transition) {
+    function applyTransition(newTransition: ITransition) {
+        setTransition(newTransition);
+        if (!newTransition) {
             gameState.logger.warn("transition not set");
             return Promise.resolve();
         }
         return new Promise<void>(resolve => {
-            const eventToken = transition.events.onEvents([
+            const eventToken = newTransition.events.onEvents([
                 {
                     type: TransitionEventTypes.update,
-                    listener: transition.events.on(TransitionEventTypes.update, (progress) => {
+                    listener: newTransition.events.on(TransitionEventTypes.update, (progress) => {
                         setTransitionProps(progress);
                     }),
                 },
                 {
                     type: TransitionEventTypes.end,
-                    listener: transition.events.on(TransitionEventTypes.end, () => {
+                    listener: newTransition.events.on(TransitionEventTypes.end, () => {
                         setTransition(null);
 
-                        gameState.logger.debug("transition end", transition);
+                        gameState.logger.debug("transition end", newTransition);
                     })
                 },
                 {
                     type: TransitionEventTypes.start,
-                    listener: transition.events.on(TransitionEventTypes.start, () => {
-                        gameState.logger.debug("transition start", transition);
+                    listener: newTransition.events.on(TransitionEventTypes.start, () => {
+                        gameState.logger.debug("transition start", newTransition);
                     })
                 }
             ]);
-            transition.start(() => {
+            newTransition.start(() => {
                 eventToken.cancel();
                 resolve();
             });
         });
     }
 
-    async function applyTransform(transform: Transform) {
-        assignStyle(transform.propToCSS(gameState, displayableState.state, displayable.transformOverwrites));
+    async function applyTransform(newTransform: Transform) {
+        assignStyle(newTransform.propToCSS(gameState, displayableState.state, displayable.transformOverwrites));
 
-        setTransform(transform);
-        await transform.animate({
+        setTransform(newTransform);
+        await newTransform.animate({
             scope,
             target: displayableState,
             overwrites: displayable.transformOverwrites
@@ -180,7 +182,7 @@ export default function Displayable(
             displayableState.state = deepMerge(displayableState.state, after);
 
             setTransformProps({
-                style: transform.propToCSS(gameState, displayableState.state, displayable.transformOverwrites) as any,
+                style: newTransform.propToCSS(gameState, displayableState.state, displayable.transformOverwrites) as any,
             });
 
             setTransform(null);

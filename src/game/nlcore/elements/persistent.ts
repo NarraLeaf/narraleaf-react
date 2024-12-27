@@ -4,7 +4,7 @@ import {Chained, Proxied} from "@core/action/chain";
 import {LogicAction} from "@core/game";
 import {PersistentActionContentType, PersistentActionTypes} from "@core/action/actionTypes";
 import {PersistentAction} from "@core/action/actions/persistentAction";
-import {BooleanKeys, StringKeyOf, Values} from "@lib/util/data";
+import {BooleanValueKeyOf, StringKeyOf, Values} from "@lib/util/data";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Lambda} from "@core/elements/condition";
 import {Word} from "@core/elements/character/word";
@@ -12,10 +12,13 @@ import {DynamicWord, DynamicWordResult} from "@core/elements/character/sentence"
 import {LambdaHandler} from "@core/elements/type";
 import {Namespace, Storable} from "@core/elements/persistent/storable";
 
+/**@internal */
 type PersistentContent = {
     [K in string]: StorableType;
 };
+/**@internal */
 type ChainedPersistent<T extends PersistentContent> = Proxied<Persistent<T>, Chained<LogicAction.Actions>>;
+/**@internal */
 type DynamicPersistentData = {
     [K in string]: StorableType;
 };
@@ -77,7 +80,7 @@ export class Persistent<T extends PersistentContent>
     /**
      * Determine whether the value is true, can be used in {@link Condition}
      */
-    public isTrue<K extends Extract<keyof T, BooleanKeys<T>>>(key: K): Lambda<boolean> {
+    public isTrue<K extends Extract<keyof T, BooleanValueKeyOf<T>>>(key: K): Lambda<boolean> {
         return new Lambda(({storable}) => {
             return storable.getNamespace(this.namespace).equals(key, true);
         });
@@ -86,7 +89,7 @@ export class Persistent<T extends PersistentContent>
     /**
      * Determine whether the value is false, can be used in {@link Condition}
      */
-    public isFalse<K extends Extract<keyof T, BooleanKeys<T>>>(key: K): Lambda<boolean> {
+    public isFalse<K extends Extract<keyof T, BooleanValueKeyOf<T>>>(key: K): Lambda<boolean> {
         return new Lambda(({storable}) => {
             return storable.getNamespace(this.namespace).equals(key, false);
         });

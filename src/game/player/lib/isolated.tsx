@@ -35,7 +35,6 @@ export default function Isolated(
                 style={{
                     ...styles,
                     position: "relative",
-                    overflow: "hidden",
                     ...(props?.style || {}),
                     ...(style || {}),
                 }}

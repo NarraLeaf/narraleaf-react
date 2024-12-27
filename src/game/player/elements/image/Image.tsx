@@ -10,13 +10,15 @@ import AspectScaleImage from "@player/elements/image/AspectScaleImage";
 import {useRatio} from "@player/provider/ratio";
 import clsx from "clsx";
 
-export default function Image({
-                                  image,
-                                  state,
-                              }: Readonly<{
-    image: GameImage;
-    state: GameState;
-}>) {
+/**@internal */
+export default function Image(
+    {
+        image,
+        state,
+    }: Readonly<{
+        image: GameImage;
+        state: GameState;
+    }>) {
     /**
      * Slow load warning
      */
@@ -42,6 +44,7 @@ export default function Image({
     );
 };
 
+/**@internal */
 function DisplayableImage(
     {
         transition,

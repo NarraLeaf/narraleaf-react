@@ -1,9 +1,11 @@
-import {EventDispatcher} from "@lib/util/data";
+import {BooleanValueKeyOf, EventDispatcher} from "@lib/util/data";
 
+/**@internal */
 type PreferenceEventToken = {
     cancel: () => void;
 };
 
+/**@internal */
 type StringKeyof<T> = Extract<keyof T, string>;
 
 export class Preference<T extends Record<string, string | boolean | number | null | undefined>> {
@@ -51,7 +53,7 @@ export class Preference<T extends Record<string, string | boolean | number | nul
     /**
      * Import preferences
      *
-     * Note: This will override the existing preferences, and trigger the change event
+     * Note: this will override the existing preferences and trigger the change event
      */
     public importPreferences(preferences: Partial<T>) {
         for (const key in preferences) {
@@ -72,5 +74,9 @@ export class Preference<T extends Record<string, string | boolean | number | nul
             }
         }
         return preferences;
+    }
+
+    public togglePreference<K extends BooleanValueKeyOf<T>>(key: K) {
+        this.setPreference(key, !this.getPreference(key) as T[K]);
     }
 }

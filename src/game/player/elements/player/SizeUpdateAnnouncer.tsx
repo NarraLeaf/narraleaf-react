@@ -1,6 +1,7 @@
 import React, {useEffect} from "react";
 import {useRatio} from "@player/provider/ratio";
 
+/**@internal */
 export default function SizeUpdateAnnouncer(
     {containerRef}: Readonly<{ containerRef: React.RefObject<HTMLDivElement> }>
 ) {

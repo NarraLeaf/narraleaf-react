@@ -6,6 +6,7 @@ import {Preloaded} from "@player/lib/Preloaded";
 import {TaskPool} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 
+/**@internal */
 export function Preload(
     {
         state,

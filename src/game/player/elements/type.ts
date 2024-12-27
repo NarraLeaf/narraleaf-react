@@ -29,7 +29,7 @@ export type PlayerEventContext = {
 }
 
 export interface PlayerProps {
-    story: Story;
+    story?: Story;
     width?: string | number;
     height?: string | number;
     className?: clsx.ClassValue;

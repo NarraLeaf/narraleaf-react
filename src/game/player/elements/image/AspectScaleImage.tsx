@@ -5,6 +5,7 @@ import {usePreloaded} from "@player/provider/preloaded";
 import {Image} from "@core/elements/displayable/image";
 import {useGame} from "@core/common/player";
 
+/**@internal */
 export default function AspectScaleImage(
     {
         props,

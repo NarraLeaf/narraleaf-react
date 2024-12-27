@@ -12,6 +12,7 @@ import {Word} from "@core/elements/character/word";
 import {Pausing} from "@core/elements/character/pause";
 import {Script} from "@core/elements/script";
 
+/**@internal */
 export default function Menu(
     {
         prompt,

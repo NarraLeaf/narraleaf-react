@@ -16,7 +16,9 @@ export type MenuChoice = {
     prompt: SentencePrompt | Sentence;
 };
 
+/**@internal */
 type ChainedAction = Proxied<GameElement, Chained<LogicAction.Actions>>;
+/**@internal */
 type ChainedActions = (ChainedAction | ChainedAction[] | Actions | Actions[])[];
 
 export type Choice = {

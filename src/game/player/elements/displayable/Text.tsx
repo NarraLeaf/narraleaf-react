@@ -11,6 +11,7 @@ import {TransformDefinitions} from "@core/elements/transform/type";
 import Inspect from "@player/lib/Inspect";
 import {useRatio} from "@player/provider/ratio";
 
+/**@internal */
 export default function Text({state, text}: Readonly<{
     state: GameState;
     text: GameText;

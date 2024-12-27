@@ -23,7 +23,9 @@ import ImageTransformProps = TransformDefinitions.ImageTransformProps;
 import GameElement = LogicAction.GameElement;
 import {DynamicPersistent} from "@core/elements/persistent";
 
+/**@internal */
 export type UserImageInput = ImageSrc | RGBColor | ImageColor;
+/**@internal */
 export type SceneConfig = {
     invertY: boolean;
     invertX: boolean;
@@ -43,6 +45,7 @@ export interface ISceneConfig {
     background?: ImageSrc | ImageColor;
 }
 
+/**@internal */
 export type SceneState = {
     backgroundImageProxy: VirtualImageProxy;
 };
@@ -51,9 +54,12 @@ export type JumpConfig = {
     unloadScene: boolean;
 }
 
+/**@internal */
 type ChainableAction = Proxied<GameElement, Chained<LogicAction.Actions>> | Actions;
+/**@internal */
 type ChainedScene = Proxied<Scene, Chained<LogicAction.Actions>>;
 
+/**@internal */
 export type SceneDataRaw = {
     state: {
         backgroundMusic?: SoundDataRaw | null;
@@ -62,6 +68,7 @@ export type SceneDataRaw = {
     backgroundImageState?: ImageDataRaw | null;
 }
 
+/**@internal */
 export type SceneEventTypes = {
     "event:scene.remove": [];
     "event:scene.load": [],
