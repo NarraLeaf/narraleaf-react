@@ -42,15 +42,17 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         }
     }
 
-    public async executeSingleAction(state: GameState, action: LogicAction.Actions) {
+    public executeSingleAction(state: GameState, action: LogicAction.Actions): Promise<ContentNode | null> {
         const next = state.game.getLiveGame().executeAction(state, action);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(next)) {
-            const {node} = await new Promise<CalledActionResult>((r) => {
-                next.then((_) => r(next.result as any));
+            return new Promise<ContentNode | null>((r) => {
+                next.then((_) => {
+                    state.logger.debug("Control - Next Action (single)", next);
+                    r(next.result?.node || null);
+                });
             });
-            return node;
         } else {
-            return next;
+            return Promise.resolve(next?.contentNode || null);
         }
     }
 
@@ -96,14 +98,14 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             return awaitable;
         } else if (this.type === ControlActionTypes.all) {
             const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
-            (async () => {
-                await Promise.all(content.map(action => this.executeSingleAction(state, action)));
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
+            Promise.all(content.map(action => this.executeSingleAction(state, action)))
+                .then(() => {
+                    awaitable.resolve({
+                        type: this.type,
+                        node: this.contentNode.getChild()
+                    });
+                    state.stage.next();
                 });
-                state.stage.next();
-            })();
             return awaitable;
         } else if (this.type === ControlActionTypes.allAsync) {
             (async () => {

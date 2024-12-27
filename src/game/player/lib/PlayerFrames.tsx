@@ -2,6 +2,7 @@ import React from "react";
 import {useRatio} from "@player/provider/ratio";
 import Isolated from "@player/lib/isolated";
 import clsx from "clsx";
+import {useGame} from "@player/provider/game-state";
 
 type ForwardSize = {
     width?: React.CSSProperties["width"];
@@ -10,6 +11,10 @@ type ForwardSize = {
 
 type ForwardChildren = {
     children?: React.ReactNode;
+};
+
+type ForwardClassName = {
+    className?: string;
 };
 
 type FrameComponentProps = ForwardSize & ForwardChildren;
@@ -62,6 +67,31 @@ const BottomLeft = (props: FrameComponentProps) => <BaseFrame {...props} alignX=
 const BottomCenter = (props: FrameComponentProps) => <BaseFrame {...props} alignX={"center"} alignY={"bottom"}/>;
 const BottomRight = (props: FrameComponentProps) => <BaseFrame {...props} alignX={"right"} alignY={"bottom"}/>;
 
+function Full({children, className}: ForwardChildren & ForwardClassName) {
+    const {ratio} = useRatio();
+    const {game} = useGame();
+
+    return (
+        <Isolated className={clsx(
+            "absolute pointer-events-none w-full h-full",
+        )} style={{
+            transform: `scale(${ratio.state.scale})`,
+            transformOrigin: "left top",
+            width: game.config.player.width,
+            height: game.config.player.height,
+            pointerEvents: "none",
+        }}>
+            <div style={{
+                pointerEvents: "all",
+            }}>
+                <div className={clsx("absolute", className)}>
+                    {children}
+                </div>
+            </div>
+        </Isolated>
+    );
+}
+
 const Top = {
     Left: TopLeft,
     Center: TopCenter,
@@ -82,4 +112,5 @@ export {
     Top,
     Center,
     Bottom,
+    Full,
 };

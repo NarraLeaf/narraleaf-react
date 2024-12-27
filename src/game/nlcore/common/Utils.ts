@@ -62,6 +62,7 @@ export class RGBColor {
     }
 }
 
+/**@internal */
 export class Utils {
     static RGBColor = RGBColor;
 
@@ -118,6 +119,7 @@ export class Utils {
     }
 }
 
+/**@internal */
 export class UseError<T = Record<string, any>> extends Error {
     static isUseError(error: any): error is UseError {
         return error instanceof UseError;
@@ -132,6 +134,7 @@ export class UseError<T = Record<string, any>> extends Error {
     }
 }
 
+/**@internal */
 export class StaticScriptWarning extends UseError<{
     stack?: string;
     info?: any;
@@ -150,6 +153,7 @@ type ImageState = {
     usedExternalSrc: boolean;
 };
 
+/**@internal */
 export class StaticChecker {
     private readonly scene: Scene;
 
@@ -257,6 +261,7 @@ export class StaticChecker {
     }
 }
 
+/**@internal */
 export class RuntimeScriptError extends Error {
     static toMessage(msg: string | string[], trace?: Action | Action[]) {
         const messages: string[] = [];
@@ -282,6 +287,7 @@ export class RuntimeScriptError extends Error {
     }
 }
 
+/**@internal */
 export class RuntimeGameError extends Error {
     constructor(message: string) {
         super(message);

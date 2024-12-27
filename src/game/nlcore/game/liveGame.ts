@@ -16,6 +16,7 @@ import {LiveGameEventHandler, LiveGameEventToken} from "@core/types";
 import {Character} from "@core/elements/character";
 import {Sentence} from "@core/elements/character/sentence";
 
+/**@internal */
 type LiveGameEvent = {
     "event:character.prompt": [{
         /**
@@ -363,6 +364,11 @@ export class LiveGame {
 
         this._nextLock.unlock();
         return nextAction;
+    }
+
+    /**@internal */
+    isPlaying() {
+        return !!this.currentAction;
     }
 
     /**@internal */

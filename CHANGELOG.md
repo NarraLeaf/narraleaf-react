@@ -1,6 +1,23 @@
 # Changelog
 
-## [0.2.1]
+## [0.2.3]
+
+### _Feature_
+
+- Use `usePreference` to manage preference easier
+
+### Added
+
+- `image.setTags`
+- `image.setPosition`
+- Utility component: `Full`
+- `usePreference` hook
+
+### Updated
+
+- `Player` component now doesn't require a `story` prop
+
+## [0.2.2] - 2024/12/02
 
 ### _Feature_
 

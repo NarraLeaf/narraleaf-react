@@ -3,15 +3,21 @@ import React from "react";
 import type {AnimationPlaybackControls, DOMKeyframesDefinition} from "framer-motion";
 import {ImageColor, ImageSrc} from "@core/types";
 
+/**@internal */
 export type ElementProp<T extends Element = Element, U extends React.HTMLAttributes<T> = React.HTMLAttributes<T>> =
     React.JSX.IntrinsicAttributes
     & React.ClassAttributes<T>
     & React.HTMLAttributes<T>
     & U;
+/**@internal */
 export type ImgElementProp = ElementProp<HTMLImageElement, React.ImgHTMLAttributes<HTMLImageElement>>;
+/**@internal */
 export type SpanElementProp = ElementProp<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>;
+/**@internal */
 export type DivElementProp = ElementProp<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>;
+/**@internal */
 export type CSSElementProp<T extends React.CSSProperties | DOMKeyframesDefinition> = ElementProp & { style: T };
+/**@internal */
 export type CSSProps = React.CSSProperties;
 
 export interface ITransition<T extends ElementProp = Record<string, any>> {
@@ -38,6 +44,7 @@ export interface ITextTransition<T extends ElementProp = SpanElementProp> extend
     copy(): ITextTransition<T>;
 }
 
+/**@internal */
 export type EventTypes<T extends any[]> = {
     "start": [null];
     "update": T;

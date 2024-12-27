@@ -6,6 +6,7 @@ import {Chained, ChainedActions, Proxied} from "@core/action/chain";
 import {ControlAction} from "@core/action/actions/controlAction";
 
 
+/**@internal */
 type ChainedControl = Proxied<Control, Chained<LogicAction.Actions>>;
 
 export class Control extends Actionable {

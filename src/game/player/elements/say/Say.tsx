@@ -8,6 +8,7 @@ import {useRatio} from "@player/provider/ratio";
 import Inspect from "@player/lib/Inspect";
 import {Game} from "@core/game";
 
+/**@internal */
 export default function Say(
     {
         action,

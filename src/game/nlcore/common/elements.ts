@@ -59,6 +59,7 @@ const Image: ImageConstructor = function <T extends TagGroupDefinition | null>(
         config.tag as TagDefinitions<T> | undefined
     );
 } as unknown as ImageConstructor;
+const AbstractImage = ImageClass;
 
 export {
     Character,
@@ -78,4 +79,5 @@ export {
     Text,
     Pause,
     Persistent,
+    AbstractImage,
 };

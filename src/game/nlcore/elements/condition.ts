@@ -48,6 +48,7 @@ export class Lambda<T = any> {
     }
 }
 
+/**@internal */
 export type ConditionData = {
     If: {
         condition: Lambda | null;

@@ -106,6 +106,10 @@ export type GameConfig = {
          * Cursor height in pixels
          */
         cursorHeight: number;
+        /**
+         * Show overflowed content
+         */
+        showOverflow: boolean;
     };
     elements: {
         say: {
