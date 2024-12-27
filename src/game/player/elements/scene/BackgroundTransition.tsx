@@ -7,7 +7,7 @@ import {deepMerge} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
 import {motion} from "motion/react";
-import Displayable from "@player/elements/displayable/Displayable";
+import Legacy_Displayable from "@player/elements/displayable/Legacy_Displayable";
 import {useRatio} from "@player/provider/ratio";
 import {usePreloaded} from "@player/provider/preloaded";
 
@@ -18,9 +18,10 @@ export default function BackgroundTransition({scene, props, state}: {
     state: GameState
 }) {
     return (
-        <Displayable
+        <Legacy_Displayable
             displayable={{
                 element: scene,
+                state: scene.state.backgroundImageProxy,
                 skipTransform: state.game.config.elements.background.allowSkipTransform,
                 skipTransition: state.game.config.elements.background.allowSkipTransition,
             }}

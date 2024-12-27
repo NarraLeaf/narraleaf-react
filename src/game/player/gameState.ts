@@ -456,7 +456,7 @@ export class GameState {
 
             const displayable = elements.displayable.map(d => {
                 if (!elementMap.has(d)) {
-                    throw new RuntimeGameError("Displayable not found, id: " + d + "\nNarraLeaf cannot find the element with the id from the saved game" +
+                    throw new RuntimeGameError("Legacy_Displayable not found, id: " + d + "\nNarraLeaf cannot find the element with the id from the saved game" +
                         "\nThis may be caused by the damage of the saved game file or the change of the story file");
                 }
                 return elementMap.get(d) as LogicAction.DisplayableElements;

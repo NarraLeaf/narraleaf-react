@@ -8,7 +8,7 @@ export type DisplayableChildProps = {
     transition: ITransition | null;
     transform: Transform | null;
     transformProps: ElementProp<Element, React.HTMLAttributes<Element>>;
-    transformRef: React.MutableRefObject<HTMLDivElement | null>;
+    transformRef: React.RefObject<HTMLDivElement | null>;
     state: GameState;
 };
 /**@internal */

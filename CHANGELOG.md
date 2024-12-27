@@ -62,7 +62,7 @@
 
 - Voice map generator
 - Image tag src management
-- Displayable actions
+- Legacy_Displayable actions
 - Layer actions
 - Disable image auto initialize using image.config
 - Quick image preloading only preloads images when needed

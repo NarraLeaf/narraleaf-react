@@ -4,7 +4,7 @@ import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
 import {ImgElementProp} from "@core/elements/transition/type";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
-import Displayable from "@player/elements/displayable/Displayable";
+import Legacy_Displayable from "@player/elements/displayable/Legacy_Displayable";
 import Inspect from "@player/lib/Inspect";
 import AspectScaleImage from "@player/elements/image/AspectScaleImage";
 import {useRatio} from "@player/provider/ratio";
@@ -26,7 +26,7 @@ export default function Image(
     };
 
     return (
-        <Displayable
+        <Legacy_Displayable
             displayable={{
                 element: image,
                 skipTransition: state.game.config.elements.img.allowSkipTransition,

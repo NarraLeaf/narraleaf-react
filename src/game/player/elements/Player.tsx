@@ -198,7 +198,6 @@ export default function Player(
                                 height={game.config.player.cursorHeight}
                             />
                         )}
-                        <Preload state={state}/>
                         <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
                             <KeyEventAnnouncer state={state}/>
                             {
@@ -244,6 +243,7 @@ export default function Player(
                                 ))
                             }
                         </OnlyPreloaded>
+                        <Preload state={state}/>
                         {children}
                     </Isolated>
                 </AspectRatio>

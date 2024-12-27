@@ -5,7 +5,7 @@ import {Transform, TransformersMap, TransformHandler} from "@core/elements/trans
 import {SpanElementProp} from "@core/elements/transition/type";
 import {deepMerge} from "@lib/util/data";
 import {DisplayableChildProps} from "@player/elements/displayable/type";
-import Displayable from "@player/elements/displayable/Displayable";
+import Legacy_Displayable from "@player/elements/displayable/Legacy_Displayable";
 import clsx from "clsx";
 import {TransformDefinitions} from "@core/elements/transform/type";
 import Inspect from "@player/lib/Inspect";
@@ -39,7 +39,7 @@ export default function Text({state, text}: Readonly<{
     };
 
     return (
-        <Displayable
+        <Legacy_Displayable
             displayable={{
                 element: text,
                 skipTransform: state.game.config.elements.text.allowSkipTransform,

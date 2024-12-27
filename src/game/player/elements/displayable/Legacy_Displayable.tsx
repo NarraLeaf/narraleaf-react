@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from "react";
+import React, {useEffect, useReducer, useRef, useState} from "react";
 import {EventfulDisplayable} from "@core/types";
 import {DisplayableChildHandler, StatefulDisplayable} from "@player/elements/displayable/type";
 import {ElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";
@@ -28,7 +28,7 @@ export type DisplayableProps = {
 };
 
 /**@internal */
-export default function Displayable(
+export default function Legacy_Displayable(
     {
         state: gameState,
         displayable,
@@ -48,6 +48,7 @@ export default function Displayable(
         useState<null | Transform>(null);
     const [transformProps, setTransformProps] =
         useState<ElementProp>({});
+    const [, update] = useReducer(x => x + 1, 0);
 
     useEffect(() => {
         const APPLY_TRANSITION = "event:displayable.applyTransition" as const;
@@ -67,6 +68,8 @@ export default function Displayable(
                 type: INIT,
                 listener: element.events.on(INIT, async () => {
                     const transform = element.toDisplayableTransform();
+                    gameState.logger.debug("INIT (assign)", transform, element, displayableState);
+                    assignStyle(transform.propToCSS(gameState, displayableState.state, displayable.transformOverwrites));
 
                     gameState.logger.debug("init transform", transform);
                     await transform.animate({
@@ -76,6 +79,7 @@ export default function Displayable(
                     }, gameState, (after) => {
                         displayableState.state = deepMerge(displayableState.state, after);
                     });
+                    update();
                 })
             }
         ]);
@@ -118,8 +122,9 @@ export default function Displayable(
     }, [transition, transform]);
 
     function assignStyle(arg0: Transform | Record<string, any>) {
+        gameState.logger.debug("Legacy_Displayable Animation", "assignStyle", arg0, element);
         if (transform && transform.getControl()) {
-            gameState.logger.warn("Displayable Animation", "processing transform not completed");
+            gameState.logger.warn("Legacy_Displayable Animation", "processing transform not completed");
             transform.getControl()!.complete();
             transform.setControl(null);
         }
@@ -170,8 +175,6 @@ export default function Displayable(
     }
 
     async function applyTransform(newTransform: Transform) {
-        assignStyle(newTransform.propToCSS(gameState, displayableState.state, displayable.transformOverwrites));
-
         setTransform(newTransform);
         await newTransform.animate({
             scope,
@@ -187,6 +190,7 @@ export default function Displayable(
 
             setTransform(null);
         });
+        update();
     }
 
     return (
