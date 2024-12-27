@@ -367,6 +367,11 @@ export class LiveGame {
     }
 
     /**@internal */
+    isPlaying() {
+        return !!this.currentAction;
+    }
+
+    /**@internal */
     abortAwaiting() {
         if (this.lockedAwaiting) {
             const next = this.lockedAwaiting.abort();

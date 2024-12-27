@@ -23,6 +23,11 @@ export class Story extends Constructable<
     static MAX_DEPTH = 10000;
 
     /**@internal */
+    public static empty(): Story {
+        return new Story("empty").entry(new Scene("empty"));
+    }
+
+    /**@internal */
     readonly name: string;
     /**@internal */
     readonly config: StoryConfig;

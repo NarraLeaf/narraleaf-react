@@ -13,6 +13,10 @@
 - Utility component: `Full`
 - `usePreference` hook
 
+### Updated
+
+- `Player` component now doesn't require a `story` prop
+
 ## [0.2.2] - 2024/12/02
 
 ### _Feature_

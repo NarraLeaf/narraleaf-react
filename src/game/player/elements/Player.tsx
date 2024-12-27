@@ -23,6 +23,7 @@ import Displayables from "@player/elements/displayable/Displayables";
 import {ErrorBoundary} from "@player/lib/ErrorBoundary";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 import Cursor from "@player/lib/Cursor";
+import {Story} from "@core/elements/story";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -30,7 +31,7 @@ function handleAction(state: GameState, action: PlayerAction) {
 
 export default function Player(
     {
-        story,
+        story = Story.empty(),
         width,
         height,
         className,
@@ -83,14 +84,14 @@ export default function Player(
 
     useEffect(() => {
         game.getLiveGame().setGameState(state);
-        if (story) {
+        if (story && !game.getLiveGame().isPlaying()) {
             game.getLiveGame().loadStory(story);
         }
 
         return () => {
             game.getLiveGame().setGameState(undefined);
         };
-    }, [game]);
+    }, [game, story]);
 
     useEffect(() => {
         return createMicroTask(() => {
