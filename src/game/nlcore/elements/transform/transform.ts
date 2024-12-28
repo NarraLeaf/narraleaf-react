@@ -1,13 +1,13 @@
 import type {Background, color, CommonDisplayable, CommonImagePosition,} from "@core/types";
 import {ImagePosition,} from "@core/types";
 import type {AnimationPlaybackControls, DOMKeyframesDefinition, DynamicAnimationOptions} from "motion/react";
-import {deepMerge, DeepPartial, sleep, toHex} from "@lib/util/data";
+import {animate} from "motion/react";
+import {Awaitable, deepMerge, DeepPartial, SkipController, sleep, toHex} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {TransformDefinitions} from "./type";
 import {Align, CommonPosition, Coord2D, IPosition, PositionUtils, RawPosition} from "./position";
 import {CSSProps} from "@core/elements/transition/type";
 import {Utils} from "@core/common/Utils";
-import {animate} from "motion/react";
 import React from "react";
 import {ImageConfig} from "@core/elements/displayable/image";
 import Sequence = TransformDefinitions.Sequence;
@@ -38,13 +38,98 @@ export type TransformersMap = {
     "fontColor": color;
 }
 
+/**@internal */
+export type TransformStateProps = TransformDefinitions.Types;
+
 const CommonImagePositionMap = {
     [ImagePosition.left]: "25.33%",
     [ImagePosition.center]: "50%",
     [ImagePosition.right]: "75.66%"
 } as const;
 
-export class Transform<T extends TransformDefinitions.Types = object> {
+type OverwriteMap = {
+    transform: React.CSSProperties["transform"];
+    scale: React.CSSProperties["scale"];
+};
+export type OverwriteDefinition = {
+    [K in keyof OverwriteMap]?: OverwriteHandler<OverwriteMap[K]>;
+};
+type OverwriteHandler<T> = (value: Partial<TransformDefinitions.Types>) => T;
+
+/**@internal */
+export class TransformState<T extends TransformDefinitions.Types> {
+    static mergePosition(
+        a: RawPosition | IPosition | undefined,
+        b: RawPosition | IPosition | undefined
+    ): Coord2D {
+        if (!a && !b) {
+            throw new Error("No position found.");
+        }
+        if (!a || !b) {
+            return PositionUtils.toCoord2D(PositionUtils.tryParsePosition(a || b)!);
+        }
+        return PositionUtils.mergePosition(
+            PositionUtils.tryParsePosition(a),
+            PositionUtils.tryParsePosition(b)
+        );
+    }
+
+    static mergeState<T extends TransformStateProps>(a: Partial<T>, b: Partial<T>): Partial<T> {
+        if ("position" in a && "position" in b) {
+            const position = this.mergePosition(a.position, b.position);
+            return {
+                ...Object.assign({}, a, b),
+                position,
+            };
+        }
+        return {
+            ...Object.assign({}, a, b),
+        };
+    }
+
+    private locked: symbol | null = null;
+
+    constructor(public state: Partial<T> = {}) {
+    }
+
+    public get(): Partial<T> {
+        return this.state;
+    }
+
+    public assign(key: symbol, state: Partial<T>) {
+        if (!this.canWrite(key)) {
+            throw new Error("Trying to write a locked transform state.");
+        }
+        this.state = TransformState.mergeState<T>(this.state, state);
+        return this;
+    }
+
+    public lock(): symbol {
+        this.locked = Symbol();
+        return this.locked;
+    }
+
+    public isLocked(): boolean {
+        return !!this.locked;
+    }
+
+    public canWrite(key: symbol): boolean {
+        return this.locked === null || this.locked === key;
+    }
+
+    public unlock(key: symbol) {
+        if (this.locked === key) {
+            this.locked = null;
+        }
+        return this;
+    }
+
+    public toStyle(gameState: GameState, overwrites?: OverwriteDefinition): CSSProps {
+        return Transform.constructStyle(gameState, this.state, overwrites);
+    }
+}
+
+export class Transform<T extends TransformDefinitions.Types = any> {
     /**@internal */
     static defaultSequenceOptions: Partial<TransformDefinitions.CommonSequenceProps> = {
         sync: true,
@@ -199,10 +284,27 @@ export class Transform<T extends TransformDefinitions.Types = object> {
     }
 
     /**@internal */
+    static constructStyle<T extends TransformDefinitions.Types>(state: GameState, props: Partial<T>, overwrites?: OverwriteDefinition): CSSProps {
+        const {invertY, invertX} = state.getLastScene()?.config || {};
+        const {transform, scale} = overwrites || {};
+        return {
+            ...Transform.positionToCSS(props.position, invertY, invertX),
+            opacity: props.opacity,
+            display: props.display ? "block" : undefined,
+            color: "fontColor" in props ? toHex((props as TransformDefinitions.TextTransformProps).fontColor) : undefined,
+            transform: transform ? transform(props) : undefined,
+            scale: scale ? scale(props) : undefined,
+        } satisfies CSSProps;
+    }
+
+    /**@internal */
     private readonly sequenceOptions: TransformDefinitions.CommonSequenceProps;
     /**@internal */
     private sequences: TransformDefinitions.Sequence<T>[] = [];
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     private control: AnimationPlaybackControls | null = null;
     /**@internal */
     private transformers: { [K in Transformers]?: TransformHandler<any> } = {};
@@ -245,8 +347,9 @@ export class Transform<T extends TransformDefinitions.Types = object> {
      * transform.animate(scope, animate);
      * return <div ref={scope} />
      * ```
+     * @deprecated
      */
-    public async animate(
+    public async legacy_animate(
         {scope, overwrites, target}: {
             scope: React.MutableRefObject<HTMLDivElement | null>;
             overwrites?: Partial<{ [K in keyof TransformersMap]?: TransformHandler<TransformersMap[K]> }>;
@@ -263,7 +366,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
                 }
                 for (let i = 0; i < this.sequenceOptions.repeat; i++) {
                     for (const {props, options} of this.sequences) {
-                        const initState = deepMerge({}, this.propToCSS(gameState, target.state as any));
+                        const initState = deepMerge({}, this.legacy_propToCSS(gameState, target.state as any));
 
                         if (!scope.current) {
                             throw new Error("No scope found when animating.");
@@ -276,22 +379,22 @@ export class Transform<T extends TransformDefinitions.Types = object> {
                         // Initiate animation
                         const animation = animate(
                             current,
-                            this.propToCSS(gameState, target.state as any, overwrites),
+                            this.legacy_propToCSS(gameState, target.state as any, overwrites),
                             this.optionsToFramerMotionOptions(options) || {}
                         );
                         this.setControl(animation);
 
-                        gameState.logger.debug("Animating", this.propToCSS(gameState, target.state as any, overwrites));
+                        gameState.logger.debug("Animating", this.legacy_propToCSS(gameState, target.state as any, overwrites));
 
                         // Wait for animation to finish
                         if (options?.sync === false) {
                             animation.then(() => {
-                                Object.assign(current["style"], this.propToCSS(gameState, target.state as any, overwrites));
+                                Object.assign(current["style"], this.legacy_propToCSS(gameState, target.state as any, overwrites));
                                 this.setControl(null);
                             });
                         } else {
                             await new Promise<void>(r => animation.then(() => r()));
-                            Object.assign(current["style"], this.propToCSS(gameState, target.state as any, overwrites));
+                            Object.assign(current["style"], this.legacy_propToCSS(gameState, target.state as any, overwrites));
                             this.setControl(null);
                         }
                     }
@@ -306,6 +409,83 @@ export class Transform<T extends TransformDefinitions.Types = object> {
                 }
             })();
         });
+    }
+
+    /**
+     * @internal
+     */
+    public animate(
+        transformState: TransformState<T>,
+        {
+            gameState,
+            ref,
+            overwrites,
+        }: {
+            gameState: GameState,
+            ref: React.RefObject<HTMLDivElement | null>,
+            overwrites?: OverwriteDefinition,
+        },
+    ): Awaitable<void> {
+        const controllers: AnimationPlaybackControls[] = [];
+        const lock = transformState.lock();
+        const sequences: TransformDefinitions.Sequence<T>[] = this.constructSequence();
+        const assignStyle = (style: CSSProps) => {
+            if (!ref.current) {
+                throw new Error("No ref found when animating.");
+            }
+            Object.assign(ref.current.style, style);
+        };
+        const skip = () => {
+            controllers.forEach(c => c.complete());
+            while (sequences.length) {
+                const {props} = sequences.shift()!;
+                transformState.assign(lock, props);
+            }
+            assignStyle(Transform.constructStyle(gameState, transformState.state, overwrites));
+            transformState.unlock(lock);
+        };
+        const awaitable = new Awaitable<void>()
+            .registerSkipController(new SkipController(skip));
+
+        this.runAsync(async () => {
+            for (let i = 0; i < this.sequenceOptions.repeat; i++) {
+                for (const {props, options} of sequences) {
+                    if (!transformState.canWrite(lock)) {
+                        return;
+                    }
+
+                    if (!ref.current) {
+                        throw new Error("No ref found when animating.");
+                    }
+
+                    const style = Transform.constructStyle(gameState, props, overwrites);
+                    const control = animate(
+                        ref.current,
+                        style as DOMKeyframesDefinition,
+                        this.optionsToFramerMotionOptions(options) || {}
+                    );
+                    const complete = () => {
+                        controllers.splice(controllers.indexOf(control), 1);
+                        transformState.assign(lock, props);
+                    };
+                    controllers.push(control);
+
+                    if (options?.sync === false) {
+                        control.then(complete);
+                    } else {
+                        await new Promise<void>(r => control.then(() => r()));
+                        complete();
+                    }
+                }
+            }
+        });
+
+        return awaitable;
+    }
+
+    /**@internal */
+    public isSync(): boolean {
+        return this.sequenceOptions.sync;
     }
 
     /**
@@ -332,14 +512,18 @@ export class Transform<T extends TransformDefinitions.Types = object> {
      *   return {left: value.x, top: value.y};
      * });
      * ```
+     * @deprecated
      */
     public overwrite<T extends keyof TransformersMap = any>(key: T, transformer: TransformHandler<TransformersMap[T]>) {
         this.transformers[key] = transformer;
         return this;
     }
 
-    /**@internal */
-    propToCSS(state: GameState, prop: DeepPartial<T>, overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>): DOMKeyframesDefinition {
+    /**
+     * @internal
+     * @deprecated
+     */
+    legacy_propToCSS(state: GameState, prop: DeepPartial<T>, overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>): DOMKeyframesDefinition {
         const {invertY, invertX} = state.getLastScene()?.config || {};
         const FieldHandlers: Omit<{ [K in keyof TransformersMap]: (value: TransformersMap[K]) => CSSProps }, "transform"> = {
             "position": (value: RawPosition | IPosition | undefined) => Transform.positionToCSS(value, invertY, invertX),
@@ -393,19 +577,37 @@ export class Transform<T extends TransformDefinitions.Types = object> {
         } satisfies DynamicAnimationOptions;
     }
 
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     setControl(control: AnimationPlaybackControls | null) {
         this.control = control;
         return this;
     }
 
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     getControl() {
         return this.control;
     }
 
     public copy(): Transform<T> {
         return new Transform<T>(this.sequences, this.sequenceOptions);
+    }
+
+    /**@internal */
+    private constructSequence(): TransformDefinitions.Sequence<T>[] {
+        return this.sequences.map(({props, options}) => ({props, options}));
+    }
+
+    /**@internal */
+    private runAsync(fn: () => any): void {
+        return void (async function () {
+            return void fn();
+        })();
     }
 }
 

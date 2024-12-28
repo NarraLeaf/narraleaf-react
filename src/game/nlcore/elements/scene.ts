@@ -1,6 +1,6 @@
 import {Constructable} from "../action/constructable";
 import {Awaitable, deepMerge, entriesForEach, EventDispatcher, safeClone} from "@lib/util/data";
-import {color, EventfulDisplayable, ImageColor, ImageSrc, StaticImageData} from "@core/types";
+import {color, ImageColor, ImageSrc, StaticImageData} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Transform} from "@core/elements/transform/transform";
@@ -18,10 +18,11 @@ import {SoundAction} from "@core/action/actions/soundAction";
 import {ControlAction} from "@core/action/actions/controlAction";
 import {Text} from "@core/elements/displayable/text";
 import {RGBColor} from "@core/common/Utils";
+import {DynamicPersistent} from "@core/elements/persistent";
+import {EventfulDisplayable} from "@player/elements/displayable/type";
 import Actions = LogicAction.Actions;
 import ImageTransformProps = TransformDefinitions.ImageTransformProps;
 import GameElement = LogicAction.GameElement;
-import {DynamicPersistent} from "@core/elements/persistent";
 
 /**@internal */
 export type UserImageInput = ImageSrc | RGBColor | ImageColor;
@@ -138,11 +139,11 @@ export class Scene extends Constructable<
     state: SceneConfig & SceneState;
     /**@internal */
     actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[]) = [];
+    public readonly local: Persistent<any>;
     /**@internal */
     private sceneRoot?: SceneAction<"scene:action">;
     /**@internal */
     private readonly _userConfig: Partial<ISceneConfig> = {};
-    public readonly local: Persistent<any>;
 
     constructor(name: string, config?: Partial<ISceneConfig>) {
         super();

@@ -32,6 +32,8 @@ export interface ITransition<T extends ElementProp = Record<string, any>> {
     toElementProps(): T[];
 
     copy(): ITransition<T>;
+
+    complete(): void;
 }
 
 export interface IImageTransition<T extends ElementProp = ImgElementProp> extends ITransition<T> {

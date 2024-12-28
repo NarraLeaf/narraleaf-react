@@ -23,6 +23,12 @@ export class BaseTransition<T extends ElementProp> implements ITransition<T> {
         throw new Error("Method not implemented.");
     }
 
+    complete() {
+        if (this.controller) {
+            this.controller.complete();
+        }
+    }
+
     protected requestAnimation(
         {
             start, end, duration

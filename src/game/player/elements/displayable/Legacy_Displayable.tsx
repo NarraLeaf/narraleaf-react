@@ -1,5 +1,5 @@
 import React, {useEffect, useReducer, useRef, useState} from "react";
-import {EventfulDisplayable} from "@core/types";
+import {Legacy_EventfulDisplayable} from "@core/types";
 import {DisplayableChildHandler, StatefulDisplayable} from "@player/elements/displayable/type";
 import {ElementProp, ITransition, TransitionEventTypes} from "@core/elements/transition/type";
 import {Transform, TransformersMap, TransformHandler} from "@core/elements/transform/transform";
@@ -16,11 +16,11 @@ export type DisplayableProps = {
         }
     } & (
         | {
-        element: EventfulDisplayable & StatefulDisplayable;
+        element: Legacy_EventfulDisplayable & StatefulDisplayable;
         state?: StatefulDisplayable;
     }
         | {
-        element: EventfulDisplayable;
+        element: Legacy_EventfulDisplayable;
         state: StatefulDisplayable;
     })
     child: DisplayableChildHandler;
@@ -37,7 +37,7 @@ export default function Legacy_Displayable(
 ) {
     const {
         element,
-        state: displayableState = element as EventfulDisplayable & StatefulDisplayable
+        state: displayableState = element as Legacy_EventfulDisplayable & StatefulDisplayable
     } = displayable;
     const scope = useRef<HTMLDivElement | null>(null);
     const [transition, setTransition] =
@@ -69,10 +69,10 @@ export default function Legacy_Displayable(
                 listener: element.events.on(INIT, async () => {
                     const transform = element.toDisplayableTransform();
                     gameState.logger.debug("INIT (assign)", transform, element, displayableState);
-                    assignStyle(transform.propToCSS(gameState, displayableState.state, displayable.transformOverwrites));
+                    assignStyle(transform.legacy_propToCSS(gameState, displayableState.state, displayable.transformOverwrites));
 
                     gameState.logger.debug("init transform", transform);
-                    await transform.animate({
+                    await transform.legacy_animate({
                         scope,
                         target: displayableState,
                         overwrites: displayable.transformOverwrites
@@ -132,7 +132,7 @@ export default function Legacy_Displayable(
             throw new Error("scope not ready");
         }
         if (arg0 instanceof Transform) {
-            Object.assign(scope.current.style, arg0.propToCSS(gameState, displayableState.state, displayable.transformOverwrites));
+            Object.assign(scope.current.style, arg0.legacy_propToCSS(gameState, displayableState.state, displayable.transformOverwrites));
         } else {
             Object.assign(scope.current.style, arg0);
         }
@@ -176,7 +176,7 @@ export default function Legacy_Displayable(
 
     async function applyTransform(newTransform: Transform) {
         setTransform(newTransform);
-        await newTransform.animate({
+        await newTransform.legacy_animate({
             scope,
             target: displayableState,
             overwrites: displayable.transformOverwrites
@@ -185,7 +185,7 @@ export default function Legacy_Displayable(
             displayableState.state = deepMerge(displayableState.state, after);
 
             setTransformProps({
-                style: newTransform.propToCSS(gameState, displayableState.state, displayable.transformOverwrites) as any,
+                style: newTransform.legacy_propToCSS(gameState, displayableState.state, displayable.transformOverwrites) as any,
             });
 
             setTransform(null);

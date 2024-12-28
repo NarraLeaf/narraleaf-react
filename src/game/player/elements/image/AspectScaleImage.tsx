@@ -14,7 +14,7 @@ export default function AspectScaleImage(
         ref,
     }: Readonly<{
         props: Omit<ImgElementProp, "onLoad">;
-        onLoad: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
+        onLoad?: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
         id?: string;
         ref?: React.RefObject<HTMLImageElement | null>;
     }>

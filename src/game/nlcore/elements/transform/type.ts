@@ -1,5 +1,4 @@
 import {color, CommonDisplayable} from "@core/types";
-import {DeepPartial} from "@lib/util/data";
 
 export namespace TransformDefinitions {
     export type BezierDefinition = [number, number, number, number];
@@ -35,13 +34,12 @@ export namespace TransformDefinitions {
     }
     export type ImageTransformProps = CommonDisplayable & {
         display: boolean;
-        position: CommonDisplayable["position"];
     };
     export type TextTransformProps = ImageTransformProps & {
         fontColor: color;
     };
-    export type Types = ImageTransformProps | TextTransformProps | object;
-    export type SequenceProps<T> = DeepPartial<T>;
+    export type Types = ImageTransformProps | TextTransformProps;
+    export type SequenceProps<T> = Partial<T>;
     export type SequenceOptions = Partial<CommonTransformProps>;
     export type Sequence<T> = {
         props: SequenceProps<T>,

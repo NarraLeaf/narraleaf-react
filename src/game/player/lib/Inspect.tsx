@@ -133,9 +133,9 @@ function InspectButton(props: Readonly<DivElementProp & {
 function InspectFramerMotionDiv(props: Readonly<DivElementProp & {
     children?: React.ReactNode;
     tag?: string;
-    Ref?: React.RefObject<HTMLDivElement>;
+    ref?: React.RefObject<HTMLDivElement>;
 } & InspectStyle>) {
-    return <InspectBase {...props} as={motion.div} Ref={props.Ref}/>;
+    return <InspectBase {...props} as={motion.div} Ref={props.ref}/>;
 }
 
 const Inspect = {

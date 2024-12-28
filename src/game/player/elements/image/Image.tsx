@@ -2,13 +2,12 @@ import {Image as GameImage} from "@core/elements/displayable/image";
 import React, {useEffect, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import {deepMerge} from "@lib/util/data";
-import {ImgElementProp} from "@core/elements/transition/type";
-import {DisplayableChildProps} from "@player/elements/displayable/type";
-import Legacy_Displayable from "@player/elements/displayable/Legacy_Displayable";
+import {CSSProps, ImgElementProp, ITransition} from "@core/elements/transition/type";
 import Inspect from "@player/lib/Inspect";
 import AspectScaleImage from "@player/elements/image/AspectScaleImage";
 import {useRatio} from "@player/provider/ratio";
 import clsx from "clsx";
+import {useDisplayable} from "@player/elements/displayable/Displayable";
 
 /**@internal */
 export default function Image(
@@ -19,47 +18,34 @@ export default function Image(
         image: GameImage;
         state: GameState;
     }>) {
-    /**
-     * Slow load warning
-     */
-    const handleLoad = () => {
-    };
+    const {ref, transition} = useDisplayable({
+        element: image,
+        state: image.transformState,
+        skipTransform: state.game.config.elements.img.allowSkipTransform,
+        skipTransition: state.game.config.elements.img.allowSkipTransition,
+    });
 
     return (
-        <Legacy_Displayable
-            displayable={{
-                element: image,
-                skipTransition: state.game.config.elements.img.allowSkipTransition,
-                skipTransform: state.game.config.elements.img.allowSkipTransform,
-                transformOverwrites: {},
-            }}
-            child={(props) => (
-                <DisplayableImage
-                    {...props}
-                    image={image}
-                    handleLoad={handleLoad}
-                />
-            )} state={state}
-        />
+        <DisplayableImage state={state} ref={ref} transition={transition} image={image}/>
     );
 };
 
-/**@internal */
 function DisplayableImage(
     {
-        transition,
-        transformProps,
-        transformRef,
         state,
+        ref: transformRef,
+        transition,
         image,
-        handleLoad
-    }: Readonly<DisplayableChildProps & {
+    }: Readonly<{
+        state: GameState;
+        ref: React.RefObject<HTMLDivElement | null>;
+        transition: ITransition | null;
         image: GameImage;
-        handleLoad: () => void;
-    }>) {
+    }>
+) {
     const {ratio} = useRatio();
-    const ref = useRef<HTMLImageElement>(null);
     const [wearables, setWearables] = useState<GameImage[]>([]);
+    const ref = useRef<HTMLImageElement>(null);
 
     const defaultProps: ImgElementProp = {
         src: GameImage.getSrc(image.state),
@@ -88,18 +74,17 @@ function DisplayableImage(
         }
     ];
 
+    const transformProps: CSSProps = image.transformState.toStyle(state);
+
     useEffect(() => {
-        const token = image.events.onEvents([
+        return image.events.onEvents([
             {
                 type: GameImage.EventTypes["event:wearable.create"],
                 listener: image.events.on(GameImage.EventTypes["event:wearable.create"], (wearable: GameImage) => {
                     setWearables((prev) => [...prev, wearable]);
                 })
             }
-        ]);
-        return () => {
-            token.cancel();
-        };
+        ]).cancel;
     }, []);
 
     return (
@@ -109,7 +94,7 @@ function DisplayableImage(
                 color={"green"}
                 border={"dashed"}
                 layout
-                Ref={transformRef}
+                ref={transformRef}
                 className={"absolute"}
                 {...(deepMerge<any>({
                     style: {
@@ -135,7 +120,6 @@ function DisplayableImage(
                                     ...mergedProps,
                                 }}
                                 id={mergedProps.src}
-                                onLoad={handleLoad}
                                 ref={index === 0 ? ref : undefined}
                             />
                         );
@@ -157,4 +141,3 @@ function DisplayableImage(
         </div>
     );
 }
-

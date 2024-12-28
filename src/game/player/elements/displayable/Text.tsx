@@ -88,7 +88,7 @@ function DisplayableText(
                 color={"green"}
                 border={"dashed"}
                 layout
-                Ref={transformRef}
+                ref={transformRef}
                 className={"absolute"}
                 {...(deepMerge<any>({
                     style: {

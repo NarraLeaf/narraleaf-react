@@ -714,3 +714,17 @@ export function createMicroTask(t: () => (() => void) | void): () => void {
         }
     };
 }
+
+export function keyExcept<T extends Record<string, any>, Filtered extends Extract<keyof T, string>>(
+    obj: T,
+    keys: Filtered[]
+): Omit<T, Filtered> {
+    const result: Record<string, any> = {};
+    for (const key in obj) {
+        if (keys.includes(key as Filtered)) {
+            continue;
+        }
+        result[key] = obj[key];
+    }
+    return result as Omit<T, Filtered>;
+}

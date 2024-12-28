@@ -3,8 +3,8 @@ import type {TransformDefinitions} from "@core/elements/transform/type";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
-import {Transform} from "../transform/transform";
-import {CommonDisplayable, EventfulDisplayable, StaticImageData} from "@core/types";
+import {Transform, TransformState} from "../transform/transform";
+import {CommonDisplayable, StaticImageData} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
 import {IImageTransition, ITransition} from "@core/elements/transition/type";
@@ -13,7 +13,7 @@ import {
     CommonPositionType,
     D2Position,
     IPosition,
-    PositionUtils
+    PositionUtils, RawPosition
 } from "@core/elements/transform/position";
 import {
     deepEqual,
@@ -28,6 +28,8 @@ import {Chained, Proxied} from "@core/action/chain";
 import {Control} from "@core/elements/control";
 import {ImageAction} from "@core/action/actions/imageAction";
 import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
+import {EventfulDisplayable} from "@player/elements/displayable/type";
+import {ConfigConstructor} from "@lib/util/config";
 
 /**@internal */
 export type ImageConfig = {
@@ -92,8 +94,11 @@ export class Image<
     };
     /**@internal */
     public static DefaultImagePlaceholder = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
-    /**@internal */
-    static defaultConfig: RichImageUserConfig<null> = {
+    /**
+     * @internal
+     * @deprecated
+     */
+    static Legacy_defaultConfig: RichImageUserConfig<null> = {
         display: false,
         position: new CommonPosition(CommonPositionType.Center),
         scale: 1,
@@ -105,6 +110,32 @@ export class Image<
         currentTags: null,
         autoInit: true,
     };
+    /**@internal */
+    static DefaultTransformState: TransformDefinitions.ImageTransformProps = {
+        scale: 1,
+        rotation: 0,
+        position: new CommonPosition(CommonPositionType.Center),
+        opacity: 0,
+        alt: "image",
+        display: false,
+    };
+
+    /**@internal */
+    static DefaultConfig = new ConfigConstructor<StaticRichConfig, {
+        position: IPosition;
+    }>({
+        disposed: false,
+        wearables: [],
+        isWearable: false,
+        name: "(anonymous)",
+        autoInit: true,
+        src: Image.DefaultImagePlaceholder,
+        ...Image.DefaultTransformState,
+    }, {
+        position: (value: RawPosition | IPosition | undefined) => {
+            return PositionUtils.tryParsePosition(value);
+        }
+    });
 
     /**@internal */
     public static serializeImageState(state: Record<string, any>): Record<string, any> {
@@ -168,28 +199,38 @@ export class Image<
 
     /**@internal */
     name: string;
-    /**@internal */
-    readonly config: RichImageUserConfig<Tags>;
+    /**
+     * @internal
+     * @todo
+     */
+    readonly config: any;
     /**@internal */
     readonly events: EventDispatcher<ImageEventTypes> = new EventDispatcher();
     /**@internal */
     ref: React.RefObject<HTMLDivElement> | undefined = undefined;
+    /**
+     * @internal
+     * @todo
+     */
+    state: any;
     /**@internal */
-    state: RichImageConfig<Tags>;
+    transformState: TransformState<TransformDefinitions.ImageTransformProps> = new TransformState(Image.DefaultTransformState);
 
     constructor(config: Partial<RichImageUserConfig<Tags>> = {}, tagDefinition?: TagDefinitions<Tags>) {
         super();
         this.name = config.name || "(anonymous)";
-        this.config = deepMerge<RichImageUserConfig<Tags>>(Image.defaultConfig, config, {
+        // this.checkConfig(this.config);
+        const [transformState, configData] =
+            Image.DefaultConfig.create(config as StaticRichConfig)
+                .extract(Object.keys(Image.DefaultTransformState) as (keyof StaticRichConfig)[]);
+        this.transformState = new TransformState(transformState.get());
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const joinedConfig = configData.join({
             tag: tagDefinition || config.tag,
-            position: config.position ? PositionUtils.tryParsePosition(config.position) : new CommonPosition(CommonPositionType.Center),
             currentTags: config.tag?.defaults
                 ? [...config.tag.defaults] as SelectElementFromEach<Tags>
                 : null
         });
-
-        this.state = deepMerge<RichImageConfig<Tags>>({}, this.config);
-        this.checkConfig(this.config);
     }
 
     /**
@@ -576,17 +617,6 @@ export class Image<
         return new Transform<TransformDefinitions.ImageTransformProps>(this.state, {
             duration: 0,
         });
-    }
-
-    /**@internal */
-    getTransformState(): TransformDefinitions.ImageTransformProps {
-        return {
-            position: this.state.position,
-            scale: this.state.scale,
-            rotation: this.state.rotation,
-            opacity: this.state.opacity,
-            display: this.state.display,
-        };
     }
 
     /**

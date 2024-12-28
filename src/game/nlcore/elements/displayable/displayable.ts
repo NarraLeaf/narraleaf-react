@@ -1,6 +1,6 @@
 import {Actionable} from "@core/action/actionable";
-import {EventfulDisplayable} from "@core/types";
-import {Transform} from "@core/elements/transform/transform";
+import {Legacy_EventfulDisplayable} from "@core/types";
+import {Transform, TransformState} from "@core/elements/transform/transform";
 import {EventDispatcher, Values} from "@lib/util/data";
 import {ITransition} from "@core/elements/transition/type";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
@@ -22,7 +22,7 @@ export abstract class Displayable<
     Self extends Actionable
 >
     extends Actionable<StateData, Self>
-    implements EventfulDisplayable {
+    implements Legacy_EventfulDisplayable {
     /**@internal */
     static EventTypes: { [K in keyof DisplayableEventTypes]: K } = {
         "event:displayable.applyTransition": "event:displayable.applyTransition",
@@ -33,6 +33,7 @@ export abstract class Displayable<
     readonly abstract events: EventDispatcher<DisplayableEventTypes>;
 
     abstract toDisplayableTransform(): Transform;
+    abstract transformState: TransformState<any>;
 
     /**
      * Move the layer up

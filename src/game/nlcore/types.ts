@@ -73,21 +73,24 @@ export const ImagePosition: {
     right: "right"
 } as const;
 
-export type DisplayableAnimationEvents =
+/**@deprecated */
+export type Legacy_DisplayableAnimationEvents =
     | "event:displayable.applyTransform"
     | "event:displayable.applyTransition"
     | "event:displayable.init";
-export type EventfulDisplayableEvents = {
-    [K in DisplayableAnimationEvents]:
+/**@deprecated */
+export type Legacy_EventfulDisplayableEvents = {
+    [K in Legacy_DisplayableAnimationEvents]:
     K extends "event:displayable.applyTransform" ? [Transform] :
         K extends "event:displayable.applyTransition" ? [ITransition] :
             K extends "event:displayable.init" ? [] :
                 never;
 }
 
-export interface EventfulDisplayable {
+/**@deprecated */
+export interface Legacy_EventfulDisplayable {
     /**@internal */
-    events: EventDispatcher<EventfulDisplayableEvents>;
+    events: EventDispatcher<Legacy_EventfulDisplayableEvents>;
 
     /**@internal */
     toDisplayableTransform(): Transform;

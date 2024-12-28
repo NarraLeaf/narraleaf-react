@@ -1,4 +1,4 @@
-import {color, CommonDisplayable, EventfulDisplayable} from "@core/types";
+import {color, CommonDisplayable, Legacy_EventfulDisplayable} from "@core/types";
 import {Actionable} from "@core/action/actionable";
 import {CommonPosition} from "@core/elements/transform/position";
 import {deepMerge, EventDispatcher} from "@lib/util/data";
@@ -38,7 +38,7 @@ export type TextEventTypes = {
 
 export class Text
     extends Actionable<TextDataRaw, Text>
-    implements EventfulDisplayable {
+    implements Legacy_EventfulDisplayable {
     /**@internal */
     static EventTypes: { [K in keyof TextEventTypes]: K } = {
         ...Displayable.EventTypes,

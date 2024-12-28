@@ -65,7 +65,7 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
             return super.executeAction(state) as CalledActionResult;
         } else if (this.type === TextActionTypes.setFontSize) {
             this.callee.state.fontSize = (this.contentNode as ContentNode<TextActionContentType["text:setFontSize"]>).getContent()[0];
-            const transform = new Transform([], {
+            const transform = new Transform<any>([], {
                 duration: 0,
             });
             const awaitable = new Awaitable<CalledActionResult>();
