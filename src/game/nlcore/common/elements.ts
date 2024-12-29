@@ -2,9 +2,10 @@ import {Character} from "../elements/character";
 import {Condition, Lambda} from "../elements/condition";
 import {Control} from "@core/elements/control";
 import {
+    IImageUserConfig,
     Image as ImageClass,
-    RichImageUserConfig,
-    TagDefinitions,
+    Legacy_RichImageUserConfig,
+    Legacy_TagDefinitions, TagDefinition,
     TagGroupDefinition,
     TagSrcResolver
 } from "../elements/displayable/image";
@@ -23,7 +24,7 @@ import {Persistent} from "@core/elements/persistent";
 
 interface ImageConstructor {
     new<T extends TagGroupDefinition | null>(
-        config: Omit<Partial<RichImageUserConfig<T>>, "src"> &
+        config: Omit<Partial<Legacy_RichImageUserConfig<T>>, "src"> &
             (T extends null ?
                 {
                     src: string | StaticImageData;
@@ -31,7 +32,7 @@ interface ImageConstructor {
                 } : T extends TagGroupDefinition ?
                     {
                         src: TagSrcResolver<T>;
-                        tag: TagDefinitions<T>;
+                        tag: Legacy_TagDefinitions<T>;
                     }
                     : never),
     ): ImageClass<T>;
@@ -39,15 +40,13 @@ interface ImageConstructor {
 
 const Image: ImageConstructor = function <T extends TagGroupDefinition | null>(
     this: ImageClass<T>,
-    config: Omit<Partial<RichImageUserConfig<T>>, "src"> &
+    config: Omit<Partial<IImageUserConfig<T>>, "src"> &
         (T extends null ?
             {
                 src: string | StaticImageData;
-                tag?: never;
             } : T extends TagGroupDefinition ?
                 {
-                    src: TagSrcResolver<T>;
-                    tag: TagDefinitions<T>;
+                    src: TagDefinition<T>;
                 }
                 : never),
 ): ImageClass<T> {
@@ -55,8 +54,7 @@ const Image: ImageConstructor = function <T extends TagGroupDefinition | null>(
         throw new Error("Image is a constructor and should be called with new keyword");
     }
     return new ImageClass<T>(
-        config as Partial<RichImageUserConfig<T>>,
-        config.tag as TagDefinitions<T> | undefined
+        config as Partial<IImageUserConfig<T>>,
     );
 } as unknown as ImageConstructor;
 const AbstractImage = ImageClass;

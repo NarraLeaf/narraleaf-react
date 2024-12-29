@@ -1,15 +1,25 @@
-import type {Background, color, CommonDisplayable, CommonImagePosition,} from "@core/types";
+import type {Background, color, CommonDisplayableConfig, CommonImagePosition,} from "@core/types";
 import {ImagePosition,} from "@core/types";
 import type {AnimationPlaybackControls, DOMKeyframesDefinition, DynamicAnimationOptions} from "motion/react";
 import {animate} from "motion/react";
-import {Awaitable, deepMerge, DeepPartial, SkipController, sleep, toHex} from "@lib/util/data";
+import {Awaitable, deepMerge, DeepPartial, Serializer, SkipController, sleep, toHex} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {TransformDefinitions} from "./type";
-import {Align, CommonPosition, Coord2D, IPosition, PositionUtils, RawPosition} from "./position";
+import {
+    Align,
+    CommonPosition,
+    CommonPositionType,
+    Coord2D,
+    D2Position,
+    IPosition,
+    PositionUtils,
+    RawPosition
+} from "./position";
 import {CSSProps} from "@core/elements/transition/type";
 import {Utils} from "@core/common/Utils";
 import React from "react";
-import {ImageConfig} from "@core/elements/displayable/image";
+import {Legacy_ImageConfig} from "@core/elements/displayable/image";
+import {ConfigConstructor} from "@lib/util/config";
 import Sequence = TransformDefinitions.Sequence;
 import SequenceProps = TransformDefinitions.SequenceProps;
 
@@ -26,7 +36,7 @@ export type Transformers =
     | "fontColor";
 export type TransformHandler<T> = (value: T) => DOMKeyframesDefinition;
 export type TransformersMap = {
-    "position": CommonDisplayable["position"],
+    "position": CommonDisplayableConfig["position"],
     "opacity": number,
     "scale": number,
     "rotation": number,
@@ -58,6 +68,29 @@ type OverwriteHandler<T> = (value: Partial<TransformDefinitions.Types>) => T;
 
 /**@internal */
 export class TransformState<T extends TransformDefinitions.Types> {
+    static DefaultTransformState = new ConfigConstructor<CommonDisplayableConfig>({
+        scale: 1,
+        rotation: 0,
+        position: new CommonPosition(CommonPositionType.Center),
+        opacity: 0,
+        alt: "",
+    });
+
+    static TransformStateSerializer = new Serializer<
+        TransformDefinitions.Types,
+        {
+            position: (pos: IPosition | RawPosition) => D2Position;
+        }
+    >({
+        position: (pos) => PositionUtils.toCoord2D(PositionUtils.tryParsePosition(pos)!),
+    }, {
+        position: PositionUtils.toCoord2D,
+    });
+
+    static deserialize<T extends TransformDefinitions.Types>(data: Record<string, any>): TransformState<T> {
+        return new TransformState<T>(TransformState.TransformStateSerializer.deserialize(data) as Partial<T>);
+    }
+
     static mergePosition(
         a: RawPosition | IPosition | undefined,
         b: RawPosition | IPosition | undefined
@@ -126,6 +159,10 @@ export class TransformState<T extends TransformDefinitions.Types> {
 
     public toStyle(gameState: GameState, overwrites?: OverwriteDefinition): CSSProps {
         return Transform.constructStyle(gameState, this.state, overwrites);
+    }
+
+    public serialize(): Record<string, any> {
+        return TransformState.TransformStateSerializer.serialize(this.state);
     }
 }
 
@@ -290,7 +327,6 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         return {
             ...Transform.positionToCSS(props.position, invertY, invertX),
             opacity: props.opacity,
-            display: props.display ? "block" : undefined,
             color: "fontColor" in props ? toHex((props as TransformDefinitions.TextTransformProps).fontColor) : undefined,
             transform: transform ? transform(props) : undefined,
             scale: scale ? scale(props) : undefined,
@@ -353,7 +389,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         {scope, overwrites, target}: {
             scope: React.MutableRefObject<HTMLDivElement | null>;
             overwrites?: Partial<{ [K in keyof TransformersMap]?: TransformHandler<TransformersMap[K]> }>;
-            target: { state: CommonDisplayable }
+            target: { state: CommonDisplayableConfig }
         },
         gameState: GameState,
         after?: (state: DeepPartial<T>) => void
@@ -374,7 +410,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
                         const current = scope.current as any;
                         Object.assign(current["style"], initState);
 
-                        target.state = Transform.mergeState(target.state, props) as ImageConfig;
+                        target.state = Transform.mergeState(target.state, props) as Legacy_ImageConfig;
 
                         // Initiate animation
                         const animation = animate(

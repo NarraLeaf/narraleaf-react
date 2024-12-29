@@ -47,12 +47,9 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 state.stage.next();
             });
         } else if (this.type === ImageActionTypes.setSrc) {
-            if (this.callee.state.tag) {
-                throw this.callee._mixedSrcError();
-            }
-
-            this.callee.state.src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
-            state.logger.debug("Image - Set Src", this.callee.state.src);
+            this.callee.state.currentSrc =
+                (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
+            state.logger.debug("Image Set Src", this.callee.state.currentSrc);
 
             state.stage.update();
             return super.executeAction(state);
@@ -89,10 +86,6 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 });
             });
             return awaitable;
-        } else if (this.type === ImageActionTypes.dispose) {
-            state.disposeImage(this.callee);
-            this.callee._$setDispose();
-            return super.executeAction(state);
         } else if (this.type === ImageActionTypes.applyTransition) {
             const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
                 .registerSkipController(new SkipController(() => {
@@ -116,12 +109,13 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
         } else if (this.type === ImageActionTypes.setAppearance) {
             const [tags, transition] =
                 (this.contentNode as ContentNode<ImageActionContentType["image:setAppearance"]>).getContent();
-            if (!this.callee.state.tag || !this.callee.state.currentTags) {
-                throw this.callee._srcNotSpecifiedError();
+            if (!Image.isTagSrc(this.callee)) {
+                throw this.callee._mixedSrcError();
             }
 
-            const newTags = this.callee.resolveTags(this.callee.state.currentTags, tags);
-            const newSrc = Image.getSrcFromTags(newTags, this.callee.state.src);
+            const oldTags = this.callee.state.currentSrc as string[];
+            const newTags = this.callee.resolveTags(oldTags, tags);
+            const newSrc = Image.getSrcFromTags(newTags, this.callee.config.src.resolve);
 
             state.logger.debug("Image - Set Appearance", newTags, newSrc);
 
@@ -135,7 +129,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     }));
                 transition.setSrc(newSrc);
                 this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
-                    this.callee.state.currentTags = newTags;
+                    this.callee.state.currentSrc = newTags;
                     awaitable.resolve({
                         type: this.type,
                         node: this.contentNode.getChild()
@@ -143,7 +137,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     state.stage.next();
                 });
             }
-            this.callee.state.currentTags = newTags;
+            this.callee.state.currentSrc = newTags;
             return super.executeAction(state);
         }
 

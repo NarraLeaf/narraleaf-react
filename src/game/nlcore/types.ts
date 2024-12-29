@@ -57,13 +57,39 @@ export type HexColor = `#${string}`;
 export type ImageColor = color | HexColor;
 
 export type CommonImagePosition = "left" | "center" | "right";
-export type CommonDisplayable = {
+export type CommonDisplayableConfig = {
+    /**
+     * Scale of the element, between 0 and 1
+     * @default 1
+     */
     scale?: number;
+    /**
+     * Rotation of the element, in degrees
+     * @default 0
+     */
     rotation?: number;
+    /**
+     * Position of the element
+     * @default {@link CommonPosition.Positions.Center}
+     */
     position?: RawPosition | IPosition;
+    /**
+     * Opacity of the element, between 0 and 1
+     * @default 1
+     */
     opacity?: number;
+    /**
+     * Alt text of the element
+     */
     alt?: string;
 }
+export type CommonDisplayableState = {
+    scale?: number;
+    rotation?: number;
+    position?: IPosition;
+    opacity?: number;
+    alt?: string;
+};
 
 export const ImagePosition: {
     [K in CommonImagePosition]: K;

@@ -234,13 +234,7 @@ export class StaticChecker {
     }
 
     private checkImage(state: ImageState, action: ImageAction) {
-        if (action.type === ImageActionTypes.dispose) {
-            if (state.isDisposed) {
-                const message = `Image is disposed multiple times before action: ${action.type}\nImage: ${action.callee.name}\nAction: ${action.type}\n\nAt: ${action.__stack}`;
-                throw new StaticScriptWarning(message);
-            }
-            state.isDisposed = true;
-        } else if (([
+        if (([
             ImageActionTypes.init,
             ImageActionTypes.show,
             ImageActionTypes.hide,
@@ -248,7 +242,7 @@ export class StaticChecker {
             ImageActionTypes.applyTransition,
         ] as Values<typeof ImageActionTypes>[]).includes(action.type)) {
             if (state.isDisposed) {
-                const message = `Image is disposed before action: ${action.type}\nImage: ${action.callee.name}\nAction: ${action.type}\n\nAt: ${action.__stack}`;
+                const message = `Image is disposed before action: ${action.type}\nImage: ${action.callee.config.name}\nAction: ${action.type}\n\nAt: ${action.__stack}`;
                 throw new StaticScriptWarning(message);
             }
         } else if (action.type === ImageActionTypes.setSrc) {

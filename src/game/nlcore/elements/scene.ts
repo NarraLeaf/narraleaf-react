@@ -581,11 +581,6 @@ export class Scene extends Constructable<
         this.state.backgroundImageProxy.reset();
     }
 
-    /**@internal */
-    toDisplayableTransform(): Transform {
-        return this.state.backgroundImageProxy.toDisplayableTransform();
-    }
-
     /**
      * Manually register an image to preload
      */

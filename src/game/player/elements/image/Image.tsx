@@ -48,7 +48,7 @@ function DisplayableImage(
     const ref = useRef<HTMLImageElement>(null);
 
     const defaultProps: ImgElementProp = {
-        src: GameImage.getSrc(image.state),
+        src: GameImage.getSrc(image),
         style: {
             ...(state.game.config.app.debug ? {
                 outline: "1px solid red",

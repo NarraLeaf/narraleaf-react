@@ -670,7 +670,8 @@ export async function getImageDataUrl(src: string, options?: RequestInit): Promi
 export class TaskPool {
     private tasks: (() => Promise<void>)[] = [];
 
-    constructor(private readonly concurrency: number, private readonly delay: number) {}
+    constructor(private readonly concurrency: number, private readonly delay: number) {
+    }
 
     addTask(task: () => Promise<void>) {
         this.tasks.push(task);
@@ -728,3 +729,62 @@ export function keyExcept<T extends Record<string, any>, Filtered extends Extrac
     }
     return result as Omit<T, Filtered>;
 }
+
+type SerializeHandlers<T> = {
+    [K in keyof T]?: (value: Exclude<T[K], undefined>) => any;
+};
+type DeserializeHandlers<T, SerializeHandler extends SerializeHandlers<T>> = {
+    [K in keyof T]?: SerializeHandler[K] extends ((...args: any) => any)
+        ? (value: Exclude<ReturnType<SerializeHandler[K]>, undefined>) => T[K]
+        : never;
+}
+
+export class Serializer<
+    T extends Record<string, any>,
+    SerializeHandler extends SerializeHandlers<T> = SerializeHandlers<T>,
+    DeserializeHandler extends DeserializeHandlers<T, SerializeHandler> = DeserializeHandlers<T, SerializeHandler>
+> {
+    constructor(
+        private readonly serializer: SerializeHandler = {} as SerializeHandler,
+        private readonly deserializer: DeserializeHandler = {} as DeserializeHandler,
+    ) {}
+
+    serialize(obj: T): Record<string, any> {
+        const result: Record<keyof T, any> = {} as any;
+        for (const key of Object.keys(obj) as Array<keyof T>) {
+            if (key in this.serializer && obj[key] !== undefined) {
+                result[key] = this.serializer[key]?.(obj[key]);
+            } else {
+                result[key] = obj[key];
+            }
+        }
+        return result;
+    }
+
+    deserialize(obj: Record<string, any>): T {
+        const result = {} as T;
+        for (const key of Object.keys(obj) as Array<Extract<keyof T, string>>) {
+            if (typeof this.deserializer[key] === "function" && obj[key] !== undefined) {
+                result[key as keyof T] = this.deserializer[key]!(obj[key]);
+            } else {
+                result[key] = obj[key];
+            }
+        }
+        return result;
+    }
+
+    extend<
+        NewFields extends Record<string, any>,
+        NewSerializeHandler extends SerializeHandlers<T & NewFields>,
+        NewDeserializeHandler extends DeserializeHandlers<T & NewFields, NewSerializeHandler>
+    >(
+        newSerializer: NewSerializeHandler,
+        newDeserializer: NewDeserializeHandler
+    ): Serializer<T & NewFields, SerializeHandler & NewSerializeHandler, DeserializeHandler & NewDeserializeHandler> {
+        const extendedSerializer = { ...this.serializer, ...newSerializer } as SerializeHandler & NewSerializeHandler;
+        const extendedDeserializer = { ...this.deserializer, ...newDeserializer } as DeserializeHandler & NewDeserializeHandler;
+
+        return new Serializer(extendedSerializer, extendedDeserializer);
+    }
+}
+

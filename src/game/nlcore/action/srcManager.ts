@@ -1,5 +1,5 @@
 import {Sound} from "@core/elements/sound";
-import {Image as GameImage, Image} from "@core/elements/displayable/image";
+import {Image as GameImage, Image, TagDefinition, TagGroupDefinition} from "@core/elements/displayable/image";
 import {Story, Utils} from "@core/common/core";
 import {StaticImageData} from "@core/types";
 import {LogicAction} from "@core/action/logicAction";
@@ -63,10 +63,10 @@ export class SrcManager {
             return src;
         }
         if (src instanceof Image) {
-            return GameImage.getSrc(src.state);
+            return GameImage.getSrc(src);
         }
         if (src.type === "image") {
-            return GameImage.getSrc(src.src.state);
+            return GameImage.getSrc(src.src);
         } else if (src.type === "video") {
             return src.src;
         } else if (src.type === "audio") {
@@ -101,11 +101,11 @@ export class SrcManager {
             }
         } else if (action instanceof ImageAction) {
             const imageAction = action as ImageAction;
-            if (imageAction.callee.config.tag) {
+            if (Image.isTagSrc(imageAction.callee)) {
                 return {
                     type: "image",
                     src: new Image({
-                        src: Image.getSrcFromTags(imageAction.callee.config.tag.defaults, imageAction.callee.config.src)
+                        src: Image.getSrcFromTags(imageAction.callee.config.src.defaults, imageAction.callee.config.src.resolve)
                     }),
                     activeType: "scene"
                 };
@@ -129,7 +129,7 @@ export class SrcManager {
                 if (typeof imageAction.callee.config.src !== "function") {
                     throw imageAction.callee._invalidSrcHandlerError();
                 }
-                if (tags.length === imageAction.callee.state.tag?.groups.length) {
+                if (Image.isTagSrc(imageAction.callee) && tags.length === (imageAction.callee.config.src as TagDefinition<TagGroupDefinition>).groups.length) {
                     return {
                         type: "image",
                         src: Image.fromSrc(Image.getSrcFromTags(tags, imageAction.callee.config.src)),
@@ -166,14 +166,14 @@ export class SrcManager {
             this.src.push({type: "audio", src: arg0});
         } else if (arg0 instanceof Image || Utils.isStaticImageData(arg0)) {
             if (arg0 instanceof Image) {
-                if (this.isSrcRegistered(GameImage.getSrc(arg0.state))) return this;
+                if (this.isSrcRegistered(GameImage.getSrc(arg0))) return this;
             } else {
                 if (this.isSrcRegistered(Utils.srcToString(arg0["src"]))) return this;
             }
             this.src.push({
                 type: "image", src:
                     arg0 instanceof Image ? new Image({
-                        src: Image.getSrc(arg0.state),
+                        src: Image.getSrc(arg0),
                     }) : new Image({
                         src: Utils.staticImageDataToSrc(arg0),
                     })
@@ -203,7 +203,7 @@ export class SrcManager {
             if (s.type === SrcManager.SrcTypes.audio) {
                 return target === s.src.getSrc();
             } else if (s.type === SrcManager.SrcTypes.image) {
-                return target === GameImage.getSrc(s.src.state);
+                return target === GameImage.getSrc(s.src);
             } else {
                 return target === s.src;
             }

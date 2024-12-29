@@ -4,7 +4,8 @@ type ConfigHandler<T, U> = (config: T) => U;
 type ConfigHandlersDataType<T extends Record<string, any>> = {
     [K in keyof T]?: any
 }
-type MergeConfig<
+/**@internal */
+export type MergeConfig<
     Raw extends Record<string, any>,
     Handlers extends ConfigHandlersDataType<Raw> = Record<string, any>,
 > = {
@@ -47,7 +48,7 @@ export class ConfigConstructor<
                     return [
                         key,
                         newValue !== undefined ?
-                            (this.handlers[key] ? this.handlers[key](newValue) : newValue) :
+                            (this.handlers[key] ? this.handlers[key]!(newValue) : newValue) :
                             value,
                     ];
                 })
@@ -55,9 +56,17 @@ export class ConfigConstructor<
     }
 
     create(
-        config: Partial<Raw>,
+        config: Partial<Raw> = {},
     ): Config<Raw, Handlers> {
         return new Config(this.mergeWithDefaultConfig(config));
+    }
+
+    copy(): ConfigConstructor<Raw, Handlers> {
+        return new ConfigConstructor<Raw, Handlers>(deepMerge({}, this.defaultConfig), this.handlers);
+    }
+
+    keys(): (keyof Raw)[] {
+        return Object.keys(this.defaultConfig) as (keyof Raw)[];
     }
 }
 
@@ -112,6 +121,12 @@ export class Config<
             new Config(picked as MergeConfig<Pick<MergeConfig<Raw, Handlers>, T>, Handlers>),
             new Config(rest as MergeConfig<Omit<MergeConfig<Raw, Handlers>, T>, Handlers>),
         ];
+    }
+
+    public assign(
+        config: Partial<MergeConfig<Raw, Handlers>>,
+    ): Config<Raw, Handlers> {
+        return new Config(Object.assign({}, this.config, config) as MergeConfig<Raw, Handlers>);
     }
 }
 

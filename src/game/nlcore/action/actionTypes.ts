@@ -1,7 +1,7 @@
 import {LogicAction} from "@core/action/logicAction";
 import type {Story} from "@core/elements/story";
 import type {ConditionData} from "@core/elements/condition";
-import {CommonDisplayable, ImageColor, ImageSrc} from "@core/types";
+import {CommonDisplayableConfig, ImageColor, ImageSrc} from "@core/types";
 import {Transform} from "@core/elements/transform/transform";
 import type {Scene} from "@core/elements/scene";
 import type {MenuData} from "@core/elements/menu";
@@ -13,6 +13,23 @@ import {Sentence} from "@core/elements/character/sentence";
 import type {TransformDefinitions} from "@core/elements/transform/type";
 import {Image, TagGroupDefinition} from "@core/elements/displayable/image";
 
+export const DisplayableActionTypes = {
+    action: "displayable:action",
+    layerMoveUp: "displayable:layerMoveUp",
+    layerMoveDown: "displayable:layerMoveDown",
+    layerMoveTop: "displayable:layerMoveTop",
+    layerMoveBottom: "displayable:layerMoveBottom",
+    applyTransform: "displayable:applyTransform",
+    applyTransition: "displayable:applyTransition",
+} as const;
+export type DisplayableActionContentType = {
+    [K in typeof DisplayableActionTypes[keyof typeof DisplayableActionTypes]]:
+    K extends "displayable:layerMoveUp" ? [void] :
+        K extends "displayable:layerMoveDown" ? [void] :
+            K extends "displayable:layerMoveTop" ? [void] :
+                K extends "displayable:layerMoveBottom" ? [void] :
+                    any;
+}
 /* Character */
 export const CharacterActionTypes = {
     say: "character:say",
@@ -66,6 +83,7 @@ export type StoryActionContentType = {
 }
 /* Image */
 export const ImageActionTypes = {
+    ...DisplayableActionTypes,
     action: "image:action",
     setSrc: "image:setSrc",
     setPosition: "image:setPosition",
@@ -73,11 +91,6 @@ export const ImageActionTypes = {
     hide: "image:hide",
     applyTransform: "image:applyTransform",
     init: "image:init",
-    dispose: "image:dispose",
-    /**
-     * @deprecated
-     */
-    setTransition: "image:setTransition",
     applyTransition: "image:applyTransition",
     flush: "image:flush",
     initWearable: "image:initWearable",
@@ -86,19 +99,17 @@ export const ImageActionTypes = {
 export type ImageActionContentType = {
     [K in typeof ImageActionTypes[keyof typeof ImageActionTypes]]:
     K extends "image:setSrc" ? [string] :
-        K extends "image:setPosition" ? [CommonDisplayable["position"], Transform<TransformDefinitions.ImageTransformProps>] :
+        K extends "image:setPosition" ? [CommonDisplayableConfig["position"], Transform<TransformDefinitions.ImageTransformProps>] :
             K extends "image:show" ? [void, Transform<TransformDefinitions.ImageTransformProps>] :
                 K extends "image:hide" ? [void, Transform<TransformDefinitions.ImageTransformProps>] :
                     K extends "image:applyTransform" ? [void, Transform<TransformDefinitions.ImageTransformProps>, string] :
                         K extends "image:init" ? [Scene?] :
-                            K extends "image:dispose" ? [] :
-                                K extends "image:setTransition" ? [ITransition | null] :
-                                    K extends "image:applyTransition" ? [ITransition] :
-                                        K extends "image:flush" ? [] :
-                                            K extends "image:initWearable" ? [Image] :
-                                                K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagGroupDefinition>> | string[], IImageTransition | undefined] :
-                                                    any;
-}
+                            K extends "image:applyTransition" ? [ITransition] :
+                                K extends "image:flush" ? [] :
+                                    K extends "image:initWearable" ? [Image] :
+                                        K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagGroupDefinition>> | string[], IImageTransition | undefined] :
+                                            any;
+} & DisplayableActionContentType;
 /* Condition */
 export const ConditionActionTypes = {
     action: "condition:action",
@@ -193,21 +204,6 @@ export type TextActionContentType = {
                         K extends "text:applyTransition" ? [ITransition] :
                             K extends "text:setFontSize" ? [number] :
                                 any;
-}
-export const DisplayableActionTypes = {
-    action: "displayable:action",
-    layerMoveUp: "displayable:layerMoveUp",
-    layerMoveDown: "displayable:layerMoveDown",
-    layerMoveTop: "displayable:layerMoveTop",
-    layerMoveBottom: "displayable:layerMoveBottom",
-} as const;
-export type DisplayableActionContentType = {
-    [K in typeof DisplayableActionTypes[keyof typeof DisplayableActionTypes]]:
-    K extends "displayable:layerMoveUp" ? [void] :
-        K extends "displayable:layerMoveDown" ? [void] :
-            K extends "displayable:layerMoveTop" ? [void] :
-                K extends "displayable:layerMoveBottom" ? [void] :
-                    any;
 }
 /* Persistent */
 export const PersistentActionTypes = {

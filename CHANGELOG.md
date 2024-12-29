@@ -1,6 +1,36 @@
 # Changelog
 
-## [0.2.3]
+## [0.3.0]
+
+### _Incompatible Changes_
+
+- NarraLeaf-React now **requires** [React 19](https://react.dev/blog/2024/12/05/react-19) or later
+- Image Config has changed:
+  - the type of `config.src` should be a tag definition or a string
+  - In tag-based image config, `config.src` as a resolver function is moved to `config.src.resolve`
+- These methods of `Image` has been changed:
+  - `setAppearance`, `setTags`, `setSrc` -> `char`
+  - `applyTransform` -> `transform`
+  - `wear` is a new alias for `addWearable`
+  - `asWearableOf` is a new alias for `bindWearable`
+  - `init`, `setPosition`, `dispose` are removed
+- These methods of `Text` has been changed:
+  - `applyTransform` -> `transform`
+  - `applyTransition` is removed, applying transitions are still in planning
+- These methods are added to displayable elements (text, image):
+  - `layerMoveUp`, `layerMoveDown`, `layerMoveTop`, `layerMoveBottom`
+  - `pos`, `scale`, `rotate`, `opacity`
+- In displayable elements, the transform states are separated from the element states
+
+### Added
+
+- use `Transform.immediate` to apply transformations immediately
+
+### Fixed
+
+- some errors being thrown when initializing the game
+
+## [0.2.3] - 2024/12/27
 
 ### _Feature_
 

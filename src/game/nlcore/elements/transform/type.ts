@@ -1,4 +1,4 @@
-import {color, CommonDisplayable} from "@core/types";
+import {color, CommonDisplayableConfig} from "@core/types";
 
 export namespace TransformDefinitions {
     export type BezierDefinition = [number, number, number, number];
@@ -32,9 +32,7 @@ export namespace TransformDefinitions {
         sync: boolean;
         repeat: number;
     }
-    export type ImageTransformProps = CommonDisplayable & {
-        display: boolean;
-    };
+    export type ImageTransformProps = CommonDisplayableConfig & {};
     export type TextTransformProps = ImageTransformProps & {
         fontColor: color;
     };

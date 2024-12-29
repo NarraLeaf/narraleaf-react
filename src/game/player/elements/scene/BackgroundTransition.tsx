@@ -20,6 +20,7 @@ export default function BackgroundTransition({scene, props, state}: {
     return (
         <Legacy_Displayable
             displayable={{
+                // @ts-expect-error @todo
                 element: scene,
                 state: scene.state.backgroundImageProxy,
                 skipTransform: state.game.config.elements.background.allowSkipTransform,

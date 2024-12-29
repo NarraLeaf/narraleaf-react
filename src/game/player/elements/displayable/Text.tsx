@@ -41,6 +41,7 @@ export default function Text({state, text}: Readonly<{
     return (
         <Legacy_Displayable
             displayable={{
+                // @ts-expect-error @todo
                 element: text,
                 skipTransform: state.game.config.elements.text.allowSkipTransform,
                 skipTransition: state.game.config.elements.text.allowSkipTransition,
