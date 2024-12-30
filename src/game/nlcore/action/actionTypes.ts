@@ -1,7 +1,7 @@
 import {LogicAction} from "@core/action/logicAction";
 import type {Story} from "@core/elements/story";
 import type {ConditionData} from "@core/elements/condition";
-import {CommonDisplayableConfig, ImageColor, ImageSrc} from "@core/types";
+import {Color, CommonDisplayableConfig, ImageSrc} from "@core/types";
 import {Transform} from "@core/elements/transform/transform";
 import type {Scene} from "@core/elements/scene";
 import type {MenuData} from "@core/elements/menu";
@@ -46,7 +46,6 @@ export type CharacterActionContentType = {
 /* Scene */
 export const SceneActionTypes = {
     action: "scene:action",
-    setBackground: "scene:setBackground",
     sleep: "scene:sleep",
     applyTransition: "scene:applyTransition",
     init: "scene:init",
@@ -61,16 +60,15 @@ export type SceneActionContentType = {
     [K in typeof SceneActionTypes[keyof typeof SceneActionTypes]]:
     K extends typeof SceneActionTypes["action"] ? Scene :
         K extends typeof SceneActionTypes["sleep"] ? number | Promise<any> | Awaitable<any, any> :
-            K extends typeof SceneActionTypes["setBackground"] ? [ImageSrc | ImageColor] :
-                K extends typeof SceneActionTypes["applyTransition"] ? [ITransition] :
-                    K extends typeof SceneActionTypes["init"] ? [Scene | string] :
-                        K extends typeof SceneActionTypes["exit"] ? [] :
-                            K extends typeof SceneActionTypes["jumpTo"] ? [Scene | string] :
-                                K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
-                                    K extends typeof SceneActionTypes["preUnmount"] ? [] :
-                                        K extends typeof SceneActionTypes["applyTransform"] ? [Transform] :
-                                            K extends typeof SceneActionTypes["transitionToScene"] ? [IImageTransition, Scene | string | undefined, ImageSrc | ImageColor | undefined] :
-                                                any;
+            K extends typeof SceneActionTypes["applyTransition"] ? [ITransition] :
+                K extends typeof SceneActionTypes["init"] ? [Scene | string] :
+                    K extends typeof SceneActionTypes["exit"] ? [] :
+                        K extends typeof SceneActionTypes["jumpTo"] ? [Scene | string] :
+                            K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
+                                K extends typeof SceneActionTypes["preUnmount"] ? [] :
+                                    K extends typeof SceneActionTypes["applyTransform"] ? [Transform] :
+                                        K extends typeof SceneActionTypes["transitionToScene"] ? [IImageTransition, Scene | string | undefined, ImageSrc | Color | undefined] :
+                                            any;
 }
 /* Story */
 export const StoryActionTypes = {
@@ -98,7 +96,7 @@ export const ImageActionTypes = {
 } as const;
 export type ImageActionContentType = {
     [K in typeof ImageActionTypes[keyof typeof ImageActionTypes]]:
-    K extends "image:setSrc" ? [string] :
+    K extends "image:setSrc" ? [ImageSrc | Color] :
         K extends "image:setPosition" ? [CommonDisplayableConfig["position"], Transform<TransformDefinitions.ImageTransformProps>] :
             K extends "image:show" ? [void, Transform<TransformDefinitions.ImageTransformProps>] :
                 K extends "image:hide" ? [void, Transform<TransformDefinitions.ImageTransformProps>] :

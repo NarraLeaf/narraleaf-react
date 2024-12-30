@@ -1,41 +1,30 @@
 import {IPosition, RawPosition} from "@core/elements/transform/position";
-import {ITransition} from "@core/elements/transition/type";
-import {Transform} from "@core/elements/transform/transform";
-import {EventDispatcher} from "@lib/util/data";
 import React from "react";
 
-export type color = string | {
+/**
+ * @deprecated
+ */
+export type Legacy_color = NamedColor | {
     r: number;
     g: number;
     b: number;
     a?: number;
-}
+};
 
-export type RGBColor = {
+export type Color = NamedColor | RGBAColor | HexColor;
+
+export type RGBAColor = {
     r: number;
     g: number;
     b: number;
-}
-
-export type RGBAColor = RGBColor & {
-    a: number;
-}
-
-export type Color = {
-    color: color;
+    a?: number;
 };
-
 export type Font = {
     italic?: boolean;
     bold?: boolean;
     fontFamily?: React.CSSProperties["fontFamily"];
     fontSize?: React.CSSProperties["fontSize"];
 };
-
-export type CommonText = {
-    text: string;
-} & Color;
-
 export type NextJSStaticImageData = StaticImageData;
 
 export interface StaticImageData {
@@ -47,14 +36,12 @@ export interface StaticImageData {
     blurHeight?: number;
 }
 
-export type Background = {
-    background: {
-        url: string;
-    } | color | null | undefined | StaticImageData;
-}
 export type ImageSrc = string | StaticImageData;
 export type HexColor = `#${string}`;
-export type ImageColor = color | HexColor;
+/**
+ * @deprecated
+ */
+export type ImageColor = Legacy_color | HexColor;
 
 export type CommonImagePosition = "left" | "center" | "right";
 export type CommonDisplayableConfig = {
@@ -98,31 +85,158 @@ export const ImagePosition: {
     left: "left",
     right: "right"
 } as const;
-
-/**@deprecated */
-export type Legacy_DisplayableAnimationEvents =
-    | "event:displayable.applyTransform"
-    | "event:displayable.applyTransition"
-    | "event:displayable.init";
-/**@deprecated */
-export type Legacy_EventfulDisplayableEvents = {
-    [K in Legacy_DisplayableAnimationEvents]:
-    K extends "event:displayable.applyTransform" ? [Transform] :
-        K extends "event:displayable.applyTransition" ? [ITransition] :
-            K extends "event:displayable.init" ? [] :
-                never;
-}
-
-/**@deprecated */
-export interface Legacy_EventfulDisplayable {
-    /**@internal */
-    events: EventDispatcher<Legacy_EventfulDisplayableEvents>;
-
-    /**@internal */
-    toDisplayableTransform(): Transform;
-}
-
 export type LiveGameEventHandler<T extends Array<any>> = (...args: T) => void;
 export type LiveGameEventToken = {
     cancel(): void;
 };
+
+export   type NamedColor =
+    | "aliceblue"
+    | "antiquewhite"
+    | "aqua"
+    | "aquamarine"
+    | "azure"
+    | "beige"
+    | "bisque"
+    | "black"
+    | "blanchedalmond"
+    | "blue"
+    | "blueviolet"
+    | "brown"
+    | "burlywood"
+    | "cadetblue"
+    | "chartreuse"
+    | "chocolate"
+    | "coral"
+    | "cornflowerblue"
+    | "cornsilk"
+    | "crimson"
+    | "cyan"
+    | "darkblue"
+    | "darkcyan"
+    | "darkgoldenrod"
+    | "darkgray"
+    | "darkgreen"
+    | "darkgrey"
+    | "darkkhaki"
+    | "darkmagenta"
+    | "darkolivegreen"
+    | "darkorange"
+    | "darkorchid"
+    | "darkred"
+    | "darksalmon"
+    | "darkseagreen"
+    | "darkslateblue"
+    | "darkslategray"
+    | "darkslategrey"
+    | "darkturquoise"
+    | "darkviolet"
+    | "deeppink"
+    | "deepskyblue"
+    | "dimgray"
+    | "dimgrey"
+    | "dodgerblue"
+    | "firebrick"
+    | "floralwhite"
+    | "forestgreen"
+    | "fuchsia"
+    | "gainsboro"
+    | "ghostwhite"
+    | "gold"
+    | "goldenrod"
+    | "gray"
+    | "green"
+    | "greenyellow"
+    | "grey"
+    | "honeydew"
+    | "hotpink"
+    | "indianred"
+    | "indigo"
+    | "ivory"
+    | "khaki"
+    | "lavender"
+    | "lavenderblush"
+    | "lawngreen"
+    | "lemonchiffon"
+    | "lightblue"
+    | "lightcoral"
+    | "lightcyan"
+    | "lightgoldenrodyellow"
+    | "lightgray"
+    | "lightgreen"
+    | "lightgrey"
+    | "lightpink"
+    | "lightsalmon"
+    | "lightseagreen"
+    | "lightskyblue"
+    | "lightslategray"
+    | "lightslategrey"
+    | "lightsteelblue"
+    | "lightyellow"
+    | "lime"
+    | "limegreen"
+    | "linen"
+    | "magenta"
+    | "maroon"
+    | "mediumaquamarine"
+    | "mediumblue"
+    | "mediumorchid"
+    | "mediumpurple"
+    | "mediumseagreen"
+    | "mediumslateblue"
+    | "mediumspringgreen"
+    | "mediumturquoise"
+    | "mediumvioletred"
+    | "midnightblue"
+    | "mintcream"
+    | "mistyrose"
+    | "moccasin"
+    | "navajowhite"
+    | "navy"
+    | "oldlace"
+    | "olive"
+    | "olivedrab"
+    | "orange"
+    | "orangered"
+    | "orchid"
+    | "palegoldenrod"
+    | "palegreen"
+    | "paleturquoise"
+    | "palevioletred"
+    | "papayawhip"
+    | "peachpuff"
+    | "peru"
+    | "pink"
+    | "plum"
+    | "powderblue"
+    | "purple"
+    | "rebeccapurple"
+    | "red"
+    | "rosybrown"
+    | "royalblue"
+    | "saddlebrown"
+    | "salmon"
+    | "sandybrown"
+    | "seagreen"
+    | "seashell"
+    | "sienna"
+    | "silver"
+    | "skyblue"
+    | "slateblue"
+    | "slategray"
+    | "slategrey"
+    | "snow"
+    | "springgreen"
+    | "steelblue"
+    | "tan"
+    | "teal"
+    | "thistle"
+    | "tomato"
+    | "transparent"
+    | "turquoise"
+    | "violet"
+    | "wheat"
+    | "white"
+    | "whitesmoke"
+    | "yellow"
+    | "yellowgreen";

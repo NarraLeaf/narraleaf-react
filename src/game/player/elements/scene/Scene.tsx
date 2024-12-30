@@ -1,10 +1,8 @@
 import {Scene as GameScene, SceneEventTypes} from "@core/elements/scene";
-import {useRatio} from "@player/provider/ratio";
 import React, {useEffect, useState} from "react";
 import BackgroundTransition from "./BackgroundTransition";
 import {GameState} from "@player/gameState";
 import {Sound} from "@core/elements/sound";
-import {Utils} from "@core/common/Utils";
 
 /**@internal */
 export default function Scene(
@@ -19,7 +17,6 @@ export default function Scene(
         children?: React.ReactNode;
         className?: string;
     }>) {
-    const {ratio} = useRatio();
     const [backgroundMusic, setBackgroundMusic] =
         useState<Sound | null>(() => scene.state.backgroundMusic);
 
@@ -56,7 +53,7 @@ export default function Scene(
                 type: "event:scene.preUnmount",
                 listener: scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
                     if (backgroundMusic) {
-                        stopWithFade(backgroundMusic, scene.state.backgroundMusicFade).then();
+                        stopWithFade(backgroundMusic, scene.config.backgroundMusicFade).then();
                     }
                 })
             }
@@ -79,16 +76,7 @@ export default function Scene(
 
     return (
         <div className={className}>
-            <BackgroundTransition scene={scene} props={{
-                width: ratio.state.width,
-                height: ratio.state.height,
-                src: Utils.isImageSrc(scene.state.background) ?
-                    Utils.srcToString(scene.state.background) : void 0,
-                style: {
-                    backgroundColor: Utils.isImageColor(scene.state.background) ?
-                        Utils.toHex(scene.state.background) : void 0,
-                }
-            }} state={state}/>
+            <BackgroundTransition scene={scene} state={state}/>
             {children}
         </div>
     );

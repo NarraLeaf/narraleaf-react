@@ -1,15 +1,14 @@
 import {Constructable} from "../action/constructable";
-import {Awaitable, deepMerge, entriesForEach, EventDispatcher, safeClone} from "@lib/util/data";
-import {color, ImageColor, ImageSrc, StaticImageData} from "@core/types";
+import {Awaitable, deepMerge, EventDispatcher, Serializer} from "@lib/util/data";
+import {Color, ImageSrc} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Transform} from "@core/elements/transform/transform";
-import {IImageTransition, ITransition} from "@core/elements/transition/type";
+import {EmptyObject, IImageTransition, ITransition} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
-import {TransformDefinitions} from "@core/elements/transform/type";
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
-import {Image, ImageDataRaw, VirtualImageProxy} from "@core/elements/displayable/image";
+import {Image, ImageDataRaw} from "@core/elements/displayable/image";
 import {Control, Persistent, Story, Utils} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
@@ -17,39 +16,40 @@ import {ImageAction} from "@core/action/actions/imageAction";
 import {SoundAction} from "@core/action/actions/soundAction";
 import {ControlAction} from "@core/action/actions/controlAction";
 import {Text} from "@core/elements/displayable/text";
-import {RGBColor} from "@core/common/Utils";
 import {DynamicPersistent} from "@core/elements/persistent";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
+import {Config, ConfigConstructor} from "@lib/util/config";
 import Actions = LogicAction.Actions;
-import ImageTransformProps = TransformDefinitions.ImageTransformProps;
 import GameElement = LogicAction.GameElement;
 
 /**@internal */
-export type UserImageInput = ImageSrc | RGBColor | ImageColor;
-/**@internal */
 export type SceneConfig = {
-    invertY: boolean;
-    invertX: boolean;
-    backgroundMusic: Sound | null;
+    name: string;
     backgroundMusicFade: number;
     voices: VoiceIdMap | VoiceSrcGenerator | null;
-} & {
-    background: ImageSrc | ImageColor | null;
 };
-
-export interface ISceneConfig {
-    invertY: boolean;
-    invertX: boolean;
-    backgroundMusic: Sound | null;
-    backgroundMusicFade: number;
-    voices?: VoiceIdMap | VoiceSrcGenerator;
-    background?: ImageSrc | ImageColor;
-}
-
 /**@internal */
 export type SceneState = {
-    backgroundImageProxy: VirtualImageProxy;
+    backgroundImage: Image;
+    backgroundMusic: Sound | null;
 };
+
+export interface ISceneUserConfig {
+    /**
+     * Background music
+     */
+    backgroundMusic?: Sound | null;
+    /**
+     * Background music fade duration, in milliseconds
+     */
+    backgroundMusicFade?: number;
+    /**
+     * Voice map or a function that returns the voice URL
+     */
+    voices?: VoiceIdMap | VoiceSrcGenerator;
+    background?: ImageSrc | Color;
+}
+
 export type JumpConfig = {
     transition: IImageTransition;
     unloadScene: boolean;
@@ -62,11 +62,7 @@ type ChainedScene = Proxied<Scene, Chained<LogicAction.Actions>>;
 
 /**@internal */
 export type SceneDataRaw = {
-    state: {
-        backgroundMusic?: SoundDataRaw | null;
-        background?: color | StaticImageData | null;
-    };
-    backgroundImageState?: ImageDataRaw | null;
+    state: Record<string, any>,
 }
 
 /**@internal */
@@ -103,16 +99,23 @@ export class Scene extends Constructable<
         "event:displayable.init": "event:displayable.init",
     };
     /**@internal */
-    static defaultConfig: ISceneConfig = {
-        invertY: true,
-        invertX: false,
+    static DefaultUserConfig = new ConfigConstructor<ISceneUserConfig, EmptyObject>({
         backgroundMusic: null,
         backgroundMusicFade: 0,
-    };
+        voices: undefined,
+        background: "#fff",
+    });
     /**@internal */
-    static defaultState: SceneState = {
-        backgroundImageProxy: new VirtualImageProxy(),
-    };
+    static DefaultSceneConfig = new ConfigConstructor<SceneConfig, EmptyObject>({
+        name: "",
+        backgroundMusicFade: 0,
+        voices: null,
+    });
+    /**@internal */
+    static DefaultSceneState = new ConfigConstructor<SceneState>({
+        backgroundImage: new Image(),
+        backgroundMusic: null,
+    });
 
     /**@internal */
     static isScene(object: any): object is Scene {
@@ -128,110 +131,76 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    readonly name: string;
+    static getStateSerializer(scene: Scene) {
+        return new Serializer<SceneState, {
+            backgroundImage: (bg: Image) => ImageDataRaw;
+            backgroundMusic: (sound: Sound | null) => SoundDataRaw | null;
+        }>({
+            backgroundImage: (bg) => bg.toData(),
+            backgroundMusic: (sound) => sound?.toData() || null,
+        }, {
+            backgroundImage: (bg) =>
+                scene.state.backgroundImage.fromData(bg),
+            backgroundMusic: (sound) =>
+                scene.state.backgroundMusic && sound
+                    ? scene.state.backgroundMusic.fromData(sound)
+                    : null,
+        });
+    }
+
     /**@internal */
-    config: SceneConfig;
+    public config: SceneConfig;
     /**@internal */
     readonly srcManager: SrcManager = new SrcManager();
     /**@internal */
     readonly events: EventDispatcher<SceneEventTypes> = new EventDispatcher();
     /**@internal */
-    state: SceneConfig & SceneState;
+    public state: SceneState;
     /**@internal */
-    actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[]) = [];
-    public readonly local: Persistent<any>;
+    private actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[]) = [];
     /**@internal */
     private sceneRoot?: SceneAction<"scene:action">;
     /**@internal */
-    private readonly _userConfig: Partial<ISceneConfig> = {};
-
-    constructor(name: string, config?: Partial<ISceneConfig>) {
-        super();
-        this.name = name;
-        this._userConfig = config || {};
-        const {background, voices, ...rest} = deepMerge<ISceneConfig>(Scene.defaultConfig, config || {});
-
-        this.config = {
-            ...rest,
-            voices: voices || null,
-            background: background || null,
-        };
-        this.state = deepMerge<SceneConfig & SceneState>(this.config, {
-            backgroundImageProxy: this._createImageProxy(),
-        });
-        this.local = new DynamicPersistent(name);
-    }
-
+    private readonly localPersistent: DynamicPersistent;
     /**@internal */
-    toBackground(src: UserImageInput): ImageSrc | ImageColor {
-        if (Utils.isImageSrc(src) || Utils.isImageColor(src)) {
-            return src;
-        }
-        if ((src as unknown) instanceof RGBColor) {
-            return (src as RGBColor).toImageColor();
-        }
-        throw new Error("Invalid background type");
+    private readonly userConfig: Config<ISceneUserConfig, EmptyObject>;
+
+    public get local(): Persistent<any> {
+        return this.localPersistent;
     }
 
-    /**
-     * Activate the scene
-     *
-     * This is only used when auto activation isn't working
-     * @chainable
-     */
-    public activate(): ChainedScene {
-        return this.chain(this._init(this));
+    public get backgroundImage(): Image {
+        return this.state.backgroundImage;
     }
 
-    /**
-     * Deactivate the scene
-     *
-     * This is only used when auto deactivation isn't working
-     * @chainable
-     */
-    public deactivate(): ChainedScene {
-        return this.chain(this._exit());
+    constructor(name: string, config?: Partial<ISceneUserConfig>) {
+        super();
+
+        const userConfig = Scene.DefaultUserConfig.create(config);
+        const sceneConfig = Scene.DefaultSceneConfig.create({
+            ...userConfig.get(),
+            name,
+        });
+
+        this.config = sceneConfig.get();
+        this.state = this.getInitialState();
+        this.userConfig = userConfig;
+        this.localPersistent = new DynamicPersistent(name);
     }
 
     /**
      * Set background, if {@link transition} is provided, it'll be applied
      * @chainable
      */
-    public setBackground(background: UserImageInput, transition?: IImageTransition): ChainedScene {
-        return this.combineActions(new Control(), chain => {
-            if (transition) {
-                const copy = transition.copy();
-                copy.setSrc(this.toBackground(background));
-                chain._transitionToScene(copy, undefined, this.toBackground(background));
-            }
-            return chain.chain(new SceneAction<"scene:setBackground">(
-                chain,
-                "scene:setBackground",
-                new ContentNode<SceneActionContentType["scene:setBackground"]>().setContent([
-                    background,
-                ])
-            ));
-        });
-    }
-
-    /**
-     * Apply a transform to the scene
-     *
-     * for example, you can shake the scene by applying a transform with a shake effect
-     * @chainable
-     */
-    public applyTransform(transform: Transform<ImageTransformProps>): ChainedScene {
-        return this.chain(new SceneAction(
-            this.chain(),
-            "scene:applyTransform",
-            new ContentNode().setContent([transform.copy()])
-        ));
+    public setBackground(background: Color | ImageSrc, transition?: IImageTransition): ChainedScene {
+        const chain = this.chain();
+        return chain.chain(this.state.backgroundImage._setSrc(chain, background, transition));
     }
 
     /**
      * Jump to the specified scene
      *
-     * After calling the method, you **won't be able to return to the context of the scene** that called the jump,
+     * After calling the method, you **won't** be able to return to the context of the scene that called the jump,
      * so the scene will be unloaded
      *
      * Any operations after the jump operation won't be executed
@@ -291,54 +260,14 @@ export class Scene extends Constructable<
     /**@internal */
     override toData(): SceneDataRaw | null {
         return {
-            state: {
-                ...safeClone(this.state),
-                backgroundMusic: this.state.backgroundMusic?.toData(),
-                background: this.state.background,
-            },
-            backgroundImageState: this.state.backgroundImageProxy.toData(),
+            state: Scene.getStateSerializer(this).serialize(this.state),
         } satisfies SceneDataRaw;
     }
 
     /**@internal */
     override fromData(data: SceneDataRaw): this {
-        entriesForEach<SceneDataRaw>(data, {
-            state: (state) => {
-                entriesForEach<SceneDataRaw["state"]>(state, {
-                    backgroundMusic: (backgroundMusic) => {
-                        if (backgroundMusic) {
-                            this.state.backgroundMusic = new Sound().fromData(backgroundMusic);
-                        }
-                    },
-                    background: (background) => {
-                        if (background) {
-                            this.state.background = background;
-                        }
-                    },
-                });
-            },
-            backgroundImageState: (backgroundImageState) => {
-                if (backgroundImageState) {
-                    this.state.backgroundImageProxy = new Image().fromData(backgroundImageState);
-                }
-            },
-        });
+        this.state = Scene.getStateSerializer(this).deserialize(data.state);
         return this;
-    }
-
-    /**@internal */
-    getInitTransform(): Transform<ImageTransformProps> {
-        return new Transform<ImageTransformProps>([
-            {
-                props: {
-                    ...this.state.backgroundImageProxy.state,
-                    opacity: 1,
-                },
-                options: {
-                    duration: 0,
-                }
-            },
-        ]);
     }
 
     /**
@@ -439,39 +368,20 @@ export class Scene extends Constructable<
         return !!this.sceneRoot;
     }
 
-    /**
-     * Inherit configuration from another scene
-     */
-    public inherit(scene: Scene): this {
-        const {background, ...rest} = deepMerge<SceneConfig>(Scene.defaultConfig, scene.config, this._userConfig);
-
-        this.config = {
-            ...rest,
-            background: background || null,
-        };
-        this.state = deepMerge<SceneConfig & SceneState>(this.config, {
-            backgroundImageProxy: this._createImageProxy(),
-        });
-        return this;
-    }
-
     /**@internal */
     registerSrc(story: Story, seen: Set<Scene> = new Set<Scene>()) {
         if (!this.sceneRoot) {
             return;
         }
 
-        // [0.0.5] - 2024/10/04
-        // Without this check, this method will enter the cycle and cost a lot of time,
-        // For example, Control will add some actions to the scene, this check won't stop correctly
         const seenActions = new Set<Actions>();
 
         const seenJump = new Set<SceneAction<typeof SceneActionTypes["jumpTo"]>>();
         const queue: Actions[] = [this.sceneRoot];
         const futureScene = new Set<Scene>();
 
-        if (Utils.isImageSrc(this.config.background)) {
-            this.srcManager.register(new Image({src: Utils.toBackgroundSrc(this.config.background)}));
+        if (Utils.isImageSrc(this.state.backgroundImage.config.src)) {
+            this.srcManager.register(new Image({src: this.state.backgroundImage.config.src}));
         }
 
         while (queue.length) {
@@ -501,11 +411,6 @@ export class Scene extends Constructable<
                     seenJump.add(jumpTo);
                     futureScene.add(scene);
                     seen.add(scene);
-                } else if (action.type === SceneActionTypes.setBackground) {
-                    const src = SrcManager.getPreloadableSrc(story, action);
-                    if (src) {
-                        this.srcManager.register(src);
-                    }
                 }
             } else if (action instanceof ImageAction) {
                 const src = SrcManager.getPreloadableSrc(story, action);
@@ -577,26 +482,30 @@ export class Scene extends Constructable<
 
     /**@internal */
     override reset() {
-        this.state = deepMerge<SceneConfig & SceneState>(Scene.defaultState, this.config);
-        this.state.backgroundImageProxy.reset();
+        this.state.backgroundImage.reset();
+        this.state.backgroundMusic?.reset();
+        this.state = this.getInitialState();
     }
 
     /**
      * Manually register an image to preload
      */
     public requestImagePreload(src: ImageSrc) {
+        if (!Utils.isImageSrc(src)) {
+            throw new Error("Invalid image source: " + src);
+        }
         this.srcManager.register({
             type: "image",
             src: new Image({src}),
         });
     }
 
-    /**@internal */
-    private _createImageProxy(): VirtualImageProxy {
-        return new VirtualImageProxy({
-            opacity: 1,
-            src: Image.DefaultImagePlaceholder,
-        });
+    private getInitialState(): SceneState {
+        return Scene.DefaultSceneState.create().assign({
+            backgroundImage: new Image({
+                src: this.userConfig.get().background,
+            }),
+        }).get();
     }
 
     /**@internal */
@@ -620,7 +529,7 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _transitionToScene(transition?: IImageTransition, scene?: Scene | string, src?: ImageSrc | ImageColor): ChainedScene {
+    private _transitionToScene(transition?: IImageTransition, scene?: Scene | string, src?: ImageSrc | Color): ChainedScene {
         const chain = this.chain();
         if (transition) {
             const copy = transition.copy();

@@ -8,6 +8,8 @@ import AspectScaleImage from "@player/elements/image/AspectScaleImage";
 import {useRatio} from "@player/provider/ratio";
 import clsx from "clsx";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
+import {Utils} from "@core/common/Utils";
+import {Color} from "@core/types";
 
 /**@internal */
 export default function Image(
@@ -48,7 +50,7 @@ function DisplayableImage(
     const ref = useRef<HTMLImageElement>(null);
 
     const defaultProps: ImgElementProp = {
-        src: GameImage.getSrc(image),
+        src: GameImage.getSrcURL(image) || GameImage.DefaultImagePlaceholder,
         style: {
             ...(state.game.config.app.debug ? {
                 outline: "1px solid red",
@@ -106,7 +108,13 @@ function DisplayableImage(
                         width: ref.current ? `${ref.current.naturalWidth * ratio.state.scale}px` : "auto",
                         height: ref.current ? `${ref.current.naturalHeight * ratio.state.scale}px` : "auto",
                     }
-                }))}
+                }, Utils.isColor(image.state.currentSrc) ? {
+                    style: {
+                        backgroundColor: image.state.currentSrc as Color,
+                        width: "100%",
+                        height: "100%",
+                    }
+                } : {}))}
             >
                 {(<>
                     {(transition ? transition.toElementProps() : [{}]).map((elementProps, index) => {

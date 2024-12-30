@@ -12,7 +12,8 @@ export type SentenceConfig = {
     voice: Sound | null;
     character: Character | null;
     voiceId: string | number | null;
-} & Color & Font;
+    color: Color;
+} & Font;
 
 /**@internal */
 export type SentenceDataRaw = {

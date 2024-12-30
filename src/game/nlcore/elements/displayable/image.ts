@@ -3,19 +3,12 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
 import {Transform, TransformState} from "../transform/transform";
-import {CommonDisplayableConfig, CommonDisplayableState, StaticImageData} from "@core/types";
+import {Color, CommonDisplayableConfig, CommonDisplayableState, ImageSrc} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
-import {IImageTransition, ITransition} from "@core/elements/transition/type";
-import {
-    CommonPosition,
-    CommonPositionType,
-    D2Position,
-    IPosition,
-    PositionUtils,
-    RawPosition
-} from "@core/elements/transform/position";
-import {deepMerge, EventDispatcher, getCallStack, SelectElementFromEach, Serializer} from "@lib/util/data";
+import {EmptyObject, IImageTransition, ITransition} from "@core/elements/transition/type";
+import {IPosition, PositionUtils, RawPosition} from "@core/elements/transform/position";
+import {EventDispatcher, getCallStack, SelectElementFromEach, Serializer} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {Control} from "@core/elements/control";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -48,17 +41,17 @@ export type TagDefinition<T extends TagGroupDefinition | null> =
     } : never;
 
 type ImageSrcType<T extends TagGroupDefinition | null = TagGroupDefinition | null> =
-    T extends TagGroupDefinition ? TagDefinition<T> : string | StaticImageData;
+    T extends TagGroupDefinition ? TagDefinition<T> : (Color | ImageSrc);
 type ImageConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | null> = {
     wearables: Image[];
     isWearable: boolean;
     name: string;
     autoInit: boolean;
-    src: ImageSrcType<Tag>;
+    src: Tag extends TagGroupDefinition ? TagDefinition<Tag> : null;
 };
 type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | null> = {
     display: boolean;
-    currentSrc: string | SelectElementFromEach<Tag>;
+    currentSrc: ImageSrc | Color | SelectElementFromEach<Tag>;
 };
 
 export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | null>
@@ -97,35 +90,10 @@ export type ImageDataRaw = {
 export type ImageEventTypes = {
     "event:wearable.create": [Image];
 } & DisplayableEventTypes;
-/**@deprecated */
-export type Legacy_TagDefinitions<T extends TagGroupDefinition | null> =
-    T extends TagGroupDefinition ? {
-        groups: T;
-        defaults: SelectElementFromEach<T>;
-    } : never;
 /**@internal */
 export type TagGroupDefinition = string[][];
 /**@internal */
 export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectElementFromEach<T>) => string;
-/**
- * @deprecated
- */
-export type Legacy_RichImageUserConfig<T extends TagGroupDefinition | null> = Legacy_ImageConfig & {
-    /**@internal */
-    currentTags?: SelectElementFromEach<T> | null;
-} &
-    (T extends null ?
-        {
-            src: string | StaticImageData;
-            tag?: never;
-        } : T extends TagGroupDefinition ?
-            {
-                src: TagSrcResolver<T>;
-                tag: Legacy_TagDefinitions<T>;
-            }
-            : never);
-/**@deprecated */
-type Legacy_StaticRichConfig = Legacy_RichImageUserConfig<TagGroupDefinition | null>;
 
 
 export class Image<
@@ -141,22 +109,6 @@ export class Image<
     };
     /**@internal */
     public static DefaultImagePlaceholder = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
-    /**
-     * @internal
-     * @deprecated
-     */
-    static Legacy_defaultConfig: Legacy_RichImageUserConfig<null> = {
-        display: false,
-        position: new CommonPosition(CommonPositionType.Center),
-        scale: 1,
-        rotation: 0,
-        opacity: 0,
-        isWearable: false,
-        wearables: [],
-        src: Image.DefaultImagePlaceholder,
-        currentTags: null,
-        autoInit: true,
-    };
 
     /**@internal */
     static StateSerializer = new Serializer<ImageState>();
@@ -184,92 +136,68 @@ export class Image<
      * @internal
      * {@link ImageConfig}
      */
-    static DefaultImageConfig = new ConfigConstructor<ImageConfig>({
+    static DefaultImageConfig = new ConfigConstructor<ImageConfig, EmptyObject>({
         wearables: [],
         isWearable: false,
         name: "(anonymous)",
         autoInit: true,
-        src: Image.DefaultImagePlaceholder,
+        src: null,
     });
 
     /**
      * @internal
      * {@link ImageState}
      */
-    static DefaultImageState = new ConfigConstructor<ImageState>({
+    static DefaultImageState = new ConfigConstructor<ImageState, EmptyObject>({
         display: false,
         currentSrc: Image.DefaultImagePlaceholder,
     });
 
     /**@internal */
-    static getInitialSrc(image: Image): string | SelectElementFromEach<TagGroupDefinition> {
+    static getInitialSrc(image: Image): string | Color | SelectElementFromEach<TagGroupDefinition> {
         if (this.isTagSrc(image)) {
             return [...image.config.src.defaults];
         } else if (this.isStaticSrc(image)) {
-            if (Utils.isStaticImageData(image.config.src)) {
-                return Utils.staticImageDataToSrc(image.config.src);
+            if (Utils.isStaticImageData(image.state.currentSrc)) {
+                return Utils.staticImageDataToSrc(image.state.currentSrc);
             }
-            return image.config.src;
+            return image.state.currentSrc;
         }
         return Image.DefaultImagePlaceholder;
     }
 
     /**@internal */
     static isTagSrc(image: Image): image is Image<TagGroupDefinition> {
-        return typeof image.config.src === "object";
+        return !!image.config.src;
+    }
+
+    /**@internal */
+    static isTagDefinition(src: ImageSrcType<TagGroupDefinition | null>): src is TagDefinition<TagGroupDefinition> {
+        return typeof src === "object"
+            && src !== null
+            && !Utils.isImageSrc(src)
+            && !Utils.isColor(src)
+            && "defaults" in src;
     }
 
     /**@internal */
     static isStaticSrc(image: Image): image is Image<null> {
-        return typeof image.config.src === "string" || Utils.isStaticImageData(image.config.src);
-    }
-
-    /**
-     * @internal
-     * @deprecated
-     */
-    public static serializeImageState(state: Record<string, any>): Record<string, any> {
-        const handlers: Record<string, ((value: any) => any)> = {
-            position: (value: IPosition) => {
-                return PositionUtils.serializePosition(value);
-            }
-        };
-        const result: Record<string, any> = {};
-        for (const key in state) {
-            if (Object.prototype.hasOwnProperty.call(state, key)) {
-                result[key] = handlers[key] ? handlers[key](state[key]) : state[key];
-            }
-        }
-        return result;
-    };
-
-    /**
-     * @internal
-     * @deprecated
-     */
-    public static deserializeImageState(state: Record<string, any>): Legacy_StaticRichConfig {
-        const handlers: Record<string, ((value: any) => any)> = {
-            position: (value: D2Position) => {
-                return PositionUtils.toCoord2D(value);
-            }
-        };
-        const result: Record<string, any> = {};
-        for (const key in state) {
-            if (Object.prototype.hasOwnProperty.call(state, key)) {
-                result[key] = handlers[key] ? handlers[key](state[key]) : state[key];
-            }
-        }
-        return result as Legacy_StaticRichConfig;
+        return !this.isTagSrc(image);
     }
 
     /**@internal */
-    public static getSrc(image: Image): string {
+    public static getSrcURL(image: Image): string | null {
         if (Image.isTagSrc(image)) {
             return Image.getSrcFromTags(image.state.currentSrc as string[], image.config.src.resolve);
         } else if (Image.isStaticSrc(image)) {
-            return Utils.srcToString(image.config.src);
+            if (Utils.isStaticImageData(image.config.src)) {
+                return Utils.staticImageDataToSrc(image.config.src);
+            } else if (Utils.isColor(image.config.src)) {
+                return null;
+            }
+            return image.config.src;
         }
-        return Image.DefaultImagePlaceholder;
+        return null;
     }
 
     /**@internal */
@@ -301,14 +229,24 @@ export class Image<
     constructor(config: Partial<IImageUserConfig<Tags>> = {}) {
         super();
         const userConfig = Image.DefaultUserConfig.create(config);
-        const imageConfig = Image.DefaultImageConfig.create(userConfig.get());
+        const imageConfig = this.createImageConfig(userConfig);
 
-        this.config = imageConfig.get();
+        this.config = imageConfig.get() as ImageConfig<Tags>;
         this.state = this.getInitialState(imageConfig);
         this.transformState = this.getInitialTransformState(userConfig);
         this.userConfig = userConfig;
 
         this.checkConfig();
+    }
+
+    private createImageConfig(userConfig: Config<IImageUserConfig, { position: IPosition }>): Config<ImageConfig<Tags>> {
+        const userConfigRaw = userConfig.get();
+        return Image.DefaultImageConfig.create({
+            ...userConfigRaw,
+            src: Image.isTagDefinition(userConfigRaw.src)
+                ? userConfigRaw.src
+                : null,
+        });
     }
 
     /**
@@ -326,14 +264,14 @@ export class Image<
      * ```
      * @chainable
      */
-    public char(src: string | StaticImageData, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
+    public char(src: ImageSrc | Color, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
 
     public char(tags: SelectElementFromEach<Tags>, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public char(arg0: string | StaticImageData | SelectElementFromEach<Tags>, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
+    public char(arg0: ImageSrc | Color | SelectElementFromEach<Tags>, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.combineActions(new Control(), chain => {
-            if (typeof arg0 === "string" || Utils.isStaticImageData(arg0)) {
-                return this._setSrc(chain, arg0, transition);
+            if (Utils.isImageSrc(arg0) || Utils.isColor(arg0)) {
+                return chain.chain(this._setSrc(chain, arg0, transition));
             } else {
                 const action = new ImageAction<typeof ImageAction.ActionTypes.setAppearance>(
                     chain,
@@ -519,12 +457,8 @@ export class Image<
         return this.bindWearable(parent);
     }
 
-    public copy(): Image<Tags> {
-        return new Image<Tags>(deepMerge({}, this.config));
-    }
-
     /**@internal */
-    toData(): ImageDataRaw | null {
+    toData(): ImageDataRaw {
         return {
             state: Image.StateSerializer.serialize(this.state),
             transformState: TransformState.TransformStateSerializer.serialize(
@@ -542,14 +476,14 @@ export class Image<
     }
 
     /**@internal */
-    _applyTransition(transition: ITransition): Proxied<Image, Chained<LogicAction.Actions>> {
-        return this.chain(new ImageAction<"image:applyTransition">(
+    _applyTransition(transition: ITransition): ImageAction<"image:applyTransition"> {
+        return new ImageAction<"image:applyTransition">(
             this.chain(),
             "image:applyTransition",
             new ContentNode<[ITransition]>().setContent([
                 transition
             ])
-        ));
+        );
     }
 
     /**@internal */
@@ -585,7 +519,7 @@ export class Image<
 
     /**@internal */
     override reset() {
-        const imageConfig = Image.DefaultImageConfig.create(this.userConfig.get());
+        const imageConfig = this.createImageConfig(this.userConfig);
 
         this.state = this.getInitialState(imageConfig);
         this.transformState = this.getInitialTransformState(this.userConfig);
@@ -648,6 +582,26 @@ export class Image<
     _invalidTagGroupDefinitionError(): Error {
         throw new Error("Invalid tag group definition. " +
             "Tags in groups must be unique and not conflicting with each other.");
+    }
+
+    /**@internal */
+    _setSrc(
+        chain: Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>>,
+        src: ImageSrc | Color,
+        transition?: IImageTransition
+    ): ImageAction<typeof ImageAction.ActionTypes.setSrc> {
+        if (transition) {
+            const copy = transition.copy();
+            copy.setSrc(src);
+            chain.chain(this._applyTransition(copy));
+        }
+        return new ImageAction<typeof ImageAction.ActionTypes.setSrc>(
+            chain as Proxied<Image, Chained<LogicAction.Actions>>,
+            ImageAction.ActionTypes.setSrc,
+            new ContentNode<ImageActionContentType["image:setSrc"]>().setContent([
+                src
+            ])
+        );
     }
 
     private getInitialState(
@@ -714,41 +668,12 @@ export class Image<
         }
         return tagMap;
     }
-
-    /**@internal */
-    private _setSrc(
-        chain: Proxied<Image, Chained<LogicAction.Actions>>,
-        src: string | StaticImageData,
-        transition?: IImageTransition
-    ): Proxied<Image, Chained<LogicAction.Actions>> {
-        if (transition) {
-            const copy = transition.copy();
-            copy.setSrc(Utils.srcToString(src));
-            chain._transitionSrc(copy);
-        }
-        const action = new ImageAction<typeof ImageAction.ActionTypes.setSrc>(
-            chain,
-            ImageAction.ActionTypes.setSrc,
-            new ContentNode<[string]>().setContent([
-                typeof src === "string" ? src : Utils.staticImageDataToSrc(src)
-            ])
-        );
-        return chain
-            .chain(action)
-            .chain(this._flush());
-    }
-
-    /**@internal */
-    private _transitionSrc(transition: ITransition): this {
-        const t = transition.copy();
-        this._applyTransition(t);
-        return this;
-    }
 }
 
 /**
  * @class
  * @internal
+ * @deprecated
  * This class is only for internal use,
  * DO NOT USE THIS CLASS DIRECTLY
  */

@@ -8,8 +8,16 @@ import {LogicAction} from "@core/action/logicAction";
 import {Persistent} from "@core/elements/persistent";
 import {Storable} from "@core/elements/persistent/storable";
 
-/* eslint-disable @typescript-eslint/no-empty-object-type */
-export type StoryConfig = {};
+export enum Origins {
+    topLeft = "top left",
+    topRight = "top right",
+    bottomLeft = "bottom left",
+    bottomRight = "bottom right",
+}
+
+export interface IStoryConfig {
+    origin: Origins;
+}
 /**@internal */
 export type ElementStateRaw = Record<string, any>;
 
@@ -18,7 +26,9 @@ export class Story extends Constructable<
     Story
 > {
     /**@internal */
-    static defaultConfig: StoryConfig = {};
+    static defaultConfig: IStoryConfig = {
+        origin: Origins.bottomLeft,
+    };
     /**@internal */
     static MAX_DEPTH = 10000;
 
@@ -30,7 +40,7 @@ export class Story extends Constructable<
     /**@internal */
     readonly name: string;
     /**@internal */
-    readonly config: StoryConfig;
+    readonly config: IStoryConfig;
     /**@internal */
     entryScene: Scene | null = null;
     /**@internal */
@@ -38,10 +48,10 @@ export class Story extends Constructable<
     /**@internal */
     persistent: Persistent<any>[] = [];
 
-    constructor(name: string, config: StoryConfig = {}) {
+    constructor(name: string, config: IStoryConfig = Story.defaultConfig) {
         super();
         this.name = name;
-        this.config = deepMerge<StoryConfig>(Story.defaultConfig, config);
+        this.config = deepMerge<IStoryConfig>(Story.defaultConfig, config);
     }
 
     /**
@@ -77,7 +87,7 @@ export class Story extends Constructable<
     public registerScene(name: string, scene: Scene): this;
     public registerScene(scene: Scene): this;
     public registerScene(arg0: string | Scene, arg1?: Scene): this {
-        const name = typeof arg0 === "string" ? arg0 : arg0.name;
+        const name = typeof arg0 === "string" ? arg0 : arg0.config.name;
         const scene = typeof arg0 === "string" ? arg1! : arg0;
 
         if (this.scenes.has(name) && this.scenes.get(name) !== scene) {
@@ -180,6 +190,15 @@ export class Story extends Constructable<
             persistent.init(storable);
         });
         return this;
+    }
+
+    /**@internal */
+    getInversionConfig(): {invertY: boolean; invertX: boolean} {
+        const {origin} = this.config;
+        return {
+            invertY: origin === Origins.bottomLeft || origin === Origins.bottomRight,
+            invertX: origin === Origins.bottomRight || origin === Origins.topRight,
+        };
     }
 
     /**@internal */

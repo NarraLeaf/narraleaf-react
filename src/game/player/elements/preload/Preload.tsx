@@ -64,6 +64,9 @@ export function Preload(
 
         for (const image of sceneSrc.image) {
             const src = SrcManager.getSrc(image);
+            if (!src) {
+                continue;
+            }
             loadedSrc.push(src);
 
             if (cacheManager.has(src) || cacheManager.isPreloading(src) || preloadingSrc.includes(src)) {
@@ -163,6 +166,9 @@ export function Preload(
 
         for (const image of actionSrc.image) {
             const src = SrcManager.getSrc(image);
+            if (!src) {
+                continue;
+            }
             preloadSrc.push(src);
 
             if (cacheManager.has(src) || cacheManager.isPreloading(src)) {

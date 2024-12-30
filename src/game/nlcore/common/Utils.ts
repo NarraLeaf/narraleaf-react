@@ -1,4 +1,12 @@
-import type {Background, color, HexColor, ImageColor, ImageSrc, NextJSStaticImageData} from "@core/types";
+import type {
+    Color,
+    HexColor,
+    ImageSrc,
+    NamedColor,
+    NextJSStaticImageData,
+    RGBAColor,
+    StaticImageData
+} from "@core/types";
 import type {Scene} from "@core/elements/scene";
 import type {Image} from "@core/elements/displayable/image";
 import type {LogicAction} from "@core/action/logicAction";
@@ -11,7 +19,7 @@ import {
 import {ContentNode} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
-import {toHex, Values} from "@lib/util/data";
+import {isNamedColor, Values} from "@lib/util/data";
 import {Action} from "@core/action/action";
 import {Story} from "@core/elements/story";
 
@@ -51,15 +59,6 @@ export class RGBColor {
     public toHex() {
         return "#" + this.r.toString(16) + this.g.toString(16) + this.b.toString(16);
     }
-
-    public toImageColor(): ImageColor {
-        return {
-            r: this.r,
-            g: this.g,
-            b: this.b,
-            a: this.a,
-        };
-    }
 }
 
 /**@internal */
@@ -74,30 +73,45 @@ export class Utils {
         return typeof image === "string" ? image : image.src;
     }
 
-    public static isStaticImageData(src: any): src is NextJSStaticImageData {
+    /**
+     * Accepts: {@link StaticImageData}
+     * @param src
+     */
+    public static isStaticImageData(src: any): src is StaticImageData {
         return src?.src !== undefined && typeof src.src === "string";
-    }
-
-    public static backgroundToSrc(background: Background["background"]): string | null {
-        return Utils.isStaticImageData(background) ? background.src : (
-            (background as any)?.["url"] || null
-        );
     }
 
     public static isExternalSrc(src: string) {
         return src.startsWith("http://") || src.startsWith("https://");
     }
 
+    /**
+     * Accepts: {@link ImageSrc}
+     */
     public static isImageSrc(src: any): src is ImageSrc {
-        return (typeof src === "string" && !this.isHexString(src)) || Utils.isStaticImageData(src);
+        return (typeof src === "string" && !this.isColor(src)) || Utils.isStaticImageData(src);
     }
 
-    public static isImageColor(color: any): color is ImageColor {
-        return Utils.isHexString(color) || Utils.isPlainColor(color);
+    /**
+     * Accepts: {@link string}
+     */
+    public static isImageURL(src: any): src is string {
+        return typeof src === "string" && !this.isColor(src);
     }
 
-    public static isPlainColor(color: any): color is color {
-        return color && (typeof color === "string" || (typeof color === "object" && "r" in color && "g" in color && "b" in color));
+    /**
+     * Accepts: {@link Color}
+     */
+    public static isColor(color: any): color is Color {
+        return Utils.isHexString(color) || Utils.isNamedColor(color) || Utils.isRGBAColor(color);
+    }
+
+    public static isNamedColor(color: any): color is NamedColor {
+        return isNamedColor(color);
+    }
+
+    public static isRGBAColor(color: any): color is RGBAColor {
+        return color && "r" in color && "g" in color && "b" in color;
     }
 
     static isHexString(color: any): color is HexColor {
@@ -112,10 +126,6 @@ export class Utils {
             return src;
         }
         return src.src;
-    }
-
-    public static toHex(color: ImageColor): HexColor {
-        return toHex(color);
     }
 }
 
@@ -211,13 +221,13 @@ export class StaticChecker {
         } else if (action instanceof SceneAction) {
             const scene = action.callee;
 
-            if (scenes.has(scene.name)) {
-                if (scenes.get(scene.name) !== scene) {
-                    const message = `Scene with name: ${scene.name} is duplicated\nScene: ${scene.name}\n\nAt: ${action.__stack}`;
+            if (scenes.has(scene.config.name)) {
+                if (scenes.get(scene.config.name) !== scene) {
+                    const message = `Scene with name: ${scene.config.name} is duplicated\nScene: ${scene.config.name}\n\nAt: ${action.__stack}`;
                     throw new StaticScriptWarning(message);
                 }
             } else {
-                scenes.set(scene.name, scene);
+                scenes.set(scene.config.name, scene);
             }
 
             if (action.type === SceneActionTypes.jumpTo) {
@@ -248,7 +258,7 @@ export class StaticChecker {
         } else if (action.type === ImageActionTypes.setSrc) {
             const node = (action.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>);
             const src = node.getContent()[0];
-            if (Utils.isExternalSrc(src)) {
+            if (Utils.isImageURL(src) && Utils.isExternalSrc(src)) {
                 state.usedExternalSrc = true;
             }
         }

@@ -1,8 +1,8 @@
 import {EventDispatcher} from "@lib/util/data";
 import {ElementProp, EventTypes, IImageTransition, ITransition, TransitionEventTypes} from "./type";
-import {animate} from "motion/react";
 import type {AnimationPlaybackControls, ValueAnimationTransition} from "motion/react";
-import {ImageColor, ImageSrc} from "@core/types";
+import {animate} from "motion/react";
+import {Color, ImageSrc} from "@core/types";
 import {TransformDefinitions} from "@core/common/types";
 
 
@@ -73,7 +73,7 @@ export class BaseImageTransition<T extends ElementProp>
     implements IImageTransition<T> {
     static DefaultEasing: TransformDefinitions.EasingDefinition = "linear";
 
-    public setSrc(_src?: ImageSrc | ImageColor): this {
+    public setSrc(_src?: ImageSrc | Color): this {
         throw new Error("Method not implemented.");
     }
 

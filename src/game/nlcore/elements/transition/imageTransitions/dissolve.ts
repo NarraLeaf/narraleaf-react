@@ -64,7 +64,7 @@ export class Dissolve extends BaseImageTransition<ImgElementProp> implements IIm
             {
                 style: {
                     opacity: 1 - this.state.opacity,
-                    backgroundColor: Utils.isImageColor(this.src) ? toHex(this.src) : "",
+                    backgroundColor: Utils.isColor(this.src) ? toHex(this.src) : "",
                 },
                 src: Utils.isImageSrc(this.src) ? Utils.srcToString(this.src) : "",
             },

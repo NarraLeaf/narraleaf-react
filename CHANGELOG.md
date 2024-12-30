@@ -13,22 +13,38 @@
   - `applyTransform` -> `transform`
   - `wear` is a new alias for `addWearable`
   - `asWearableOf` is a new alias for `bindWearable`
-  - `init`, `setPosition`, `dispose` are removed
+  - `init`, `setPosition`, `dispose`, `copy` are removed
 - These methods of `Text` has been changed:
   - `applyTransform` -> `transform`
   - `applyTransition` is removed, applying transitions are still in planning
 - These methods are added to displayable elements (text, image):
   - `layerMoveUp`, `layerMoveDown`, `layerMoveTop`, `layerMoveBottom`
   - `pos`, `scale`, `rotate`, `opacity`
+- These methods of `Transform` has been changed:
+  - `overwrite` is removed
+  - Transformer API is completely deprecated
+- These methods of `Scene` has been changed:
+  - `activate`, `deactivate` are removed, the game will manage the scene's lifecycle automatically
+  - `applyTransform` is removed, use `scene.backgroundImage` instead
+  - `inherit` is removed
+- These methods of `Sound` has been changed:
+  - use `copy` to create a new sound instance
 - In displayable elements, the transform states are separated from the element states
+- Scene's config now can't specify the `invertY` and `invertX` properties, use story config `origin` instead
 
 ### Added
 
 - use `Transform.immediate` to apply transformations immediately
+- `Text`, `Word`, `Character`, `Scene` background, and `Image`'s color now supports named colors,
+see [MDN: <named-color>](https://developer.mozilla.org/en-US/docs/Web/CSS/named-color) for a list of supported colors. 
 
 ### Fixed
 
 - some errors being thrown when initializing the game
+
+### Updated
+
+- A better way to serialize/deserialize the element states
 
 ## [0.2.3] - 2024/12/27
 

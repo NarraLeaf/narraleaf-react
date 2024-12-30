@@ -58,15 +58,15 @@ export class SrcManager {
         };
     }
 
-    static getSrc(src: Src | string | Image): string {
+    static getSrc(src: Src | string | Image): string | null {
         if (typeof src === "string") {
             return src;
         }
         if (src instanceof Image) {
-            return GameImage.getSrc(src);
+            return GameImage.getSrcURL(src);
         }
         if (src.type === "image") {
-            return GameImage.getSrc(src.src);
+            return GameImage.getSrcURL(src.src);
         } else if (src.type === "video") {
             return src.src;
         } else if (src.type === "audio") {
@@ -78,24 +78,14 @@ export class SrcManager {
     static getPreloadableSrc(story: Story, action: LogicAction.Actions): (Src & {
         activeType: "scene" | "once"
     }) | null {
-        if (action.is<SceneAction<typeof SceneActionTypes["setBackground"]>>(SceneAction, SceneActionTypes.setBackground)) {
-            const content = action.contentNode.getContent()[0];
-            const src = Utils.backgroundToSrc(content);
-            if (src) {
-                return {
-                    type: "image",
-                    src: new Image({src}),
-                    activeType: "scene"
-                };
-            }
-        } else if (action.is<SceneAction<typeof SceneActionTypes["jumpTo"]>>(SceneAction, SceneActionTypes.jumpTo)) {
+        if (action.is<SceneAction<typeof SceneActionTypes["jumpTo"]>>(SceneAction, SceneActionTypes.jumpTo)) {
             const targetScene = action.contentNode.getContent()[0];
             const scene = story.getScene(targetScene, true);
-            const sceneBackground = scene.config.background;
-            if (Utils.isStaticImageData(sceneBackground) || typeof sceneBackground === "string") {
+            const sceneBackground = scene.state.backgroundImage;
+            if (Utils.isImageURL(sceneBackground.config.src)) {
                 return {
                     type: "image",
-                    src: new Image({src: sceneBackground}),
+                    src: new Image({src: sceneBackground.config.src}),
                     activeType: "once"
                 };
             }
@@ -138,7 +128,7 @@ export class SrcManager {
                 }
             } else if (action.type === ImageActionTypes.init) {
                 const src = action.callee.config.src;
-                if (typeof src === "string" || Utils.isStaticImageData(src)) {
+                if (Utils.isStaticImageData(src)) {
                     return {
                         type: "image",
                         src: new Image({src}),
@@ -166,16 +156,17 @@ export class SrcManager {
             this.src.push({type: "audio", src: arg0});
         } else if (arg0 instanceof Image || Utils.isStaticImageData(arg0)) {
             if (arg0 instanceof Image) {
-                if (this.isSrcRegistered(GameImage.getSrc(arg0))) return this;
+                if (!Utils.isImageURL(arg0.state.currentSrc)) return this;
+                if (this.isSrcRegistered(GameImage.getSrcURL(arg0))) return this;
             } else {
                 if (this.isSrcRegistered(Utils.srcToString(arg0["src"]))) return this;
             }
             this.src.push({
                 type: "image", src:
-                    arg0 instanceof Image ? new Image({
-                        src: Image.getSrc(arg0),
-                    }) : new Image({
+                    Utils.isStaticImageData(arg0) ? new Image({
                         src: Utils.staticImageDataToSrc(arg0),
+                    }) : new Image({
+                        src: arg0.state.currentSrc as string,
                     })
             });
         } else if (typeof arg0 === "object") {
@@ -197,13 +188,14 @@ export class SrcManager {
         return this;
     }
 
-    isSrcRegistered(src: string | Sound | Image): boolean {
+    isSrcRegistered(src: string | Sound | Image | null): boolean {
+        if (!src) return false;
         const target = src instanceof Sound ? src.getSrc() : src;
         return this.src.some(s => {
             if (s.type === SrcManager.SrcTypes.audio) {
                 return target === s.src.getSrc();
             } else if (s.type === SrcManager.SrcTypes.image) {
-                return target === GameImage.getSrc(s.src);
+                return target === GameImage.getSrcURL(s.src);
             } else {
                 return target === s.src;
             }

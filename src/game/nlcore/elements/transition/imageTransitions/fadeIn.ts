@@ -72,7 +72,7 @@ export class FadeIn extends BaseImageTransition<ImgElementProp> implements IImag
                 style: {
                     opacity: this.state.opacity,
                     transform: this.state.transform,
-                    backgroundColor: Utils.isImageColor(this.src) ? toHex(this.src) : "",
+                    backgroundColor: Utils.isColor(this.src) ? toHex(this.src) : "",
                 },
                 src: Utils.isImageSrc(this.src) ? Utils.srcToString(this.src) : "",
             }

@@ -9,7 +9,7 @@ import {TypedAction} from "@core/action/actions";
 import {SoundAction} from "@core/action/actions/soundAction";
 import {ITransition} from "@core/elements/transition/type";
 import {Story} from "@core/elements/story";
-import {RuntimeScriptError} from "@core/common/Utils";
+import {RuntimeScriptError, Utils} from "@core/common/Utils";
 
 export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneActionTypes] = typeof SceneActionTypes[keyof typeof SceneActionTypes]>
     extends TypedAction<SceneActionContentType, T, Scene> {
@@ -87,9 +87,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
 
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === SceneActionTypes.action) {
-            return super.executeAction(state);
-        } else if (this.type === SceneActionTypes.setBackground) {
-            this.callee.state.background = (this.contentNode as ContentNode<SceneActionContentType["scene:setBackground"]>).getContent()![0];
             return super.executeAction(state);
         } else if (this.type === SceneActionTypes.sleep) {
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
@@ -186,10 +183,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 if (!scene) {
                     throw this._sceneNotFoundError(this.getSceneName(targetScene));
                 }
-                if (!scene.config.background) {
+                if (!scene.state.backgroundImage || !Utils.isImageSrc(scene.state.backgroundImage.config.src)) {
                     return super.executeAction(state);
                 }
-                transition.setSrc(scene.config.background);
+                transition.setSrc(scene.state.backgroundImage.config.src);
             } else if (src) {
                 transition.setSrc(src);
             }
@@ -226,6 +223,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
     }
 
     getSceneName(scene: Scene | string): string {
-        return typeof scene === "string" ? scene : scene.name;
+        return typeof scene === "string" ? scene : scene.config.name;
     }
 }

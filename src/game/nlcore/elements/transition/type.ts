@@ -1,7 +1,7 @@
 import type {EventDispatcher} from "@lib/util/data";
 import React from "react";
 import type {AnimationPlaybackControls, DOMKeyframesDefinition} from "motion/react";
-import {ImageColor, ImageSrc} from "@core/types";
+import {Color, ImageSrc} from "@core/types";
 
 /**@internal */
 export type ElementProp<T extends Element = Element, U extends React.HTMLAttributes<T> = React.HTMLAttributes<T>> =
@@ -19,6 +19,9 @@ export type DivElementProp = ElementProp<HTMLDivElement, React.HTMLAttributes<HT
 export type CSSElementProp<T extends React.CSSProperties | DOMKeyframesDefinition> = ElementProp & { style: T };
 /**@internal */
 export type CSSProps = React.CSSProperties;
+/**@internal */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type EmptyObject = {};
 
 export interface ITransition<T extends ElementProp = Record<string, any>> {
     /**@internal */
@@ -37,7 +40,7 @@ export interface ITransition<T extends ElementProp = Record<string, any>> {
 }
 
 export interface IImageTransition<T extends ElementProp = ImgElementProp> extends ITransition<T> {
-    setSrc(src: ImageSrc | ImageColor): void;
+    setSrc(src: ImageSrc | Color): void;
 
     copy(): IImageTransition<T>;
 }

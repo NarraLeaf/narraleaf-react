@@ -1,4 +1,4 @@
-import {color, CommonDisplayableConfig} from "@core/types";
+import {Color, CommonDisplayableConfig} from "@core/types";
 import {EventDispatcher, Serializer} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {LogicAction} from "@core/action/logicAction";
@@ -46,10 +46,10 @@ export interface ITextUserConfig extends CommonDisplayableConfig {
      */
     fontSize: number;
     /**
-     * The color of the text, supports {@link color} and hex string
+     * The color of the text, supports {@link Color} and hex string
      * @default "#000000"
      */
-    fontColor: color;
+    fontColor: Color;
     /**
      * The text content
      */

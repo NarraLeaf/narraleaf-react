@@ -223,6 +223,10 @@ export class Sound extends Actionable<SoundDataRaw> {
         return this;
     }
 
+    copy(): Sound {
+        return new Sound(this.toData()?.config);
+    }
+
     /**@internal */
     override reset() {
         this.state.playing?.stop();

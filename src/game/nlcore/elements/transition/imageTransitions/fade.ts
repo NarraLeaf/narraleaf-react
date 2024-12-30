@@ -60,7 +60,7 @@ export class Fade extends BaseImageTransition<ImgElementProp> implements IImageT
             {
                 style: {
                     opacity: this.state.opacity,
-                    backgroundColor: Utils.isImageColor(this.src) ? toHex(this.src) : "",
+                    backgroundColor: Utils.isColor(this.src) ? toHex(this.src) : "",
                 },
                 src: Utils.isImageSrc(this.src) ? Utils.srcToString(this.src) : "",
             },

@@ -1,70 +1,61 @@
 import {GameState} from "@player/gameState";
 import {Text as GameText} from "@core/elements/displayable/text";
 import React from "react";
-import {Transform, TransformersMap, TransformHandler} from "@core/elements/transform/transform";
-import {SpanElementProp} from "@core/elements/transition/type";
+import {Transform} from "@core/elements/transform/transform";
+import {CSSProps, ITransition, SpanElementProp} from "@core/elements/transition/type";
 import {deepMerge} from "@lib/util/data";
-import {DisplayableChildProps} from "@player/elements/displayable/type";
-import Legacy_Displayable from "@player/elements/displayable/Legacy_Displayable";
 import clsx from "clsx";
-import {TransformDefinitions} from "@core/elements/transform/type";
 import Inspect from "@player/lib/Inspect";
 import {useRatio} from "@player/provider/ratio";
+import {useDisplayable} from "@player/elements/displayable/Displayable";
 
 /**@internal */
 export default function Text({state, text}: Readonly<{
     state: GameState;
     text: GameText;
 }>) {
-    const transformOverwrites: {
-        [K in keyof TransformersMap]?: TransformHandler<TransformersMap[K]>
-    } = {
-        "scale": (_) => {
-            return {
-                width: "fit-content",
-            };
+    const {ref, transition} = useDisplayable({
+        element: text,
+        state: text.transformState,
+        skipTransform: state.game.config.elements.text.allowSkipTransform,
+        skipTransition: state.game.config.elements.text.allowSkipTransition,
+        overwriteDefinition: {
+            overwrite: (props) => {
+                return {
+                    width: "fit-content",
+                    transform: Transform.propToCSSTransform(state, props, {
+                        translate: [
+                            text.config.alignX === "left" ? "0%"
+                                : (text.config.alignX === "right" ? "-100%" : void 0),
+                            text.config.alignY === "top" ? "100%"
+                                : (text.config.alignY === "bottom" ? "0%" : void 0),
+                        ],
+                    }),
+                };
+            },
         },
-        "transform": (props: TransformDefinitions.Types) => {
-            return {
-                transform: Transform.propToCSSTransform(state, props, {
-                    translate: [
-                        text.config.alignX === "left" ? "0%"
-                            : (text.config.alignX === "right" ? "-100%" : void 0),
-                        text.config.alignY === "top" ? "100%"
-                            : (text.config.alignY === "bottom" ? "0%" : void 0),
-                    ],
-                }),
-            };
-        }
-    };
+    });
 
     return (
-        <Legacy_Displayable
-            displayable={{
-                // @ts-expect-error @todo
-                element: text,
-                skipTransform: state.game.config.elements.text.allowSkipTransform,
-                skipTransition: state.game.config.elements.text.allowSkipTransition,
-                transformOverwrites,
-            }}
-            child={(props) => (
-                <DisplayableText
-                    {...props}
-                    text={text}
-                />
-            )}
-            state={state}
+        <DisplayableText
+            ref={ref}
+            transition={transition}
+            text={text}
+            gameState={state}
         />
     );
 }
 
 function DisplayableText(
     {
-        transformRef,
-        transformProps,
+        ref,
         transition,
         text,
-    }: Readonly<DisplayableChildProps & {
+        gameState,
+    }: Readonly<{
+        gameState: GameState;
+        ref: React.RefObject<HTMLDivElement | null>;
+        transition: ITransition | null;
         text: GameText;
     }>
 ) {
@@ -81,6 +72,7 @@ function DisplayableText(
     ];
 
     const spanClassName = clsx(text.config.className);
+    const transformProps: CSSProps = text.transformState.toStyle(gameState);
 
     return (
         <Inspect.Div>
@@ -89,7 +81,7 @@ function DisplayableText(
                 color={"green"}
                 border={"dashed"}
                 layout
-                ref={transformRef}
+                ref={ref}
                 className={"absolute"}
                 {...(deepMerge<any>({
                     style: {
