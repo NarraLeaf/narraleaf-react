@@ -1,63 +1,149 @@
 import {Actionable} from "@core/action/actionable";
-import {deepEqual, deepMerge, DeepPartial, safeClone} from "@lib/util/data";
+import {Serializer} from "@lib/util/data";
 import {LogicAction} from "@core/game";
 import {ContentNode} from "@core/action/tree/actionTree";
-import * as Howler from "howler";
-import {HowlOptions} from "howler";
 import {SoundActionContentType, SoundActionTypes} from "@core/action/actionTypes";
 import {Chained, Proxied} from "@core/action/chain";
 import {SoundAction} from "@core/action/actions/soundAction";
+import {Config, ConfigConstructor} from "@lib/util/config";
 
 type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
 
+/**
+ * Sound type
+ * - **sound**: Sound effect or music
+ * - **voice**: Voice
+ * - **backgroundMusic**: Background music
+ */
 export enum SoundType {
-    soundEffect = "soundEffect",
-    music = "music",
+    sound = "soundEffect",
     voice = "voice",
     backgroundMusic = "backgroundMusic",
 }
 
 /**@internal */
 export type SoundDataRaw = {
-    config: SoundConfig;
+    state: Record<string, any>;
 };
 /**@internal */
 export type VoiceIdMap = Record<string | number, string | Sound>;
 /**@internal */
 export type VoiceSrcGenerator = (id: string | number) => string | Sound;
 
-export type SoundConfig = {
+export interface ISoundUserConfig {
     /**
-     * Sound type
-     * - **soundEffect**: Sound effect
-     * - **music**: Music
-     * - **voice**: Voice
-     * - **backgroundMusic**: Background music
+     * Sound source should be a URL or a base64 string
      */
-    type?: SoundType;
     src: string;
     /**
      * If true, the operation will wait until the sound is played
+     * @default false
+     * @deprecated
      */
-    sync: boolean;
+    sync?: boolean;
     /**
      * Whether to loop, if sync and loop are both true, sync will be treated as **false**
+     * @default false
      */
     loop: boolean;
+    /**
+     * Initial volume, between 0 and 1
+     * @default 1
+     */
     volume: number;
-    streaming?: boolean;
+    /**
+     * Playback rate, 0.5 to 4
+     * @default 1
+     */
+    rate: number;
+    /**
+     * Set to `true` to force HTML5 Audio.
+     * This should be used for large audio files
+     * so that you don't have to wait for the full file to be downloaded and decoded before playing.
+     * @default false
+     */
+    streaming: boolean;
+    /**
+     * Automatically begin downloading the audio file when the Howl is defined.
+     *
+     * This preloading behavior is provided by the [Howler.js](https://github.com/goldfire/howler.js) library.
+     * For license and dependencies, see [NarraLeaf-React: License](https://react.narraleaf.com/documentation/info/license).
+     * @default false
+     */
+    preload: boolean;
+    /**
+     * Initial position in seconds
+     * @default 0
+     */
+    seek: number;
+}
+
+type SoundConfig = {
+    src: string;
+    loop: boolean;
+    streaming: boolean;
+    preload: boolean;
+    seek: number;
+};
+
+type SoundState = {
+    volume: number;
+    rate: number;
+    paused: boolean;
 };
 
 export class Sound extends Actionable<SoundDataRaw> {
     /**@internal */
-    static defaultConfig: SoundConfig = {
-        src: "",
-        sync: false,
+    static noSound = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgA";
+
+    /**
+     * @internal
+     * @deprecated
+     */
+    static defaultConfig: ISoundUserConfig = {
+        src: Sound.noSound,
         loop: false,
         volume: 1,
+        streaming: false,
+        rate: 1,
+        preload: false,
+        seek: 0,
     };
 
     /**@internal */
+    static DefaultUserConfig = new ConfigConstructor<ISoundUserConfig>({
+        src: Sound.noSound,
+        loop: false,
+        volume: 1,
+        streaming: false,
+        rate: 1,
+        preload: false,
+        seek: 0,
+    });
+
+    /**@internal */
+    static DefaultConfig = new ConfigConstructor<SoundConfig>({
+        src: Sound.noSound,
+        loop: false,
+        streaming: false,
+        preload: false,
+        seek: 0,
+    });
+
+    /**@internal */
+    static DefaultState = new ConfigConstructor<SoundState>({
+        volume: 1,
+        rate: 1,
+        paused: false,
+    });
+
+    /**@internal */
+    static StateSerializer = new Serializer<SoundState>();
+
+    /**
+     * @internal
+     * @deprecated
+     */
     static toSoundSrc(v: Sound | string | null | undefined): string | null {
         if (v === null || v === undefined) {
             return null;
@@ -80,66 +166,53 @@ export class Sound extends Actionable<SoundDataRaw> {
     }
 
     /**@internal */
-    config: SoundConfig;
+    public readonly config: Readonly<SoundConfig>;
     /**@internal */
-    state: {
-        playing: null | Howler.Howl;
-        token: number | null;
-    } = {
-        playing: null,
-        token: null,
-    };
+    public state: SoundState;
+    /**@internal */
+    private readonly userConfig: Config<ISoundUserConfig>;
 
-    constructor(config?: DeepPartial<SoundConfig>);
+    constructor(config?: Partial<ISoundUserConfig>);
     constructor(src?: string);
-    constructor(arg0: DeepPartial<SoundConfig> | string = {}) {
+    constructor(arg0: Partial<ISoundUserConfig> | string = {}) {
         super();
-        if (typeof arg0 === "string") {
-            this.config = deepMerge<SoundConfig>(Sound.defaultConfig, {
-                src: arg0
-            });
-        } else {
-            this.config = deepMerge<SoundConfig>(Sound.defaultConfig, arg0);
-        }
+        const rawConfig = typeof arg0 === "string" ? {src: arg0} : arg0;
+        const userConfig = Sound.DefaultUserConfig.create(rawConfig);
+        const [config] = userConfig.extract(Sound.DefaultConfig.keys());
+
+        this.config = config.get();
+        this.state = this.getInitialState(userConfig);
+        this.userConfig = userConfig;
     }
 
     /**
      * @chainable
      */
-    public play(): ChainedSound {
-        if (this.config.type === SoundType.backgroundMusic) {
-            throw new Error("Background music cannot be played directly");
-        }
-        return this.pushAction<SoundActionContentType["sound:play"]>(SoundAction.ActionTypes.play, [void 0]);
-    }
-
-    /**
-     * @chainable
-     */
-    public stop(): ChainedSound {
-        if (this.config.type === SoundType.backgroundMusic) {
-            throw new Error("Background music cannot be stopped directly");
-        }
-        return this.pushAction<SoundActionContentType["sound:stop"]>(SoundAction.ActionTypes.stop, [void 0]);
-    }
-
-    /**
-     * @chainable
-     */
-    public fade(start: number | undefined, end: number, duration: number): ChainedSound {
-        if (this.config.type === SoundType.backgroundMusic) {
-            throw new Error("Background music cannot be faded directly");
-        }
-        return this.pushAction<SoundActionContentType["sound:fade"]>(SoundAction.ActionTypes.fade, [{
-            start, end, duration
+    public play(duration?: number): ChainedSound {
+        return this.pushAction<SoundActionContentType["sound:play"]>(SoundAction.ActionTypes.play, [{
+            end: this.state.volume,
+            duration: duration || 0,
         }]);
     }
 
     /**
      * @chainable
      */
-    public setVolume(volume: number): ChainedSound {
-        return this.pushAction<SoundActionContentType["sound:setVolume"]>(SoundAction.ActionTypes.setVolume, [volume]);
+    public stop(duration?: number): ChainedSound {
+        return this.pushAction<SoundActionContentType["sound:stop"]>(SoundAction.ActionTypes.stop, [{
+            end: 0,
+            duration: duration || 0,
+        }]);
+    }
+
+    /**
+     * @chainable
+     */
+    public setVolume(volume: number, duration?: number): ChainedSound {
+        return this.pushAction<SoundActionContentType["sound:setVolume"]>(SoundAction.ActionTypes.setVolume, [
+            volume,
+            duration || 0
+        ]);
     }
 
     /**
@@ -152,33 +225,21 @@ export class Sound extends Actionable<SoundDataRaw> {
     /**
      * @chainable
      */
-    public pause(fade?: number): ChainedSound {
-        if (fade !== undefined) {
-            return this.fade(undefined, 0, fade);
-        }
-        return this.pushAction<SoundActionContentType["sound:pause"]>(SoundAction.ActionTypes.pause, [void 0]);
+    public pause(duration?: number): ChainedSound {
+        return this.pushAction<SoundActionContentType["sound:pause"]>(SoundAction.ActionTypes.pause, [{
+            end: 0,
+            duration: duration || 0,
+        }]);
     }
 
     /**
      * @chainable
      */
-    public resume(fade?: number): ChainedSound {
-        if (fade !== undefined) {
-            return this.fade(0, this.config.volume, fade);
-        }
-        return this.pushAction<SoundActionContentType["sound:resume"]>(SoundAction.ActionTypes.resume, [void 0]);
-    }
-
-    /**@internal */
-    getHowlOptions(options?: Partial<HowlOptions>): HowlOptions {
-        return {
-            src: this.config.src,
-            loop: this.config.loop,
-            volume: this.config.volume,
-            html5: this.config.streaming,
-            autoplay: false,
-            ...(options || {})
-        };
+    public resume(duration?: number): ChainedSound {
+        return this.pushAction<SoundActionContentType["sound:resume"]>(SoundAction.ActionTypes.resume, [{
+            end: this.state.volume,
+            duration: duration || 0,
+        }]);
     }
 
     /**@internal */
@@ -187,51 +248,36 @@ export class Sound extends Actionable<SoundDataRaw> {
     }
 
     /**@internal */
-    getToken(): number | never {
-        return this.state.token || (undefined as never);
-    }
-
-    /**@internal */
-    getPlaying() {
-        return this.state.playing;
-    }
-
-    /**@internal */
-    setToken(token: number | null | undefined) {
-        this.state.token = typeof token === "undefined" ? null : token;
-    }
-
-    /**@internal */
-    setPlaying(howl: Howler.Howl | null) {
-        this.state.playing = howl;
-        return this;
-    }
-
-    /**@internal */
     toData(): SoundDataRaw | null {
-        if (deepEqual(this.config, Sound.defaultConfig)) {
-            return null;
-        }
         return {
-            config: safeClone(this.config)
+            state: Sound.StateSerializer.serialize(this.state)
         };
     }
 
     /**@internal */
     fromData(data: SoundDataRaw): this {
-        this.config = deepMerge<SoundConfig & SoundDataRaw>(this.config, data.config);
+        this.state = Sound.StateSerializer.deserialize(data.state);
         return this;
     }
 
-    copy(): Sound {
-        return new Sound(this.toData()?.config);
+    /**
+     * Create a sound with the same configuration
+     */
+    public copy(): Sound {
+        return new Sound(this.userConfig.get());
     }
 
     /**@internal */
     override reset() {
-        this.state.playing?.stop();
-        this.state.playing = null;
-        this.state.token = null;
+        this.state = this.getInitialState(this.userConfig);
+    }
+
+    /**@internal */
+    private getInitialState(userConfig: Config<ISoundUserConfig>): SoundState {
+        const state = Sound.DefaultState.create({
+            ...userConfig.get(),
+        });
+        return state.get() satisfies SoundState;
     }
 
     /**@internal */

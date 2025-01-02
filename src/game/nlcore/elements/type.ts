@@ -6,3 +6,9 @@ export type {
 };
 export type LambdaCtx = ScriptCtx;
 export type LambdaHandler<T = any> = (ctx: LambdaCtx) => T;
+
+export type FadeOptions = {
+    start?: number;
+    end: number;
+    duration: number;
+};

@@ -6,7 +6,6 @@ import type {CalledActionResult} from "@core/gameTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {TypedAction} from "@core/action/actions";
-import {SoundAction} from "@core/action/actions/soundAction";
 import {ITransition} from "@core/elements/transition/type";
 import {Story} from "@core/elements/story";
 import {RuntimeScriptError, Utils} from "@core/common/Utils";
@@ -51,7 +50,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
 
         scene.events.once("event:scene.mount", () => {
             if (scene.state.backgroundMusic) {
-                SoundAction.initSound(state, scene.state.backgroundMusic);
                 scene.events.emit("event:scene.setBackgroundMusic",
                     scene.state.backgroundMusic,
                     scene.config.backgroundMusicFade

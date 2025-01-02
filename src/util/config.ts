@@ -1,4 +1,5 @@
 import {deepMerge, keyExcept} from "@lib/util/data";
+import {EmptyObject} from "@core/elements/transition/type";
 
 type ConfigHandler<T, U> = (config: T) => U;
 type ConfigHandlersDataType<T extends Record<string, any>> = {
@@ -21,7 +22,7 @@ export type ConfigHandlers<Raw extends Record<string, any>, Handlers extends Con
 
 export class ConfigConstructor<
     Raw extends Record<string, any>,
-    Handlers extends ConfigHandlersDataType<Raw> = Record<string, any>,
+    Handlers extends ConfigHandlersDataType<Raw> = EmptyObject,
 > {
     private readonly handlers: ConfigHandlers<Raw, Handlers>;
 

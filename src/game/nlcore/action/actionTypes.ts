@@ -12,6 +12,7 @@ import type {Script} from "@core/elements/script";
 import {Sentence} from "@core/elements/character/sentence";
 import type {TransformDefinitions} from "@core/elements/transform/type";
 import {Image, TagGroupDefinition} from "@core/elements/displayable/image";
+import {FadeOptions} from "@core/elements/type";
 
 export const DisplayableActionTypes = {
     action: "displayable:action",
@@ -139,7 +140,6 @@ export const SoundActionTypes = {
     action: "sound:action",
     play: "sound:play",
     stop: "sound:stop",
-    fade: "sound:fade",
     setVolume: "sound:setVolume",
     setRate: "sound:setRate",
     pause: "sound:pause",
@@ -147,18 +147,13 @@ export const SoundActionTypes = {
 } as const;
 export type SoundActionContentType = {
     [K in typeof SoundActionTypes[keyof typeof SoundActionTypes]]:
-    K extends "sound:play" ? [void] :
-        K extends "sound:stop" ? [void] :
-            K extends "sound:fade" ? [{
-                    start?: number;
-                    end: number;
-                    duration: number;
-                }] :
-                K extends "sound:setVolume" ? [number] :
-                    K extends "sound:setRate" ? [number] :
-                        K extends "sound:pause" ? [void] :
-                            K extends "sound:resume" ? [void] :
-                                any;
+    K extends "sound:play" ? [FadeOptions] :
+        K extends "sound:stop" ? [FadeOptions] :
+            K extends "sound:setVolume" ? [volumn: number, duration: number] :
+                K extends "sound:setRate" ? [number] :
+                    K extends "sound:pause" ? [FadeOptions] :
+                        K extends "sound:resume" ? [FadeOptions] :
+                            any;
 }
 export const ControlActionTypes = {
     action: "control:action",

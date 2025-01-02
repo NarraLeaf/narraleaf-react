@@ -136,11 +136,34 @@ export class Awaitable<T, U = T> {
 
     static nothing: ((value: any) => any) = (value) => value as any;
 
+    static resolve<T>(value: T): Awaitable<T> {
+        const awaitable = new Awaitable<T>();
+        awaitable.resolve(value);
+        return awaitable;
+    }
+
+    static forward<T>(awaitable: Awaitable<any>, result: T, skipController?: SkipController<T, []>) {
+        const newAwaitable = new Awaitable<T>()
+            .registerSkipController(skipController || new SkipController(() => result));
+        awaitable.then(() => newAwaitable.resolve(result));
+        const skipControllerToken = awaitable.skipController?.onAbort(() => {
+            newAwaitable.skipController?.abort();
+            skipControllerToken?.cancel();
+            newSkipControllerToken?.cancel();
+        });
+        const newSkipControllerToken = newAwaitable.skipController?.onAbort(() => {
+            awaitable.skipController?.abort();
+            skipControllerToken?.cancel();
+            newSkipControllerToken?.cancel();
+        });
+        return newAwaitable;
+    }
+
     receiver: (value: U) => T;
     result: T | undefined;
     solved = false;
+    protected skipController: SkipController<T, []> | undefined;
     private readonly listeners: ((value: T) => void)[] = [];
-    private skipController: SkipController<T, []> | undefined;
 
     constructor(
         receiver: (value: U) => T = ((value) => value as any),
@@ -171,8 +194,8 @@ export class Awaitable<T, U = T> {
     }
 
     then(callback: (value: T) => void) {
-        if (this.result) {
-            callback(this.result);
+        if (this.solved) {
+            callback(this.result!);
         } else {
             this.listeners.push(callback);
         }
@@ -401,6 +424,7 @@ export class SkipController<T = any, U extends Array<any> = any[]> {
         }
         this.aborted = true;
         this.result = this.abortHandler(...args);
+        this.events.emit(SkipController.EventTypes["event:skipController.abort"]);
         return this.result;
     }
 
@@ -410,6 +434,13 @@ export class SkipController<T = any, U extends Array<any> = any[]> {
 
     public cancel() {
         this.aborted = true;
+    }
+
+    public onAbort(listener: () => void) {
+        this.events.on("event:skipController.abort", listener);
+        return {
+            cancel: () => this.events.off("event:skipController.abort", listener)
+        };
     }
 }
 
@@ -941,5 +972,57 @@ export function isNamedColor(color: string): color is NamedColor {
         , "yellow"
         , "yellowgreen"
     ].includes(color);
+}
+
+type ChainedAwaitableTaskHandler = (awaitable: Awaitable<void>) => void;
+export type ChainedAwaitableTask = [ChainedAwaitableTaskHandler, SkipController<void, []>?];
+
+export class ChainedAwaitable extends Awaitable<void, void> {
+    private current: Awaitable<void> | undefined;
+    private tasks: ChainedAwaitableTask[] = [];
+
+    constructor(skipController?: SkipController<void, []>) {
+        super();
+        if (skipController) this.registerSkipController(skipController);
+    }
+
+    addTask(task: [handler: ChainedAwaitableTaskHandler, skipController?: SkipController<void, []>]): this {
+        this.tasks.push(task);
+        return this;
+    }
+
+    override abort(): void {
+        if (this.current) this.current.abort();
+        this.tasks.forEach(([_, skipController]) => {
+            if (skipController) skipController.abort();
+        });
+        super.abort();
+        return void 0;
+    }
+
+    override resolve(): void {
+        return void 0;
+    }
+
+    public run(): this {
+        if (this.current) {
+            return this;
+        }
+        this.onTaskComplete();
+        return this;
+    }
+
+    private onTaskComplete(): void {
+        if (this.tasks.length === 0) {
+            super.resolve();
+            return;
+        }
+        const [handler, skipController] = this.tasks.shift()!;
+        const awaitable = new Awaitable<void, void>(() => {
+            handler(awaitable);
+        }, skipController);
+        this.current = awaitable;
+        this.current.then(() => this.onTaskComplete());
+    }
 }
 

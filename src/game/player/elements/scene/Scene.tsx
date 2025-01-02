@@ -1,8 +1,7 @@
 import {Scene as GameScene, SceneEventTypes} from "@core/elements/scene";
-import React, {useEffect, useState} from "react";
+import React, {useEffect} from "react";
 import BackgroundTransition from "./BackgroundTransition";
 import {GameState} from "@player/gameState";
-import {Sound} from "@core/elements/sound";
 
 /**@internal */
 export default function Scene(
@@ -17,26 +16,8 @@ export default function Scene(
         children?: React.ReactNode;
         className?: string;
     }>) {
-    const [backgroundMusic, setBackgroundMusic] =
-        useState<Sound | null>(() => scene.state.backgroundMusic);
-
-    async function stopWithFade(music: Sound, fade: number) {
-        await state.fadeSound(music, 0, fade);
-        state.stopSound(music);
-    }
-
-    async function fadeTo(music: Sound | null, fade?: number) {
-        const lastMusic = backgroundMusic;
-        const nextMusic = music;
-
-        await state.transitionSound(lastMusic, nextMusic, fade);
-
-        if (!nextMusic) {
-            return;
-        }
-
-        setBackgroundMusic(nextMusic);
-    }
+    // const [backgroundMusic, setBackgroundMusic] =
+    //     useState<Sound | null>(() => scene.state.backgroundMusic);
 
     useEffect(() => {
         const listeners: {
@@ -45,16 +26,14 @@ export default function Scene(
         }[] = [
             {
                 type: "event:scene.setBackgroundMusic",
-                listener: scene.events.on(GameScene.EventTypes["event:scene.setBackgroundMusic"], (music, fade) => {
-                    fadeTo(music, fade).then();
+                listener: scene.events.on(GameScene.EventTypes["event:scene.setBackgroundMusic"], (_music, _fade) => {
+                    // @todo
                 })
             },
             {
                 type: "event:scene.preUnmount",
                 listener: scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
-                    if (backgroundMusic) {
-                        stopWithFade(backgroundMusic, scene.config.backgroundMusicFade).then();
-                    }
+                    // @todo
                 })
             }
         ];

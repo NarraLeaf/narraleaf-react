@@ -1,11 +1,10 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher, moveElementInArray, sleep} from "@lib/util/data";
+import {EventDispatcher, moveElementInArray} from "@lib/util/data";
 import {Choice, MenuData} from "@core/elements/menu";
 import {Image, ImageEventTypes} from "@core/elements/displayable/image";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
-import {HowlOptions} from "howler";
 import {SrcManager} from "@core/action/srcManager";
 import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/elements/persistent/storable";
@@ -21,6 +20,7 @@ import {Script} from "@core/elements/script";
 import {LiveGame} from "@core/game/liveGame";
 import {Word} from "@core/elements/character/word";
 import {Chosen} from "@player/type";
+import {AudioManager} from "@player/lib/AudioManager";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -79,12 +79,14 @@ export class GameState {
     game: Game;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
+    public readonly audioManager: AudioManager;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
         this.game = game;
         this.events = new EventDispatcher();
         this.logger = new Logger(game, "NarraLeaf-React");
+        this.audioManager = new AudioManager(this);
     }
 
     public findElementByScene(scene: Scene): { scene: Scene, ele: PlayerStateElement } | null {
@@ -299,7 +301,6 @@ export class GameState {
     }
 
     public forceReset() {
-        this.state.sounds.forEach(s => s.getPlaying()?.stop());
         this.state.elements.forEach(({scene}) => {
             this.offSrcManager(scene.srcManager);
             this.removeScene(scene);
@@ -307,73 +308,7 @@ export class GameState {
         });
         this.state.elements = [];
         this.state.srcManagers = [];
-    }
-
-    initSound(sound: Sound, options?: Partial<HowlOptions>): Sound {
-        if (!sound.getPlaying()) {
-            sound.setPlaying(new (this.getHowl())(sound.getHowlOptions(options)));
-        }
-        return sound;
-    }
-
-    playSound(sound: Sound, onEnd?: () => void, options?: Partial<HowlOptions>): any {
-        this.initSound(sound, options);
-
-        const token = sound.getPlaying()!.play();
-        const events = [
-            sound.getPlaying()!.once("end", end.bind(this)),
-            sound.getPlaying()!.once("stop", end.bind(this))
-        ];
-
-        this.state.sounds.push(sound);
-        sound.state.token = token;
-
-        function end(this: GameState) {
-            if (onEnd) {
-                onEnd();
-            }
-            events.forEach(e => e.off());
-            this.state.sounds = this.state.sounds.filter(s => s !== sound);
-            this.stage.next();
-        }
-
-        return token;
-    }
-
-    stopSound(sound: Sound): typeof sound {
-        if (sound.state.playing?.playing(sound.getToken())) {
-            sound.state.playing?.stop(sound.getToken());
-        }
-        sound
-            .setPlaying(null)
-            .setToken(null);
-        return sound;
-    }
-
-    async transitionSound(prev: Sound | undefined | null, cur: Sound | undefined | null, duration: number | undefined | null): Promise<void> {
-        if (prev) {
-            if (duration) await this.fadeSound(prev, 0, duration);
-            this.stopSound(prev);
-        }
-
-        if (cur) {
-            const volume = cur.config.volume;
-            this.playSound(cur, undefined, {
-                volume: 0
-            });
-
-            if (duration) await this.fadeSound(cur, volume, duration);
-            cur.getPlaying()!.volume(volume, cur.getToken());
-        }
-    }
-
-    async fadeSound(sound: Sound, target: number, duration: number): Promise<void> {
-        const originalVolume = sound.getPlaying()?.volume(sound.getToken()) as number;
-
-        sound.getPlaying()?.fade(originalVolume, target, duration, sound.getToken());
-        await sleep(duration);
-
-        return void 0;
+        // @todo: stop all sounds
     }
 
     getHowl(): typeof Howler.Howl {
@@ -411,6 +346,22 @@ export class GameState {
             throw new RuntimeGameError("Story not loaded");
         }
         return this.game.getLiveGame().story!;
+    }
+
+    public setInterval(callback: () => void, delay: number): NodeJS.Timeout {
+        return setInterval(callback, delay);
+    }
+
+    public clearInterval(interval: NodeJS.Timeout): void {
+        clearInterval(interval);
+    }
+
+    public setTimeout(callback: () => void, delay: number): NodeJS.Timeout {
+        return setTimeout(callback, delay);
+    }
+
+    public clearTimeout(timeout: NodeJS.Timeout): void {
+        clearTimeout(timeout);
     }
 
     /**
