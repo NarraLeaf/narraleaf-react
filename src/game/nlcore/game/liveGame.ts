@@ -459,6 +459,9 @@ export class LiveGame {
                 store: {},
                 stage: {
                     scenes: [],
+                    audio: {
+                        sounds: [],
+                    },
                 },
                 elementStates: [],
                 currentAction: this.story?.entryScene?.getSceneRoot().getId() || null,

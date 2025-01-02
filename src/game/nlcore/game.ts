@@ -70,8 +70,6 @@ export class Game {
                 autoForwardDelay: 3 * 1000,
             },
             img: {
-                slowLoadWarning: true,
-                slowLoadThreshold: 2000,
                 allowSkipTransform: true,
                 allowSkipTransition: true,
             },

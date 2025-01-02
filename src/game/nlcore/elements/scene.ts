@@ -182,9 +182,9 @@ export class Scene extends Constructable<
             name,
         });
 
+        this.userConfig = userConfig;
         this.config = sceneConfig.get();
         this.state = this.getInitialState();
-        this.userConfig = userConfig;
         this.localPersistent = new DynamicPersistent(name);
     }
 

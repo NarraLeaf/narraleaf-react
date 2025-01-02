@@ -9,18 +9,6 @@ import {Config, ConfigConstructor} from "@lib/util/config";
 
 type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
 
-/**
- * Sound type
- * - **sound**: Sound effect or music
- * - **voice**: Voice
- * - **backgroundMusic**: Background music
- */
-export enum SoundType {
-    sound = "soundEffect",
-    voice = "voice",
-    backgroundMusic = "backgroundMusic",
-}
-
 /**@internal */
 export type SoundDataRaw = {
     state: Record<string, any>;
@@ -35,12 +23,6 @@ export interface ISoundUserConfig {
      * Sound source should be a URL or a base64 string
      */
     src: string;
-    /**
-     * If true, the operation will wait until the sound is played
-     * @default false
-     * @deprecated
-     */
-    sync?: boolean;
     /**
      * Whether to loop, if sync and loop are both true, sync will be treated as **false**
      * @default false
@@ -96,20 +78,6 @@ export class Sound extends Actionable<SoundDataRaw> {
     /**@internal */
     static noSound = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgA";
 
-    /**
-     * @internal
-     * @deprecated
-     */
-    static defaultConfig: ISoundUserConfig = {
-        src: Sound.noSound,
-        loop: false,
-        volume: 1,
-        streaming: false,
-        rate: 1,
-        preload: false,
-        seek: 0,
-    };
-
     /**@internal */
     static DefaultUserConfig = new ConfigConstructor<ISoundUserConfig>({
         src: Sound.noSound,
@@ -139,20 +107,6 @@ export class Sound extends Actionable<SoundDataRaw> {
 
     /**@internal */
     static StateSerializer = new Serializer<SoundState>();
-
-    /**
-     * @internal
-     * @deprecated
-     */
-    static toSoundSrc(v: Sound | string | null | undefined): string | null {
-        if (v === null || v === undefined) {
-            return null;
-        }
-        if (typeof v === "string") {
-            return v;
-        }
-        return v.getSrc();
-    }
 
     /**@internal */
     static toSound(v: Sound | string | null | undefined): Sound | null {

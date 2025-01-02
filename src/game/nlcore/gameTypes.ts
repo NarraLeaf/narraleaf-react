@@ -139,13 +139,6 @@ export type GameConfig = {
         },
         img: {
             /**
-             * If true, the game will show a warning when loading takes longer than `elements.img.slowLoadThreshold`
-             * @deprecated
-             */
-            slowLoadWarning: boolean;
-            /**@deprecated */
-            slowLoadThreshold: number;
-            /**
              * If true, when you press [GameConfig.player.skipKey], the game will skip the image transform
              */
             allowSkipTransform: boolean;

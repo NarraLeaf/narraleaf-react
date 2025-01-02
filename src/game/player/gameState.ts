@@ -20,7 +20,7 @@ import {Script} from "@core/elements/script";
 import {LiveGame} from "@core/game/liveGame";
 import {Word} from "@core/elements/character/word";
 import {Chosen} from "@player/type";
-import {AudioManager} from "@player/lib/AudioManager";
+import {AudioManager, AudioManagerDataRaw} from "@player/lib/AudioManager";
 
 type PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -38,7 +38,8 @@ export type PlayerStateData = {
         elements: {
             displayable: string[];
         };
-    }[]
+    }[],
+    audio: AudioManagerDataRaw;
 };
 /**@internal */
 export type PlayerAction = CalledActionResult;
@@ -308,7 +309,7 @@ export class GameState {
         });
         this.state.elements = [];
         this.state.srcManagers = [];
-        // @todo: stop all sounds
+        this.audioManager.reset();
     }
 
     getHowl(): typeof Howler.Howl {
@@ -384,7 +385,8 @@ export class GameState {
                         displayable: e.ele.displayable.map(d => d.getId())
                     }
                 };
-            })
+            }),
+            audio: this.audioManager.toData(),
         };
     }
 
@@ -396,7 +398,7 @@ export class GameState {
             throw new Error("No story loaded");
         }
 
-        const {scenes} = data;
+        const {scenes, audio} = data;
         scenes.forEach(({sceneId, elements}) => {
             this.logger.debug("Loading scene: " + sceneId);
 
@@ -425,6 +427,7 @@ export class GameState {
             this.registerSrcManager(scene.srcManager);
             SceneAction.registerEventListeners(scene, this);
         });
+        this.audioManager.fromData(audio, elementMap);
     }
 
     public getLastSceneIfNot(scene: Scene | null | void) {

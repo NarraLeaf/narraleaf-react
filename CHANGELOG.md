@@ -29,7 +29,6 @@
   - `inherit` is removed
 - These methods of `Sound` has been changed:
   - use `copy` to create a new sound instance
-- These methods of `Sound` has been changed:
   - `play`, `stop` and `setVolume` method can receive a `duration` parameter
   - `fade` is removed, use `setVolume` instead
 - In displayable elements, the transform states are separated from the element states

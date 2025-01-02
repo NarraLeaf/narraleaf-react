@@ -3,7 +3,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
 import {Transform, TransformState} from "../transform/transform";
-import {Color, CommonDisplayableConfig, CommonDisplayableState, ImageSrc} from "@core/types";
+import {Color, CommonDisplayableConfig, ImageSrc} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
 import {EmptyObject, IImageTransition, ITransition} from "@core/elements/transition/type";
@@ -16,29 +16,13 @@ import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/dis
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 
-/**
- * @internal
- * @deprecated
- */
-export type Legacy_ImageConfig = {
-    display: boolean;
-    /**@internal */
-    disposed?: boolean;
-    wearables: Image[];
-    isWearable?: boolean;
-    name?: string;
-    /**
-     * If set to false, the image won't be initialized unless you call `init` method
-     */
-    autoInit: boolean;
-} & CommonDisplayableState;
-
 export type TagDefinition<T extends TagGroupDefinition | null> =
-    T extends TagGroupDefinition ? {
-        groups: T;
-        defaults: SelectElementFromEach<T>;
-        resolve: TagSrcResolver<T>;
-    } : never;
+    T extends TagGroupDefinition ? TagDefinitionObject<T> : never;
+export type TagDefinitionObject<T extends TagGroupDefinition> = {
+    groups: T;
+    defaults: SelectElementFromEach<T>;
+    resolve: TagSrcResolver<T>;
+};
 
 type ImageSrcType<T extends TagGroupDefinition | null = TagGroupDefinition | null> =
     T extends TagGroupDefinition ? TagDefinition<T> : (Color | ImageSrc);
@@ -47,7 +31,7 @@ type ImageConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | nu
     isWearable: boolean;
     name: string;
     autoInit: boolean;
-    src: Tag extends TagGroupDefinition ? TagDefinition<Tag> : null;
+    src: Tag extends TagGroupDefinition ? TagDefinitionObject<Tag> : null;
 };
 type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | null> = {
     display: boolean;
@@ -158,10 +142,15 @@ export class Image<
         if (this.isTagSrc(image)) {
             return [...image.config.src.defaults];
         } else if (this.isStaticSrc(image)) {
-            if (Utils.isStaticImageData(image.state.currentSrc)) {
-                return Utils.staticImageDataToSrc(image.state.currentSrc);
+            const userSrc = image.userConfig.get().src;
+            if (Utils.isStaticImageData(userSrc)) {
+                return Utils.staticImageDataToSrc(userSrc);
+            } else if (Utils.isColor(userSrc)) {
+                return userSrc;
+            } else if (Utils.isImageSrc(userSrc)) {
+                return Utils.srcToString(userSrc);
             }
-            return image.state.currentSrc;
+            return userSrc;
         }
         return Image.DefaultImagePlaceholder;
     }
@@ -172,7 +161,7 @@ export class Image<
     }
 
     /**@internal */
-    static isTagDefinition(src: ImageSrcType<TagGroupDefinition | null>): src is TagDefinition<TagGroupDefinition> {
+    static isTagDefinition(src: ImageSrcType): src is TagDefinitionObject<TagGroupDefinition> {
         return typeof src === "object"
             && src !== null
             && !Utils.isImageSrc(src)
@@ -182,7 +171,7 @@ export class Image<
 
     /**@internal */
     static isStaticSrc(image: Image): image is Image<null> {
-        return !this.isTagSrc(image);
+        return !this.isTagSrc(image) && Utils.isImageSrc(image.userConfig.get().src);
     }
 
     /**@internal */
@@ -190,9 +179,9 @@ export class Image<
         if (Image.isTagSrc(image)) {
             return Image.getSrcFromTags(image.state.currentSrc as string[], image.config.src.resolve);
         } else if (Image.isStaticSrc(image)) {
-            if (Utils.isStaticImageData(image.config.src)) {
-                return Utils.staticImageDataToSrc(image.config.src);
-            } else if (Utils.isColor(image.config.src)) {
+            if (Utils.isStaticImageData(image.state.currentSrc)) {
+                return Utils.staticImageDataToSrc(image.state.currentSrc);
+            } else if (Utils.isColor(image.state.currentSrc)) {
                 return null;
             }
             return image.config.src;
@@ -224,29 +213,19 @@ export class Image<
     /**@internal */
     public transformState: TransformState<TransformDefinitions.ImageTransformProps>;
     /**@internal */
-    private readonly userConfig: Config<IImageUserConfig, { position: IPosition }>;
+    private readonly userConfig: Config<IImageUserConfig<Tags>, { position: IPosition }>;
 
     constructor(config: Partial<IImageUserConfig<Tags>> = {}) {
         super();
         const userConfig = Image.DefaultUserConfig.create(config);
         const imageConfig = this.createImageConfig(userConfig);
 
+        this.userConfig = userConfig as Config<IImageUserConfig<Tags>, { position: IPosition }>;
         this.config = imageConfig.get() as ImageConfig<Tags>;
-        this.state = this.getInitialState(imageConfig);
+        this.state = this.getInitialState();
         this.transformState = this.getInitialTransformState(userConfig);
-        this.userConfig = userConfig;
 
         this.checkConfig();
-    }
-
-    private createImageConfig(userConfig: Config<IImageUserConfig, { position: IPosition }>): Config<ImageConfig<Tags>> {
-        const userConfigRaw = userConfig.get();
-        return Image.DefaultImageConfig.create({
-            ...userConfigRaw,
-            src: Image.isTagDefinition(userConfigRaw.src)
-                ? userConfigRaw.src
-                : null,
-        });
     }
 
     /**
@@ -519,9 +498,7 @@ export class Image<
 
     /**@internal */
     override reset() {
-        const imageConfig = this.createImageConfig(this.userConfig);
-
-        this.state = this.getInitialState(imageConfig);
+        this.state = this.getInitialState();
         this.transformState = this.getInitialTransformState(this.userConfig);
     }
 
@@ -604,11 +581,21 @@ export class Image<
         );
     }
 
-    private getInitialState(
-        imageConfig: Config<ImageConfig>
-    ): MergeConfig<ImageState> {
+    private createImageConfig(userConfig: Config<IImageUserConfig, {
+        position: IPosition
+    }>): Config<ImageConfig> {
+        const userConfigRaw = userConfig.get();
+        return Image.DefaultImageConfig.create({
+            ...userConfigRaw,
+            src: Image.isTagDefinition(userConfigRaw.src)
+                ? userConfigRaw.src
+                : null,
+        });
+    }
+
+    private getInitialState(): MergeConfig<ImageState> {
         return Image.DefaultImageState.create().assign({
-            currentSrc: Image.getInitialSrc(imageConfig.get().src),
+            currentSrc: Image.getInitialSrc(this),
         }).get();
     }
 
@@ -668,14 +655,4 @@ export class Image<
         }
         return tagMap;
     }
-}
-
-/**
- * @class
- * @internal
- * @deprecated
- * This class is only for internal use,
- * DO NOT USE THIS CLASS DIRECTLY
- */
-export class VirtualImageProxy extends Image {
 }

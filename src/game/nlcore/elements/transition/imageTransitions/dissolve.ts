@@ -1,6 +1,6 @@
 import {IImageTransition, ImgElementProp} from "../type";
 import {BaseImageTransition} from "../baseTransitions";
-import {ImageColor, ImageSrc} from "@core/types";
+import {Color, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
 import {toHex} from "@lib/util/data";
 import {TransformDefinitions} from "@core/elements/transform/type";
@@ -17,7 +17,7 @@ export class Dissolve extends BaseImageTransition<ImgElementProp> implements IIm
     private state = {
         opacity: 0,
     };
-    private src?: ImageSrc | ImageColor;
+    private src?: ImageSrc | Color;
     private readonly easing: TransformDefinitions.EasingDefinition;
 
     /**
@@ -29,7 +29,7 @@ export class Dissolve extends BaseImageTransition<ImgElementProp> implements IIm
         this.easing = easing || BaseImageTransition.DefaultEasing;
     }
 
-    setSrc(src: ImageSrc | ImageColor | undefined): this {
+    setSrc(src: ImageSrc | Color | undefined): this {
         this.src = src;
         return this;
     }

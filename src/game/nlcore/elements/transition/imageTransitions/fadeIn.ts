@@ -1,6 +1,6 @@
 import {IImageTransition, ImgElementProp} from "@core/elements/transition/type";
 import {BaseImageTransition} from "@core/elements/transition/baseTransitions";
-import {ImageColor, ImageSrc} from "@core/types";
+import {Color, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
 import {getCallStack, toHex} from "@lib/util/data";
 import {TransformDefinitions} from "@core/elements/transform/type";
@@ -14,7 +14,7 @@ export class FadeIn extends BaseImageTransition<ImgElementProp> implements IImag
         opacity: 0,
         transform: ""
     };
-    private src?: ImageSrc | ImageColor;
+    private src?: ImageSrc | Color;
     private readonly easing: TransformDefinitions.EasingDefinition;
 
     /**
@@ -33,7 +33,7 @@ export class FadeIn extends BaseImageTransition<ImgElementProp> implements IImag
         this.__stack = getCallStack();
     }
 
-    setSrc(src: ImageSrc | ImageColor | undefined): this {
+    setSrc(src: ImageSrc | Color | undefined): this {
         this.src = src;
         return this;
     }

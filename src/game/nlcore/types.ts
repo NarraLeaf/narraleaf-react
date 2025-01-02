@@ -1,16 +1,6 @@
 import {IPosition, RawPosition} from "@core/elements/transform/position";
 import React from "react";
 
-/**
- * @deprecated
- */
-export type Legacy_color = NamedColor | {
-    r: number;
-    g: number;
-    b: number;
-    a?: number;
-};
-
 export type Color = NamedColor | RGBAColor | HexColor;
 
 export type RGBAColor = {
@@ -38,10 +28,6 @@ export interface StaticImageData {
 
 export type ImageSrc = string | StaticImageData;
 export type HexColor = `#${string}`;
-/**
- * @deprecated
- */
-export type ImageColor = Legacy_color | HexColor;
 
 export type CommonImagePosition = "left" | "center" | "right";
 export type CommonDisplayableConfig = {
@@ -70,14 +56,6 @@ export type CommonDisplayableConfig = {
      */
     alt?: string;
 }
-export type CommonDisplayableState = {
-    scale?: number;
-    rotation?: number;
-    position?: IPosition;
-    opacity?: number;
-    alt?: string;
-};
-
 export const ImagePosition: {
     [K in CommonImagePosition]: K;
 } = {
@@ -90,7 +68,7 @@ export type LiveGameEventToken = {
     cancel(): void;
 };
 
-export   type NamedColor =
+export type NamedColor =
     | "aliceblue"
     | "antiquewhite"
     | "aqua"

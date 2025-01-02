@@ -1,6 +1,6 @@
 import {IImageTransition, ImgElementProp} from "../type";
 import {BaseImageTransition} from "../baseTransitions";
-import {ImageColor, ImageSrc} from "@core/types";
+import {Color, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
 import {toHex} from "@lib/util/data";
 import {TransformDefinitions} from "@core/elements/transform/type";
@@ -11,7 +11,7 @@ export class Fade extends BaseImageTransition<ImgElementProp> implements IImageT
     private state = {
         opacity: 1,
     };
-    private src?: ImageSrc | ImageColor;
+    private src?: ImageSrc | Color;
     private readonly easing: TransformDefinitions.EasingDefinition;
 
     /**
@@ -23,7 +23,7 @@ export class Fade extends BaseImageTransition<ImgElementProp> implements IImageT
         this.easing = ease || BaseImageTransition.DefaultEasing;
     }
 
-    setSrc(src: ImageSrc | ImageColor | undefined): this {
+    setSrc(src: ImageSrc | Color | undefined): this {
         this.src = src;
         return this;
     }

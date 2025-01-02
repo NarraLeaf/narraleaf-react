@@ -111,7 +111,7 @@ export class Utils {
     }
 
     public static isRGBAColor(color: any): color is RGBAColor {
-        return color && "r" in color && "g" in color && "b" in color;
+        return color && typeof color === "object" && "r" in color && "g" in color && "b" in color;
     }
 
     static isHexString(color: any): color is HexColor {

@@ -73,7 +73,7 @@ export class ConfigConstructor<
 
 export class Config<
     Raw extends Record<string, any>,
-    Handlers extends ConfigHandlersDataType<Raw> = Record<string, any>,
+    Handlers extends ConfigHandlersDataType<Raw> = EmptyObject,
 > {
     constructor(
         private config: MergeConfig<Raw, Handlers>,

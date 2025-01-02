@@ -4,6 +4,7 @@ import {FadeOptions} from "@core/elements/type";
 import {Awaitable, ChainedAwaitable, ChainedAwaitableTask, SkipController} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {RuntimeGameError} from "@core/common/Utils";
+import {LogicAction} from "@core/action/logicAction";
 
 type SoundState = {
     group: Howler.Howl;
@@ -14,9 +15,13 @@ type SoundTask = {
     awaitable: Awaitable<void>;
 };
 
-type SoundDataRaw = {
+export type AudioDataRaw = {
     isPlaying: boolean;
     position: number;
+};
+
+export type AudioManagerDataRaw = {
+    sounds: [string, AudioDataRaw][];
 };
 
 export class AudioManager {
@@ -130,15 +135,31 @@ export class AudioManager {
         return state.group.playing(state.token);
     }
 
-    public toData(sound: Sound): SoundDataRaw {
-        const state = this.getState(sound);
+    public toData(): AudioManagerDataRaw {
         return {
-            isPlaying: state.group.playing(state.token),
-            position: state.group.seek(state.token),
+            sounds: [...this.state.entries()].map(([sound, state]) => [
+                sound.getId(),
+                {
+                    isPlaying: state.group.playing(state.token),
+                    position: state.group.seek(state.token),
+                }
+            ]),
         };
     }
 
-    public fromData(sound: Sound, data: SoundDataRaw): void {
+    public fromData(data: AudioManagerDataRaw, elementMap: Map<string, LogicAction.GameElement>): this {
+        data.sounds.forEach(([soundId, soundData]) => {
+            const sound = elementMap.get(soundId) as Sound;
+            if (!sound) {
+                throw new RuntimeGameError(`Sound not found (id: "${soundId}")`
+                    + "\nNarraLeaf cannot find the element with the id from the saved game");
+            }
+            this.soundFromData(sound, soundData);
+        });
+        return this;
+    }
+
+    public soundFromData(sound: Sound, data: AudioDataRaw): void {
         const lastState = this.getState(sound);
         if (lastState.group.playing(lastState.token)) {
             lastState.group.stop(lastState.token);
@@ -156,6 +177,17 @@ export class AudioManager {
 
     public isManaged(sound: Sound): boolean {
         return this.state.has(sound);
+    }
+
+    public reset(): void {
+        this.state.forEach((state) => {
+            state.group.stop(state.token);
+        });
+        this.state.clear();
+        this.tasks.forEach((task) => {
+            task.awaitable.abort();
+        });
+        this.tasks.clear();
     }
 
     private initSound(sound: Sound): SoundState {
