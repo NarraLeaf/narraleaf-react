@@ -142,6 +142,10 @@ export class GameState {
         return false;
     }
 
+    public wait(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     public moveUpElement(scene: Scene, element: LogicAction.DisplayableElements): this {
         const targetElement = this.findElementByScene(scene);
         if (!targetElement) return this;

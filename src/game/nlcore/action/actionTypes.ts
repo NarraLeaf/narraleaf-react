@@ -48,28 +48,24 @@ export type CharacterActionContentType = {
 export const SceneActionTypes = {
     action: "scene:action",
     sleep: "scene:sleep",
-    applyTransition: "scene:applyTransition",
     init: "scene:init",
     exit: "scene:exit",
     jumpTo: "scene:jumpTo",
     setBackgroundMusic: "scene:setBackgroundMusic",
     preUnmount: "scene:preUnmount",
-    applyTransform: "scene:applyTransform",
     transitionToScene: "scene:transitionToScene",
 } as const;
 export type SceneActionContentType = {
     [K in typeof SceneActionTypes[keyof typeof SceneActionTypes]]:
     K extends typeof SceneActionTypes["action"] ? Scene :
         K extends typeof SceneActionTypes["sleep"] ? number | Promise<any> | Awaitable<any, any> :
-            K extends typeof SceneActionTypes["applyTransition"] ? [ITransition] :
-                K extends typeof SceneActionTypes["init"] ? [Scene | string] :
-                    K extends typeof SceneActionTypes["exit"] ? [] :
-                        K extends typeof SceneActionTypes["jumpTo"] ? [Scene | string] :
-                            K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
-                                K extends typeof SceneActionTypes["preUnmount"] ? [] :
-                                    K extends typeof SceneActionTypes["applyTransform"] ? [Transform] :
-                                        K extends typeof SceneActionTypes["transitionToScene"] ? [IImageTransition, Scene | string | undefined, ImageSrc | Color | undefined] :
-                                            any;
+            K extends typeof SceneActionTypes["init"] ? [Scene | string] :
+                K extends typeof SceneActionTypes["exit"] ? [] :
+                    K extends typeof SceneActionTypes["jumpTo"] ? [Scene | string] :
+                        K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
+                            K extends typeof SceneActionTypes["preUnmount"] ? [] :
+                                K extends typeof SceneActionTypes["transitionToScene"] ? [IImageTransition, Scene | string | undefined, ImageSrc | Color | undefined] :
+                                    any;
 }
 /* Story */
 export const StoryActionTypes = {

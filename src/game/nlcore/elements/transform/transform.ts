@@ -124,6 +124,9 @@ export class TransformState<T extends TransformDefinitions.Types> {
     }
 
     public lock(): symbol {
+        if (this.locked) {
+            throw new Error("Transform state is already locked.");
+        }
         this.locked = Symbol();
         return this.locked;
     }
@@ -156,7 +159,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     /**@internal */
     static defaultSequenceOptions: Partial<TransformDefinitions.CommonSequenceProps> = {
         sync: true,
-        repeat: 1,
+        repeat: 0,
     };
     /**@internal */
     static defaultOptions: TransformDefinitions.SequenceProps<any> = {
@@ -178,7 +181,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         props: SequenceProps<T>,
     ): Transform<T> {
         return new Transform<T>(props, {
-            duration: 0,
+            duration: 1,
             ease: "linear",
         });
     }
@@ -295,7 +298,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
             ...Transform.positionToCSS(props.position, invertY, invertX),
             opacity: props.opacity,
             color: "fontColor" in props ? toHex((props as TransformDefinitions.TextTransformProps).fontColor) : undefined,
-            transform: transform ? transform(props) : undefined,
+            transform: transform ? transform(props) : Transform.propToCSSTransform(state, props),
             scale: scale ? scale(props) : undefined,
             ...(overwrite ? overwrite(props) : {}),
         } satisfies CSSProps;
@@ -336,9 +339,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         }
     }
 
-    /**
-     * @internal
-     */
+    /**@internal*/
     public animate(
         transformState: TransformState<T>,
         {
@@ -390,19 +391,26 @@ export class Transform<T extends TransformDefinitions.Types = any> {
                         this.optionsToFramerMotionOptions(options) || {}
                     );
                     const complete = () => {
+                        gameState.logger.debug("Transform", "Transform animation completed.", props);
                         controllers.splice(controllers.indexOf(control), 1);
                         transformState.assign(lock, props);
                     };
                     controllers.push(control);
 
+                    gameState.logger.debug("Transform", "Animating transform.", style, this.optionsToFramerMotionOptions(options) || {});
+
                     if (options?.sync === false) {
-                        control.then(complete);
+                        gameState.wait(options.duration || 0).then(complete, () => {
+                            gameState.logger.error("Failed to animate transform.");
+                        });
                     } else {
-                        await new Promise<void>(r => control.then(() => r()));
+                        await new Promise<void>(r => gameState.wait(options.duration || 0).then(() => r()));
                         complete();
                     }
                 }
             }
+            transformState.unlock(lock);
+            awaitable.resolve();
         });
 
         return awaitable;
@@ -434,7 +442,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         }
         const {duration, ease} = options;
         return {
-            duration: duration ? (duration / 1000) : 0,
+            duration: duration !== undefined ? (duration / 1000) : 0,
             ease,
         } satisfies DynamicAnimationOptions;
     }

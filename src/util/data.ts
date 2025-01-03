@@ -255,7 +255,7 @@ export function toHex(hex: { r: number; g: number; b: number; a?: number } | str
 export type EventTypes = {
     [key: string]: any[];
 }
-export type EventListener<T extends any[]> = (...args: T) => void | Promise<any>;
+export type EventListener<T extends any[]> = (...args: T) => void | Thenable<any>;
 export type EventToken = {
     type: keyof EventTypes;
     listener: EventListener<any>;
@@ -324,45 +324,37 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         return this.on(event, onceListener);
     }
 
+    /**
+     * Emit an event and wait for all listeners to resolve.
+     * If there's no listener, wait until a listener is registered and solved
+     */
     public async any<K extends keyof T>(event: K, ...args: Type[K]): Promise<any> {
         if (!this.events[event]) {
             this.events[event] = [];
         }
 
-        const promises: any[] = [];
-        let solved = false;
-        for (const listener of this.events[event]) {
-            const result = listener(...args) as any;
-            if (result && (typeof result === "object" && typeof result["then"] === "function")) {
-                promises.push(result);
-            } else {
-                solved = true;
-            }
+        // If there is any registered listener
+        if (this.events[event].length > 0) {
+            await Promise.all(this.events[event].map(listener => listener(...args)));
+            return;
         }
-        if (solved) {
-            return void 0;
-        }
-        this.events[event] = this.events[event].filter(l => !promises.includes(l));
 
-        if (promises.length === 0) {
-            return new Promise<void>((resolve) => {
-                const type = "event:EventDispatcher.register";
-                const listener = this.on(type, (type, fc) => {
-                    if (type === event) {
-                        this.off((type as "event:EventDispatcher.register"), listener);
+        // If there's no registered listener
+        return new Promise<void>((resolve) => {
+            const registerType = "event:EventDispatcher.register";
+            const listener = this.on(registerType, (type, fc) => {
+                if (type === event) {
+                    this.off(registerType, listener);
 
-                        const res = fc?.(...args);
-                        if (res && res["then"]) {
-                            res["then"](resolve);
-                        } else {
-                            resolve(res);
-                        }
+                    const res = fc?.(...args);
+                    if (res !== null && typeof res === "object" && res["then"]) {
+                        res["then"](resolve);
+                    } else {
+                        resolve(res);
                     }
-                });
+                }
             });
-        }
-        await Promise.all(promises);
-        return void 0;
+        });
     }
 
     clear() {
@@ -1032,4 +1024,15 @@ export function isAsyncFunction<T extends Array<any>, U = void>(fn: (...args: T)
 
 export type SerializableDataType = number | string | boolean | null | undefined | SerializableDataType[];
 export type SerializableData = Record<string, SerializableDataType> | SerializableDataType;
+export type Thenable<T> = T | Promise<T> | Awaitable<T>;
 
+export function ThenableAll(thenables: Thenable<any>[]): Promise<any[]> {
+    return Promise.all(thenables.map(thenable => {
+        if (thenable instanceof Awaitable) {
+            return new Promise(resolve => {
+                thenable.then(resolve);
+            });
+        }
+        return thenable;
+    }));
+}

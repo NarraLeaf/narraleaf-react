@@ -9,6 +9,7 @@ import {TypedAction} from "@core/action/actions";
 import {ITransition} from "@core/elements/transition/type";
 import {Story} from "@core/elements/story";
 import {RuntimeScriptError, Utils} from "@core/common/Utils";
+import {Image} from "@core/elements/displayable/image";
 
 export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneActionTypes] = typeof SceneActionTypes[keyof typeof SceneActionTypes]>
     extends TypedAction<SceneActionContentType, T, Scene> {
@@ -57,7 +58,9 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             }
         });
 
-        scene.events.any("event:displayable.init").then(() => {
+        state.logger.debug("Scene Action", "Waiting for background image to init");
+
+        scene.backgroundImage.events.any(Image.EventTypes["event:displayable.init"]).then(() => {
             if (onInit) {
                 onInit();
             }
@@ -73,7 +76,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                     node: this.contentNode.getChild()
                 };
             }));
-        this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
+        this.callee.backgroundImage.events.any(Image.EventTypes["event:displayable.applyTransition"], transition).then(() => {
             awaitable.resolve({
                 type: this.type,
                 node: this.contentNode.getChild()
@@ -108,9 +111,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 state.stage.next();
             });
             return awaitable;
-        } else if (this.type === SceneActionTypes.applyTransition) {
-            const [transition] = (this.contentNode as ContentNode<SceneActionContentType["scene:applyTransition"]>).getContent();
-            return this.applyTransition(state, transition);
         } else if (this.is<SceneAction<"scene:init">>(SceneAction, "scene:init")) {
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
             return SceneAction.handleSceneInit(this, state, awaitable);
@@ -156,24 +156,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 .getStorable()
                 .removeNamespace(this.callee.local.getNamespaceName());
             return super.executeAction(state);
-        } else if (this.type === SceneActionTypes.applyTransform) {
-            const [transform] = (this.contentNode as ContentNode<SceneActionContentType["scene:applyTransform"]>).getContent();
-            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
-                .registerSkipController(new SkipController(() => {
-                    return {
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    };
-                }));
-            this.callee.events.any("event:displayable.applyTransform", transform)
-                .then(() => {
-                    awaitable.resolve({
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    });
-                    state.stage.next();
-                });
-            return awaitable;
         } else if (this.type === SceneActionTypes.transitionToScene) {
             const [transition, targetScene, src] = (this.contentNode as ContentNode<SceneActionContentType["scene:transitionToScene"]>).getContent();
             if (targetScene) {

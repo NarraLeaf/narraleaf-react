@@ -112,16 +112,24 @@ export function useDisplayable(
 
     function initDisplayable(): Promise<void> {
         return new Promise<void>(resolve => {
-            Transform.immediate(state.get()).animate(
+            gameState.logger.debug("initDisplayable", element);
+
+            const initStyle = state.toStyle(gameState);
+            Object.assign(ref.current!.style, initStyle);
+
+            const token = Transform.immediate(state.get()).animate(
                 state,
                 {
                     gameState,
                     ref,
                     overwrites: overwriteDefinition,
                 }
-            ).then(() => {
-                flush();
+            );
+            setTransformToken(token);
+            token.then(() => {
+                setTransformToken(null);
                 resolve();
+                flush();
             });
         });
     }

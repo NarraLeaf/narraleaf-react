@@ -2,6 +2,7 @@ import {Scene as GameScene, SceneEventTypes} from "@core/elements/scene";
 import React, {useEffect} from "react";
 import BackgroundTransition from "./BackgroundTransition";
 import {GameState} from "@player/gameState";
+import clsx from "clsx";
 
 /**@internal */
 export default function Scene(
@@ -16,9 +17,6 @@ export default function Scene(
         children?: React.ReactNode;
         className?: string;
     }>) {
-    // const [backgroundMusic, setBackgroundMusic] =
-    //     useState<Sound | null>(() => scene.state.backgroundMusic);
-
     useEffect(() => {
         const listeners: {
             type: keyof SceneEventTypes;
@@ -26,14 +24,28 @@ export default function Scene(
         }[] = [
             {
                 type: "event:scene.setBackgroundMusic",
-                listener: scene.events.on(GameScene.EventTypes["event:scene.setBackgroundMusic"], (_music, _fade) => {
-                    // @todo
+                listener: scene.events.on(GameScene.EventTypes["event:scene.setBackgroundMusic"], (music, fade) => {
+                    return new Promise<void>((resolve) => {
+                        if (scene.state.backgroundMusic) {
+                            state.audioManager.stop(scene.state.backgroundMusic, fade).then(() => {
+                                scene.state.backgroundMusic = null;
+                                if (music) state.audioManager.play(music, {
+                                    end: music.state.volume,
+                                    duration: fade,
+                                }).then(resolve);
+                            });
+                        }
+                    });
                 })
             },
             {
                 type: "event:scene.preUnmount",
                 listener: scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
-                    // @todo
+                    if (scene.state.backgroundMusic) {
+                        return state.audioManager.stop(scene.state.backgroundMusic).then(() => {
+                            scene.state.backgroundMusic = null;
+                        });
+                    }
                 })
             }
         ];
@@ -54,7 +66,7 @@ export default function Scene(
     }, []);
 
     return (
-        <div className={className}>
+        <div className={clsx(className, "w-full h-full")}>
             <BackgroundTransition scene={scene} state={state}/>
             {children}
         </div>

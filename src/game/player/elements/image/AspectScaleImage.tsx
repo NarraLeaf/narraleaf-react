@@ -4,6 +4,7 @@ import {useRatio} from "@player/provider/ratio";
 import {usePreloaded} from "@player/provider/preloaded";
 import {Image} from "@core/elements/displayable/image";
 import {useGame} from "@core/common/player";
+import {Utils} from "@core/common/Utils";
 
 /**@internal */
 export default function AspectScaleImage(
@@ -35,7 +36,7 @@ export default function AspectScaleImage(
     }
 
     useEffect(() => {
-        if (props.src && (!cacheManager.has(props.src) || cacheManager.isPreloading(props.src))) {
+        if (props.src && !Utils.isDataURI(props.src) && (!cacheManager.has(props.src) || cacheManager.isPreloading(props.src))) {
             game.getLiveGame().getGameState()?.logger.warn(LogTag,
                 `Image not preloaded: "${props.src}". `
                 + "\nThis may be caused by complicated image action behavior that cannot be predicted. "

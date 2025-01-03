@@ -249,7 +249,7 @@ export class LiveGame {
             throw new Error("No game state");
         }
         const gameState = this.gameState;
-        const logGroup = gameState.logger.group("LiveGame");
+        const logGroup = gameState.logger.group("LiveGame (newGame)", true);
 
         this.reset({gameState});
         this.initNamespaces();

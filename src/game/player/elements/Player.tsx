@@ -93,7 +93,6 @@ export default function Player(
 
     useEffect(() => {
         return createMicroTask(() => {
-
             setReady(true);
 
             const lastScene = state.getLastScene();

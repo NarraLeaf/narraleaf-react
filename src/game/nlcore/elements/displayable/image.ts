@@ -603,7 +603,7 @@ export class Image<
         userConfig: Config<IImageUserConfig, { position: IPosition }>
     ): TransformState<TransformDefinitions.ImageTransformProps> {
         const [transformState] = userConfig.extract(TransformState.DefaultTransformState.keys());
-        return new TransformState(transformState.get());
+        return new TransformState(TransformState.DefaultTransformState.create(transformState.get()).get());
     }
 
     /**@internal */

@@ -3,8 +3,7 @@ import {Awaitable, deepMerge, EventDispatcher, Serializer} from "@lib/util/data"
 import {Color, ImageSrc} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
-import {Transform} from "@core/elements/transform/transform";
-import {EmptyObject, IImageTransition, ITransition} from "@core/elements/transition/type";
+import {EmptyObject, IImageTransition} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
@@ -17,7 +16,6 @@ import {SoundAction} from "@core/action/actions/soundAction";
 import {ControlAction} from "@core/action/actions/controlAction";
 import {Text} from "@core/elements/displayable/text";
 import {DynamicPersistent} from "@core/elements/persistent";
-import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor} from "@lib/util/config";
 import Actions = LogicAction.Actions;
 import GameElement = LogicAction.GameElement;
@@ -75,15 +73,12 @@ export type SceneEventTypes = {
     "event:scene.preUnmount": [],
     "event:scene.imageLoaded": [],
     "event:scene.setBackgroundMusic": [Sound | null, number];
-    "event:displayable.applyTransition": [ITransition];
-    "event:displayable.applyTransform": [Transform];
-    "event:displayable.init": [];
 };
 
 export class Scene extends Constructable<
     Actions,
     Scene
-> implements EventfulDisplayable {
+> {
     /**@internal */
     static EventTypes: { [K in keyof SceneEventTypes]: K } = {
         "event:scene.remove": "event:scene.remove",
@@ -94,9 +89,6 @@ export class Scene extends Constructable<
         "event:scene.preUnmount": "event:scene.preUnmount",
         "event:scene.imageLoaded": "event:scene.imageLoaded",
         "event:scene.setBackgroundMusic": "event:scene.setBackgroundMusic",
-        "event:displayable.applyTransition": "event:displayable.applyTransition",
-        "event:displayable.applyTransform": "event:displayable.applyTransform",
-        "event:displayable.init": "event:displayable.init",
     };
     /**@internal */
     static DefaultUserConfig = new ConfigConstructor<ISceneUserConfig, EmptyObject>({

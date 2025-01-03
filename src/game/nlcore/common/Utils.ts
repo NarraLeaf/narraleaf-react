@@ -127,6 +127,10 @@ export class Utils {
         }
         return src.src;
     }
+
+    public static isDataURI(src: string) {
+        return src.startsWith("data:");
+    }
 }
 
 /**@internal */
