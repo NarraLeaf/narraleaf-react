@@ -6,43 +6,47 @@
 
 - NarraLeaf-React now **requires** [React 19](https://react.dev/blog/2024/12/05/react-19) or later
 - Image Config has changed:
-  - the type of `config.src` should be a tag definition or a string
-  - In tag-based image config, `config.src` as a resolver function is moved to `config.src.resolve`
+    - the type of `config.src` should be a tag definition or a string
+    - In tag-based image config, `config.src` as a resolver function is moved to `config.src.resolve`
 - These methods of `Image` has been changed:
-  - `setAppearance`, `setTags`, `setSrc` -> `char`
-  - `applyTransform` -> `transform`
-  - `wear` is a new alias for `addWearable`
-  - `asWearableOf` is a new alias for `bindWearable`
-  - `init`, `setPosition`, `dispose`, `copy` are removed
+    - `setAppearance`, `setTags`, `setSrc` -> `char`
+    - `applyTransform` -> `transform`
+    - `wear` is a new alias for `addWearable`
+    - `asWearableOf` is a new alias for `bindWearable`
+    - `init`, `setPosition`, `dispose`, `copy` are removed
 - These methods of `Text` has been changed:
-  - `applyTransform` -> `transform`
-  - `applyTransition` is removed, applying transitions are still in planning
+    - `applyTransform` -> `transform`
+    - `applyTransition` is removed, applying transitions are still in planning
 - These methods are added to displayable elements (text, image):
-  - `layerMoveUp`, `layerMoveDown`, `layerMoveTop`, `layerMoveBottom`
-  - `pos`, `scale`, `rotate`, `opacity`
+    - `layerMoveUp`, `layerMoveDown`, `layerMoveTop`, `layerMoveBottom`
+    - `pos`, `scale`, `rotate`, `opacity`
 - These methods of `Transform` has been changed:
-  - `overwrite` is removed
-  - Transformer API is completely deprecated
+    - `overwrite` is removed
+    - Transformer API is completely deprecated
 - These methods of `Scene` has been changed:
-  - `activate`, `deactivate` are removed, the game will manage the scene's lifecycle automatically
-  - `applyTransform` is removed, use `scene.backgroundImage` instead
-  - `inherit` is removed
+    - `activate`, `deactivate` are removed, the game will manage the scene's lifecycle automatically
+    - `applyTransform` is removed, use `scene.backgroundImage` instead
+    - `inherit` is removed
 - These methods of `Sound` has been changed:
-  - use `copy` to create a new sound instance
-  - `play`, `stop` and `setVolume` method can receive a `duration` parameter
-  - `fade` is removed, use `setVolume` instead
+    - use `copy` to create a new sound instance
+    - `play`, `stop` and `setVolume` method can receive a `duration` parameter
+    - `fade` is removed, use `setVolume` instead
 - In displayable elements, the transform states are separated from the element states
 - These changes are made to `Sound` config
-  - `sync` and `type` are removed
-  - use `preload` to use [Howler.js](https://howlerjs.com/)'s preload feature
-  - use `seek` property to set the initial seek position
+    - `sync` and `type` are removed
+    - use `preload` to use [Howler.js](https://howlerjs.com/)'s preload feature
+    - use `seek` property to set the initial seek position
 - Scene's config now can't specify the `invertY` and `invertX` properties, use story config `origin` instead
+
+### _Feature_
+
+- use `Service` to create custom actions
 
 ### Added
 
 - use `Transform.immediate` to apply transformations immediately
 - `Text`, `Word`, `Character`, `Scene` background, and `Image`'s color now supports named colors,
-see [MDN: <named-color>](https://developer.mozilla.org/en-US/docs/Web/CSS/named-color) for a list of supported colors. 
+  see [MDN: <named-color>](https://developer.mozilla.org/en-US/docs/Web/CSS/named-color) for a list of supported colors.
 
 ### Fixed
 
@@ -51,6 +55,8 @@ see [MDN: <named-color>](https://developer.mozilla.org/en-US/docs/Web/CSS/named-
 ### Updated
 
 - A better way to serialize/deserialize the element states
+- Refactored displayable components
+- Refactored the way to play sounds
 
 ## [0.2.3] - 2024/12/27
 

@@ -1026,3 +1026,10 @@ export class ChainedAwaitable extends Awaitable<void, void> {
     }
 }
 
+export function isAsyncFunction<T extends Array<any>, U = void>(fn: (...args: T) => U | Promise<U>): fn is (...args: T) => Promise<U> {
+    return fn.constructor.name === "AsyncFunction" || Object.prototype.toString.call(fn) === "[object AsyncFunction]";
+}
+
+export type SerializableDataType = number | string | boolean | null | undefined | SerializableDataType[];
+export type SerializableData = Record<string, SerializableDataType> | SerializableDataType;
+

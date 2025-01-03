@@ -74,7 +74,7 @@ type SoundState = {
     paused: boolean;
 };
 
-export class Sound extends Actionable<SoundDataRaw> {
+export class Sound extends Actionable<SoundDataRaw, Sound> {
     /**@internal */
     static noSound = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgA";
 
