@@ -372,10 +372,6 @@ export class Scene extends Constructable<
         const queue: Actions[] = [this.sceneRoot];
         const futureScene = new Set<Scene>();
 
-        if (Utils.isImageSrc(this.state.backgroundImage.config.src)) {
-            this.srcManager.register(new Image({src: this.state.backgroundImage.config.src}));
-        }
-
         while (queue.length) {
             const action = queue.shift()!;
             if (seenActions.has(action)) {
@@ -384,6 +380,11 @@ export class Scene extends Constructable<
             seenActions.add(action);
 
             if (action instanceof SceneAction) {
+                const currentScene = action.callee;
+                if (Utils.isImageSrc(currentScene.state.backgroundImage.state.currentSrc)) {
+                    this.srcManager.register(new Image({src: currentScene.state.backgroundImage.state.currentSrc}));
+                }
+
                 if (action.type === SceneActionTypes.jumpTo) {
                     const jumpTo = action as SceneAction<typeof SceneActionTypes["jumpTo"]>;
                     const scene = Scene.getScene(story, jumpTo.contentNode.getContent()[0]);
@@ -496,7 +497,8 @@ export class Scene extends Constructable<
         return Scene.DefaultSceneState.create().assign({
             backgroundImage: new Image({
                 src: this.userConfig.get().background,
-            }),
+                opacity: 1,
+            }).__setDisplayState(true),
         }).get();
     }
 

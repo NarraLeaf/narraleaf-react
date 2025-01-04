@@ -56,6 +56,9 @@ type GameStateEvents = {
     "event:state.ready": [];
     "event:state.end": [];
     "event:state.player.skip": [];
+    /**
+     * @deprecated
+     */
     "event:state.preload.unmount": [];
     "event:state.preload.loaded": [];
     "event:state.player.flush": [];

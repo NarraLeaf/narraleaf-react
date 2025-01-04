@@ -679,14 +679,17 @@ export function moveElementInArray<T>(arr: T[], element: T, newIndex: number): T
 }
 
 export async function getImageDataUrl(src: string, options?: RequestInit): Promise<string> {
-    const response = await fetch(src, options);
-    const blob = await response.blob();
-    return new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            resolve(reader.result as string);
-        };
-        reader.readAsDataURL(blob);
+    return new Promise<string>((resolve, reject) => {
+        fetch(src, options)
+            .then(response => response.blob())
+            .then(blob => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    resolve(reader.result as string);
+                };
+                reader.readAsDataURL(blob);
+            })
+            .catch(reject);
     });
 }
 

@@ -91,16 +91,23 @@ export class SrcManager {
             }
         } else if (action instanceof ImageAction) {
             const imageAction = action as ImageAction;
-            if (Image.isTagSrc(imageAction.callee)) {
-                return {
-                    type: "image",
-                    src: new Image({
-                        src: Image.getSrcFromTags(imageAction.callee.config.src.defaults, imageAction.callee.config.src.resolve)
-                    }),
-                    activeType: "scene"
-                };
-            }
-            if (action.is<ImageAction<typeof ImageActionTypes["setSrc"]>>(ImageAction, ImageActionTypes.setSrc)) {
+            if (action.is<ImageAction<typeof ImageActionTypes["init"]>>(ImageAction, ImageActionTypes.init)) {
+                if (Image.isTagSrc(imageAction.callee)) {
+                    return {
+                        type: "image",
+                        src: new Image({
+                            src: Image.getSrcFromTags(imageAction.callee.config.src.defaults, imageAction.callee.config.src.resolve)
+                        }),
+                        activeType: "scene"
+                    };
+                } else if (Image.isStaticSrc(imageAction.callee) && Utils.isImageSrc(imageAction.callee.state.currentSrc)) {
+                    return {
+                        type: "image",
+                        src: new Image({src: imageAction.callee.state.currentSrc}),
+                        activeType: "scene"
+                    };
+                }
+            } else if (action.is<ImageAction<typeof ImageActionTypes["setSrc"]>>(ImageAction, ImageActionTypes.setSrc)) {
                 const content = action.contentNode.getContent()[0];
                 return {
                     type: "image",

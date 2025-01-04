@@ -251,7 +251,7 @@ export default function Player(
     );
 }
 
-function OnlyPreloaded({children, onLoaded, state}: Readonly<{
+function OnlyPreloaded({children, onLoaded}: Readonly<{
     children: React.ReactNode,
     onLoaded: () => void,
     state: GameState
@@ -264,14 +264,14 @@ function OnlyPreloaded({children, onLoaded, state}: Readonly<{
             setPreloadedReady(true);
             onLoaded();
         });
-        const unmountListener = state.events.on(GameState.EventTypes["event:state.preload.unmount"], () => {
+        const unmountListener = preloaded.events.on(Preloaded.EventTypes["event:preloaded.unmount"], () => {
             setPreloadedReady(false);
         });
         return () => {
             preloaded.events.off(Preloaded.EventTypes["event:preloaded.ready"], listener);
-            state.events.off(GameState.EventTypes["event:state.preload.unmount"], unmountListener);
+            preloaded.events.off(Preloaded.EventTypes["event:preloaded.unmount"], unmountListener);
         };
-    }, [preloadedReady]);
+    }, []);
 
     return (
         <>

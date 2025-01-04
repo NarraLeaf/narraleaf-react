@@ -52,6 +52,12 @@ export class Logger {
         }
     }
 
+    weakError(tag: string, ...args: any[]) {
+        if (this.game.config.app.logger.error) {
+            console.log(...this.colorLog("red", tag, ...args));
+        }
+    }
+
     group(tag: string, collapsed = false) {
         const groupTag = this._log(tag).join(" ");
         if (this.game.config.app.logger.info) {

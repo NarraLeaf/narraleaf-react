@@ -3,7 +3,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
 import {Transform, TransformState} from "../transform/transform";
-import {Color, CommonDisplayableConfig, ImageSrc} from "@core/types";
+import {Color, CommonDisplayableConfig, ImageSrc, StaticImageData} from "@core/types";
 import {ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
 import {EmptyObject, IImageTransition, ITransition} from "@core/elements/transition/type";
@@ -184,7 +184,7 @@ export class Image<
             } else if (Utils.isColor(image.state.currentSrc)) {
                 return null;
             }
-            return image.config.src;
+            return image.state.currentSrc as Exclude<Color | ImageSrc, StaticImageData | Color>;
         }
         return null;
     }
@@ -579,6 +579,12 @@ export class Image<
                 src
             ])
         );
+    }
+
+    /**@internal */
+    __setDisplayState(display: boolean): this {
+        this.state.display = display;
+        return this;
     }
 
     private createImageConfig(userConfig: Config<IImageUserConfig, {

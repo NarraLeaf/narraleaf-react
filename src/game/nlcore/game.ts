@@ -52,7 +52,7 @@ export class Game {
             ratioUpdateInterval: 50,
             preloadDelay: 100,
             preloadConcurrency: 5,
-            waitForPreload: false,
+            waitForPreload: true,
             preloadAllImages: true,
             forceClearCache: false,
             maxPreloadActions: 10,

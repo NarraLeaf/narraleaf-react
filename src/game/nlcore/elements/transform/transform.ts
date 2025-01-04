@@ -159,7 +159,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     /**@internal */
     static defaultSequenceOptions: Partial<TransformDefinitions.CommonSequenceProps> = {
         sync: true,
-        repeat: 0,
+        repeat: 1,
     };
     /**@internal */
     static defaultOptions: TransformDefinitions.SequenceProps<any> = {
@@ -373,10 +373,13 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         const awaitable = new Awaitable<void>()
             .registerSkipController(new SkipController(skip));
 
+        gameState.logger.debug("Transform", "Ready to animate transform.", sequences, this);
+
         this.runAsync(async () => {
             for (let i = 0; i < this.sequenceOptions.repeat; i++) {
                 for (const {props, options} of sequences) {
                     if (!transformState.canWrite(lock)) {
+                        gameState.logger.weakError("Transform", "Failed to animate transform, state is locked.", props);
                         return;
                     }
 
@@ -400,11 +403,11 @@ export class Transform<T extends TransformDefinitions.Types = any> {
                     gameState.logger.debug("Transform", "Animating transform.", style, this.optionsToFramerMotionOptions(options) || {});
 
                     if (options?.sync === false) {
-                        gameState.wait(options.duration || 0).then(complete, () => {
+                        gameState.wait((options.duration || 0) + 2).then(complete, () => {
                             gameState.logger.error("Failed to animate transform.");
                         });
                     } else {
-                        await new Promise<void>(r => gameState.wait(options.duration || 0).then(() => r()));
+                        await new Promise<void>(r => gameState.wait((options.duration || 0) + 2).then(() => r()));
                         complete();
                     }
                 }
@@ -430,9 +433,10 @@ export class Transform<T extends TransformDefinitions.Types = any> {
      * // repeat 6 times
      * ```
      */
-    public repeat(n: number) {
-        this.sequenceOptions.repeat *= n;
-        return this;
+    public repeat(n: number): Transform<T> {
+        const newTransform = this.copy();
+        newTransform.sequenceOptions.repeat *= n;
+        return newTransform;
     }
 
     /**@internal */

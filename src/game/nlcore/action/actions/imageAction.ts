@@ -31,6 +31,8 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             state.createImage(this.callee, scene);
 
             return this.resolveAwaitable(async (resolve) => {
+                state.logger.debug("Image Init", this.callee);
+
                 await this.callee.events.any("event:displayable.init");
 
                 resolve(super.executeAction(state));
