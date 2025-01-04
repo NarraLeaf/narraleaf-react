@@ -9,6 +9,7 @@ import {useRatio} from "@player/provider/ratio";
 import clsx from "clsx";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
 import {Utils} from "@core/common/Utils";
+import {useFlush} from "@player/lib/flush";
 
 /**@internal */
 export default function Image(
@@ -16,6 +17,7 @@ export default function Image(
         image,
         state,
         props,
+        /*@debug*/ // eslint-disable-next-line @typescript-eslint/no-unused-vars
         style,
     }: Readonly<{
         image: GameImage;
@@ -26,12 +28,14 @@ export default function Image(
     const {ratio} = useRatio();
     const [wearables, setWearables] = useState<GameImage[]>([]);
     const ref = useRef<HTMLImageElement>(null);
-    const {ref: transformRef, transition} = useDisplayable({
+    const {ref: transformRef, transition, flushDeps} = useDisplayable({
         element: image,
         state: image.transformState,
         skipTransform: state.game.config.elements.img.allowSkipTransform,
         skipTransition: state.game.config.elements.img.allowSkipTransition,
     });
+    /*@debug*/ // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [flush] = useFlush(flushDeps);
 
     const defaultProps: ImgElementProp = {
         src: GameImage.getSrcURL(image) || GameImage.DefaultImagePlaceholder,
@@ -42,25 +46,6 @@ export default function Image(
             transformOrigin: "center",
         },
     };
-
-    const transitionProps: ImgElementProp[] = [
-        {
-            style: {
-                display: "block",
-                position: "unset"
-            }
-        },
-        {
-            style: {
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                maxWidth: "none"
-            }
-        }
-    ];
-
-    const transformProps: CSSProps = image.transformState.toStyle(state);
 
     useEffect(() => {
         return image.events.onEvents([
@@ -81,42 +66,38 @@ export default function Image(
             layout
             ref={transformRef}
             className={"absolute"}
-            {...(deepMerge<any>(transformProps, {
-                style: {
-                    display: "inline-block",
-                    width: ref.current ? `${ref.current.naturalWidth * ratio.state.scale}px` : "auto",
-                    height: ref.current ? `${ref.current.naturalHeight * ratio.state.scale}px` : "auto",
-                }
-            }, Utils.isColor(image.state.currentSrc) ? {
-                style: {
-                    backgroundColor: image.state.currentSrc,
+            style={{
+                display: "inline-block",
+                width: ref.current ? `${ref.current.naturalWidth * ratio.state.scale}px` : "auto",
+                height: ref.current ? `${ref.current.naturalHeight * ratio.state.scale}px` : "auto",
+                ...(Utils.isColor(image.state.currentSrc) ? {
                     width: "100%",
                     height: "100%",
-                }
-            } : {}))}
+                } : {}),
+                ...image.transformState.toStyle(state),
+            }}
         >
-            <div style={{
-                transform: "translate(-50%, 50%)",
-                ...(style || {}),
-            }}>
-                {(<>
-                    {(transition ? transition.toElementProps() : [{}]).map((elementProps, index) => {
-                        const mergedProps =
-                            deepMerge<ImgElementProp>(defaultProps, elementProps, transitionProps[index] || {}, props || {});
-                        return (
-                            <AspectScaleImage
-                                key={index}
-                                props={{
-                                    className: "absolute",
-                                    ...mergedProps,
-                                }}
-                                id={mergedProps.src}
-                                ref={index === 0 ? ref : undefined}
-                            />
-                        );
-                    })}
-                </>)}
-            </div>
+            {(<>
+                {(transition ? transition.toElementProps() : [{}]).map((elementProps, index) => {
+                    const mergedProps =
+                        deepMerge<ImgElementProp>(defaultProps, elementProps, props || {});
+                    return (
+                        <AspectScaleImage
+                            key={index}
+                            props={{
+                                className: "absolute",
+                                style: {
+                                    display: "block",
+                                    position: "unset",
+                                },
+                                ...mergedProps,
+                            }}
+                            id={mergedProps.src}
+                            ref={index === 0 ? ref : undefined}
+                        />
+                    );
+                })}
+            </>)}
             <div
                 className={clsx("w-full h-full top-0 left-0 absolute")}
             >

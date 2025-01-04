@@ -35,6 +35,13 @@ export default function AspectScaleImage(
         }
     }
 
+    function handleOnLoad(event: React.SyntheticEvent<HTMLImageElement, Event>) {
+        updateWidth();
+        if (onLoad) {
+            onLoad(event);
+        }
+    }
+
     useEffect(() => {
         if (props.src && !Utils.isDataURI(props.src) && (!cacheManager.has(props.src) || cacheManager.isPreloading(props.src))) {
             game.getLiveGame().getGameState()?.logger.warn(LogTag,
@@ -57,7 +64,7 @@ export default function AspectScaleImage(
         <img
             ref={ref || imgRef}
             {...props}
-            onLoad={onLoad}
+            onLoad={handleOnLoad}
             width={width}
             alt={props.alt}
             src={src}

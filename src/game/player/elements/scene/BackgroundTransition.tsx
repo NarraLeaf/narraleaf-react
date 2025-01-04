@@ -10,15 +10,7 @@ export default function BackgroundTransition({scene, state}: {
 }) {
     return (
         <div>
-            <Image image={scene.state.backgroundImage} style={{
-                width: "100%",
-                height: "100%",
-            }} state={state} props={{
-                style: {
-                    width: "100%",
-                    height: "100%",
-                }
-            }}/>
+            <Image image={scene.state.backgroundImage} state={state} />
         </div>
     );
 }

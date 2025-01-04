@@ -40,7 +40,7 @@ export class ConfigConstructor<
             Object.entries(this.defaultConfig)
                 .map(([key, value]) => {
                     const newValue = config[key];
-                    if (typeof newValue === "object" && !Array.isArray(newValue) && newValue !== null) {
+                    if (typeof newValue === "object" && !Array.isArray(newValue) && newValue !== null && Object.getPrototypeOf(newValue) === Object.prototype) {
                         return [
                             key,
                             deepMerge({}, newValue),
@@ -68,6 +68,10 @@ export class ConfigConstructor<
 
     keys(): (keyof Raw)[] {
         return Object.keys(this.defaultConfig) as (keyof Raw)[];
+    }
+
+    getDefaultConfig(): Raw {
+        return this.defaultConfig;
     }
 }
 

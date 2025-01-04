@@ -20,12 +20,14 @@ export type DisplayableHookConfig = {
     overwriteDefinition?: OverwriteDefinition;
     state: TransformState<any>;
     element: EventfulDisplayable;
+    onTransform?: (transform: Transform) => void;
 };
 
 /**@internal */
 export type DisplayableHookResult = {
     transition: ITransition | null;
     ref: React.RefObject<HTMLDivElement | null>;
+    flushDeps: React.DependencyList;
 };
 
 /**@internal */
@@ -36,8 +38,9 @@ export function useDisplayable(
         skipTransition,
         skipTransform,
         overwriteDefinition,
+        onTransform,
     }: DisplayableHookConfig): DisplayableHookResult {
-    const [flush] = useFlush();
+    const [flush, dep] = useFlush();
     const [transition, setTransition] = useState<null | ITransition>(null);
     const [transformToken, setTransformToken] = useState<null | Awaitable<void>>(null);
     const ref = React.useRef<HTMLDivElement | null>(null);
@@ -93,6 +96,8 @@ export function useDisplayable(
             awaitable.then(() => {
                 setTransformToken(null);
                 resolve();
+                flush();
+                onTransform?.(transform);
             });
         });
     }
@@ -106,6 +111,7 @@ export function useDisplayable(
             newTransition.start(() => {
                 setTransition(null);
                 resolve();
+                flush();
             });
         });
     }
@@ -130,6 +136,7 @@ export function useDisplayable(
                 setTransformToken(null);
                 resolve();
                 flush();
+                onTransform?.(Transform.immediate(state.get()));
             });
         });
     }
@@ -152,6 +159,7 @@ export function useDisplayable(
     return {
         transition,
         ref,
+        flushDeps: [dep],
     };
 }
 

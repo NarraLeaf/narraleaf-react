@@ -193,12 +193,13 @@ export class Awaitable<T, U = T> {
         }
     }
 
-    then(callback: (value: T) => void) {
+    then(callback: (value: T) => void): this {
         if (this.solved) {
             callback(this.result!);
         } else {
             this.listeners.push(callback);
         }
+        return this;
     }
 
     abort() {

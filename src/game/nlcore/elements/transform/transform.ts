@@ -387,7 +387,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
                         throw new Error("No ref found when animating.");
                     }
 
-                    const style = Transform.constructStyle(gameState, props, overwrites);
+                    const style = transformState.assign(lock, props).toStyle(gameState, overwrites);
                     const control = animate(
                         ref.current,
                         style as DOMKeyframesDefinition,
@@ -396,7 +396,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
                     const complete = () => {
                         gameState.logger.debug("Transform", "Transform animation completed.", props);
                         controllers.splice(controllers.indexOf(control), 1);
-                        transformState.assign(lock, props);
+                        Object.assign(ref.current!.style, style);
                     };
                     controllers.push(control);
 

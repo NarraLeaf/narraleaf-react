@@ -26,19 +26,19 @@ function InspectBase<T extends keyof React.JSX.IntrinsicElements | React.Compone
         tag,
         borderWidth = 1,
         as: Component = "div",
-        Ref,
+        ref,
         ...props
     }: Readonly<DivElementProp & {
         children?: React.ReactNode;
         tag?: string;
         as?: T;
-        Ref?: React.RefObject<HTMLDivElement>;
-    } & InspectStyle & ElementProps<T>>) {
+        ref?: React.RefObject<HTMLDivElement | null>;
+    } & InspectStyle & ElementProps<T>> & Record<string, any>) {
     const {game} = useGame();
     const [isHovered, setIsHovered] = useState(false);
 
     if (!game.config.app.inspector) {
-        return <Component {...props} ref={Ref}>{children}</Component>;
+        return <Component {...props} ref={ref}>{children}</Component>;
     }
 
     const commonProps = {
@@ -53,7 +53,7 @@ function InspectBase<T extends keyof React.JSX.IntrinsicElements | React.Compone
     };
 
     return (
-        <Component {...commonProps} ref={Ref}>
+        <Component {...commonProps} ref={ref}>
             {tag && isHovered && (
                 <span className="absolute top-0 left-0 bg-white text-black border-2 border-black text-sm">
                     {tag}
@@ -133,9 +133,10 @@ function InspectButton(props: Readonly<DivElementProp & {
 function InspectFramerMotionDiv(props: Readonly<DivElementProp & {
     children?: React.ReactNode;
     tag?: string;
-    ref?: React.RefObject<HTMLDivElement>;
+    ref?: React.RefObject<HTMLDivElement | null>;
+    layout?: boolean;
 } & InspectStyle>) {
-    return <InspectBase {...props} as={motion.div} Ref={props.ref}/>;
+    return <InspectBase {...props} as={motion.div} ref={props.ref} layout={props.layout}/>;
 }
 
 const Inspect = {

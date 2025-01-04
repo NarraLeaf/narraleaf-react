@@ -109,7 +109,7 @@ export class Image<
         name: "(anonymous)",
         autoInit: true,
         src: Image.DefaultImagePlaceholder,
-        ...TransformState.DefaultTransformState,
+        ...TransformState.DefaultTransformState.getDefaultConfig(),
     }, {
         position: (value: RawPosition | IPosition | undefined) => {
             return PositionUtils.tryParsePosition(value);
