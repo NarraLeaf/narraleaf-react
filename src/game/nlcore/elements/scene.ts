@@ -333,6 +333,7 @@ export class Scene extends Constructable<
 
         const futureActions = [
             this._init(this),
+            this._initBackground(),
             ...nonWearableImages
                 .filter(image => image.config.autoInit)
                 .map(image => image._init()),
@@ -483,7 +484,7 @@ export class Scene extends Constructable<
     /**
      * Manually register an image to preload
      */
-    public requestImagePreload(src: ImageSrc) {
+    public requestImagePreload(src: string) {
         if (!Utils.isImageSrc(src)) {
             throw new Error("Invalid image source: " + src);
         }
@@ -544,6 +545,11 @@ export class Scene extends Constructable<
             "scene:init",
             new ContentNode<SceneActionContentType["scene:init"]>().setContent([target])
         );
+    }
+
+    /**@internal */
+    private _initBackground(): ImageAction<"image:init"> {
+        return this.state.backgroundImage._init(this);
     }
 }
 

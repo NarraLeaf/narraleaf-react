@@ -1,8 +1,8 @@
 import type {CommonDisplayableConfig, CommonImagePosition,} from "@core/types";
 import {ImagePosition,} from "@core/types";
 import type {AnimationPlaybackControls, DOMKeyframesDefinition, DynamicAnimationOptions} from "motion/react";
-import {animate} from "motion/react";
-import {Awaitable, deepMerge, DeepPartial, Serializer, SkipController, toHex} from "@lib/util/data";
+import {animate} from "motion";
+import {Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, toHex} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {TransformDefinitions} from "./type";
 import {
@@ -146,8 +146,12 @@ export class TransformState<T extends TransformDefinitions.Types> {
         return this;
     }
 
+    public toFramesDefinition(gameState: GameState, overwrites?: OverwriteDefinition): Partial<DOMKeyframesDefinition> {
+        return onlyValidFields(Transform.constructStyle(gameState, this.state, overwrites));
+    }
+
     public toStyle(gameState: GameState, overwrites?: OverwriteDefinition): CSSProps {
-        return Transform.constructStyle(gameState, this.state, overwrites);
+        return onlyValidFields(Transform.constructStyle(gameState, this.state, overwrites)) as CSSProps;
     }
 
     public serialize(): Record<string, any> {
@@ -181,7 +185,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         props: SequenceProps<T>,
     ): Transform<T> {
         return new Transform<T>(props, {
-            duration: 1,
+            duration: 0,
             ease: "linear",
         });
     }
@@ -291,7 +295,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     }
 
     /**@internal */
-    static constructStyle<T extends TransformDefinitions.Types>(state: GameState, props: Partial<T>, overwrites?: OverwriteDefinition): CSSProps {
+    static constructStyle<T extends TransformDefinitions.Types>(state: GameState, props: Partial<T>, overwrites?: OverwriteDefinition): DOMKeyframesDefinition {
         const {invertY, invertX} = state.getStory().getInversionConfig();
         const {transform, scale, overwrite} = overwrites || {};
         return {
@@ -301,7 +305,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
             transform: transform ? transform(props) : Transform.propToCSSTransform(state, props),
             scale: scale ? scale(props) : undefined,
             ...(overwrite ? overwrite(props) : {}),
-        } satisfies CSSProps;
+        } satisfies DOMKeyframesDefinition;
     }
 
     /**@internal */
@@ -367,7 +371,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
                 const {props} = sequences.shift()!;
                 transformState.assign(lock, props);
             }
-            assignStyle(Transform.constructStyle(gameState, transformState.state, overwrites));
+            assignStyle(Transform.constructStyle(gameState, transformState.state, overwrites) as CSSProps);
             transformState.unlock(lock);
         };
         const awaitable = new Awaitable<void>()
@@ -387,11 +391,11 @@ export class Transform<T extends TransformDefinitions.Types = any> {
                         throw new Error("No ref found when animating.");
                     }
 
-                    const style = transformState.assign(lock, props).toStyle(gameState, overwrites);
+                    const style = transformState.assign(lock, props).toFramesDefinition(gameState, overwrites);
                     const control = animate(
                         ref.current,
                         style as DOMKeyframesDefinition,
-                        this.optionsToFramerMotionOptions(options) || {}
+                        this.optionsToMotionOptions(options) || {}
                     );
                     const complete = () => {
                         gameState.logger.debug("Transform", "Transform animation completed.", props);
@@ -399,15 +403,19 @@ export class Transform<T extends TransformDefinitions.Types = any> {
                         Object.assign(ref.current!.style, style);
                     };
                     controllers.push(control);
+                    control.play();
 
-                    gameState.logger.debug("Transform", "Animating transform.", style, this.optionsToFramerMotionOptions(options) || {});
+                    gameState.logger.debug("Transform", "Animating transform.", ref.current, style, this.optionsToMotionOptions(options) || {});
 
                     if (options?.sync === false) {
-                        gameState.wait((options.duration || 0) + 2).then(complete, () => {
+                        control.then(complete, () => {
                             gameState.logger.error("Failed to animate transform.");
                         });
                     } else {
-                        await new Promise<void>(r => gameState.wait((options.duration || 0) + 2).then(() => r()));
+                        await new Promise<void>(r => control.then(() => {
+                            r();
+                        }));
+                        await gameState.wait(2);
                         complete();
                     }
                 }
@@ -440,7 +448,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     }
 
     /**@internal */
-    optionsToFramerMotionOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions | void {
+    optionsToMotionOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions | void {
         if (!options) {
             return options;
         }

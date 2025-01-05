@@ -16,25 +16,34 @@ export default function Image(
     {
         image,
         state,
-        props,
-        /*@debug*/ // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        style,
     }: Readonly<{
         image: GameImage;
         state: GameState;
-        props?: ImgElementProp;
-        style?: CSSProps;
     }>) {
     const {ratio} = useRatio();
     const [wearables, setWearables] = useState<GameImage[]>([]);
+    const [, setTransformStyle] = useState<CSSProps>({
+        ...(Utils.isColor(image.state.currentSrc) ? {
+            width: "100%",
+            height: "100%",
+        } : {}),
+    });
     const ref = useRef<HTMLImageElement>(null);
     const {ref: transformRef, transition, flushDeps} = useDisplayable({
         element: image,
         state: image.transformState,
         skipTransform: state.game.config.elements.img.allowSkipTransform,
         skipTransition: state.game.config.elements.img.allowSkipTransition,
+        onTransform: () => {
+            setTransformStyle((prev) => {
+                const style = Object.assign({}, prev, image.transformState.toStyle(state));
+                Object.assign(transformRef.current!.style, style);
+                return style;
+            });
+            state.logger.debug("Image", "Transform applied", transformRef.current, image.transformState.toStyle(state));
+            flush();
+        },
     });
-    /*@debug*/ // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [flush] = useFlush(flushDeps);
 
     const defaultProps: ImgElementProp = {
@@ -58,6 +67,20 @@ export default function Image(
         ]).cancel;
     }, []);
 
+    useEffect(() => {
+        handleWidthChange();
+        return ratio.onUpdate(handleWidthChange);
+    }, [ref, transformRef]);
+
+    function handleWidthChange() {
+        if (transformRef.current && ref.current) {
+            Object.assign(transformRef.current.style, {
+                width: `${ref.current.naturalWidth * ratio.state.scale}px`,
+                height: `${ref.current.naturalHeight * ratio.state.scale}px`,
+            });
+        }
+    }
+
     return (
         <Inspect.mDiv
             tag={"image.aspectScaleContainer"}
@@ -66,21 +89,11 @@ export default function Image(
             layout
             ref={transformRef}
             className={"absolute"}
-            style={{
-                display: "inline-block",
-                width: ref.current ? `${ref.current.naturalWidth * ratio.state.scale}px` : "auto",
-                height: ref.current ? `${ref.current.naturalHeight * ratio.state.scale}px` : "auto",
-                ...(Utils.isColor(image.state.currentSrc) ? {
-                    width: "100%",
-                    height: "100%",
-                } : {}),
-                ...image.transformState.toStyle(state),
-            }}
         >
             {(<>
                 {(transition ? transition.toElementProps() : [{}]).map((elementProps, index) => {
                     const mergedProps =
-                        deepMerge<ImgElementProp>(defaultProps, elementProps, props || {});
+                        deepMerge<ImgElementProp>(defaultProps, elementProps);
                     return (
                         <AspectScaleImage
                             key={index}
@@ -94,6 +107,7 @@ export default function Image(
                             }}
                             id={mergedProps.src}
                             ref={index === 0 ? ref : undefined}
+                            onWidthChange={handleWidthChange}
                         />
                     );
                 })}

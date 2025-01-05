@@ -13,11 +13,13 @@ export default function AspectScaleImage(
         onLoad,
         id,
         ref,
+        onWidthChange,
     }: Readonly<{
         props: Omit<ImgElementProp, "onLoad">;
         onLoad?: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
         id?: string;
         ref?: React.RefObject<HTMLImageElement | null>;
+        onWidthChange?: (width: number) => void;
     }>
 ) {
     const imgRef = useRef<HTMLImageElement>(null);
@@ -27,20 +29,6 @@ export default function AspectScaleImage(
     const {game} = useGame();
 
     const LogTag = "AspectScaleImage";
-
-    function updateWidth() {
-        const currentRef = ref || imgRef;
-        if (currentRef.current) {
-            setWidth(currentRef.current.naturalWidth * ratio.state.scale);
-        }
-    }
-
-    function handleOnLoad(event: React.SyntheticEvent<HTMLImageElement, Event>) {
-        updateWidth();
-        if (onLoad) {
-            onLoad(event);
-        }
-    }
 
     useEffect(() => {
         if (props.src && !Utils.isDataURI(props.src) && (!cacheManager.has(props.src) || cacheManager.isPreloading(props.src))) {
@@ -57,6 +45,23 @@ export default function AspectScaleImage(
 
         return ratio.onUpdate(updateWidth);
     }, [props, id]);
+
+    function updateWidth() {
+        const currentRef = ref || imgRef;
+        if (currentRef.current) {
+            setWidth(currentRef.current.naturalWidth * ratio.state.scale);
+            if (onWidthChange) {
+                onWidthChange(currentRef.current.naturalWidth * ratio.state.scale);
+            }
+        }
+    }
+
+    function handleOnLoad(event: React.SyntheticEvent<HTMLImageElement, Event>) {
+        updateWidth();
+        if (onLoad) {
+            onLoad(event);
+        }
+    }
 
     const src: string = props.src ? (cacheManager.get(props.src) || props.src) : Image.DefaultImagePlaceholder;
 

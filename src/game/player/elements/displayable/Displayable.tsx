@@ -83,6 +83,8 @@ export function useDisplayable(
         if (transformToken) {
             transformToken.abort();
         }
+        const initialStyle = state.toStyle(gameState, overwriteDefinition);
+        Object.assign(ref.current!.style, initialStyle);
         return new Promise<void>(resolve => {
             const awaitable = transform.animate(
                 state,
@@ -120,7 +122,7 @@ export function useDisplayable(
         return new Promise<void>(resolve => {
             gameState.logger.debug("initDisplayable", element);
 
-            const initStyle = state.toStyle(gameState);
+            const initStyle = state.toStyle(gameState, overwriteDefinition);
             Object.assign(ref.current!.style, initStyle);
 
             const token = Transform.immediate(state.get()).animate(

@@ -56,15 +56,17 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                     scene.config.backgroundMusicFade
                 );
             }
-        });
-
-        state.logger.debug("Scene Action", "Waiting for background image to init");
-
-        scene.backgroundImage.events.any(Image.EventTypes["event:displayable.init"]).then(() => {
             if (onInit) {
                 onInit();
             }
+            state.logger.debug("Scene Action", "Scene init");
         });
+
+
+
+        // scene.backgroundImage.events.any(Image.EventTypes["event:displayable.init"]).then(() => {
+        //
+        // });
     }
 
     applyTransition(state: GameState, transition: ITransition) {

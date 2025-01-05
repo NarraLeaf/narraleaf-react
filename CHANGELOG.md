@@ -242,8 +242,9 @@
 - changed signature of the constructor of `Sentence`, now it does not require a `Character` instance. If you want to
   specify it, use sentence config instead
 - Rename `CommonImage` to `CommonDisplayable`
-- Refactor `Image.tsx`, `BackgroundTransition.tsx` and `Text.tsx`.
+- Refactor `Image.tsx` and `Text.tsx`.
 - Use `IImageTransition` instead of `ITransition`
+- `BackgroundTransition.tsx` and `Background` is deprecated
 
 ### Added
 

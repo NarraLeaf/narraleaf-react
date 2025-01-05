@@ -1,6 +1,5 @@
 import {Scene as GameScene, SceneEventTypes} from "@core/elements/scene";
 import React, {useEffect} from "react";
-import BackgroundTransition from "./BackgroundTransition";
 import {GameState} from "@player/gameState";
 import clsx from "clsx";
 
@@ -67,7 +66,6 @@ export default function Scene(
 
     return (
         <div className={clsx(className, "w-full h-full")}>
-            <BackgroundTransition scene={scene} state={state}/>
             {children}
         </div>
     );
