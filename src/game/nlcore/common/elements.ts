@@ -14,6 +14,7 @@ import {Text} from "@core/elements/displayable/text";
 import {Pause} from "@core/elements/character/pause";
 import {Color, ImageSrc, StaticImageData} from "@core/types";
 import {Persistent} from "@core/elements/persistent";
+import {Service} from "@core/elements/service";
 
 interface ImageConstructor {
     new<T extends TagGroupDefinition | null>(
@@ -68,4 +69,5 @@ export {
     Pause,
     Persistent,
     AbstractImage,
+    Service,
 };
