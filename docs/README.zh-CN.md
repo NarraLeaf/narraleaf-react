@@ -52,7 +52,7 @@ scene1.action([
      * 约翰·多: 对了，别忘了查看文档！
      */
     johnDoe.say("对了，别忘了查看文档！"),
-    
+
     /**
      * Menu: 开始旅程
      *   > 是的，我会！
@@ -89,28 +89,42 @@ npm install narraleaf-react
 - [快速开始](https://react.narraleaf.com/documentation/quick-start)
 - [安装](https://react.narraleaf.com/documentation/installation)
 - [基础](https://react.narraleaf.com/documentation/basic)
-  - [创建场景](https://react.narraleaf.com/documentation/basic/create-scene)
-  - [添加动作](https://react.narraleaf.com/documentation/basic/add-actions)
-  - [显示对话](https://react.narraleaf.com/documentation/basic/show-dialog)
-  - [显示图片](https://react.narraleaf.com/documentation/basic/show-image)
-  - [播放故事](https://react.narraleaf.com/documentation/basic/play-story)
-  - [作出选择](https://react.narraleaf.com/documentation/basic/make-choices)
-  - [声音](https://react.narraleaf.com/documentation/basic/sound)
-  - [储存数据](https://react.narraleaf.com/documentation/basic/store-data)
-  - [条件](https://react.narraleaf.com/documentation/basic/conditional)
-  - [配音](https://react.narraleaf.com/documentation/basic/voice)
-  - [管理偏好](https://react.narraleaf.com/documentation/basic/manage-preferences)
+    - [创建场景](https://react.narraleaf.com/documentation/basic/create-scene)
+    - [添加动作](https://react.narraleaf.com/documentation/basic/add-actions)
+    - [显示对话](https://react.narraleaf.com/documentation/basic/show-dialog)
+    - [显示图片](https://react.narraleaf.com/documentation/basic/show-image)
+    - [播放故事](https://react.narraleaf.com/documentation/basic/play-story)
+    - [作出选择](https://react.narraleaf.com/documentation/basic/make-choices)
+    - [声音](https://react.narraleaf.com/documentation/basic/sound)
+    - [储存数据](https://react.narraleaf.com/documentation/basic/store-data)
+    - [条件](https://react.narraleaf.com/documentation/basic/conditional)
+    - [配音](https://react.narraleaf.com/documentation/basic/voice)
+    - [管理偏好](https://react.narraleaf.com/documentation/basic/manage-preferences)
 - [核心](https://react.narraleaf.com/documentation/core)
-  - [元素](https://react.narraleaf.com/documentation/core/elements)
-  - [动画](https://react.narraleaf.com/documentation/core/animation)
-  - [游戏](https://react.narraleaf.com/documentation/core/game)
+    - [元素](https://react.narraleaf.com/documentation/core/elements)
+        - [场景](https://react.narraleaf.com/documentation/core/elements/scene)
+        - [角色](https://react.narraleaf.com/documentation/core/elements/character)
+            - [句子](https://react.narraleaf.com/documentation/core/elements/character/sentence)
+            - [单词](https://react.narraleaf.com/documentation/core/elements/character/word)
+            - [停顿](https://react.narraleaf.com/documentation/core/elements/character/pause)
+        - [图片](https://react.narraleaf.com/documentation/core/elements/image)
+        - [声音](https://react.narraleaf.com/documentation/core/elements/sound)
+        - [选项](https://react.narraleaf.com/documentation/core/elements/menu)
+        - [脚本](https://react.narraleaf.com/documentation/core/elements/script)
+        - [条件](https://react.narraleaf.com/documentation/core/elements/condition)
+        - [控制](https://react.narraleaf.com/documentation/core/elements/control)
+        - [文本](https://react.narraleaf.com/documentation/core/elements/text)
+        - [持久化](https://react.narraleaf.com/documentation/core/elements/persistent)
+        - [故事](https://react.narraleaf.com/documentation/core/elements/story)
+    - [动画](https://react.narraleaf.com/documentation/core/animation)
+    - [游戏](https://react.narraleaf.com/documentation/core/game)
 - [播放器](https://react.narraleaf.com/documentation/player)
 - [定制化](https://react.narraleaf.com/documentation/custom)
 - [迁移](https://react.narraleaf.com/documentation/migration)
-  - [来自 Ren'Py](https://react.narraleaf.com/documentation/migration/from-renpy)
+    - [来自 Ren'Py](https://react.narraleaf.com/documentation/migration/from-renpy)
 - Info
-  - [许可](https://react.narraleaf.com/documentation/info/license)
-  - [不兼容的更改](https://react.narraleaf.com/documentation/info/incompatible-changes)
+    - [许可](https://react.narraleaf.com/documentation/info/license)
+    - [不兼容的更改](https://react.narraleaf.com/documentation/info/incompatible-changes)
 
 阅读更多在之中 [🛠React.NarraLeaf.com](https://react.narraleaf.com)
 
