@@ -37,9 +37,6 @@ const scene1 = new Scene("scene1_hello_world", {
 const johnSmith = new Character("John Smith");
 const johnDoe = new Character("John Doe");
 
-const blue = (text: string) => Word.color(text, "#0000ff");
-const bold = (text: string) => Word.bold(text);
-
 scene1.action([
     /**
      * John Smith: Hello, world!
@@ -49,7 +46,7 @@ scene1.action([
     johnSmith
         .say("Hello, world!")
         .say("This is my first NarraLeaf story.")
-        .say`Start editing ${bold(blue("src/story.js", "#0000ff"))} and enjoy the journey!`,
+        .say`Start editing ${Word.color("src/story.js", "#0000ff")} and enjoy the journey!`,
 
     /**
      * John Doe: Also, don't forget to check out the documentation!

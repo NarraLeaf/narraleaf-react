@@ -37,9 +37,6 @@ const scene1 = new Scene("场景1_你好_世界", {
 const johnSmith = new Character("约翰·史密斯");
 const johnDoe = new Character("约翰·多");
 
-const blue = (text: string) => Word.color(text, "#0000ff");
-const bold = (text: string) => Word.bold(text);
-
 scene1.action([
     /**
      * 约翰·史密斯: 你好世界！
@@ -49,7 +46,7 @@ scene1.action([
     johnSmith
         .say("你好世界！")
         .say("这是我的第一个NarraLeaf视觉小说")
-        .say`开始编辑 ${bold(blue("src/story.js", "#0000ff"))} 并享受旅程！`,
+        .say`开始编辑 ${Word.color("src/story.js", "#0000ff")} 并享受旅程！`,
 
     /**
      * 约翰·多: 对了，别忘了查看文档！
