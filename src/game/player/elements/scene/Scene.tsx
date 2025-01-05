@@ -1,4 +1,4 @@
-import {Scene as GameScene, SceneEventTypes} from "@core/elements/scene";
+import {Scene as GameScene} from "@core/elements/scene";
 import React, {useEffect} from "react";
 import {GameState} from "@player/gameState";
 import clsx from "clsx";
@@ -17,43 +17,29 @@ export default function Scene(
         className?: string;
     }>) {
     useEffect(() => {
-        const listeners: {
-            type: keyof SceneEventTypes;
-            listener: (...args: any[]) => void;
-        }[] = [
-            {
-                type: "event:scene.setBackgroundMusic",
-                listener: scene.events.on(GameScene.EventTypes["event:scene.setBackgroundMusic"], (music, fade) => {
-                    return new Promise<void>((resolve) => {
-                        if (scene.state.backgroundMusic) {
-                            state.audioManager.stop(scene.state.backgroundMusic, fade).then(() => {
-                                scene.state.backgroundMusic = null;
-                                if (music) state.audioManager.play(music, {
-                                    end: music.state.volume,
-                                    duration: fade,
-                                }).then(resolve);
-                            });
-                        }
-                    });
-                })
-            },
-            {
-                type: "event:scene.preUnmount",
-                listener: scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
-                    if (scene.state.backgroundMusic) {
-                        return state.audioManager.stop(scene.state.backgroundMusic).then(() => {
-                            scene.state.backgroundMusic = null;
-                        });
+        return scene.events.depends([
+            scene.events.on(GameScene.EventTypes["event:scene.setBackgroundMusic"], (music, fade) => {
+                return new Promise<void>((resolve) => {
+                    if (!scene.state.backgroundMusic) {
+                        return;
                     }
-                })
-            }
-        ];
-
-        return () => {
-            listeners.forEach(({type, listener}) => {
-                scene.events.off(type, listener);
-            });
-        };
+                    state.audioManager.stop(scene.state.backgroundMusic, fade).then(() => {
+                        scene.state.backgroundMusic = null;
+                        if (music) state.audioManager.play(music, {
+                            end: music.state.volume,
+                            duration: fade,
+                        }).then(resolve);
+                    });
+                });
+            }),
+            scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
+                if (scene.state.backgroundMusic) {
+                    return state.audioManager.stop(scene.state.backgroundMusic).then(() => {
+                        scene.state.backgroundMusic = null;
+                    });
+                }
+            }),
+        ]).cancel;
     }, []);
 
     useEffect(() => {

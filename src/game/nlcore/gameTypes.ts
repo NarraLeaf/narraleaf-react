@@ -18,6 +18,7 @@ export interface SavedGame {
         elementStates: RawData<ElementStateRaw>[];
         stage: PlayerStateData;
         currentAction: string | null;
+        services: { [key: string]: unknown; };
     };
 }
 

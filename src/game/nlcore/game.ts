@@ -5,6 +5,7 @@ import {DefaultElements} from "@player/elements/elements";
 import {ComponentsTypes} from "@player/elements/type";
 import {LiveGame} from "@core/game/liveGame";
 import {Preference} from "@core/game/preference";
+import {GameState} from "@player/gameState";
 
 enum GameSettingsNamespace {
     game = "game",
@@ -118,7 +119,7 @@ export class Game {
     static GameSettingsNamespace = GameSettingsNamespace;
 
     /**@internal */
-    readonly config: Readonly<GameConfig>;
+    config: GameConfig;
     /**@internal */
     liveGame: LiveGame | null = null;
     /**
@@ -132,6 +133,15 @@ export class Game {
      */
     constructor(config: DeepPartial<GameConfig>) {
         this.config = deepMerge<GameConfig>(Game.DefaultConfig, config);
+    }
+
+    /**
+     * Configure the game
+     */
+    public configure(config: DeepPartial<GameConfig>): this {
+        this.config = deepMerge<GameConfig>(this.config, config);
+        this.getLiveGame().getGameState()?.events.emit(GameState.EventTypes["event:state.player.requestFlush"]);
+        return this;
     }
 
     /**

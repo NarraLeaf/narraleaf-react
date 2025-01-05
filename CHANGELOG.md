@@ -40,13 +40,14 @@
 
 ### _Feature_
 
-- use `Service` to create custom actions
+- `Service` API: a new way to create custom actions
 
 ### Added
 
 - use `Transform.immediate` to apply transformations immediately
 - `Text`, `Word`, `Character`, `Scene` background, and `Image`'s color now supports named colors,
   see [MDN: <named-color>](https://developer.mozilla.org/en-US/docs/Web/CSS/named-color) for a list of supported colors.
+- use `game.configure` to configure the game instead of constructing a new game instance
 
 ### Fixed
 
@@ -57,6 +58,7 @@
 - A better way to serialize/deserialize the element states
 - Refactored displayable components
 - Refactored the way to play sounds
+- Transform now doesn't store its controllers and states, transform states are now stored in the element states
 
 ## [0.2.3] - 2024/12/27
 

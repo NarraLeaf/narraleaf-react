@@ -61,7 +61,11 @@ type GameStateEvents = {
      */
     "event:state.preload.unmount": [];
     "event:state.preload.loaded": [];
+    /**
+     * @deprecated
+     */
     "event:state.player.flush": [];
+    "event:state.player.requestFlush": [];
 };
 
 export class GameState {
@@ -72,6 +76,7 @@ export class GameState {
         "event:state.preload.unmount": "event:state.preload.unmount",
         "event:state.preload.loaded": "event:state.preload.loaded",
         "event:state.player.flush": "event:state.player.flush",
+        "event:state.player.requestFlush": "event:state.player.requestFlush",
     };
     state: PlayerState = {
         sounds: [],

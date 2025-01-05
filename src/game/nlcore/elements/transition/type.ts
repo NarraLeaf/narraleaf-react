@@ -5,10 +5,25 @@ import {Color, ImageSrc} from "@core/types";
 
 /**@internal */
 export type ElementProp<T extends Element = Element, U extends React.HTMLAttributes<T> = React.HTMLAttributes<T>> =
-    React.JSX.IntrinsicAttributes
-    & React.ClassAttributes<T>
-    & React.HTMLAttributes<T>
-    & U;
+    T extends HTMLImageElement
+        ? React.JSX.IntrinsicAttributes
+        & React.ClassAttributes<T>
+        & React.ImgHTMLAttributes<T>
+        & U
+        : T extends HTMLAnchorElement
+            ? React.JSX.IntrinsicAttributes
+            & React.ClassAttributes<T>
+            & React.AnchorHTMLAttributes<T>
+            & U
+            : T extends HTMLButtonElement
+                ? React.JSX.IntrinsicAttributes
+                & React.ClassAttributes<T>
+                & React.ButtonHTMLAttributes<T>
+                & U
+                : React.JSX.IntrinsicAttributes
+                & React.ClassAttributes<T>
+                & React.HTMLAttributes<T>
+                & U;
 /**@internal */
 export type ImgElementProp = ElementProp<HTMLImageElement, React.ImgHTMLAttributes<HTMLImageElement>>;
 /**@internal */

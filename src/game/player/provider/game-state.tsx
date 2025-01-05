@@ -1,5 +1,6 @@
 "use client";
 
+import "client-only";
 import React, {ReactNode, useContext, useState} from "react";
 import {Game} from "@core/game";
 

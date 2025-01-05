@@ -1,12 +1,13 @@
 import {Constructable} from "../action/constructable";
-import {deepMerge} from "@lib/util/data";
+import {deepMerge, isPureObject} from "@lib/util/data";
 import {Scene} from "@core/elements/scene";
-import {RuntimeScriptError, StaticChecker} from "@core/common/Utils";
+import {RuntimeScriptError, StaticChecker, StaticScriptWarning} from "@core/common/Utils";
 import {RawData} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {LogicAction} from "@core/action/logicAction";
 import {Persistent} from "@core/elements/persistent";
 import {Storable} from "@core/elements/persistent/storable";
+import {Service} from "@core/elements/service";
 
 export enum Origins {
     topLeft = "top left",
@@ -18,6 +19,7 @@ export enum Origins {
 export interface IStoryConfig {
     origin: Origins;
 }
+
 /**@internal */
 export type ElementStateRaw = Record<string, any>;
 
@@ -47,6 +49,8 @@ export class Story extends Constructable<
     scenes: Map<string, Scene> = new Map();
     /**@internal */
     persistent: Persistent<any>[] = [];
+    /**@internal */
+    services: Map<string, Service> = new Map();
 
     constructor(name: string, config: IStoryConfig = Story.defaultConfig) {
         super();
@@ -108,8 +112,68 @@ export class Story extends Constructable<
     }
 
     /**
-     * @internal
+     * Register a Service to the story
+     *
+     * **Note**: service name should be unique
      */
+    public registerService(name: string, service: Service): this {
+        this.services.set(name, service);
+        return this;
+    }
+
+    /**
+     * Get a registered service, throw an error if the service isn't found
+     */
+    public getService(name: string): Service {
+        const service = this.services.get(name);
+        if (!service) {
+            throw new StaticScriptWarning(`Trying to access service ${name} before it's registered, please use "story.registerService" to register the service`);
+        }
+        return service;
+    }
+
+    /**@internal */
+    serializeServices(): { [key: string]: unknown } {
+        const services: { [key: string]: unknown } = {};
+        this.services.forEach((service, key) => {
+            if (!service.serialize || typeof service.serialize !== "function") {
+                return;
+            }
+
+            const res = service.serialize();
+            if (res === null) {
+                return;
+            } else if (res instanceof Promise) {
+                throw new RuntimeScriptError(`Service ${key} serialize method should not return a promise`);
+            } else if (!isPureObject(res)) {
+                throw new RuntimeScriptError(`Service ${key} serialize method should return a pure object. \n` +
+                    "A pure object should:\n" +
+                    "1. be an object literal\n" +
+                    "2. not have any prototype\n" +
+                    "3. no circular reference\n" +
+                    "4. sub objects should also be pure objects or serializable data\n" +
+                    "Return null if nothing needs to be saved. For more information, see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#description\n" +
+                    `Returned value ${res} violates the above rules`
+                );
+            }
+            services[key] = res;
+        });
+        return services;
+    }
+
+    /**@internal */
+    deserializeServices(data: { [key: string]: unknown }) {
+        this.services.forEach((service, key) => {
+            if (!service.deserialize || typeof service.deserialize !== "function") {
+                return;
+            }
+            if (data[key]) {
+                service.deserialize(data[key] as any);
+            }
+        });
+    }
+
+    /**@internal */
     getScene(name: string | Scene, assert: true, error?: (message: string) => Error): Scene;
     getScene(name: string | Scene, assert?: false): Scene | null;
     getScene(name: string | Scene, assert = false, error?: (message: string) => Error): Scene | null {
@@ -193,7 +257,7 @@ export class Story extends Constructable<
     }
 
     /**@internal */
-    getInversionConfig(): {invertY: boolean; invertX: boolean} {
+    getInversionConfig(): { invertY: boolean; invertX: boolean } {
         const {origin} = this.config;
         return {
             invertY: origin === Origins.bottomLeft || origin === Origins.bottomRight,

@@ -1,10 +1,10 @@
 import React, {useEffect, useState} from "react";
 import {OverwriteDefinition, Transform, TransformState} from "@core/elements/transform/transform";
-import {ITransition} from "@core/elements/transition/type";
+import {ElementProp, ITransition} from "@core/elements/transition/type";
 import {useFlush} from "@player/lib/flush";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Displayable} from "@core/elements/displayable/displayable";
-import {Awaitable} from "@lib/util/data";
+import {Awaitable, deepMerge} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 
@@ -14,24 +14,27 @@ export type StatefulObject = {
 };
 
 /**@internal */
-export type DisplayableHookConfig = {
+export type DisplayableHookConfig<Element extends HTMLElement = HTMLImageElement> = {
     skipTransition?: boolean;
     skipTransform?: boolean;
     overwriteDefinition?: OverwriteDefinition;
     state: TransformState<any>;
     element: EventfulDisplayable;
     onTransform?: (transform: Transform) => void;
+    transformStyle?: React.CSSProperties;
+    transitionProp?: ElementProp<Element>;
 };
 
 /**@internal */
-export type DisplayableHookResult = {
+export type DisplayableHookResult<Element extends HTMLElement = HTMLImageElement> = {
     transition: ITransition | null;
+    transitionProps: ElementProp<Element>[];
     ref: React.RefObject<HTMLDivElement | null>;
     flushDeps: React.DependencyList;
 };
 
 /**@internal */
-export function useDisplayable(
+export function useDisplayable<Element extends HTMLElement = HTMLImageElement>(
     {
         element,
         state,
@@ -39,8 +42,11 @@ export function useDisplayable(
         skipTransform,
         overwriteDefinition,
         onTransform,
-    }: DisplayableHookConfig): DisplayableHookResult {
+        transformStyle,
+        transitionProp,
+    }: DisplayableHookConfig<Element>): DisplayableHookResult<Element> {
     const [flush, dep] = useFlush();
+    const [, setTransformStyle] = useState<React.CSSProperties>(transformStyle || {});
     const [transition, setTransition] = useState<null | ITransition>(null);
     const [transformToken, setTransformToken] = useState<null | Awaitable<void>>(null);
     const ref = React.useRef<HTMLDivElement | null>(null);
@@ -48,29 +54,15 @@ export function useDisplayable(
     const gameState = game.getLiveGame().getGameState()!;
 
     useEffect(() => {
-        return element.events.onEvents([
-            {
-                type: Displayable.EventTypes["event:displayable.applyTransform"],
-                listener: element.events.on(Displayable.EventTypes["event:displayable.applyTransform"], applyTransform)
-            },
-            {
-                type: Displayable.EventTypes["event:displayable.applyTransition"],
-                listener: element.events.on(Displayable.EventTypes["event:displayable.applyTransition"], applyTransition)
-            },
-            {
-                type: Displayable.EventTypes["event:displayable.init"],
-                listener: element.events.on(Displayable.EventTypes["event:displayable.init"], initDisplayable)
-            }
+        return element.events.depends([
+            element.events.on(Displayable.EventTypes["event:displayable.applyTransform"], applyTransform),
+            element.events.on(Displayable.EventTypes["event:displayable.applyTransition"], applyTransition),
+            element.events.on(Displayable.EventTypes["event:displayable.init"], initDisplayable),
         ]).cancel;
     }, [transition, transformToken]);
 
     useEffect(() => {
-        return gameState.events.onEvents([
-            {
-                type: GameState.EventTypes["event:state.player.skip"],
-                listener: gameState.events.on(GameState.EventTypes["event:state.player.skip"], skip),
-            }
-        ]).cancel;
+        return gameState.events.on(GameState.EventTypes["event:state.player.skip"], skip).cancel;
     }, [transition, transformToken]);
 
     useEffect(() => {
@@ -78,6 +70,18 @@ export function useDisplayable(
             throw new Error(`Scope not ready. Using element: ${element.constructor.name}`);
         }
     }, []);
+
+    function handleOnTransform(transform: Transform) {
+        setTransformStyle((prev) => {
+            const style = Object.assign({}, prev, state.toStyle(gameState, overwriteDefinition));
+            Object.assign(ref.current!.style, style);
+            return style;
+        });
+        gameState.logger.debug("Displayable", "Transform applied", ref.current, state.toStyle(gameState, overwriteDefinition));
+
+        flush();
+        onTransform?.(transform);
+    }
 
     function applyTransform(transform: Transform): Promise<void> {
         if (transformToken) {
@@ -98,8 +102,7 @@ export function useDisplayable(
             awaitable.then(() => {
                 setTransformToken(null);
                 resolve();
-                flush();
-                onTransform?.(transform);
+                handleOnTransform(transform);
             });
         });
     }
@@ -125,7 +128,8 @@ export function useDisplayable(
             const initStyle = state.toStyle(gameState, overwriteDefinition);
             Object.assign(ref.current!.style, initStyle);
 
-            const token = Transform.immediate(state.get()).animate(
+            const transform = Transform.immediate(state.get());
+            const token = transform.animate(
                 state,
                 {
                     gameState,
@@ -137,8 +141,7 @@ export function useDisplayable(
             token.then(() => {
                 setTransformToken(null);
                 resolve();
-                flush();
-                onTransform?.(Transform.immediate(state.get()));
+                handleOnTransform(transform);
             });
         });
     }
@@ -160,6 +163,8 @@ export function useDisplayable(
 
     return {
         transition,
+        transitionProps: (transition ? transition.toElementProps() : [{}])
+            .map(e => deepMerge({}, transitionProp || {}, e)),
         ref,
         flushDeps: [dep],
     };

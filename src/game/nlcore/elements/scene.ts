@@ -1,5 +1,5 @@
 import {Constructable} from "../action/constructable";
-import {Awaitable, deepMerge, EventDispatcher, Serializer} from "@lib/util/data";
+import {deepMerge, EventDispatcher, Serializer} from "@lib/util/data";
 import {Color, ImageSrc} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
@@ -218,16 +218,14 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Wait for a period of time, the parameter can be the number of milliseconds, a Promise, or an unresolved {@link Awaitable}
+     * Wait for a period of time, the parameter can be the number of milliseconds or a Promise
      * @chainable
      */
     public sleep(ms: number): ChainedScene;
 
     public sleep(promise: Promise<any>): ChainedScene;
 
-    public sleep(awaitable: Awaitable<any, any>): ChainedScene;
-
-    public sleep(content: number | Promise<any> | Awaitable<any, any>): ChainedScene {
+    public sleep(content: number | Promise<any>): ChainedScene {
         return this.chain(new SceneAction(
             this.chain(),
             "scene:sleep",

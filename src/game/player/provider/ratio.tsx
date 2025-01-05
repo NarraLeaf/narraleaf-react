@@ -96,10 +96,7 @@ class AspectRatio {
     }
 
     onUpdate(callback: (width: number, height: number) => void) {
-        this.events.on(AspectRatio.EventTypes["event:aspectRatio.update"], callback);
-        return () => {
-            this.events.off(AspectRatio.EventTypes["event:aspectRatio.update"], callback);
-        };
+        return this.events.on(AspectRatio.EventTypes["event:aspectRatio.update"], callback).cancel;
     }
 
     requestUpdate() {
@@ -107,10 +104,7 @@ class AspectRatio {
     }
 
     onRequestedUpdate(callback: () => void) {
-        this.events.on(AspectRatio.EventTypes["event:aspectRatio.requestUpdate"], callback);
-        return () => {
-            this.events.off(AspectRatio.EventTypes["event:aspectRatio.requestUpdate"], callback);
-        };
+        return this.events.on(AspectRatio.EventTypes["event:aspectRatio.requestUpdate"], callback).cancel;
     }
 
     private triggerUpdate() {

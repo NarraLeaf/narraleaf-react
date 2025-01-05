@@ -5,7 +5,6 @@ import clsx from "clsx";
 import React, {useEffect, useReducer, useState} from "react";
 import {Awaitable, createMicroTask, MultiLock} from "@lib/util/data";
 import {CalledActionResult} from "@core/gameTypes";
-import {SceneEventTypes} from "@core/elements/scene";
 import AspectRatio from "@player/lib/AspectRatio";
 import Isolated from "@player/lib/isolated";
 import {default as StageScene} from "@player/elements/scene/Scene";
@@ -97,54 +96,36 @@ export default function Player(
 
             const lastScene = state.getLastScene();
 
-            const events: {
-                type: keyof SceneEventTypes;
-                listener: () => void;
-            }[] = [];
+            const events: (() => void)[] = [];
             if (lastScene) {
-                events.push({
-                    type: "event:scene.mount",
-                    listener: lastScene.events.once("event:scene.mount", () => {
-                        state.stage.next();
-                    })
-                });
+                events.push(lastScene.events.once("event:scene.mount", () => {
+                    state.stage.next();
+                }).cancel);
             } else {
                 state.stage.next();
             }
 
-            const gameStateEvents = state.events.onEvents([
-                {
-                    type: GameState.EventTypes["event:state.end"],
-                    listener: () => {
-                        if (onEnd) {
-                            onEnd({
-                                game,
-                                gameState: state,
-                                liveGame: game.getLiveGame(),
-                                storable: game.getLiveGame().getStorable(),
-                            });
-                        }
-                    }
+            const gameStateEvents = state.events.on(GameState.EventTypes["event:state.end"], () => {
+                if (onEnd) {
+                    onEnd({
+                        game,
+                        gameState: state,
+                        liveGame: game.getLiveGame(),
+                        storable: game.getLiveGame().getStorable(),
+                    });
                 }
-            ]);
+            });
 
-            const gameKeyEvents = state.events.onEvents([
-                {
-                    type: GameState.EventTypes["event:state.player.skip"],
-                    listener: () => {
-                        game.getLiveGame().abortAwaiting();
-                        next();
-                    }
-                }
-            ]);
+            const gameKeyEvents = state.events.once(GameState.EventTypes["event:state.player.skip"], () => {
+                game.getLiveGame().abortAwaiting();
+                next();
+            });
 
             state.stage.update();
 
             return () => {
                 if (lastScene) {
-                    events.forEach(event => {
-                        lastScene.events.off(event.type, event.listener);
-                    });
+                    events.forEach(token => token());
                 }
                 gameStateEvents.cancel();
                 gameKeyEvents.cancel();
@@ -184,7 +165,7 @@ export default function Player(
                 width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
                 height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
             }} className={clsx(className, "__narraleaf_content-player")} ref={containerRef}>
-                <AspectRatio className={clsx("flex-grow overflow-auto")}>
+                <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
                     <SizeUpdateAnnouncer ref={containerRef}/>
                     <Isolated style={{
                         cursor: state.game.config.player.cursor ? "none" : "auto",
@@ -260,17 +241,15 @@ function OnlyPreloaded({children, onLoaded}: Readonly<{
     const [preloadedReady, setPreloadedReady] = useState(false);
 
     useEffect(() => {
-        const listener = preloaded.events.on(Preloaded.EventTypes["event:preloaded.ready"], () => {
-            setPreloadedReady(true);
-            onLoaded();
-        });
-        const unmountListener = preloaded.events.on(Preloaded.EventTypes["event:preloaded.unmount"], () => {
-            setPreloadedReady(false);
-        });
-        return () => {
-            preloaded.events.off(Preloaded.EventTypes["event:preloaded.ready"], listener);
-            preloaded.events.off(Preloaded.EventTypes["event:preloaded.unmount"], unmountListener);
-        };
+        return preloaded.events.depends([
+            preloaded.events.on(Preloaded.EventTypes["event:preloaded.ready"], () => {
+                setPreloadedReady(true);
+                onLoaded();
+            }),
+            preloaded.events.on(Preloaded.EventTypes["event:preloaded.unmount"], () => {
+                setPreloadedReady(false);
+            })
+        ]).cancel;
     }, []);
 
     return (

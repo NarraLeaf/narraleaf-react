@@ -257,9 +257,9 @@ export type EventTypes = {
     [key: string]: any[];
 }
 export type EventListener<T extends any[]> = (...args: T) => void | Thenable<any>;
-export type EventToken = {
-    type: keyof EventTypes;
-    listener: EventListener<any>;
+export type EventToken<T extends EventTypes = EventTypes> = {
+    type?: keyof T;
+    listener?: EventListener<any>;
     cancel: () => void;
 };
 
@@ -270,35 +270,25 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
 }> {
     private events: { [K in keyof Type]: Array<EventListener<Type[K]>> } = {} as any;
 
-    public on<K extends keyof Type>(event: K, listener: EventListener<Type[K]>): EventListener<Type[K]> {
+    public on<K extends StringKeyOf<Type>>(event: K, listener: EventListener<Type[K]>): EventToken {
         if (!this.events[event]) {
             this.events[event] = [];
         }
         this.events[event].push(listener);
         this.emit("event:EventDispatcher.register", event as any, listener as any);
-        return listener;
+        return {
+            type: event,
+            listener,
+            cancel: () => {
+                this.off(event, listener);
+            }
+        };
     }
 
-    public onEvents(events: {
-        type: keyof Type;
-        listener: EventListener<any>;
-    }[]): {
-        tokens: EventToken[];
-        cancel: () => void;
-    } {
-        const tokens = events.map(({type, listener}) => {
-            return {
-                type,
-                listener,
-                cancel: () => {
-                    this.off(type, listener);
-                }
-            };
-        }) as EventToken[];
+    public depends(events: EventToken<T>[]): EventToken {
         return {
-            tokens,
             cancel: () => {
-                tokens.forEach(token => token.cancel());
+                events.forEach(token => token.cancel());
             }
         };
     }
@@ -317,7 +307,7 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         });
     }
 
-    public once<K extends keyof Type>(event: K, listener: EventListener<Type[K]>): EventListener<Type[K]> {
+    public once<K extends StringKeyOf<Type>>(event: K, listener: EventListener<Type[K]>): EventToken {
         const onceListener: EventListener<Type[K]> = (...args) => {
             listener(...args);
             this.off(event, onceListener);
@@ -342,7 +332,7 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
 
         // If there's no registered listener
         return new Promise<void>((resolve) => {
-            const registerType = "event:EventDispatcher.register";
+            const registerType = "event:EventDispatcher.register" as any;
             const listener = this.on(registerType, (type, fc) => {
                 if (type === event) {
                     this.off(registerType, listener);
@@ -354,7 +344,7 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
                         resolve(res);
                     }
                 }
-            });
+            }).listener!;
         });
     }
 
@@ -430,10 +420,7 @@ export class SkipController<T = any, U extends Array<any> = any[]> {
     }
 
     public onAbort(listener: () => void) {
-        this.events.on("event:skipController.abort", listener);
-        return {
-            cancel: () => this.events.off("event:skipController.abort", listener)
-        };
+        return this.events.on("event:skipController.abort", listener);
     }
 }
 
@@ -534,6 +521,10 @@ export function onlyIf<T>(condition: boolean, value: T, fallback: object = {}): 
 }
 
 export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): T {
+    if (delay <= 0) {
+        return fn;
+    }
+
     let timer: NodeJS.Timeout | null = null;
     return function (...args: T extends ((...args: infer P) => any) ? P : never[]) {
         if (timer) {
@@ -1049,4 +1040,58 @@ export function onlyValidFields<T extends Record<string, any>>(obj: T): Partial<
         }
     }
     return result;
+}
+
+/**
+ * Check if the object is a pure object
+ *
+ * A pure object should:
+ * - be an object (prototype is Object)
+ * - not be an array
+ * - no circular reference
+ * - sub objects should also be pure objects or serializable data
+ */
+export function isPureObject(obj: any, seen: WeakSet<any> = new WeakSet()): boolean {
+    // Check if obj is null or not an object
+    if (obj === null || typeof obj !== "object") {
+        return false;
+    }
+
+    // Ensure obj isn't an array, Date, or RegExp
+    if (Array.isArray(obj) || obj instanceof Date || obj instanceof RegExp) {
+        return false;
+    }
+
+    // Ensure the prototype is Object.prototype
+    if (Object.getPrototypeOf(obj) !== Object.prototype) {
+        return false;
+    }
+
+    // Check for circular references
+    if (seen.has(obj)) {
+        return false; // Circular reference detected
+    }
+    seen.add(obj);
+
+    // Recursively check all properties of the object
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const value = obj[key];
+            // Ensure all sub-objects are pure or serializable
+            if (
+                value !== null &&
+                typeof value === "object" &&
+                !isPureObject(value, seen)
+            ) {
+                return false;
+            }
+            // Ensure non-serializable types are not present
+            if (typeof value === "function" || typeof value === "symbol") {
+                return false;
+            }
+        }
+    }
+
+    // Passed all checks
+    return true;
 }

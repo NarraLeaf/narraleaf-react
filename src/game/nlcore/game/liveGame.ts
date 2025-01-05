@@ -143,8 +143,9 @@ export class LiveGame {
                 stage,
                 currentAction,
                 elementStates,
-            }
-        };
+                services: story.serializeServices(),
+            },
+        } satisfies SavedGame;
     }
 
     /**
@@ -176,6 +177,7 @@ export class LiveGame {
                 stage,
                 elementStates,
                 currentAction,
+                services,
             }
         } = savedGame;
 
@@ -211,6 +213,9 @@ export class LiveGame {
             this.currentAction = action;
         }
 
+        // restore services
+        story.deserializeServices(services);
+
         gameState.stage.forceUpdate();
         gameState.stage.next();
     }
@@ -219,26 +224,14 @@ export class LiveGame {
      * When a character says something
      */
     public onCharacterPrompt(fc: LiveGameEventHandler<LiveGameEvent["event:character.prompt"]>): LiveGameEventToken {
-        const eventName = LiveGame.EventTypes["event:character.prompt"];
-        const event = this.events.on(eventName, fc);
-        return {
-            cancel: () => {
-                this.events.off(eventName, event);
-            }
-        };
+        return this.events.on(LiveGame.EventTypes["event:character.prompt"], fc);
     }
 
     /**
      * When a player chooses a menu
      */
     public onMenuChoose(fc: LiveGameEventHandler<LiveGameEvent["event:menu.choose"]>): LiveGameEventToken {
-        const eventName = LiveGame.EventTypes["event:menu.choose"];
-        const event = this.events.on(eventName, fc);
-        return {
-            cancel: () => {
-                this.events.off(eventName, event);
-            }
-        };
+        return this.events.on(LiveGame.EventTypes["event:menu.choose"], fc);
     }
 
     /**
@@ -465,6 +458,7 @@ export class LiveGame {
                 },
                 elementStates: [],
                 currentAction: this.story?.entryScene?.getSceneRoot().getId() || null,
+                services: {},
             }
         };
     }
