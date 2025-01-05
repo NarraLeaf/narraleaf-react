@@ -85,19 +85,34 @@ npm install narraleaf-react
 
 ### Documentation
 
+- [Introduction](https://react.narraleaf.com/documentation/introduction)
+- [Quick Start](https://react.narraleaf.com/documentation/quick-start)
+- [Installation](https://react.narraleaf.com/documentation/installation)
+- [Basic](https://react.narraleaf.com/documentation/basic)
+  - [Create a Scene](https://react.narraleaf.com/documentation/basic/create-scene)
+  - [Add Actions](https://react.narraleaf.com/documentation/basic/add-actions)
+  - [Show Dialog](https://react.narraleaf.com/documentation/basic/show-dialog)
+  - [Show Image](https://react.narraleaf.com/documentation/basic/show-image)
+  - [Play Story](https://react.narraleaf.com/documentation/basic/play-story)
+  - [Make Choices](https://react.narraleaf.com/documentation/basic/make-choices)
+  - [Play Sound](https://react.narraleaf.com/documentation/basic/sound)
+  - [Store Data](https://react.narraleaf.com/documentation/basic/store-data)
+  - [Conditional](https://react.narraleaf.com/documentation/basic/conditional)
+  - [Voice](https://react.narraleaf.com/documentation/basic/voice)
+  - [Manage Preferences](https://react.narraleaf.com/documentation/basic/manage-preferences)
+- [Core](https://react.narraleaf.com/documentation/core)
+  - [Elements](https://react.narraleaf.com/documentation/core/elements)
+  - [Animation](https://react.narraleaf.com/documentation/core/animation)
+  - [Game](https://react.narraleaf.com/documentation/core/game)
+- [Player](https://react.narraleaf.com/documentation/player)
+- [Customization](https://react.narraleaf.com/documentation/custom)
+- [Migration](https://react.narraleaf.com/documentation/migration)
+  - [From Ren'Py](https://react.narraleaf.com/documentation/migration/from-renpy)
+- Info
+  - [License](https://react.narraleaf.com/documentation/info/license)
+  - [Incompatible Changes](https://react.narraleaf.com/documentation/info/incompatible-changes)
+
 Read more in [🛠React.NarraLeaf.com](https://react.narraleaf.com)
-
-### Example
-
-```bash
-npx create-react-app nlr-app --template my-first-narraleaf-app
-```
-
-to start
-
-```bash
-npm start
-```
 
 ## License
 
