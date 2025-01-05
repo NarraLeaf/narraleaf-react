@@ -41,6 +41,8 @@
 ### _Feature_
 
 - `Service` API: a new way to create custom actions
+- Use `liveGame.requestFullScreen` and `liveGame.exitFullScreen` to request full screen on the player element
+- Use `liveGame.onPlayerEvent` to listen to the dom events of the player element
 
 ### Added
 

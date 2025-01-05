@@ -86,6 +86,7 @@ export class GameState {
     currentHandling: CalledActionResult | null = null;
     stage: StageUtils;
     game: Game;
+    playerCurrent: HTMLDivElement | null = null;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
     public readonly audioManager: AudioManager;

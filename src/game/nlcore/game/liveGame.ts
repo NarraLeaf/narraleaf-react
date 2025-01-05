@@ -15,6 +15,7 @@ import {ControlAction} from "@core/action/actions/controlAction";
 import {LiveGameEventHandler, LiveGameEventToken} from "@core/types";
 import {Character} from "@core/elements/character";
 import {Sentence} from "@core/elements/character/sentence";
+import {RuntimeGameError} from "@core/common/Utils";
 
 /**@internal */
 type LiveGameEvent = {
@@ -268,6 +269,80 @@ export class LiveGame {
         logGroup.end();
 
         return this;
+    }
+
+    /**
+     * Request full screen on Chrome/Safari/Firefox/IE/Edge/Opera, the player element will be full screen
+     *
+     * **Note**: this method should be called in response to a user gesture (for example, a click event)
+     *
+     * Safari iOS and Webview iOS aren't supported,
+     * for more information,
+     * see [MDN-requestFullscreen](https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen)
+     */
+    public requestFullScreen(options?: FullscreenOptions | undefined): Promise<void> | void {
+        if (!this.gameState) {
+            throw new RuntimeGameError("No game state found, make sure you call this method in effect hooks or event handlers");
+        }
+        const LogTag = "LiveGame.requestFullScreen";
+        try {
+            const element = this.gameState.playerCurrent;
+            if (!element) {
+                this.gameState.logger.warn(LogTag, "No player element found");
+                return;
+            }
+            if (element.requestFullscreen) {
+                return element.requestFullscreen(options);
+            } else {
+                this.gameState.logger.warn(LogTag, "Fullscreen is not supported");
+            }
+        } catch (e) {
+            this.gameState.logger.error(LogTag, e);
+        }
+    }
+
+    /**
+     * Exit full screen
+     */
+    public exitFullScreen(): Promise<void> | void {
+        if (!this.gameState) {
+            throw new RuntimeGameError("No game state found, make sure you call this method in effect hooks or event handlers");
+        }
+        const LogTag = "LiveGame.exitFullScreen";
+        try {
+            if (document.exitFullscreen) {
+                return document.exitFullscreen();
+            } else {
+                this.gameState.logger.warn(LogTag, "Fullscreen is not supported");
+            }
+        } catch (e) {
+            this.gameState.logger.error(LogTag, e);
+        }
+    }
+
+    /**
+     * Listen to the events of the player element
+     */
+    onPlayerEvent<K extends keyof HTMLElementEventMap>(
+        type: K,
+        listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
+        options?: boolean | AddEventListenerOptions
+    ): LiveGameEventToken {
+        if (!this.gameState) {
+            throw new RuntimeGameError("No game state found, make sure you call this method in effect hooks or event handlers");
+        }
+        const element = this.gameState.playerCurrent;
+        if (!element) {
+            this.gameState.logger.warn("LiveGame.onEvent", "No player element found");
+            return {
+                cancel: () => {
+                },
+            };
+        }
+        element.addEventListener(type, listener, options);
+        return {
+            cancel: () => element.removeEventListener(type, listener, options),
+        };
     }
 
     /**@internal */

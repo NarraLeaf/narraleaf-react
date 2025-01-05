@@ -84,9 +84,11 @@ export default function Player(
         if (story && !game.getLiveGame().isPlaying()) {
             game.getLiveGame().loadStory(story);
         }
+        state.playerCurrent = containerRef.current;
 
         return () => {
             game.getLiveGame().setGameState(undefined);
+            state.playerCurrent = null;
         };
     }, [game, story]);
 
@@ -180,48 +182,36 @@ export default function Player(
                         )}
                         <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
                             <KeyEventAnnouncer state={state}/>
-                            {
-                                state.getSceneElements().map(({scene, ele}) => (
-                                    <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
-                                        <Displayables state={state} displayable={ele.displayable}/>
-                                        {
-                                            ele.texts.map(({action, onClick}) => {
-                                                return (
-                                                    <Say
-                                                        state={state}
-                                                        key={"say-" + action.id}
-                                                        action={action}
-                                                        onClick={() => {
-                                                            onClick();
-                                                            next();
-                                                        }}
-                                                    />
-                                                );
-                                            })
-                                        }
-                                        {
-                                            ele.menus.map(({action, onClick}, i) => {
-                                                return (
-                                                    <div key={"menu-" + i}>
-                                                        {
-                                                            <Menu
-                                                                state={state}
-                                                                prompt={action.prompt}
-                                                                choices={action.choices}
-                                                                afterChoose={(choice) => {
-                                                                    onClick(choice);
-                                                                    next();
-                                                                }}
-                                                                words={action.words}
-                                                            />
-                                                        }
-                                                    </div>
-                                                );
-                                            })
-                                        }
-                                    </StageScene>
-                                ))
-                            }
+                            {state.getSceneElements().map(({scene, ele}) => (
+                                <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
+                                    <Displayables state={state} displayable={ele.displayable}/>
+                                    {ele.texts.map(({action, onClick}) => (
+                                        <Say
+                                            state={state}
+                                            key={"say-" + action.id}
+                                            action={action}
+                                            onClick={() => {
+                                                onClick();
+                                                next();
+                                            }}
+                                        />
+                                    ))}
+                                    {ele.menus.map(({action, onClick}, i) => (
+                                        <div key={"menu-" + i}>
+                                            <Menu
+                                                state={state}
+                                                prompt={action.prompt}
+                                                choices={action.choices}
+                                                afterChoose={(choice) => {
+                                                    onClick(choice);
+                                                    next();
+                                                }}
+                                                words={action.words}
+                                            />
+                                        </div>
+                                    ))}
+                                </StageScene>
+                            ))}
                         </OnlyPreloaded>
                         <Preload state={state}/>
                         {children}
