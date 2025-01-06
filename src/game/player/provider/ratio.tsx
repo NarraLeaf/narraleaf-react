@@ -36,7 +36,7 @@ class AspectRatio {
         scale: 0,
     };
 
-    public readonly events = new EventDispatcher<AspectRatioEvents>();
+    public readonly events = new EventDispatcher<AspectRatioEvents>().setMaxListeners(Infinity);
     private lockers: symbol[] = [];
     private updater: (() => void) | null = null;
 

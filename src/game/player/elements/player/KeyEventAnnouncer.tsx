@@ -11,9 +11,9 @@ export function KeyEventAnnouncer({state}: Readonly<{
     const {game} = useGame();
 
     useEffect(() => {
-        if (!window) {
-            state.logger.warn("NarraLeaf-React: Announcer", "Cannot listen to window events" +
-                "\nThis component must be rendered in a browser environment");
+        const playerElement = game.getLiveGame().gameState!.playerCurrent;
+        if (!playerElement) {
+            state.logger.warn("KeyEventAnnouncer", "Failed to listen to playerElement events");
             return;
         }
 
@@ -23,11 +23,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
                 state.events.emit(GameState.EventTypes["event:state.player.skip"]);
             }
         }, game.config.player.skipInterval);
-        window.addEventListener("keydown", listener);
-
-        return () => {
-            window.removeEventListener("keydown", listener);
-        };
+        return game.getLiveGame().onPlayerEvent("keydown", listener).cancel;
     }, []);
 
     return (<></>);

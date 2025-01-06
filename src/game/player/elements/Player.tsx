@@ -21,6 +21,7 @@ import {ErrorBoundary} from "@player/lib/ErrorBoundary";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 import Cursor from "@player/lib/Cursor";
 import {Story} from "@core/elements/story";
+import {PageRouter} from "@player/lib/PageRouter/PageRouter";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -35,6 +36,7 @@ export default function Player(
         onReady,
         onEnd,
         children,
+        router,
     }: Readonly<PlayerProps>) {
     const [, update] = useReducer((x) => x + 1, 0);
     const {game} = useGame();
@@ -169,7 +171,7 @@ export default function Player(
             }} className={clsx(className, "__narraleaf_content-player")} ref={containerRef}>
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
                     <SizeUpdateAnnouncer ref={containerRef}/>
-                    <Isolated style={{
+                    <Isolated className={"absolute"} style={{
                         cursor: state.game.config.player.cursor ? "none" : "auto",
                         overflow: state.game.config.player.showOverflow ? "visible" : "hidden",
                     }}>
@@ -214,7 +216,9 @@ export default function Player(
                             ))}
                         </OnlyPreloaded>
                         <Preload state={state}/>
-                        {children}
+                        <PageRouter router={router}>
+                            {children}
+                        </PageRouter>
                     </Isolated>
                 </AspectRatio>
             </div>

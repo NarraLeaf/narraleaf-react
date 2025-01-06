@@ -61,6 +61,7 @@ export class Game {
             cursorHeight: 30,
             cursorWidth: 30,
             showOverflow: false,
+            maxRouterHistory: 10,
         },
         elements: {
             say: {

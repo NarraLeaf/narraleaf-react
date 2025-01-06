@@ -37,12 +37,14 @@
     - use `preload` to use [Howler.js](https://howlerjs.com/)'s preload feature
     - use `seek` property to set the initial seek position
 - Scene's config now can't specify the `invertY` and `invertX` properties, use story config `origin` instead
+- `Top`, `Center`, `Bottom`, `HBox`, and `VBox` are deprecated, use `PageRouter` API instead
 
 ### _Feature_
 
 - `Service` API: a new way to create custom actions
 - Use `liveGame.requestFullScreen` and `liveGame.exitFullScreen` to request full screen on the player element
 - Use `liveGame.onPlayerEvent` to listen to the dom events of the player element
+- `PageRouter` API: a new way to manage page layers
 
 ### Added
 

@@ -111,6 +111,10 @@ export type GameConfig = {
          * Show overflowed content
          */
         showOverflow: boolean;
+        /**
+         * Max history size for the page router
+         */
+        maxRouterHistory: number;
     };
     elements: {
         say: {

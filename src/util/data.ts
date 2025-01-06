@@ -269,12 +269,17 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
     "event:EventDispatcher.register": [keyof EventTypes, EventListener<any>];
 }> {
     private events: { [K in keyof Type]: Array<EventListener<Type[K]>> } = {} as any;
+    private maxListeners = 10;
 
     public on<K extends StringKeyOf<Type>>(event: K, listener: EventListener<Type[K]>): EventToken {
         if (!this.events[event]) {
             this.events[event] = [];
         }
         this.events[event].push(listener);
+        if (this.events[event].length > this.maxListeners) {
+            console.warn(`NarraLeaf-React: Event ${event} has more than ${this.maxListeners} listeners (total: ${this.events[event].length}), this may cause performance issues.`);
+        }
+
         this.emit("event:EventDispatcher.register", event as any, listener as any);
         return {
             type: event,
@@ -346,6 +351,11 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
                 }
             }).listener!;
         });
+    }
+
+    public setMaxListeners(maxListeners: number): this {
+        this.maxListeners = maxListeners;
+        return this;
     }
 
     clear() {
