@@ -52,6 +52,7 @@
 - `Text`, `Word`, `Character`, `Scene` background, and `Image`'s color now supports named colors,
   see [MDN: <named-color>](https://developer.mozilla.org/en-US/docs/Web/CSS/named-color) for a list of supported colors.
 - use `game.configure` to configure the game instead of constructing a new game instance
+- use `ImageConfig.autoFit` to automatically fit the image to the player width
 
 ### Fixed
 

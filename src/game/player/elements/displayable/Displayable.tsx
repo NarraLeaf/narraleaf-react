@@ -1,10 +1,10 @@
 import React, {useEffect, useState} from "react";
 import {OverwriteDefinition, Transform, TransformState} from "@core/elements/transform/transform";
-import {ElementProp, ITransition} from "@core/elements/transition/type";
+import {ITransition} from "@core/elements/transition/type";
 import {useFlush} from "@player/lib/flush";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Displayable} from "@core/elements/displayable/displayable";
-import {Awaitable, deepMerge} from "@lib/util/data";
+import {Awaitable, createMicroTask} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 
@@ -14,7 +14,7 @@ export type StatefulObject = {
 };
 
 /**@internal */
-export type DisplayableHookConfig<Element extends HTMLElement = HTMLImageElement> = {
+export type DisplayableHookConfig = {
     skipTransition?: boolean;
     skipTransform?: boolean;
     overwriteDefinition?: OverwriteDefinition;
@@ -22,19 +22,16 @@ export type DisplayableHookConfig<Element extends HTMLElement = HTMLImageElement
     element: EventfulDisplayable;
     onTransform?: (transform: Transform) => void;
     transformStyle?: React.CSSProperties;
-    transitionProp?: ElementProp<Element>;
 };
 
 /**@internal */
-export type DisplayableHookResult<Element extends HTMLElement = HTMLImageElement> = {
-    transition: ITransition | null;
-    transitionProps: ElementProp<Element>[];
+export type DisplayableHookResult = {
     ref: React.RefObject<HTMLDivElement | null>;
-    flushDeps: React.DependencyList;
+    transition?: ITransition;
 };
 
 /**@internal */
-export function useDisplayable<Element extends HTMLElement = HTMLImageElement>(
+export function useDisplayable(
     {
         element,
         state,
@@ -43,9 +40,8 @@ export function useDisplayable<Element extends HTMLElement = HTMLImageElement>(
         overwriteDefinition,
         onTransform,
         transformStyle,
-        transitionProp,
-    }: DisplayableHookConfig<Element>): DisplayableHookResult<Element> {
-    const [flush, dep] = useFlush();
+    }: DisplayableHookConfig): DisplayableHookResult {
+    const [flush] = useFlush();
     const [, setTransformStyle] = useState<React.CSSProperties>(transformStyle || {});
     const [transition, setTransition] = useState<null | ITransition>(null);
     const [transformToken, setTransformToken] = useState<null | Awaitable<void>>(null);
@@ -59,11 +55,11 @@ export function useDisplayable<Element extends HTMLElement = HTMLImageElement>(
             element.events.on(Displayable.EventTypes["event:displayable.applyTransition"], applyTransition),
             element.events.on(Displayable.EventTypes["event:displayable.init"], initDisplayable),
         ]).cancel;
-    }, [transition, transformToken]);
+    }, []);
 
     useEffect(() => {
         return gameState.events.on(GameState.EventTypes["event:state.player.skip"], skip).cancel;
-    }, [transition, transformToken]);
+    }, []);
 
     useEffect(() => {
         if (!ref.current) {
@@ -112,11 +108,15 @@ export function useDisplayable<Element extends HTMLElement = HTMLImageElement>(
             transition.complete();
         }
         setTransition(newTransition);
+
         return new Promise<void>(resolve => {
-            newTransition.start(() => {
-                setTransition(null);
-                resolve();
+            createMicroTask(() => {
                 flush();
+                newTransition.start(() => {
+                    setTransition(null);
+                    resolve();
+                    flush();
+                });
             });
         });
     }
@@ -162,11 +162,8 @@ export function useDisplayable<Element extends HTMLElement = HTMLImageElement>(
     }
 
     return {
-        transition,
-        transitionProps: (transition ? transition.toElementProps() : [{}])
-            .map(e => deepMerge({}, transitionProp || {}, e)),
         ref,
-        flushDeps: [dep],
+        transition: transition || undefined,
     };
 }
 

@@ -2,12 +2,12 @@ import {GameState} from "@player/gameState";
 import {Text as GameText} from "@core/elements/displayable/text";
 import React from "react";
 import {Transform} from "@core/elements/transform/transform";
-import {CSSProps, ITransition, SpanElementProp} from "@core/elements/transition/type";
+import {ITransition, SpanElementProp} from "@core/elements/transition/type";
 import {deepMerge} from "@lib/util/data";
-import clsx from "clsx";
 import Inspect from "@player/lib/Inspect";
 import {useRatio} from "@player/provider/ratio";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
+import {useTransition} from "@player/lib/useTransition";
 
 /**@internal */
 export default function Text({state, text}: Readonly<{
@@ -34,45 +34,10 @@ export default function Text({state, text}: Readonly<{
                 };
             },
         },
-    });
-
-    return (
-        <DisplayableText
-            ref={ref}
-            transition={transition}
-            text={text}
-            gameState={state}
-        />
-    );
-}
-
-function DisplayableText(
-    {
-        ref,
-        transition,
-        text,
-        gameState,
-    }: Readonly<{
-        gameState: GameState;
-        ref: React.RefObject<HTMLDivElement | null>;
-        transition: ITransition | null;
-        text: GameText;
-    }>
-) {
-    const {ratio} = useRatio();
-    const defaultProps: SpanElementProp = {
-        style: {
+        transformStyle: {
             width: "fit-content",
-            whiteSpace: "nowrap",
-            fontSize: text.state.fontSize,
-        },
-    };
-    const transitionProps: SpanElementProp[] = [
-        {}
-    ];
-
-    const spanClassName = clsx(text.config.className);
-    const transformProps: CSSProps = text.transformState.toStyle(gameState);
+        }
+    });
 
     return (
         <Inspect.Div>
@@ -83,56 +48,56 @@ function DisplayableText(
                 layout
                 ref={ref}
                 className={"absolute"}
-                {...(deepMerge<any>({
-                    style: {
-                        opacity: 0,
-                    }
-                }, transformProps, {
-                    style: {
-                        width: "fit-content",
-                    }
-                }))}
             >
-                {transition ? (function (): React.JSX.Element[] {
-                    return transition.toElementProps().map((elementProps, index) => {
-                        const mergedProps =
-                            deepMerge<SpanElementProp>(defaultProps, elementProps, ({
-                                style: {
-                                    transform: `scale(${ratio.state.scale})`,
-                                    transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
-                                }
-                            } satisfies SpanElementProp), transitionProps[index] || {}) as any;
-                        return (
-                            <Inspect.Span
-                                tag={"text.transition." + index}
-                                key={index}
-                                {...mergedProps}
-                                className={spanClassName}
-                            >
-                                <span>{text.state.text}</span>
-                            </Inspect.Span>
-                        );
-                    });
-                })() : (
-                    <Inspect.Div
-                        tag={"text.transition.last"}
-                        color={"green"}
-                        border={"dashed"}
-                        key={"last"}
-                        {...deepMerge<any>(defaultProps, {
-                            style: {
-                                width: "fit-content",
-                                transform: `scale(${ratio.state.scale})`,
-                                transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
-                            }
-                        })}
-                    >
-                        <Inspect.Span
-                            className={spanClassName}
-                        >{text.state.text}</Inspect.Span>
-                    </Inspect.Div>
-                )}
+                <TextTransition transition={transition} text={text}/>
             </Inspect.mDiv>
         </Inspect.Div>
+    );
+}
+
+
+function TextTransition(
+    {
+        transition,
+        text,
+    }: {
+        transition: ITransition | undefined,
+        text: GameText;
+    }
+) {
+    const {ratio} = useRatio();
+    const [transitionProps] = useTransition<HTMLSpanElement>({
+        transition,
+        props: {
+            style: {
+                width: "fit-content",
+                whiteSpace: "nowrap",
+                fontSize: text.state.fontSize,
+            },
+        }
+    });
+
+    return (
+        <>
+            {transitionProps.map((elementProps, index) => {
+                const mergedProps =
+                    deepMerge<SpanElementProp>({}, elementProps, ({
+                        style: {
+                            transform: `scale(${ratio.state.scale})`,
+                            transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
+                        }
+                    } satisfies SpanElementProp)) as any;
+                return (
+                    <Inspect.Span
+                        tag={"text.transition." + index}
+                        key={index}
+                        {...mergedProps}
+                        className={text.config.className}
+                    >
+                        <span>{text.state.text}</span>
+                    </Inspect.Span>
+                );
+            })}
+        </>
     );
 }

@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from "react";
 
-export function useFlush(deps: React.DependencyList = []): [
+export function useFlush(deps?: React.DependencyList): [
     () => void,
     number
 ] {
@@ -8,7 +8,7 @@ export function useFlush(deps: React.DependencyList = []): [
 
     useEffect(() => {
         update();
-    }, deps);
+    }, deps ?? []);
 
     function update() {
         setCount((count) => count + 1);
