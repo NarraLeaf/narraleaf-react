@@ -165,10 +165,15 @@ export default function Player(
 
     return (
         <ErrorBoundary>
-            <div style={{
-                width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
-                height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
-            }} className={clsx(className, "__narraleaf_content-player")} ref={containerRef}>
+            <div
+                style={{
+                    width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,
+                    height: typeof playerHeight === "number" ? `${playerHeight}px` : playerHeight,
+                }}
+                className={clsx(className, "__narraleaf_content-player")}
+                ref={containerRef}
+                tabIndex={0}
+            >
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
                     <SizeUpdateAnnouncer ref={containerRef}/>
                     <Isolated className={"absolute"} style={{
@@ -183,7 +188,7 @@ export default function Player(
                             />
                         )}
                         <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
-                            <KeyEventAnnouncer state={state}/>
+                            <KeyEventAnnouncer state={state} router={router}/>
                             {state.getSceneElements().map(({scene, ele}) => (
                                 <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
                                     <Displayables state={state} displayable={ele.displayable}/>

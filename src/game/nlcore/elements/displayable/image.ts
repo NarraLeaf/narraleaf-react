@@ -32,6 +32,7 @@ type ImageConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | nu
     name: string;
     autoInit: boolean;
     src: Tag extends TagGroupDefinition ? TagDefinitionObject<Tag> : null;
+    autoFit: boolean;
 };
 type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | null> = {
     display: boolean;
@@ -62,6 +63,10 @@ export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGro
      * Image Src, see [Image](https://react.narraleaf.com/documentation/core/elements/image) for more information
      */
     src: ImageSrcType<Tag>;
+    /**
+     * Auto resize image's width to fit the screen
+     */
+    autoFit?: boolean;
 }
 
 /**@internal */
@@ -109,6 +114,7 @@ export class Image<
         name: "(anonymous)",
         autoInit: true,
         src: Image.DefaultImagePlaceholder,
+        autoFit: false,
         ...TransformState.DefaultTransformState.getDefaultConfig(),
     }, {
         position: (value: RawPosition | IPosition | undefined) => {
@@ -126,6 +132,7 @@ export class Image<
         name: "(anonymous)",
         autoInit: true,
         src: null,
+        autoFit: false,
     });
 
     /**

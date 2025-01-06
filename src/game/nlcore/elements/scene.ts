@@ -497,6 +497,7 @@ export class Scene extends Constructable<
             backgroundImage: new Image({
                 src: this.userConfig.get().background,
                 opacity: 1,
+                autoFit: true,
             }).__setDisplayState(true),
         }).get();
     }

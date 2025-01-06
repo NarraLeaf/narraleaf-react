@@ -14,12 +14,14 @@ export default function AspectScaleImage(
         id,
         ref,
         onWidthChange,
+        autoFit = false,
     }: Readonly<{
         props: Omit<ImgElementProp, "onLoad">;
         onLoad?: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
         id?: string;
         ref?: React.RefObject<HTMLImageElement | null>;
         onWidthChange?: (width: number) => void;
+        autoFit?: boolean;
     }>
 ) {
     const imgRef = useRef<HTMLImageElement>(null);
@@ -49,9 +51,11 @@ export default function AspectScaleImage(
     function updateWidth() {
         const currentRef = ref || imgRef;
         if (currentRef.current) {
-            setWidth(currentRef.current.naturalWidth * ratio.state.scale);
+            const autoFitFactor = autoFit ? (game.config.player.width / currentRef.current.naturalWidth) : 1;
+            const newWidth = currentRef.current.naturalWidth * ratio.state.scale * autoFitFactor;
+            setWidth(newWidth);
             if (onWidthChange) {
-                onWidthChange(currentRef.current.naturalWidth * ratio.state.scale);
+                onWidthChange(newWidth);
             }
         }
     }

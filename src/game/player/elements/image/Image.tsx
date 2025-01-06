@@ -55,9 +55,12 @@ export default function Image(
 
     function handleWidthChange() {
         if (transformRef.current && ref.current) {
+            const autoFitFactor = image.config.autoFit ? (state.game.config.player.width / ref.current.naturalWidth) : 1;
+            const newWidth = ref.current.naturalWidth * ratio.state.scale * autoFitFactor;
+            const newHeight = ref.current.naturalHeight * ratio.state.scale * autoFitFactor;
             Object.assign(transformRef.current.style, {
-                width: `${ref.current.naturalWidth * ratio.state.scale}px`,
-                height: `${ref.current.naturalHeight * ratio.state.scale}px`,
+                width: `${newWidth}px`,
+                height: `${newHeight}px`,
             });
         }
     }
@@ -85,6 +88,7 @@ export default function Image(
                     id={elementProps.src}
                     ref={index === 0 ? ref : undefined}
                     onWidthChange={handleWidthChange}
+                    autoFit={image.config.autoFit}
                 />
             ))}
             <div
