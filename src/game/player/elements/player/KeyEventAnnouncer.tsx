@@ -24,6 +24,7 @@ export function KeyEventAnnouncer({state, router}: Readonly<{
                 && game.preference.getPreference(Game.Preferences.skip)
                 && (!router || !router.isActive())
             ) {
+                state.logger.verbose("KeyEventAnnouncer", "Emitted event: state.player.skip");
                 state.events.emit(GameState.EventTypes["event:state.player.skip"]);
             }
         }, game.config.player.skipInterval);

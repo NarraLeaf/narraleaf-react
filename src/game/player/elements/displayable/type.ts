@@ -26,9 +26,9 @@ export type DisplayableAnimationEvents =
 /**@internal */
 export type EventfulDisplayableEvents = {
     [K in DisplayableAnimationEvents]:
-    K extends "event:displayable.applyTransform" ? [Transform] :
-        K extends "event:displayable.applyTransition" ? [ITransition] :
-            K extends "event:displayable.init" ? [] :
+    K extends "event:displayable.applyTransform" ? [transform: Transform, resolve: () => void] :
+        K extends "event:displayable.applyTransition" ? [transition: ITransition, resolve: () => void] :
+            K extends "event:displayable.init" ? [resolve: () => void] :
                 never;
 }
 

@@ -55,11 +55,11 @@ export function useDisplayable(
             element.events.on(Displayable.EventTypes["event:displayable.applyTransition"], applyTransition),
             element.events.on(Displayable.EventTypes["event:displayable.init"], initDisplayable),
         ]).cancel;
-    }, []);
+    }, [transformToken, transition]);
 
     useEffect(() => {
         return gameState.events.on(GameState.EventTypes["event:state.player.skip"], skip).cancel;
-    }, []);
+    }, [transformToken, transition]);
 
     useEffect(() => {
         if (!ref.current) {
@@ -82,23 +82,27 @@ export function useDisplayable(
     function applyTransform(transform: Transform): Promise<void> {
         if (transformToken) {
             transformToken.abort();
+            setTransformToken(null);
         }
+
         const initialStyle = state.toStyle(gameState, overwriteDefinition);
         Object.assign(ref.current!.style, initialStyle);
         return new Promise<void>(resolve => {
-            const awaitable = transform.animate(
-                state,
-                {
-                    gameState,
-                    ref,
-                    overwrites: overwriteDefinition,
-                }
-            );
-            setTransformToken(awaitable);
-            awaitable.then(() => {
-                setTransformToken(null);
-                resolve();
-                handleOnTransform(transform);
+            createMicroTask(() => {
+                const awaitable = transform.animate(
+                    state,
+                    {
+                        gameState,
+                        ref,
+                        overwrites: overwriteDefinition,
+                    }
+                );
+                setTransformToken(awaitable);
+                awaitable.onSettled(() => {
+                    setTransformToken(null);
+                    handleOnTransform(transform);
+                    resolve();
+                });
             });
         });
     }
@@ -106,6 +110,7 @@ export function useDisplayable(
     function applyTransition(newTransition: ITransition): Promise<void> {
         if (transition) {
             transition.complete();
+            setTransition(null);
         }
         setTransition(newTransition);
 
@@ -114,36 +119,17 @@ export function useDisplayable(
                 flush();
                 newTransition.start(() => {
                     setTransition(null);
-                    resolve();
                     flush();
+                    resolve();
                 });
             });
         });
     }
 
     function initDisplayable(): Promise<void> {
-        return new Promise<void>(resolve => {
-            gameState.logger.debug("initDisplayable", element);
+        gameState.logger.debug("initDisplayable", element);
 
-            const initStyle = state.toStyle(gameState, overwriteDefinition);
-            Object.assign(ref.current!.style, initStyle);
-
-            const transform = Transform.immediate(state.get());
-            const token = transform.animate(
-                state,
-                {
-                    gameState,
-                    ref,
-                    overwrites: overwriteDefinition,
-                }
-            );
-            setTransformToken(token);
-            token.then(() => {
-                setTransformToken(null);
-                resolve();
-                handleOnTransform(transform);
-            });
-        });
+        return applyTransform(Transform.immediate(state.get()));
     }
 
     function skip() {
@@ -151,13 +137,13 @@ export function useDisplayable(
             transformToken.abort();
             setTransformToken(null);
 
-            gameState.logger.debug("transform skip");
+            gameState.logger.debug("transform skipped");
         }
         if (skipTransition && transition) {
             transition.complete();
             setTransition(null);
 
-            gameState.logger.debug("transition skip");
+            gameState.logger.debug("transform skipped");
         }
     }
 

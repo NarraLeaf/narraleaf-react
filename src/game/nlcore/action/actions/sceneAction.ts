@@ -61,28 +61,16 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             }
             state.logger.debug("Scene Action", "Scene init");
         });
-
-
-
-        // scene.backgroundImage.events.any(Image.EventTypes["event:displayable.init"]).then(() => {
-        //
-        // });
     }
 
     applyTransition(state: GameState, transition: ITransition) {
         const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
             .registerSkipController(new SkipController(() => {
                 state.logger.info("Background Transition", "Skipped");
-                return {
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                };
+                return super.executeAction(state) as CalledActionResult;
             }));
-        this.callee.backgroundImage.events.any(Image.EventTypes["event:displayable.applyTransition"], transition).then(() => {
-            awaitable.resolve({
-                type: this.type,
-                node: this.contentNode.getChild()
-            });
+        this.callee.backgroundImage.events.emit(Image.EventTypes["event:displayable.applyTransition"], transition, () => {
+            awaitable.resolve(super.executeAction(state) as CalledActionResult);
             state.stage.next();
         });
         return awaitable;

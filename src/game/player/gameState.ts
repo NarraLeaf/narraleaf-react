@@ -1,7 +1,7 @@
 import {CalledActionResult} from "@core/gameTypes";
 import {EventDispatcher, moveElementInArray} from "@lib/util/data";
 import {Choice, MenuData} from "@core/elements/menu";
-import {Image, ImageEventTypes} from "@core/elements/displayable/image";
+import {Image} from "@core/elements/displayable/image";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
@@ -12,7 +12,6 @@ import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 import {Sentence} from "@core/elements/character/sentence";
 import {SceneAction} from "@core/action/actions/sceneAction";
-import {Text, TextEventTypes} from "@core/elements/displayable/text";
 import {Logger} from "@lib/util/logger";
 import {RuntimeGameError} from "@core/common/Utils";
 import {Story} from "@core/elements/story";
@@ -219,7 +218,7 @@ export class GameState {
         return this;
     }
 
-    public createText(id: string, sentence: Sentence, afterClick?: () => void, scene?: Scene) {
+    public createDialog(id: string, sentence: Sentence, afterClick?: () => void, scene?: Scene) {
         const texts = this.findElementByScene(this.getLastSceneIfNot(scene))?.ele.texts;
         if (!texts) {
             throw new Error("Scene not found");
@@ -269,31 +268,8 @@ export class GameState {
         menus.push(action);
     }
 
-    public createImage(image: Image, scene?: Scene) {
-        const targetScene = this.getLastSceneIfNot(scene);
-        const targetElement = this.findElementByScene(targetScene);
-        if (!targetElement) return this;
-        targetElement.ele.displayable.push(image);
-        return this;
-    }
-
     public createWearable(parent: Image, image: Image): Promise<any> {
         return parent.events.any(Image.EventTypes["event:wearable.create"], image);
-    }
-
-    public disposeImage(image: Image, scene?: Scene) {
-        const targetScene = this.getLastSceneIfNot(scene);
-        const images = this.findElementByScene(targetScene)?.ele.displayable;
-        if (!images) {
-            throw new Error("Scene not found");
-        }
-
-        const index = images.indexOf(image);
-        if (index === -1) {
-            throw new Error("Image not found");
-        }
-        images.splice(index, 1);
-        return this;
     }
 
     public createDisplayable(displayable: LogicAction.DisplayableElements, scene?: Scene) {
@@ -332,14 +308,6 @@ export class GameState {
 
     getHowl(): typeof Howler.Howl {
         return Howler.Howl;
-    }
-
-    animateImage<T extends keyof ImageEventTypes>(type: T, target: Image, args: ImageEventTypes[T], onEnd: () => void) {
-        return this.anyEvent(type, target, onEnd, ...args);
-    }
-
-    animateText<T extends keyof TextEventTypes>(type: T, target: Text, args: TextEventTypes[T], onEnd: () => void) {
-        return this.anyEvent(type, target, onEnd, ...args);
     }
 
     public registerSrcManager(srcManager: SrcManager) {

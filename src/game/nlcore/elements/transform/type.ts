@@ -33,10 +33,10 @@ export namespace TransformDefinitions {
         repeat: number;
     }
     export type ImageTransformProps = CommonDisplayableConfig & {};
-    export type TextTransformProps = ImageTransformProps & {
-        fontColor: Color;
+    export type TextTransformProps = CommonDisplayableConfig & {
+        fontColor?: Color;
     };
-    export type Types = ImageTransformProps | TextTransformProps;
+    export type Types = CommonDisplayableConfig & ImageTransformProps & TextTransformProps;
     export type SequenceProps<T> = Partial<T>;
     export type SequenceOptions = Partial<CommonTransformProps>;
     export type Sequence<T> = {

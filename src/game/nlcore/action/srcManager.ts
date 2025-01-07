@@ -4,9 +4,15 @@ import {Story, Utils} from "@core/common/core";
 import {StaticImageData} from "@core/types";
 import {LogicAction} from "@core/action/logicAction";
 import {ImageAction} from "@core/action/actions/imageAction";
-import {ImageActionContentType, ImageActionTypes, SceneActionTypes} from "@core/action/actionTypes";
+import {
+    DisplayableActionTypes,
+    ImageActionContentType,
+    ImageActionTypes,
+    SceneActionTypes
+} from "@core/action/actionTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
+import {DisplayableAction} from "@core/action/actions/displayableAction";
 
 export type SrcType = "image" | "video" | "audio";
 export type Src = {
@@ -91,23 +97,7 @@ export class SrcManager {
             }
         } else if (action instanceof ImageAction) {
             const imageAction = action as ImageAction;
-            if (action.is<ImageAction<typeof ImageActionTypes["init"]>>(ImageAction, ImageActionTypes.init)) {
-                if (Image.isTagSrc(imageAction.callee)) {
-                    return {
-                        type: "image",
-                        src: new Image({
-                            src: Image.getSrcFromTags(imageAction.callee.config.src.defaults, imageAction.callee.config.src.resolve)
-                        }),
-                        activeType: "scene"
-                    };
-                } else if (Image.isStaticSrc(imageAction.callee) && Utils.isImageSrc(imageAction.callee.state.currentSrc)) {
-                    return {
-                        type: "image",
-                        src: new Image({src: imageAction.callee.state.currentSrc}),
-                        activeType: "scene"
-                    };
-                }
-            } else if (action.is<ImageAction<typeof ImageActionTypes["setSrc"]>>(ImageAction, ImageActionTypes.setSrc)) {
+            if (action.is<ImageAction<typeof ImageActionTypes["setSrc"]>>(ImageAction, ImageActionTypes.setSrc)) {
                 const content = action.contentNode.getContent()[0];
                 return {
                     type: "image",
@@ -133,14 +123,25 @@ export class SrcManager {
                         activeType: "scene"
                     };
                 }
-            } else if (action.type === ImageActionTypes.init) {
-                const src = action.callee.config.src;
-                if (Utils.isStaticImageData(src)) {
-                    return {
-                        type: "image",
-                        src: new Image({src}),
-                        activeType: "scene"
-                    };
+            }
+        } else if (action instanceof DisplayableAction) {
+            if (action.is<DisplayableAction<typeof DisplayableActionTypes.init>>(DisplayableAction, DisplayableActionTypes.init)) {
+                if (action.callee instanceof Image) {
+                    if (Image.isTagSrc(action.callee)) {
+                        return {
+                            type: "image",
+                            src: new Image({
+                                src: Image.getSrcFromTags(action.callee.config.src.defaults, action.callee.config.src.resolve)
+                            }),
+                            activeType: "scene"
+                        };
+                    } else if (Image.isStaticSrc(action.callee) && Utils.isImageSrc(action.callee.state.currentSrc)) {
+                        return {
+                            type: "image",
+                            src: new Image({src: action.callee.state.currentSrc}),
+                            activeType: "scene"
+                        };
+                    }
                 }
             }
         }

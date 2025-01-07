@@ -301,7 +301,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         return {
             ...Transform.positionToCSS(props.position, invertY, invertX),
             opacity: props.opacity,
-            color: "fontColor" in props ? toHex((props as TransformDefinitions.TextTransformProps).fontColor) : undefined,
+            color: ("fontColor" in props && props.fontColor) ? toHex((props as TransformDefinitions.TextTransformProps).fontColor!) : undefined, // @unsafe
             transform: transform ? transform(props) : Transform.propToCSSTransform(state, props),
             scale: scale ? scale(props) : undefined,
             ...(overwrite ? overwrite(props) : {}),

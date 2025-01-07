@@ -232,7 +232,8 @@ export type GameConfig = {
             error: boolean;
             debug: boolean;
             trace: boolean;
-        },
+            verbose: boolean;
+        } | boolean;
         /**
          * If true, the game will show the inspector when you hover over the element
          */

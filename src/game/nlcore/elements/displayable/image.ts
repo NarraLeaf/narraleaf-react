@@ -2,19 +2,20 @@ import type {TransformDefinitions} from "@core/elements/transform/type";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
-import {Transform, TransformState} from "../transform/transform";
+import {TransformState} from "../transform/transform";
 import {Color, CommonDisplayableConfig, ImageSrc, StaticImageData} from "@core/types";
-import {ImageActionContentType} from "@core/action/actionTypes";
+import {DisplayableActionContentType, DisplayableActionTypes, ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
 import {EmptyObject, IImageTransition, ITransition} from "@core/elements/transition/type";
 import {IPosition, PositionUtils, RawPosition} from "@core/elements/transform/position";
-import {EventDispatcher, getCallStack, SelectElementFromEach, Serializer} from "@lib/util/data";
+import {EventDispatcher, SelectElementFromEach, Serializer} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {Control} from "@core/elements/control";
 import {ImageAction} from "@core/action/actions/imageAction";
 import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
+import {DisplayableAction} from "@core/action/actions/displayableAction";
 
 export type TagDefinition<T extends TagGroupDefinition | null> =
     T extends TagGroupDefinition ? TagDefinitionObject<T> : never;
@@ -35,21 +36,11 @@ type ImageConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | nu
     autoFit: boolean;
 };
 type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | null> = {
-    display: boolean;
     currentSrc: ImageSrc | Color | SelectElementFromEach<Tag>;
 };
 
 export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | null>
     extends CommonDisplayableConfig {
-    /**
-     * The wearables of the image, see [addWearable](https://react.narraleaf.com/documentation/core/elements/image#addwearable) for more information
-     */
-    wearables?: Image[];
-    /**
-     * Set to true if this image is used as a wearable
-     * @default false
-     */
-    isWearable?: boolean;
     /**
      * The name of the image, only for debugging purposes
      */
@@ -88,7 +79,7 @@ export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectEleme
 export class Image<
     Tags extends TagGroupDefinition | null = TagGroupDefinition | null
 >
-    extends Displayable<ImageDataRaw, Image>
+    extends Displayable<ImageDataRaw, Image, TransformDefinitions.ImageTransformProps>
     implements EventfulDisplayable {
 
     /**@internal */
@@ -109,8 +100,6 @@ export class Image<
     static DefaultUserConfig = new ConfigConstructor<IImageUserConfig, {
         position: IPosition;
     }>({
-        wearables: [],
-        isWearable: false,
         name: "(anonymous)",
         autoInit: true,
         src: Image.DefaultImagePlaceholder,
@@ -140,7 +129,6 @@ export class Image<
      * {@link ImageState}
      */
     static DefaultImageState = new ConfigConstructor<ImageState, EmptyObject>({
-        display: false,
         currentSrc: Image.DefaultImagePlaceholder,
     });
 
@@ -276,130 +264,6 @@ export class Image<
     }
 
     /**
-     * Apply a transform to the image
-     * @example
-     * ```ts
-     * // shake the image
-     *
-     * image.applyTransform(
-     *     new Transform([
-     *         {
-     *             props: {
-     *                 position: new Coord2D({
-     *                     xoffset: 10,
-     *                 })
-     *             },
-     *             options: {
-     *                 duration: 100,
-     *             }
-     *         },
-     *         {
-     *             props: {
-     *                 position: new Coord2D({
-     *                     xoffset: -10,
-     *                 })
-     *             },
-     *             options: {
-     *                 duration: 100,
-     *             }
-     *         }
-     *     ]).repeat(3);
-     * );
-     * ```
-     * @chainable
-     */
-    public transform(transform: Transform<TransformDefinitions.ImageTransformProps>): Proxied<Image, Chained<LogicAction.Actions>> {
-        const chain = this.chain();
-        return chain.chain(new ImageAction<typeof ImageAction.ActionTypes.applyTransform>(
-            chain,
-            ImageAction.ActionTypes.applyTransform,
-            new ContentNode().setContent([
-                void 0,
-                transform.copy(),
-                getCallStack()
-            ])
-        ));
-    }
-
-    /**
-     * Show the image
-     *
-     * if options are provided, the image will show with the provided transform options
-     * @example
-     * ```ts
-     * image.show({
-     *     duration: 1000,
-     * });
-     * ```
-     * @chainable
-     */
-    public show(): Proxied<Image, Chained<LogicAction.Actions>>;
-
-    public show(options: Transform<TransformDefinitions.ImageTransformProps>): Proxied<Image, Chained<LogicAction.Actions>>;
-
-    public show(options: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>>;
-
-    public show(options?: Transform<TransformDefinitions.ImageTransformProps> | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>> {
-        const trans =
-            (options instanceof Transform) ? options.copy() : new Transform<TransformDefinitions.ImageTransformProps>([
-                {
-                    props: {
-                        opacity: 1,
-                    },
-                    options: options || {}
-                }
-            ]);
-        return this.combineActions(new Control(), chain => {
-            const action = new ImageAction<typeof ImageAction.ActionTypes.show>(
-                chain,
-                ImageAction.ActionTypes.show,
-                new ContentNode<ImageActionContentType["image:show"]>().setContent([
-                    void 0,
-                    trans
-                ])
-            );
-            return chain
-                .chain(action)
-                .chain(this._flush());
-        });
-    }
-
-    /**
-     * Hide the image
-     * @chainable
-     */
-    public hide(): Proxied<Image, Chained<LogicAction.Actions>>;
-
-    public hide(transform: Transform<TransformDefinitions.ImageTransformProps>): Proxied<Image, Chained<LogicAction.Actions>>;
-
-    public hide(transform: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>>;
-
-    public hide(arg0?: Transform<TransformDefinitions.ImageTransformProps> | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Image, Chained<LogicAction.Actions>> {
-        return this.combineActions(
-            new Control(),
-            chain => {
-                const action = new ImageAction<typeof ImageAction.ActionTypes.hide>(
-                    chain,
-                    ImageAction.ActionTypes.hide,
-                    new ContentNode<ImageActionContentType["image:hide"]>().setContent([
-                        void 0,
-                        (arg0 instanceof Transform) ? arg0.copy() : new Transform<TransformDefinitions.ImageTransformProps>([
-                            {
-                                props: {
-                                    opacity: 0,
-                                },
-                                options: arg0 || {}
-                            }
-                        ])
-                    ])
-                );
-                return chain
-                    .chain(action)
-                    .chain(this._flush());
-            });
-    }
-
-    /**
      * Add a wearable to the image
      * @param children - Wearable image or images
      */
@@ -462,22 +326,22 @@ export class Image<
     }
 
     /**@internal */
-    _applyTransition(transition: ITransition): ImageAction<"image:applyTransition"> {
-        return new ImageAction<"image:applyTransition">(
+    _applyTransition(transition: ITransition): DisplayableAction<typeof DisplayableActionTypes.applyTransition> {
+        return new DisplayableAction<typeof DisplayableActionTypes.applyTransition>(
             this.chain(),
-            "image:applyTransition",
-            new ContentNode<[ITransition]>().setContent([
+            DisplayableActionTypes.applyTransition,
+            new ContentNode<DisplayableActionContentType["displayable:applyTransition"]>().setContent([
                 transition
             ])
         );
     }
 
     /**@internal */
-    _init(scene?: Scene): ImageAction<typeof ImageAction.ActionTypes.init> {
-        return new ImageAction<typeof ImageAction.ActionTypes.init>(
+    _init(scene?: Scene): DisplayableAction<typeof DisplayableActionTypes.init> {
+        return new DisplayableAction<typeof DisplayableActionTypes.init>(
             this.chain(),
-            ImageAction.ActionTypes.init,
-            new ContentNode<[Scene?]>().setContent([
+            DisplayableActionTypes.init,
+            new ContentNode<DisplayableActionContentType["displayable:init"]>().setContent([
                 scene
             ])
         );
@@ -589,11 +453,6 @@ export class Image<
     }
 
     /**@internal */
-    __setDisplayState(display: boolean): this {
-        this.state.display = display;
-        return this;
-    }
-
     private createImageConfig(userConfig: Config<IImageUserConfig, {
         position: IPosition
     }>): Config<ImageConfig> {
@@ -606,12 +465,14 @@ export class Image<
         });
     }
 
+    /**@internal */
     private getInitialState(): MergeConfig<ImageState> {
         return Image.DefaultImageState.create().assign({
             currentSrc: Image.getInitialSrc(this),
         }).get();
     }
 
+    /**@internal */
     private getInitialTransformState(
         userConfig: Config<IImageUserConfig, { position: IPosition }>
     ): TransformState<TransformDefinitions.ImageTransformProps> {

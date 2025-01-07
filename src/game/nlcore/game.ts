@@ -113,6 +113,7 @@ export class Game {
                 error: true,
                 debug: false,
                 trace: false,
+                verbose: false,
             },
             inspector: false,
         }

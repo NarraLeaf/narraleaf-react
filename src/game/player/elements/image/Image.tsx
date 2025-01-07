@@ -139,16 +139,16 @@ function ImageTransition(
     return (
         <>
             <div className={"relative h-full w-full"}>
-            {transitionProps.map((elementProps, index) => {
-                return <AspectScaleImage
-                    key={index}
-                    props={deepMerge(elementProps, elementStyles[index] || {})}
-                    id={elementProps.src as any}
-                    ref={index === 0 ? ref : undefined}
-                    onWidthChange={onWidthChange}
-                    autoFit={image.config.autoFit}
-                />;
-            })}
+                {transitionProps.map((elementProps, index) => {
+                    return <AspectScaleImage
+                        key={index}
+                        props={deepMerge(elementProps, elementStyles[index] || {})}
+                        id={elementProps.src as any}
+                        ref={index === 0 ? ref : undefined}
+                        onWidthChange={onWidthChange}
+                        autoFit={image.config.autoFit}
+                    />;
+                })}
             </div>
         </>
     );

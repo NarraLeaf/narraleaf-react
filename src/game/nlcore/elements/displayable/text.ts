@@ -5,7 +5,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {Transform, TransformState} from "@core/elements/transform/transform";
 import type {TransformDefinitions} from "@core/elements/transform/type";
 import {ContentNode} from "@core/action/tree/actionTree";
-import {TextActionContentType} from "@core/action/actionTypes";
+import {DisplayableActionContentType, DisplayableActionTypes, TextActionContentType} from "@core/action/actionTypes";
 import {TextAction} from "@core/action/actions/textAction";
 import {Scene} from "@core/elements/scene";
 import {ITextTransition} from "@core/elements/transition/type";
@@ -14,6 +14,7 @@ import {FontSizeTransition} from "@core/elements/transition/textTransitions/font
 import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {ConfigConstructor} from "@lib/util/config";
+import {DisplayableAction} from "@core/action/actions/displayableAction";
 
 export type TextConfig = {
     alignX: "left" | "center" | "right";
@@ -68,7 +69,7 @@ export type TextEventTypes = {
 } & DisplayableEventTypes;
 
 export class Text
-    extends Displayable<TextDataRaw, Text>
+    extends Displayable<TextDataRaw, Text, TransformDefinitions.TextTransformProps>
     implements EventfulDisplayable {
     /**@internal */
     static EventTypes: { [K in keyof TextEventTypes]: K } = {
@@ -139,96 +140,6 @@ export class Text
     }
 
     /**
-     * Apply a transform to the Text
-     * @chainable
-     */
-    public transform(transform: Transform<TransformDefinitions.TextTransformProps>): Proxied<Text, Chained<LogicAction.Actions>> {
-        const chain = this.chain();
-        const action = new TextAction<typeof TextAction.ActionTypes.applyTransform>(
-            chain,
-            TextAction.ActionTypes.applyTransform,
-            new ContentNode<TextActionContentType["text:applyTransform"]>().setContent([
-                transform.copy(),
-            ])
-        );
-        return chain.chain(action);
-    }
-
-    /**
-     * Show the Text
-     *
-     * if options are provided, the text will show with the provided transform options
-     * @example
-     * ```ts
-     * text.show({
-     *     duration: 1000,
-     * });
-     * ```
-     * @chainable
-     */
-    public show(): Proxied<Text, Chained<LogicAction.Actions>>;
-
-    public show(options: Transform<TransformDefinitions.TextTransformProps>): Proxied<Text, Chained<LogicAction.Actions>>;
-
-    public show(options: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>>;
-
-    public show(options?: Transform<TransformDefinitions.TextTransformProps> | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>> {
-        const chain = this.chain();
-        const trans =
-            (options instanceof Transform) ? options.copy() : new Transform<TransformDefinitions.TextTransformProps>([
-                {
-                    props: {
-                        opacity: 1,
-                    },
-                    options: options || {}
-                }
-            ]);
-        const action = new TextAction<typeof TextAction.ActionTypes.show>(
-            chain,
-            TextAction.ActionTypes.show,
-            new ContentNode<TextActionContentType["text:show"]>().setContent([trans])
-        );
-        return chain.chain(action);
-    }
-
-    /**
-     * Hide the Text
-     *
-     * if options are provided, the text will hide with the provided transform options
-     * @example
-     * ```ts
-     * text.hide({
-     *     duration: 1000,
-     * });
-     * ```
-     * @chainable
-     */
-    public hide(): Proxied<Text, Chained<LogicAction.Actions>>;
-
-    public hide(options: Transform<TransformDefinitions.TextTransformProps>): Proxied<Text, Chained<LogicAction.Actions>>;
-
-    public hide(options: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>>;
-
-    public hide(options?: Transform<TransformDefinitions.TextTransformProps> | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>> {
-        const chain = this.chain();
-        const trans =
-            (options instanceof Transform) ? options.copy() : new Transform<TransformDefinitions.ImageTransformProps>([
-                {
-                    props: {
-                        opacity: 1,
-                    },
-                    options: options || {}
-                }
-            ]);
-        const action = new TextAction<typeof TextAction.ActionTypes.hide>(
-            chain,
-            TextAction.ActionTypes.hide,
-            new ContentNode<TextActionContentType["text:hide"]>().setContent([trans])
-        );
-        return chain.chain(action);
-    }
-
-    /**
      * Set the text of the Text
      * @chainable
      */
@@ -278,20 +189,20 @@ export class Text
     }
 
     /**@internal */
-    _init(scene?: Scene): TextAction<typeof TextAction.ActionTypes.init> {
-        return new TextAction<typeof TextAction.ActionTypes.init>(
+    _init(scene?: Scene): DisplayableAction<typeof DisplayableActionTypes.init> {
+        return new DisplayableAction<typeof DisplayableActionTypes.init>(
             this.chain(),
-            TextAction.ActionTypes.init,
-            new ContentNode<TextActionContentType["text:init"]>().setContent([scene])
+            DisplayableActionTypes.init,
+            new ContentNode<DisplayableActionContentType["displayable:init"]>().setContent([scene])
         );
     }
 
     /**@internal */
-    private _applyTransition(chain: Proxied<Text, Chained<LogicAction.Actions, Text>>, transition: ITextTransition): TextAction<typeof TextAction.ActionTypes.applyTransition> {
-        return new TextAction<typeof TextAction.ActionTypes.applyTransition>(
+    private _applyTransition(chain: Proxied<Text, Chained<LogicAction.Actions>>, transition: ITextTransition): DisplayableAction<typeof DisplayableActionTypes.applyTransition> {
+        return new DisplayableAction<typeof DisplayableActionTypes.applyTransition>(
             chain,
-            TextAction.ActionTypes.applyTransition,
-            new ContentNode<TextActionContentType["text:applyTransition"]>().setContent([transition])
+            DisplayableActionTypes.applyTransition,
+            new ContentNode<DisplayableActionContentType["displayable:applyTransition"]>().setContent([transition])
         );
     }
 }

@@ -1,7 +1,7 @@
 import {LogicAction} from "@core/action/logicAction";
 import type {Story} from "@core/elements/story";
 import type {ConditionData} from "@core/elements/condition";
-import {Color, CommonDisplayableConfig, ImageSrc} from "@core/types";
+import {Color, ImageSrc} from "@core/types";
 import {Transform} from "@core/elements/transform/transform";
 import type {Scene} from "@core/elements/scene";
 import type {MenuData} from "@core/elements/menu";
@@ -22,6 +22,7 @@ export const DisplayableActionTypes = {
     layerMoveBottom: "displayable:layerMoveBottom",
     applyTransform: "displayable:applyTransform",
     applyTransition: "displayable:applyTransition",
+    init: "displayable:init",
 } as const;
 export type DisplayableActionContentType = {
     [K in typeof DisplayableActionTypes[keyof typeof DisplayableActionTypes]]:
@@ -29,7 +30,10 @@ export type DisplayableActionContentType = {
         K extends "displayable:layerMoveDown" ? [void] :
             K extends "displayable:layerMoveTop" ? [void] :
                 K extends "displayable:layerMoveBottom" ? [void] :
-                    any;
+                    K extends "displayable:applyTransform" ? [Transform] :
+                        K extends "displayable:applyTransition" ? [ITransition] :
+                            K extends "displayable:init" ? [Scene?] :
+                                any;
 }
 /* Character */
 export const CharacterActionTypes = {
@@ -78,15 +82,8 @@ export type StoryActionContentType = {
 }
 /* Image */
 export const ImageActionTypes = {
-    ...DisplayableActionTypes,
     action: "image:action",
     setSrc: "image:setSrc",
-    setPosition: "image:setPosition",
-    show: "image:show",
-    hide: "image:hide",
-    applyTransform: "image:applyTransform",
-    init: "image:init",
-    applyTransition: "image:applyTransition",
     flush: "image:flush",
     initWearable: "image:initWearable",
     setAppearance: "image:setAppearance",
@@ -94,16 +91,10 @@ export const ImageActionTypes = {
 export type ImageActionContentType = {
     [K in typeof ImageActionTypes[keyof typeof ImageActionTypes]]:
     K extends "image:setSrc" ? [ImageSrc | Color] :
-        K extends "image:setPosition" ? [CommonDisplayableConfig["position"], Transform<TransformDefinitions.ImageTransformProps>] :
-            K extends "image:show" ? [void, Transform<TransformDefinitions.ImageTransformProps>] :
-                K extends "image:hide" ? [void, Transform<TransformDefinitions.ImageTransformProps>] :
-                    K extends "image:applyTransform" ? [void, Transform<TransformDefinitions.ImageTransformProps>, string] :
-                        K extends "image:init" ? [Scene?] :
-                            K extends "image:applyTransition" ? [ITransition] :
-                                K extends "image:flush" ? [] :
-                                    K extends "image:initWearable" ? [Image] :
-                                        K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagGroupDefinition>> | string[], IImageTransition | undefined] :
-                                            any;
+        K extends "image:flush" ? [] :
+            K extends "image:initWearable" ? [Image] :
+                K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagGroupDefinition>> | string[], IImageTransition | undefined] :
+                    any;
 } & DisplayableActionContentType;
 /* Condition */
 export const ConditionActionTypes = {
@@ -176,11 +167,6 @@ export type ControlActionContentType = {
 export const TextActionTypes = {
     action: "text:action",
     setText: "text:setText",
-    show: "text:show",
-    hide: "text:hide",
-    applyTransform: "text:applyTransform",
-    init: "text:init",
-    applyTransition: "text:applyTransition",
     setFontSize: "text:setFontSize",
 } as const;
 export type TextActionContentType = {

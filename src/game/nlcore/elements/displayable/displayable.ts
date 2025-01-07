@@ -12,15 +12,16 @@ import type {TransformDefinitions} from "@core/elements/transform/type";
 
 /**@internal */
 export type DisplayableEventTypes = {
-    "event:displayable.applyTransition": [ITransition];
-    "event:displayable.applyTransform": [Transform];
-    "event:displayable.init": [];
+    "event:displayable.applyTransition": [transition: ITransition, resolve: () => void];
+    "event:displayable.applyTransform": [transform: Transform, resolve: () => void];
+    "event:displayable.init": [resolve: () => void];
 };
 
 /**@internal */
 export abstract class Displayable<
     StateData extends Record<string, any>,
-    Self extends Actionable
+    Self extends Displayable<any, any>,
+    TransformType extends TransformDefinitions.Types = TransformDefinitions.Types
 >
     extends Actionable<StateData, Self>
     implements EventfulDisplayable {
@@ -35,8 +36,6 @@ export abstract class Displayable<
     readonly abstract events: EventDispatcher<DisplayableEventTypes>;
 
     abstract transformState: TransformState<any>;
-
-    abstract transform(transform: Transform): Proxied<any, LogicAction.Actions>;
 
     /**
      * Move the layer up
@@ -87,9 +86,9 @@ export abstract class Displayable<
         duration?: number,
         easing?: TransformDefinitions.EasingDefinition
     ): Proxied<Self, Chained<LogicAction.Actions>> {
-        return this.transform(new Transform<TransformDefinitions.Types>({
+        return this.transform(new Transform<TransformType>({
             position,
-        }, {
+        } as TransformType, {
             duration,
             ease: easing,
         }));
@@ -107,9 +106,9 @@ export abstract class Displayable<
         duration?: number,
         easing?: TransformDefinitions.EasingDefinition
     ): Proxied<Self, Chained<LogicAction.Actions>> {
-        return this.transform(new Transform<TransformDefinitions.Types>({
+        return this.transform(new Transform<TransformType>({
             scale,
-        }, {
+        } as TransformType, {
             duration,
             ease: easing,
         }));
@@ -127,9 +126,9 @@ export abstract class Displayable<
         duration?: number,
         easing?: TransformDefinitions.EasingDefinition
     ): Proxied<Self, Chained<LogicAction.Actions>> {
-        return this.transform(new Transform<TransformDefinitions.Types>({
+        return this.transform(new Transform<TransformType>({
             rotation,
-        }, {
+        } as TransformType, {
             duration,
             ease: easing,
         }));
@@ -147,13 +146,98 @@ export abstract class Displayable<
         duration?: number,
         easing?: TransformDefinitions.EasingDefinition
     ): Proxied<Self, Chained<LogicAction.Actions>> {
-        return this.transform(new Transform<TransformDefinitions.Types>({
+        return this.transform(new Transform<TransformType>({
             opacity,
-        }, {
+        } as TransformType, {
             duration,
             ease: easing,
         }));
     }
+
+    /**
+     * Apply a transform to the Displayable
+     * @chainable
+     */
+    public transform(transform: Transform<TransformType>): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        const chain: Proxied<Self, Chained<LogicAction.Actions, Self>> = this.chain();
+        const action = new DisplayableAction<typeof DisplayableActionTypes.applyTransform, Self>(
+            chain,
+            DisplayableActionTypes.applyTransform,
+            new ContentNode<DisplayableActionContentType["displayable:applyTransform"]>().setContent([
+                transform.copy(),
+            ])
+        );
+        return chain.chain(action);
+    }
+
+    /**
+     * Show the Displayable
+     *
+     * if options are provided, the displayable will show with the provided transform options
+     * @example
+     * ```ts
+     * text.show({
+     *     duration: 1000,
+     * });
+     * ```
+     * @chainable
+     */
+    public show(): Proxied<Text, Chained<LogicAction.Actions>>;
+
+    public show(options: Transform<TransformType>): Proxied<Text, Chained<LogicAction.Actions>>;
+
+    public show(options: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>>;
+
+    public show(options?: Transform<TransformType> | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>> {
+        const chain = this.chain();
+        const trans =
+            (options instanceof Transform) ? options.copy() : new Transform<TransformType>({
+                opacity: 1,
+            } as TransformType, options || {});
+        const action = new DisplayableAction<typeof DisplayableActionTypes.applyTransform, Self>(
+            chain,
+            DisplayableActionTypes.applyTransform,
+            new ContentNode<DisplayableActionContentType["displayable:applyTransform"]>().setContent([
+                trans
+            ])
+        );
+        return chain.chain(action);
+    }
+
+    /**
+     * Hide the Displayable
+     *
+     * if options are provided, the displayable will hide with the provided transform options
+     * @example
+     * ```ts
+     * text.hide({
+     *     duration: 1000,
+     * });
+     * ```
+     * @chainable
+     */
+    public hide(): Proxied<Text, Chained<LogicAction.Actions>>;
+
+    public hide(options: Transform<TransformType>): Proxied<Text, Chained<LogicAction.Actions>>;
+
+    public hide(options: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>>;
+
+    public hide(options?: Transform<TransformType> | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>> {
+        const chain = this.chain();
+        const trans =
+            (options instanceof Transform) ? options.copy() : new Transform<TransformType>({
+                opacity: 0,
+            } as TransformType, options || {});
+        const action = new DisplayableAction<typeof DisplayableActionTypes.applyTransform, Self>(
+            chain,
+            DisplayableActionTypes.applyTransform,
+            new ContentNode<DisplayableActionContentType["displayable:applyTransform"]>().setContent([
+                trans,
+            ])
+        );
+        return chain.chain(action);
+    }
+
 
     protected constructLayerAction<T extends Values<typeof DisplayableActionTypes>>(
         chain: Proxied<Self, Chained<LogicAction.Actions>>,

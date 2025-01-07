@@ -41,7 +41,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 state.audioManager.play(voice);
             }
 
-            state.createText(this.getId(), sentence, () => {
+            state.createDialog(this.getId(), sentence, () => {
                 if (voice) {
                     state.audioManager.stop(voice);
                 }

@@ -19,7 +19,7 @@ import {
 import {ContentNode} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
-import {isNamedColor, Values} from "@lib/util/data";
+import {isNamedColor} from "@lib/util/data";
 import {Action} from "@core/action/action";
 import {Story} from "@core/elements/story";
 
@@ -163,6 +163,7 @@ export class StaticScriptWarning extends UseError<{
 }
 
 type ImageState = {
+    /**@deprecated */
     isDisposed: boolean;
     usedExternalSrc: boolean;
 };
@@ -248,18 +249,7 @@ export class StaticChecker {
     }
 
     private checkImage(state: ImageState, action: ImageAction) {
-        if (([
-            ImageActionTypes.init,
-            ImageActionTypes.show,
-            ImageActionTypes.hide,
-            ImageActionTypes.applyTransform,
-            ImageActionTypes.applyTransition,
-        ] as Values<typeof ImageActionTypes>[]).includes(action.type)) {
-            if (state.isDisposed) {
-                const message = `Image is disposed before action: ${action.type}\nImage: ${action.callee.config.name}\nAction: ${action.type}\n\nAt: ${action.__stack}`;
-                throw new StaticScriptWarning(message);
-            }
-        } else if (action.type === ImageActionTypes.setSrc) {
+        if (action.type === ImageActionTypes.setSrc) {
             const node = (action.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>);
             const src = node.getContent()[0];
             if (Utils.isImageURL(src) && Utils.isExternalSrc(src)) {

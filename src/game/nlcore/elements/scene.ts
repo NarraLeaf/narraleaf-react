@@ -6,7 +6,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {EmptyObject, IImageTransition} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
-import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
+import {DisplayableActionTypes, SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
 import {Control, Persistent, Story, Utils} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
@@ -19,6 +19,7 @@ import {DynamicPersistent} from "@core/elements/persistent";
 import {Config, ConfigConstructor} from "@lib/util/config";
 import Actions = LogicAction.Actions;
 import GameElement = LogicAction.GameElement;
+import {DisplayableAction} from "@core/action/actions/displayableAction";
 
 /**@internal */
 export type SceneConfig = {
@@ -498,7 +499,7 @@ export class Scene extends Constructable<
                 src: this.userConfig.get().background,
                 opacity: 1,
                 autoFit: true,
-            }).__setDisplayState(true),
+            }),
         }).get();
     }
 
@@ -547,7 +548,7 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _initBackground(): ImageAction<"image:init"> {
+    private _initBackground(): DisplayableAction<typeof DisplayableActionTypes.init> {
         return this.state.backgroundImage._init(this);
     }
 }

@@ -12,55 +12,7 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
     static ActionTypes = TextActionTypes;
 
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
-        if (this.type === TextActionTypes.init) {
-            const lastScene = state.findElementByDisplayable(this.callee);
-            if (lastScene) {
-                state.disposeDisplayable(this.callee, lastScene.scene);
-            }
-
-            const scene = (this.contentNode as ContentNode<TextActionContentType["text:init"]>).getContent()[0];
-            state.createDisplayable(this.callee, scene);
-
-            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-
-            this.callee.events.any("event:displayable.init").then(() => {
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                });
-                state.stage.next();
-            });
-            return awaitable;
-        } else if (([
-            TextActionTypes.show,
-            TextActionTypes.hide,
-            TextActionTypes.applyTransform
-        ] as T[]).includes(this.type)) {
-            const awaitable =
-                new Awaitable<CalledActionResult>(v => v)
-                    .registerSkipController(new SkipController(() => {
-                        if (this.type === TextActionTypes.hide) {
-                            this.callee.state.display = false;
-                        }
-                        return super.executeAction(state) as CalledActionResult;
-                    }));
-            const transform = (this.contentNode as ContentNode<TextActionContentType["text:show"]>).getContent()[0];
-
-            if (this.type === TextActionTypes.show) {
-                this.callee.state.display = true;
-                state.stage.update();
-            }
-
-            state.animateText(Text.EventTypes["event:displayable.applyTransform"], this.callee, [
-                transform
-            ], () => {
-                if (this.type === TextActionTypes.hide) {
-                    this.callee.state.display = false;
-                }
-                awaitable.resolve(super.executeAction(state) as CalledActionResult);
-            });
-            return awaitable;
-        } else if (this.type === TextActionTypes.setText) {
+        if (this.type === TextActionTypes.setText) {
             this.callee.state.text = (this.contentNode as ContentNode<TextActionContentType["text:setText"]>).getContent()[0];
             return super.executeAction(state) as CalledActionResult;
         } else if (this.type === TextActionTypes.setFontSize) {
@@ -68,29 +20,14 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
             const transform = new Transform<any>([], {
                 duration: 0,
             });
-            const awaitable = new Awaitable<CalledActionResult>();
-            state.animateText(Text.EventTypes["event:displayable.applyTransform"], this.callee, [
-                transform
-            ], () => {
-                awaitable.resolve(super.executeAction(state) as CalledActionResult);
-            });
-            return awaitable;
-        } else if (this.type === TextActionTypes.applyTransition) {
             const awaitable = new Awaitable<CalledActionResult>()
                 .registerSkipController(new SkipController(() => {
-                    state.logger.info("NarraLeaf-React: Text Transition", "Skipped");
-                    return {
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    };
+                    state.logger.info("NarraLeaf-React: Text Font Size", "Skipped");
+                    return super.executeAction(state) as CalledActionResult;
                 }));
-            const transition =
-                (this.contentNode as ContentNode<TextActionContentType["text:applyTransition"]>).getContent()[0];
-            this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                });
+
+            this.callee.events.emit(Text.EventTypes["event:displayable.applyTransform"], transform, () => {
+                awaitable.resolve(super.executeAction(state) as CalledActionResult);
                 state.stage.next();
             });
             return awaitable;

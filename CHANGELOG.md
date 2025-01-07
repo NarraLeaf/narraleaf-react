@@ -8,6 +8,7 @@
 - Image Config has changed:
     - the type of `config.src` should be a tag definition or a string
     - In tag-based image config, `config.src` as a resolver function is moved to `config.src.resolve`
+    - Image can't be marked as wearable anymore, use `image.wear` or `image.asWearableOf` instead
 - These methods of `Image` has been changed:
     - `setAppearance`, `setTags`, `setSrc` -> `char`
     - `applyTransform` -> `transform`

@@ -202,6 +202,18 @@ export class Awaitable<T, U = T> {
         return this;
     }
 
+    onSettled(callback: () => void): this {
+        if (this.solved) {
+            callback();
+        } else {
+            this.listeners.push(callback);
+            this.skipController?.onAbort(() => {
+                callback();
+            });
+        }
+        return this;
+    }
+
     abort() {
         if (this.skipController) {
             return this.skipController.abort();
