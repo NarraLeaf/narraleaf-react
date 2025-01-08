@@ -30,7 +30,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
 
         state
             .registerSrcManager(scene.srcManager)
-            .addScene(scene);
+            .addScene(scene)
+            .flush();
         scene.local.init(state.game.getLiveGame().getStorable());
 
         SceneAction.registerEventListeners(scene, state, () => {
@@ -45,10 +46,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
     }
 
     static registerEventListeners(scene: Scene, state: GameState, onInit?: () => void) {
-        scene.events.once("event:scene.unmount", () => {
-            state.offSrcManager(scene.srcManager);
-        });
-
         scene.events.once("event:scene.mount", () => {
             if (scene.state.backgroundMusic) {
                 scene.events.emit("event:scene.setBackgroundMusic",
@@ -56,10 +53,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                     scene.config.backgroundMusicFade
                 );
             }
+            state.logger.debug("Scene Action", "Scene init");
             if (onInit) {
                 onInit();
             }
-            state.logger.debug("Scene Action", "Scene init");
         });
     }
 

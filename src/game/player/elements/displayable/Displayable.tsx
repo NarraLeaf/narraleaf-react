@@ -4,7 +4,7 @@ import {ITransition} from "@core/elements/transition/type";
 import {useFlush} from "@player/lib/flush";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Displayable} from "@core/elements/displayable/displayable";
-import {Awaitable, createMicroTask} from "@lib/util/data";
+import {Awaitable} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 
@@ -65,6 +65,7 @@ export function useDisplayable(
         if (!ref.current) {
             throw new Error(`Scope not ready. Using element: ${element.constructor.name}`);
         }
+        element.events.emit(Displayable.EventTypes["event:displayable.onMount"]);
     }, []);
 
     function handleOnTransform(transform: Transform) {
@@ -79,7 +80,7 @@ export function useDisplayable(
         onTransform?.(transform);
     }
 
-    function applyTransform(transform: Transform): Promise<void> {
+    function applyTransform(transform: Transform, resolve: () => void): void {
         if (transformToken) {
             transformToken.abort();
             setTransformToken(null);
@@ -87,49 +88,41 @@ export function useDisplayable(
 
         const initialStyle = state.toStyle(gameState, overwriteDefinition);
         Object.assign(ref.current!.style, initialStyle);
-        return new Promise<void>(resolve => {
-            createMicroTask(() => {
-                const awaitable = transform.animate(
-                    state,
-                    {
-                        gameState,
-                        ref,
-                        overwrites: overwriteDefinition,
-                    }
-                );
-                setTransformToken(awaitable);
-                awaitable.onSettled(() => {
-                    setTransformToken(null);
-                    handleOnTransform(transform);
-                    resolve();
-                });
-            });
+
+        const awaitable = transform.animate(
+            state,
+            {
+                gameState,
+                ref,
+                overwrites: overwriteDefinition,
+            }
+        );
+        setTransformToken(awaitable);
+        awaitable.then(() => {
+            setTransformToken(null);
+            handleOnTransform(transform);
+            resolve();
         });
     }
 
-    function applyTransition(newTransition: ITransition): Promise<void> {
+    function applyTransition(newTransition: ITransition, resolve: () => void): void {
         if (transition) {
             transition.complete();
             setTransition(null);
         }
         setTransition(newTransition);
 
-        return new Promise<void>(resolve => {
-            createMicroTask(() => {
-                flush();
-                newTransition.start(() => {
-                    setTransition(null);
-                    flush();
-                    resolve();
-                });
-            });
+        newTransition.start(() => {
+            setTransition(null);
+            flush();
+            resolve();
         });
     }
 
-    function initDisplayable(): Promise<void> {
+    function initDisplayable(resolve: () => void): void {
         gameState.logger.debug("initDisplayable", element);
 
-        return applyTransform(Transform.immediate(state.get()));
+        applyTransform(Transform.immediate(state.get()), resolve);
     }
 
     function skip() {

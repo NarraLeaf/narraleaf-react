@@ -93,14 +93,18 @@ export class DisplayableAction<
             state.disposeDisplayable(element, lastScene.scene);
         }
 
-        state.createDisplayable(element, scene);
+        state
+            .createDisplayable(element, scene)
+            .flush();
 
         const awaitable = new Awaitable<CalledActionResult>()
             .registerSkipController(new SkipController(() =>
                 super.executeAction(state) as CalledActionResult));
-        element.events.emit(Displayable.EventTypes["event:displayable.init"], () => {
-            awaitable.resolve(super.executeAction(state) as CalledActionResult);
-            state.stage.next();
+        element.events.once(Displayable.EventTypes["event:displayable.onMount"], () => {
+            element.events.emit(Displayable.EventTypes["event:displayable.init"], () => {
+                awaitable.resolve(super.executeAction(state) as CalledActionResult);
+                state.stage.next();
+            });
         });
 
         return awaitable;

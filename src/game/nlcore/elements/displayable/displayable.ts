@@ -15,6 +15,7 @@ export type DisplayableEventTypes = {
     "event:displayable.applyTransition": [transition: ITransition, resolve: () => void];
     "event:displayable.applyTransform": [transform: Transform, resolve: () => void];
     "event:displayable.init": [resolve: () => void];
+    "event:displayable.onMount": [];
 };
 
 /**@internal */
@@ -30,6 +31,7 @@ export abstract class Displayable<
         "event:displayable.applyTransition": "event:displayable.applyTransition",
         "event:displayable.applyTransform": "event:displayable.applyTransform",
         "event:displayable.init": "event:displayable.init",
+        "event:displayable.onMount": "event:displayable.onMount",
     };
 
     /**@internal */

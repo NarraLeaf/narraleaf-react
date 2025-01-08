@@ -118,6 +118,11 @@ export class GameState {
         return this;
     }
 
+    public flush(): this {
+        this.stage.update();
+        return this;
+    }
+
     public popScene(): this {
         const scene = this.state.elements.pop();
         if (!scene) return this;
@@ -437,16 +442,6 @@ export class GameState {
         if (index === -1) return this;
         this.state.elements.splice(index, 1);
         return this;
-    }
-
-    private anyEvent(type: any, target: any, onEnd: () => void, ...args: any[]) {
-        (target.events as EventDispatcher<any>).any(
-            type,
-            ...args
-        ).then(onEnd).then(() => {
-            this.stage.next();
-        });
-        return void 0;
     }
 
     private createWaitableAction<A extends Record<any, any>, T = undefined>(action: A, after?: (arg0: T) => void) {

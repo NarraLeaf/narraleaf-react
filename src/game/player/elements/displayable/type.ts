@@ -22,14 +22,16 @@ export type StatefulDisplayable = {
 export type DisplayableAnimationEvents =
     | "event:displayable.applyTransform"
     | "event:displayable.applyTransition"
-    | "event:displayable.init";
+    | "event:displayable.init"
+    | "event:displayable.onMount";
 /**@internal */
 export type EventfulDisplayableEvents = {
     [K in DisplayableAnimationEvents]:
     K extends "event:displayable.applyTransform" ? [transform: Transform, resolve: () => void] :
         K extends "event:displayable.applyTransition" ? [transition: ITransition, resolve: () => void] :
             K extends "event:displayable.init" ? [resolve: () => void] :
-                never;
+                K extends "event:displayable.onMount" ? [] :
+                    never;
 }
 
 /**@internal */

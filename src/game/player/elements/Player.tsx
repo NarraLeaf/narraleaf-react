@@ -120,11 +120,6 @@ export default function Player(
                 }
             });
 
-            const gameKeyEvents = state.events.once(GameState.EventTypes["event:state.player.skip"], () => {
-                game.getLiveGame().abortAwaiting();
-                next();
-            });
-
             state.stage.update();
 
             return () => {
@@ -132,7 +127,6 @@ export default function Player(
                     events.forEach(token => token());
                 }
                 gameStateEvents.cancel();
-                gameKeyEvents.cancel();
             };
         });
     }, []);
