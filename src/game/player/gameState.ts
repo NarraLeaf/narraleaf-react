@@ -52,29 +52,15 @@ interface StageUtils {
 
 
 type GameStateEvents = {
-    "event:state.ready": [];
     "event:state.end": [];
     "event:state.player.skip": [];
-    /**
-     * @deprecated
-     */
-    "event:state.preload.unmount": [];
-    "event:state.preload.loaded": [];
-    /**
-     * @deprecated
-     */
-    "event:state.player.flush": [];
     "event:state.player.requestFlush": [];
 };
 
 export class GameState {
     static EventTypes: { [K in keyof GameStateEvents]: K } = {
-        "event:state.ready": "event:state.ready",
         "event:state.end": "event:state.end",
         "event:state.player.skip": "event:state.player.skip",
-        "event:state.preload.unmount": "event:state.preload.unmount",
-        "event:state.preload.loaded": "event:state.preload.loaded",
-        "event:state.player.flush": "event:state.player.flush",
         "event:state.player.requestFlush": "event:state.player.requestFlush",
     };
     state: PlayerState = {

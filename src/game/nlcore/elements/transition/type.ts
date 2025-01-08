@@ -2,6 +2,7 @@ import type {EventDispatcher} from "@lib/util/data";
 import React from "react";
 import type {AnimationPlaybackControls, DOMKeyframesDefinition} from "motion/react";
 import {Color, ImageSrc} from "@core/types";
+import {TransformDefinitions} from "@core/elements/transform/type";
 
 /**@internal */
 export type ElementProp<T extends Element = Element, U extends React.HTMLAttributes<T> = React.HTMLAttributes<T>> =
@@ -79,4 +80,35 @@ export const TransitionEventTypes: {
     "end": "end",
 };
 
+export enum TransitionAnimationType {
+    Number,
+    HexColor,
+}
+export type AnimationTypeToData<T extends TransitionAnimationType> =
+    T extends TransitionAnimationType.Number ? number :
+        T extends TransitionAnimationType.HexColor ? string :
+            never;
+export type AnimationTaskMapArray<T extends TransitionAnimationType[]> = {
+    [K in keyof T]: {
+        type: T[K];
+        start: AnimationTypeToData<T[K]>;
+        end: AnimationTypeToData<T[K]>;
+        duration: number;
+        ease?: TransformDefinitions.EasingDefinition;
+    };
+};
+export type AnimationDataTypeArray<T extends TransitionAnimationType[]> = {
+    [K in keyof T]: AnimationTypeToData<T[K]>;
+};
+export type TransitionRef<T extends HTMLElement> = React.RefObject<T[]>;
+export type TransitionTask<T extends HTMLElement, U extends TransitionAnimationType[] = never[]> = {
+    animations: AnimationTaskMapArray<U>;
+    resolve: ((...args: AnimationDataTypeArray<U>) => ElementProp<T>)[];
+};
+
+export type AnimationController<T extends TransitionAnimationType[]> = {
+    onUpdate: (handler: (values: AnimationDataTypeArray<T>) => void) => void;
+    onComplete: (handler: () => void) => void;
+    complete: () => void;
+};
 

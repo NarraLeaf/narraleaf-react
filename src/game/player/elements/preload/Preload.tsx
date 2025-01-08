@@ -101,7 +101,6 @@ export function Preload(
             if (game.config.player.waitForPreload) {
                 preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             }
-            state.events.emit(GameState.EventTypes["event:state.preload.loaded"]);
             cacheManager.filter(loadedSrc);
         });
 

@@ -145,8 +145,6 @@ export default function Player(
         });
     }, [ready]);
 
-    state.events.emit(GameState.EventTypes["event:state.player.flush"]);
-
     function handlePreloadLoaded() {
         state.stage.update();
         if (story) {

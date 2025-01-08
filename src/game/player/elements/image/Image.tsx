@@ -142,7 +142,7 @@ function ImageTransition(
                 {transitionProps.map((elementProps, index) => {
                     return <AspectScaleImage
                         key={index}
-                        props={deepMerge(elementProps, elementStyles[index] || {})}
+                        props={deepMerge(elementProps, elementStyles[index] || elementStyles[elementStyles.length - 1])}
                         id={elementProps.src as any}
                         ref={index === 0 ? ref : undefined}
                         onWidthChange={onWidthChange}
