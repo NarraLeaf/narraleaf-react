@@ -17,12 +17,12 @@ export class Dissolve extends ImageTransition<[TransitionAnimationType.Number]> 
                 ease: this.easing,
             }],
             resolve: [
-                (opacity: number) => this.withSrc({
+                (opacity: number) => this.withCurrentSrc({
                     style: {
                         opacity: 1 - opacity,
                     }
                 }),
-                (opacity: number) => this.withSrc({
+                (opacity: number) => this.withTargetSrc({
                     style: {
                         opacity: opacity,
                     }
