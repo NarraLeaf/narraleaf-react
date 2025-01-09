@@ -4,7 +4,7 @@ import {Color, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
 import {toHex} from "@lib/util/data";
 import {TransformDefinitions} from "@core/elements/transform/type";
-
+/**@deprecated */
 export class Fade extends BaseImageTransition<ImgElementProp> implements IImageTransition {
     static Frames: [number, number] = [0, 1];
     private readonly duration: number;
@@ -62,7 +62,7 @@ export class Fade extends BaseImageTransition<ImgElementProp> implements IImageT
                     opacity: this.state.opacity,
                     backgroundColor: Utils.isColor(this.src) ? toHex(this.src) : "",
                 },
-                src: Utils.isImageSrc(this.src) ? Utils.srcToString(this.src) : "",
+                src: Utils.isImageSrc(this.src) ? Utils.srcToURL(this.src) : "",
             },
         ];
     }

@@ -39,6 +39,7 @@ export type CSSProps = React.CSSProperties;
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type EmptyObject = {};
 
+/**@deprecated */
 export interface ITransition<T extends ElementProp = Record<string, any>> {
     /**@internal */
     events: EventDispatcher<EventTypes<[T[]]>>;
@@ -55,12 +56,14 @@ export interface ITransition<T extends ElementProp = Record<string, any>> {
     complete(): void;
 }
 
+/**@deprecated */
 export interface IImageTransition<T extends ElementProp = ImgElementProp> extends ITransition<T> {
     setSrc(src: ImageSrc | Color): void;
 
     copy(): IImageTransition<T>;
 }
 
+/**@deprecated */
 export interface ITextTransition<T extends ElementProp = SpanElementProp> extends ITransition<T> {
     copy(): ITextTransition<T>;
 }

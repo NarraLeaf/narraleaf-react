@@ -5,7 +5,7 @@ import {animate} from "motion/react";
 import {Color, ImageSrc} from "@core/types";
 import {TransformDefinitions} from "@core/common/types";
 
-
+/**@deprecated */
 export class BaseTransition<T extends ElementProp> implements ITransition<T> {
     controller: AnimationPlaybackControls | null | undefined;
 

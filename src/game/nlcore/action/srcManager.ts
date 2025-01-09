@@ -167,7 +167,7 @@ export class SrcManager {
                 if (!Utils.isImageURL(arg0.state.currentSrc)) return this;
                 if (this.isSrcRegistered(GameImage.getSrcURL(arg0))) return this;
             } else {
-                if (this.isSrcRegistered(Utils.srcToString(arg0["src"]))) return this;
+                if (this.isSrcRegistered(Utils.srcToURL(arg0["src"]))) return this;
             }
             this.src.push({
                 type: "image", src:

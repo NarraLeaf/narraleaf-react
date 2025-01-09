@@ -10,6 +10,7 @@ import {TransformDefinitions} from "@core/elements/transform/type";
  * @implements ITransition
  * @extends BaseTransition
  * @description Dissolve transition effect
+ * @deprecated
  */
 export class Dissolve extends BaseImageTransition<ImgElementProp> implements IImageTransition {
     static Frames: [number, number] = [1, 0];
@@ -66,7 +67,7 @@ export class Dissolve extends BaseImageTransition<ImgElementProp> implements IIm
                     opacity: 1 - this.state.opacity,
                     backgroundColor: Utils.isColor(this.src) ? toHex(this.src) : "",
                 },
-                src: Utils.isImageSrc(this.src) ? Utils.srcToString(this.src) : "",
+                src: Utils.isImageSrc(this.src) ? Utils.srcToURL(this.src) : "",
             },
         ];
     }

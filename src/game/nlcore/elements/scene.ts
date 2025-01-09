@@ -17,9 +17,9 @@ import {ControlAction} from "@core/action/actions/controlAction";
 import {Text} from "@core/elements/displayable/text";
 import {DynamicPersistent} from "@core/elements/persistent";
 import {Config, ConfigConstructor} from "@lib/util/config";
+import {DisplayableAction} from "@core/action/actions/displayableAction";
 import Actions = LogicAction.Actions;
 import GameElement = LogicAction.GameElement;
-import {DisplayableAction} from "@core/action/actions/displayableAction";
 
 /**@internal */
 export type SceneConfig = {
@@ -199,15 +199,15 @@ export class Scene extends Constructable<
      * Any operations after the jump operation won't be executed
      * @chainable
      */
-    public jumpTo(scene: Scene | string, config: Partial<JumpConfig> = {}): ChainedScene {
+    public jumpTo(scene: Scene, config: Partial<JumpConfig> = {}): ChainedScene {
         return this.combineActions(new Control(), chain => {
             const defaultJumpConfig: Partial<JumpConfig> = {unloadScene: true};
             const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig, config);
             chain
-                .chain(new SceneAction(
+                .chain(new SceneAction<typeof SceneActionTypes.preUnmount>(
                     chain,
                     "scene:preUnmount",
-                    new ContentNode().setContent([])
+                    new ContentNode<SceneActionContentType["scene:preUnmount"]>().setContent([])
                 ))
                 ._transitionToScene(jumpConfig.transition, scene)
                 .chain(this._init(scene));
@@ -266,9 +266,9 @@ export class Scene extends Constructable<
      */
     public action(actions: (ChainableAction | ChainableAction[])[]): this;
 
-    public action(actions: ((scene: Scene) => ChainableAction[])): this;
+    public action(actions: ((scene: Scene) => ChainableAction[]) | (() => ChainableAction[])): this;
 
-    public action(actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[])): this {
+    public action(actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[]) | (() => ChainableAction[])): this {
         this.actions = actions;
         return this;
     }
@@ -504,7 +504,7 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _jumpTo(scene: Scene | string): ChainedScene {
+    private _jumpTo(scene: Scene): ChainedScene {
         return this.chain(new SceneAction<"scene:jumpTo">(
             this.chain(),
             "scene:jumpTo",
@@ -524,7 +524,7 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _transitionToScene(transition?: IImageTransition, scene?: Scene | string, src?: ImageSrc | Color): ChainedScene {
+    private _transitionToScene(transition?: IImageTransition, scene?: Scene, src?: ImageSrc | Color): ChainedScene {
         const chain = this.chain();
         if (transition) {
             const copy = transition.copy();
@@ -539,7 +539,7 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _init(target: Scene | string): SceneAction<"scene:init"> {
+    private _init(target: Scene): SceneAction<"scene:init"> {
         return new SceneAction<"scene:init">(
             this.chain(),
             "scene:init",

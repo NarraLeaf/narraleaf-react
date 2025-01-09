@@ -65,10 +65,13 @@ export class RGBColor {
 export class Utils {
     static RGBColor = RGBColor;
 
-    public static srcToString(src: string | NextJSStaticImageData): string {
+    public static srcToURL(src: string | NextJSStaticImageData): string {
         return typeof src === "string" ? src : src.src;
     }
 
+    /**
+     * @deprecated Use {@link srcToURL} instead
+     */
     public static staticImageDataToSrc(image: NextJSStaticImageData | string): string {
         return typeof image === "string" ? image : image.src;
     }
@@ -114,6 +117,14 @@ export class Utils {
         return color && typeof color === "object" && "r" in color && "g" in color && "b" in color;
     }
 
+    public static RGBAColorToHex(color: RGBAColor): HexColor {
+        const r = color.r.toString(16).padStart(2, "0");
+        const g = color.g.toString(16).padStart(2, "0");
+        const b = color.b.toString(16).padStart(2, "0");
+        const a = color.a ? (Math.round(color.a * 255)).toString(16).padStart(2, "0") : "";
+        return `#${r}${g}${b}${a}`;
+    }
+
     static isHexString(color: any): color is HexColor {
         if (typeof color !== "string") {
             return false;
@@ -121,6 +132,9 @@ export class Utils {
         return /^#([0-9A-F]{6}|[0-9A-F]{3})$/i.test(color);
     }
 
+    /**
+     * @deprecated Use {@link srcToURL} instead
+     */
     public static toBackgroundSrc(src: ImageSrc): string {
         if (typeof src === "string") {
             return src;

@@ -4,7 +4,7 @@ import {Color, ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
 import {getCallStack, toHex} from "@lib/util/data";
 import {TransformDefinitions} from "@core/elements/transform/type";
-
+/**@deprecated */
 export class FadeIn extends BaseImageTransition<ImgElementProp> implements IImageTransition {
     __stack: string;
     private readonly duration: number;
@@ -74,7 +74,7 @@ export class FadeIn extends BaseImageTransition<ImgElementProp> implements IImag
                     transform: this.state.transform,
                     backgroundColor: Utils.isColor(this.src) ? toHex(this.src) : "",
                 },
-                src: Utils.isImageSrc(this.src) ? Utils.srcToString(this.src) : "",
+                src: Utils.isImageSrc(this.src) ? Utils.srcToURL(this.src) : "",
             }
         ];
     }

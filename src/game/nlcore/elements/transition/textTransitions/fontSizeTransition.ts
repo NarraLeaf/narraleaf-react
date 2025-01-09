@@ -2,6 +2,7 @@ import {BaseTextTransition} from "@core/elements/transition/baseTransitions";
 import {ITextTransition, SpanElementProp} from "@core/elements/transition/type";
 import {TransformDefinitions} from "@core/elements/transform/type";
 
+/**@deprecated */
 export class FontSizeTransition extends BaseTextTransition<SpanElementProp> implements ITextTransition {
     static Frames: [number, number] = [1, 0];
     private readonly duration: number;

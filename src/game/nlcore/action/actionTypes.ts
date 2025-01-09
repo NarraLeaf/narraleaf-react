@@ -63,12 +63,12 @@ export type SceneActionContentType = {
     [K in typeof SceneActionTypes[keyof typeof SceneActionTypes]]:
     K extends typeof SceneActionTypes["action"] ? Scene :
         K extends typeof SceneActionTypes["sleep"] ? number | Promise<any> | Awaitable<any, any> :
-            K extends typeof SceneActionTypes["init"] ? [Scene | string] :
+            K extends typeof SceneActionTypes["init"] ? [Scene] :
                 K extends typeof SceneActionTypes["exit"] ? [] :
-                    K extends typeof SceneActionTypes["jumpTo"] ? [Scene | string] :
+                    K extends typeof SceneActionTypes["jumpTo"] ? [Scene] :
                         K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
                             K extends typeof SceneActionTypes["preUnmount"] ? [] :
-                                K extends typeof SceneActionTypes["transitionToScene"] ? [IImageTransition, Scene | string | undefined, ImageSrc | Color | undefined] :
+                                K extends typeof SceneActionTypes["transitionToScene"] ? [IImageTransition, Scene | undefined, ImageSrc | Color | undefined] :
                                     any;
 }
 /* Story */

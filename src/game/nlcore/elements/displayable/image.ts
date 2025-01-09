@@ -88,7 +88,7 @@ export class Image<
         "event:wearable.create": "event:wearable.create",
     };
     /**@internal */
-    public static DefaultImagePlaceholder = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+    public static DefaultImagePlaceholder = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAwAB/6Vf9WYAAAAASUVORK5CYII=";
 
     /**@internal */
     static StateSerializer = new Serializer<ImageState>();
@@ -143,7 +143,7 @@ export class Image<
             } else if (Utils.isColor(userSrc)) {
                 return userSrc;
             } else if (Utils.isImageSrc(userSrc)) {
-                return Utils.srcToString(userSrc);
+                return Utils.srcToURL(userSrc);
             }
             return userSrc;
         }
