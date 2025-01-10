@@ -113,5 +113,6 @@ export type AnimationController<T extends TransitionAnimationType[]> = {
     onUpdate: (handler: (values: AnimationDataTypeArray<T>) => void) => void;
     onComplete: (handler: () => void) => void;
     complete: () => void;
+    start: () => void;
 };
 

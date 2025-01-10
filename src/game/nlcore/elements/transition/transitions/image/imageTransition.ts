@@ -5,28 +5,29 @@ import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {deepMerge} from "@lib/util/data";
 import {Image} from "@core/elements/displayable/image";
 
-
-export abstract class ImageTransition<T extends TransitionAnimationType[] = never[]> extends Transition<HTMLImageElement, T> {
+export abstract class ImageTransition<T extends TransitionAnimationType[] = any> extends Transition<HTMLImageElement, T> {
     /**@package */
-    private _currentSrc: Color | ImageSrc | undefined;
+    private _prevSrc: Color | ImageSrc | undefined;
     /**@package */
     private _targetSrc: Color | ImageSrc | undefined;
 
     /**@package */
-    _setCurrentSrc(src: Color | ImageSrc | undefined): void {
-        this._currentSrc = src;
+    _setPrevSrc(src: Color | ImageSrc | undefined): this {
+        this._prevSrc = src;
+        return this;
     }
 
     /**@package */
-    _setTargetSrc(src: Color | ImageSrc | undefined): void {
+    _setTargetSrc(src: Color | ImageSrc | undefined): this {
         this._targetSrc = src;
+        return this;
     }
 
     /**
      * Merge image props with the current src
      */
-    public withCurrentSrc(props: ImgElementProp): ImgElementProp {
-        return deepMerge(props, this._srcToProps(this._currentSrc));
+    public withPrevSrc(props: ImgElementProp): ImgElementProp {
+        return deepMerge(props, this._srcToProps(this._prevSrc));
     }
 
     /**
@@ -35,7 +36,6 @@ export abstract class ImageTransition<T extends TransitionAnimationType[] = neve
     public withTargetSrc(props: ImgElementProp): ImgElementProp {
         return deepMerge(props, this._srcToProps(this._targetSrc));
     }
-
 
     /**@package */
     private _srcToProps(src: Color | ImageSrc | undefined): ImgElementProp {

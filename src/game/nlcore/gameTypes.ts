@@ -5,6 +5,7 @@ import {PlayerStateData} from "@player/gameState";
 import {StorableData} from "@core/elements/persistent/type";
 import {MenuComponent, SayComponent} from "@player/elements/type";
 import React from "react";
+import {StringKeyOf} from "@lib/util/data";
 
 
 export interface SavedGame {
@@ -244,11 +245,11 @@ export type GameSettings = {
     volume: number;
 };
 export type CalledActionResult<T extends keyof LogicAction.ActionContents = any> = {
-    [K in keyof LogicAction.ActionContents]: {
+    [K in StringKeyOf<LogicAction.ActionContents>]: {
         type: T extends undefined ? K : T;
         node: ContentNode<LogicAction.ActionContents[T extends undefined ? K : T]> | null;
     }
-}[keyof LogicAction.ActionContents];
+}[StringKeyOf<LogicAction.ActionContents>];
 
 
 

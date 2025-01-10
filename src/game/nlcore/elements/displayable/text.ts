@@ -8,20 +8,20 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {DisplayableActionContentType, DisplayableActionTypes, TextActionContentType} from "@core/action/actionTypes";
 import {TextAction} from "@core/action/actions/textAction";
 import {Scene} from "@core/elements/scene";
-import {ITextTransition} from "@core/elements/transition/type";
 import {Control} from "@core/elements/control";
-import {FontSizeTransition} from "@core/elements/transition/textTransitions/fontSizeTransition";
 import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {ConfigConstructor} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
+import {TextTransition} from "@core/elements/transition/transitions/text/textTransition";
+import {FontSize} from "@core/elements/transition/transitions/text/fontSize";
 
 export type TextConfig = {
     alignX: "left" | "center" | "right";
     alignY: "top" | "center" | "bottom";
     className?: string;
 };
-type TextState = {
+export type TextState = {
     fontSize: number;
     display: boolean;
     text: string;
@@ -66,11 +66,11 @@ export type TextDataRaw = {
 export type TextEventTypes = {
     "event:text.show": [Transform];
     "event:text.hide": [Transform];
-} & DisplayableEventTypes;
+} & DisplayableEventTypes<TextTransition>;
 
 export class Text
-    extends Displayable<TextDataRaw, Text, TransformDefinitions.TextTransformProps>
-    implements EventfulDisplayable {
+    extends Displayable<TextDataRaw, Text, TransformDefinitions.TextTransformProps, TextTransition>
+    implements EventfulDisplayable<TextTransition> {
     /**@internal */
     static EventTypes: { [K in keyof TextEventTypes]: K } = {
         ...Displayable.EventTypes,
@@ -160,7 +160,7 @@ export class Text
     public setFontSize(fontSize: number, duration: number = 0, easing?: TransformDefinitions.EasingDefinition): Proxied<Text, Chained<LogicAction.Actions>> {
         return this.combineActions(new Control(), chain => {
             if (duration) {
-                const transition = new FontSizeTransition(this.state.fontSize, fontSize, duration, easing);
+                const transition = new FontSize(fontSize, duration, easing) satisfies TextTransition;
                 chain.chain(this._applyTransition(chain, transition));
             }
             const action = new TextAction<typeof TextAction.ActionTypes.setFontSize>(
@@ -189,8 +189,8 @@ export class Text
     }
 
     /**@internal */
-    _init(scene?: Scene): DisplayableAction<typeof DisplayableActionTypes.init> {
-        return new DisplayableAction<typeof DisplayableActionTypes.init>(
+    _init(scene?: Scene): DisplayableAction<typeof DisplayableActionTypes.init, Text> {
+        return new DisplayableAction<typeof DisplayableActionTypes.init, Text>(
             this.chain(),
             DisplayableActionTypes.init,
             new ContentNode<DisplayableActionContentType["displayable:init"]>().setContent([scene])
@@ -198,8 +198,8 @@ export class Text
     }
 
     /**@internal */
-    private _applyTransition(chain: Proxied<Text, Chained<LogicAction.Actions>>, transition: ITextTransition): DisplayableAction<typeof DisplayableActionTypes.applyTransition> {
-        return new DisplayableAction<typeof DisplayableActionTypes.applyTransition>(
+    private _applyTransition(chain: Proxied<Text, Chained<LogicAction.Actions>>, transition: TextTransition): DisplayableAction<typeof DisplayableActionTypes.applyTransition, Text> {
+        return new DisplayableAction<typeof DisplayableActionTypes.applyTransition, Text>(
             chain,
             DisplayableActionTypes.applyTransition,
             new ContentNode<DisplayableActionContentType["displayable:applyTransition"]>().setContent([transition])

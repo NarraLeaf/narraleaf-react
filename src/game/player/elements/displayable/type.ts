@@ -3,6 +3,7 @@ import React from "react";
 import {Transform} from "@core/elements/transform/transform";
 import {GameState} from "@player/gameState";
 import {EventDispatcher} from "@lib/util/data";
+import {Transition} from "@core/elements/transition/transition";
 
 /**@internal */
 export type DisplayableChildProps = {
@@ -25,17 +26,17 @@ export type DisplayableAnimationEvents =
     | "event:displayable.init"
     | "event:displayable.onMount";
 /**@internal */
-export type EventfulDisplayableEvents = {
+export type EventfulDisplayableEvents<TransitionType extends Transition> = {
     [K in DisplayableAnimationEvents]:
     K extends "event:displayable.applyTransform" ? [transform: Transform, resolve: () => void] :
-        K extends "event:displayable.applyTransition" ? [transition: ITransition, resolve: () => void] :
+        K extends "event:displayable.applyTransition" ? [transition: TransitionType, resolve: () => void] :
             K extends "event:displayable.init" ? [resolve: () => void] :
                 K extends "event:displayable.onMount" ? [] :
                     never;
 }
 
 /**@internal */
-export interface EventfulDisplayable {
+export interface EventfulDisplayable<T extends Transition> {
     /**@internal */
-    events: EventDispatcher<EventfulDisplayableEvents>;
+    events: EventDispatcher<EventfulDisplayableEvents<T>>;
 }

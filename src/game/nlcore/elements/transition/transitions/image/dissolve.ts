@@ -17,7 +17,7 @@ export class Dissolve extends ImageTransition<[TransitionAnimationType.Number]> 
                 ease: this.easing,
             }],
             resolve: [
-                (opacity: number) => this.withCurrentSrc({
+                (opacity: number) => this.withPrevSrc({
                     style: {
                         opacity: 1 - opacity,
                     }
@@ -29,5 +29,9 @@ export class Dissolve extends ImageTransition<[TransitionAnimationType.Number]> 
                 }),
             ],
         };
+    }
+
+    copy(): Dissolve {
+        return new Dissolve(this.duration, this.easing);
     }
 }

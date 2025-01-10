@@ -7,7 +7,7 @@ import {deepMerge} from "@lib/util/data";
 import Inspect from "@player/lib/Inspect";
 import {useRatio} from "@player/provider/ratio";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
-import {useTransition} from "@player/lib/useTransition";
+import {Legacy_useTransition} from "@player/lib/useTransition";
 
 /**@internal */
 export default function Text({state, text}: Readonly<{
@@ -66,7 +66,7 @@ function TextTransition(
     }
 ) {
     const {ratio} = useRatio();
-    const [transitionProps] = useTransition<HTMLSpanElement>({
+    const [transitionProps] = Legacy_useTransition<HTMLSpanElement>({
         transition,
         props: {
             style: {

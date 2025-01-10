@@ -6,15 +6,16 @@ import {Displayable} from "@core/elements/displayable/displayable";
 import {ContentNode} from "@core/action/tree/actionTree";
 import type {CalledActionResult} from "@core/gameTypes";
 import {Scene} from "@core/elements/scene";
-import {ITransition} from "@core/elements/transition/type";
 import {Transform} from "@core/elements/transform/transform";
+import {Transition} from "@core/elements/transition/transition";
 
 
 export class DisplayableAction<
     T extends Values<typeof DisplayableActionTypes> = Values<typeof DisplayableActionTypes>,
-    Self extends Displayable<any, any> = Displayable<any, any>
+    Self extends Displayable<any, any, any, any> = Displayable<any, any>,
+    TransitionType extends Transition = Transition,
 >
-    extends TypedAction<DisplayableActionContentType, T, Self> {
+    extends TypedAction<DisplayableActionContentType<TransitionType>, T, Self> {
     static ActionTypes = DisplayableActionTypes;
 
     public executeAction(gameState: GameState) {
@@ -40,17 +41,17 @@ export class DisplayableAction<
 
             return super.executeAction(gameState);
         } else if (this.type === DisplayableActionTypes.applyTransform) {
-            const [transform] = (this.contentNode as ContentNode<DisplayableActionContentType["displayable:applyTransform"]>).getContent();
+            const [transform] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:applyTransform"]>).getContent();
             const element = this.callee;
 
             return this.applyTransform(gameState, element, transform);
         } else if (this.type === DisplayableActionTypes.applyTransition) {
-            const [transition] = (this.contentNode as ContentNode<DisplayableActionContentType["displayable:applyTransition"]>).getContent();
+            const [transition] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:applyTransition"]>).getContent();
             const element = this.callee;
 
             return this.applyTransition(gameState, element, transition);
         } else if (this.type === DisplayableActionTypes.init) {
-            const [scene] = (this.contentNode as ContentNode<DisplayableActionContentType["displayable:init"]>).getContent();
+            const [scene] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:init"]>).getContent();
             const element = this.callee;
 
             return this.initDisplayable(gameState, scene, element);
@@ -73,7 +74,7 @@ export class DisplayableAction<
         return awaitable;
     }
 
-    public applyTransition(state: GameState, element: Displayable<any, any>, transition: ITransition, onFinished?: () => void) {
+    public applyTransition(state: GameState, element: Displayable<any, any>, transition: TransitionType, onFinished?: () => void) {
         const awaitable = new Awaitable<CalledActionResult>()
             .registerSkipController(new SkipController(() => {
                 state.logger.info("Displayable Transition", "Skipped");

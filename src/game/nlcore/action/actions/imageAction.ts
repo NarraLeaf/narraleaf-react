@@ -6,10 +6,34 @@ import {Awaitable, SkipController} from "@lib/util/data";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {TypedAction} from "@core/action/actions";
 import {Displayable} from "@core/elements/displayable/displayable";
+import {Utils} from "@core/common/Utils";
+import {Color} from "@core/types";
 
 export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageActionTypes] = typeof ImageActionTypes[keyof typeof ImageActionTypes]>
     extends TypedAction<ImageActionContentType, T, Image> {
     static ActionTypes = ImageActionTypes;
+
+    public static resolveTagSrc(image: Image, tags: string[]) {
+        if (!Image.isTagSrc(image)) {
+            throw image._mixedSrcError();
+        }
+
+        const oldTags = image.state.currentSrc as string[];
+        const newTags = image.resolveTags(oldTags, tags);
+        return Image.getSrcFromTags(newTags, image.config.src.resolve);
+    }
+
+    public static resolveCurrentSrc(image: Image): string | Color {
+        if (Image.isStaticSrc(image)) {
+            return Utils.isImageSrc(image.state.currentSrc)
+                ? Utils.srcToURL(image.state.currentSrc)
+                : image.state.currentSrc;
+        } else if (Image.isTagSrc(image)) {
+            return Image.getSrcFromTags(image.state.currentSrc as string[], image.config.src.resolve);
+        }
+
+        throw image._mixedSrcError();
+    }
 
     declare type: T;
     declare contentNode: ContentNode<ImageActionContentType[T]>;
@@ -51,7 +75,10 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             if (transition) {
                 const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
                     .registerSkipController(new SkipController(() => super.executeAction(state) as CalledActionResult));
-                transition.setSrc(newSrc);
+                transition
+                    ._setPrevSrc(ImageAction.resolveCurrentSrc(this.callee))
+                    ._setTargetSrc(newSrc);
+
                 this.callee.events.emit("event:displayable.applyTransition", transition, () => {
                     this.callee.state.currentSrc = newTags;
                     awaitable.resolve(super.executeAction(state) as CalledActionResult);

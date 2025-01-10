@@ -1,12 +1,12 @@
 import type {TransformDefinitions} from "@core/elements/transform/type";
 import {ContentNode} from "@core/action/tree/actionTree";
-import {Utils} from "@core/common/Utils";
+import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
 import {TransformState} from "../transform/transform";
 import {Color, CommonDisplayableConfig, ImageSrc, StaticImageData} from "@core/types";
 import {DisplayableActionContentType, DisplayableActionTypes, ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
-import {EmptyObject, IImageTransition, ITransition} from "@core/elements/transition/type";
+import {EmptyObject} from "@core/elements/transition/type";
 import {IPosition, PositionUtils, RawPosition} from "@core/elements/transform/position";
 import {EventDispatcher, SelectElementFromEach, Serializer} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
@@ -16,6 +16,7 @@ import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/dis
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
+import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 
 export type TagDefinition<T extends TagGroupDefinition | null> =
     T extends TagGroupDefinition ? TagDefinitionObject<T> : never;
@@ -36,7 +37,9 @@ type ImageConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | nu
     autoFit: boolean;
 };
 type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | null> = {
-    currentSrc: ImageSrc | Color | SelectElementFromEach<Tag>;
+    currentSrc: Tag extends null
+        ? (ImageSrc | Color) : Tag extends TagGroupDefinition
+            ? SelectElementFromEach<Tag> : SelectElementFromEach<Tag>;
 };
 
 export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | null>
@@ -69,7 +72,7 @@ export type ImageDataRaw = {
 /**@internal */
 export type ImageEventTypes = {
     "event:wearable.create": [Image];
-} & DisplayableEventTypes;
+} & DisplayableEventTypes<ImageTransition>;
 /**@internal */
 export type TagGroupDefinition = string[][];
 /**@internal */
@@ -79,8 +82,8 @@ export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectEleme
 export class Image<
     Tags extends TagGroupDefinition | null = TagGroupDefinition | null
 >
-    extends Displayable<ImageDataRaw, Image, TransformDefinitions.ImageTransformProps>
-    implements EventfulDisplayable {
+    extends Displayable<ImageDataRaw, Image, TransformDefinitions.ImageTransformProps, ImageTransition>
+    implements EventfulDisplayable<ImageTransition> {
 
     /**@internal */
     static EventTypes: { [K in keyof ImageEventTypes]: K } = {
@@ -238,11 +241,11 @@ export class Image<
      * ```
      * @chainable
      */
-    public char(src: ImageSrc | Color, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
+    public char(src: ImageSrc | Color, transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public char(tags: SelectElementFromEach<Tags>, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
+    public char(tags: SelectElementFromEach<Tags>, transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public char(arg0: ImageSrc | Color | SelectElementFromEach<Tags>, transition?: IImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
+    public char(arg0: ImageSrc | Color | SelectElementFromEach<Tags>, transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.combineActions(new Control(), chain => {
             if (Utils.isImageSrc(arg0) || Utils.isColor(arg0)) {
                 return chain.chain(this._setSrc(chain, arg0, transition));
@@ -252,7 +255,7 @@ export class Image<
                     ImageAction.ActionTypes.setAppearance,
                     new ContentNode<ImageActionContentType["image:setAppearance"]>().setContent([
                         arg0,
-                        transition?.copy(),
+                        transition?.copy() as ImageTransition | undefined,
                     ])
                 );
                 return chain
@@ -326,22 +329,22 @@ export class Image<
     }
 
     /**@internal */
-    _applyTransition(transition: ITransition): DisplayableAction<typeof DisplayableActionTypes.applyTransition> {
-        return new DisplayableAction<typeof DisplayableActionTypes.applyTransition>(
+    _applyTransition(transition: ImageTransition): DisplayableAction<typeof DisplayableActionTypes.applyTransition, Image> {
+        return new DisplayableAction<typeof DisplayableActionTypes.applyTransition, Image>(
             this.chain(),
             DisplayableActionTypes.applyTransition,
-            new ContentNode<DisplayableActionContentType["displayable:applyTransition"]>().setContent([
-                transition
+            new ContentNode<DisplayableActionContentType<ImageTransition>["displayable:applyTransition"]>().setContent([
+                transition,
             ])
         );
     }
 
     /**@internal */
-    _init(scene?: Scene): DisplayableAction<typeof DisplayableActionTypes.init> {
-        return new DisplayableAction<typeof DisplayableActionTypes.init>(
+    _init(scene?: Scene): DisplayableAction<typeof DisplayableActionTypes.init, Image> {
+        return new DisplayableAction<typeof DisplayableActionTypes.init, Image>(
             this.chain(),
             DisplayableActionTypes.init,
-            new ContentNode<DisplayableActionContentType["displayable:init"]>().setContent([
+            new ContentNode<DisplayableActionContentType<ImageTransition>["displayable:init"]>().setContent([
                 scene
             ])
         );
@@ -407,7 +410,7 @@ export class Image<
 
     /**@internal */
     _mixedSrcError(): TypeError {
-        throw new TypeError(
+        throw new RuntimeScriptError(
             "Trying to mix src and tags \n" +
             "To better understand the behavior of the image, you cannot mix static src and tags in the same image. ");
     }
@@ -436,12 +439,10 @@ export class Image<
     _setSrc(
         chain: Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>>,
         src: ImageSrc | Color,
-        transition?: IImageTransition
+        transition?: ImageTransition
     ): ImageAction<typeof ImageAction.ActionTypes.setSrc> {
         if (transition) {
-            const copy = transition.copy();
-            copy.setSrc(src);
-            chain.chain(this._applyTransition(copy));
+            chain.chain(this._applyTransition(transition.copy() as ImageTransition));
         }
         return new ImageAction<typeof ImageAction.ActionTypes.setSrc>(
             chain as Proxied<Image, Chained<LogicAction.Actions>>,

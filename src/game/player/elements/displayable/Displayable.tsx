@@ -1,12 +1,13 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {OverwriteDefinition, Transform, TransformState} from "@core/elements/transform/transform";
-import {ITransition} from "@core/elements/transition/type";
+import {AnimationController, ITransition, TransitionTask} from "@core/elements/transition/type";
 import {useFlush} from "@player/lib/flush";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Displayable} from "@core/elements/displayable/displayable";
 import {Awaitable} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
+import {Transition} from "@core/elements/transition/transition";
 
 /**@internal */
 export type StatefulObject = {
@@ -14,12 +15,12 @@ export type StatefulObject = {
 };
 
 /**@internal */
-export type DisplayableHookConfig = {
+export type DisplayableHookConfig<TransitionType extends Transition> = {
     skipTransition?: boolean;
     skipTransform?: boolean;
     overwriteDefinition?: OverwriteDefinition;
     state: TransformState<any>;
-    element: EventfulDisplayable;
+    element: EventfulDisplayable<TransitionType>;
     onTransform?: (transform: Transform) => void;
     transformStyle?: React.CSSProperties;
 };
@@ -31,21 +32,24 @@ export type DisplayableHookResult = {
 };
 
 /**@internal */
-export function useDisplayable(
+export function useDisplayable<TransitionType extends Transition<U>, U extends HTMLElement>(
     {
         element,
         state,
-        skipTransition,
         skipTransform,
         overwriteDefinition,
         onTransform,
         transformStyle,
-    }: DisplayableHookConfig): DisplayableHookResult {
+    }: DisplayableHookConfig<TransitionType>): DisplayableHookResult {
     const [flush] = useFlush();
     const [, setTransformStyle] = useState<React.CSSProperties>(transformStyle || {});
-    const [transition, setTransition] = useState<null | ITransition>(null);
+    const [transitionTask, setTransitionTask] = useState<null | {
+        task: TransitionTask<U, any>;
+        controller: AnimationController<any>;
+    }>(null);
     const [transformToken, setTransformToken] = useState<null | Awaitable<void>>(null);
     const ref = React.useRef<HTMLDivElement | null>(null);
+    const refs = useRef<React.RefObject<U | null>[]>([]);
     const {game} = useGame();
     const gameState = game.getLiveGame().getGameState()!;
 
@@ -55,11 +59,11 @@ export function useDisplayable(
             element.events.on(Displayable.EventTypes["event:displayable.applyTransition"], applyTransition),
             element.events.on(Displayable.EventTypes["event:displayable.init"], initDisplayable),
         ]).cancel;
-    }, [transformToken, transition]);
+    }, [transformToken, transitionTask, refs]);
 
     useEffect(() => {
         return gameState.events.on(GameState.EventTypes["event:state.player.skip"], skip).cancel;
-    }, [transformToken, transition]);
+    }, [transformToken, transitionTask]);
 
     useEffect(() => {
         if (!ref.current) {
@@ -67,6 +71,10 @@ export function useDisplayable(
         }
         element.events.emit(Displayable.EventTypes["event:displayable.onMount"]);
     }, []);
+
+    useEffect(() => {
+
+    }, [transitionTask]);
 
     function handleOnTransform(transform: Transform) {
         setTransformStyle((prev) => {
@@ -105,16 +113,25 @@ export function useDisplayable(
         });
     }
 
-    function applyTransition(newTransition: ITransition, resolve: () => void): void {
-        if (transition) {
-            transition.complete();
-            setTransition(null);
+    function applyTransition(newTransition: TransitionType, resolve: () => void): void {
+        if (transitionTask) {
+            transitionTask.controller.complete();
         }
-        setTransition(newTransition);
 
-        newTransition.start(() => {
-            setTransition(null);
-            flush();
+        const task = newTransition.createTask();
+        const controller = newTransition.requestAnimations(task.animations);
+        setTransitionTask({
+            task,
+            controller,
+        });
+        refs.current = task.resolve.map(() => React.createRef<U | null>());
+
+        controller.onComplete(() => {
+            refs.current.forEach((ref) => {
+                ref.current = null;
+            });
+            refs.current = [];
+            setTransitionTask(null);
             resolve();
         });
     }
@@ -132,17 +149,17 @@ export function useDisplayable(
 
             gameState.logger.debug("transform skipped");
         }
-        if (skipTransition && transition) {
-            transition.complete();
-            setTransition(null);
-
-            gameState.logger.debug("transform skipped");
-        }
+        // if (skipTransition && transitionTask) {
+        //     transitionTask.complete();
+        //     setTransitionTask(null);
+        //
+        //     gameState.logger.debug("transform skipped");
+        // }
     }
 
     return {
         ref,
-        transition: transition || undefined,
+        transition: (transitionTask || undefined) as any, // @unsafe
     };
 }
 

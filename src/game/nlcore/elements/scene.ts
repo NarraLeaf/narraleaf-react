@@ -3,7 +3,7 @@ import {deepMerge, EventDispatcher, Serializer} from "@lib/util/data";
 import {Color, ImageSrc} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
-import {EmptyObject, IImageTransition} from "@core/elements/transition/type";
+import {EmptyObject} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
 import {DisplayableActionTypes, SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
@@ -18,6 +18,7 @@ import {Text} from "@core/elements/displayable/text";
 import {DynamicPersistent} from "@core/elements/persistent";
 import {Config, ConfigConstructor} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
+import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import Actions = LogicAction.Actions;
 import GameElement = LogicAction.GameElement;
 
@@ -50,7 +51,7 @@ export interface ISceneUserConfig {
 }
 
 export type JumpConfig = {
-    transition: IImageTransition;
+    transition: ImageTransition;
     unloadScene: boolean;
 }
 
@@ -185,7 +186,7 @@ export class Scene extends Constructable<
      * Set background, if {@link transition} is provided, it'll be applied
      * @chainable
      */
-    public setBackground(background: Color | ImageSrc, transition?: IImageTransition): ChainedScene {
+    public setBackground(background: Color | ImageSrc, transition?: ImageTransition): ChainedScene {
         const chain = this.chain();
         return chain.chain(this.state.backgroundImage._setSrc(chain, background, transition));
     }
@@ -524,14 +525,17 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _transitionToScene(transition?: IImageTransition, scene?: Scene, src?: ImageSrc | Color): ChainedScene {
+    private _transitionToScene(transition?: ImageTransition, scene?: Scene, src?: ImageSrc | Color): ChainedScene {
         const chain = this.chain();
         if (transition) {
-            const copy = transition.copy();
             const action = new SceneAction<typeof SceneActionTypes["transitionToScene"]>(
                 chain,
                 SceneActionTypes["transitionToScene"],
-                new ContentNode<SceneActionContentType[typeof SceneActionTypes["transitionToScene"]]>().setContent([copy, scene, src])
+                new ContentNode<SceneActionContentType[typeof SceneActionTypes["transitionToScene"]]>().setContent([
+                    transition.copy() as ImageTransition,
+                    scene,
+                    src
+                ])
             );
             chain.chain(action);
         }
@@ -548,7 +552,7 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _initBackground(): DisplayableAction<typeof DisplayableActionTypes.init> {
+    private _initBackground(): DisplayableAction<typeof DisplayableActionTypes.init, Image> {
         return this.state.backgroundImage._init(this);
     }
 }

@@ -6,13 +6,15 @@ import {Transform} from "@core/elements/transform/transform";
 import type {Scene} from "@core/elements/scene";
 import type {MenuData} from "@core/elements/menu";
 import {Awaitable, FlexibleTuple, SelectElementFromEach} from "@lib/util/data";
-import {IImageTransition, ITransition} from "@core/elements/transition/type";
+import {ITransition} from "@core/elements/transition/type";
 import type {Sound} from "@core/elements/sound";
 import type {Script} from "@core/elements/script";
 import {Sentence} from "@core/elements/character/sentence";
 import type {TransformDefinitions} from "@core/elements/transform/type";
 import {Image, TagGroupDefinition} from "@core/elements/displayable/image";
 import {FadeOptions} from "@core/elements/type";
+import {Transition} from "@core/elements/transition/transition";
+import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 
 export const DisplayableActionTypes = {
     action: "displayable:action",
@@ -24,14 +26,14 @@ export const DisplayableActionTypes = {
     applyTransition: "displayable:applyTransition",
     init: "displayable:init",
 } as const;
-export type DisplayableActionContentType = {
+export type DisplayableActionContentType<TransitionType extends Transition = Transition> = {
     [K in typeof DisplayableActionTypes[keyof typeof DisplayableActionTypes]]:
     K extends "displayable:layerMoveUp" ? [void] :
         K extends "displayable:layerMoveDown" ? [void] :
             K extends "displayable:layerMoveTop" ? [void] :
                 K extends "displayable:layerMoveBottom" ? [void] :
                     K extends "displayable:applyTransform" ? [Transform] :
-                        K extends "displayable:applyTransition" ? [ITransition] :
+                        K extends "displayable:applyTransition" ? [TransitionType] :
                             K extends "displayable:init" ? [Scene?] :
                                 any;
 }
@@ -68,7 +70,7 @@ export type SceneActionContentType = {
                     K extends typeof SceneActionTypes["jumpTo"] ? [Scene] :
                         K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
                             K extends typeof SceneActionTypes["preUnmount"] ? [] :
-                                K extends typeof SceneActionTypes["transitionToScene"] ? [IImageTransition, Scene | undefined, ImageSrc | Color | undefined] :
+                                K extends typeof SceneActionTypes["transitionToScene"] ? [ImageTransition, Scene | undefined, ImageSrc | Color | undefined] :
                                     any;
 }
 /* Story */
@@ -93,9 +95,9 @@ export type ImageActionContentType = {
     K extends "image:setSrc" ? [ImageSrc | Color] :
         K extends "image:flush" ? [] :
             K extends "image:initWearable" ? [Image] :
-                K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagGroupDefinition>> | string[], IImageTransition | undefined] :
+                K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagGroupDefinition>> | string[], ImageTransition | undefined] :
                     any;
-} & DisplayableActionContentType;
+} & DisplayableActionContentType<ImageTransition>;
 /* Condition */
 export const ConditionActionTypes = {
     action: "condition:action",

@@ -8,7 +8,7 @@ import clsx from "clsx";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
 import {Utils} from "@core/common/Utils";
 import {ITransition} from "@lib/game/nlcore/elements/transition/type";
-import {useTransition} from "@player/lib/useTransition";
+import {Legacy_useTransition} from "@player/lib/useTransition";
 import {useGame} from "@player/provider/game-state";
 import {deepMerge} from "@lib/util/data";
 
@@ -105,7 +105,7 @@ function ImageTransition(
     }
 ) {
     const {game} = useGame();
-    const [transitionProps] = useTransition<HTMLImageElement>({
+    const [transitionProps] = Legacy_useTransition<HTMLImageElement>({
         transition,
         props: {
             src: GameImage.getSrcURL(image) || GameImage.DefaultImagePlaceholder,

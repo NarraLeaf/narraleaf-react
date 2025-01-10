@@ -11,13 +11,15 @@ import type {AnimationPlaybackControls} from "motion/react";
 import {animate} from "motion/react";
 
 
-export abstract class Transition<T extends HTMLElement, U extends TransitionAnimationType[] = never[]> {
+export abstract class Transition<T extends HTMLElement = HTMLElement, U extends TransitionAnimationType[] = TransitionAnimationType[]> {
     public static AnimationType = TransitionAnimationType;
 
     /**
      * Create a transition task, this method shouldn't have any side effects
      */
     abstract createTask(): TransitionTask<T, U>;
+
+    abstract copy(): Transition<T, U>;
 
     /**@internal */
     public requestAnimations(tasks: AnimationTaskMapArray<U>): AnimationController<U> {
@@ -29,21 +31,22 @@ export abstract class Transition<T extends HTMLElement, U extends TransitionAnim
         const complete = () => {
             controllers.forEach(controller => controller.complete());
         };
-
-        tasks.forEach((task, index) => {
-            controllers.push(this.requestMotion(task, {
-                onComplete: () => {
-                    values[index] = task.end;
-                    if (controllers.every(controller => controller.state === "finished")) {
-                        onCompleteListeners.forEach(v => v());
-                    }
-                },
-                onUpdate: (value) => {
-                    values[index] = value;
-                    onUpdateListeners.forEach(v => v(values));
-                },
-            }));
-        });
+        const start = () => {
+            tasks.forEach((task, index) => {
+                controllers.push(this.requestMotion(task, {
+                    onComplete: () => {
+                        values[index] = task.end;
+                        if (controllers.every(controller => controller.state === "finished")) {
+                            onCompleteListeners.forEach(v => v());
+                        }
+                    },
+                    onUpdate: (value) => {
+                        values[index] = value;
+                        onUpdateListeners.forEach(v => v(values));
+                    },
+                }));
+            });
+        };
 
         return {
             onUpdate: (handler: (values: AnimationDataTypeArray<U>) => void) => {
@@ -53,6 +56,7 @@ export abstract class Transition<T extends HTMLElement, U extends TransitionAnim
                 onCompleteListeners.push(handler);
             },
             complete,
+            start,
         } satisfies AnimationController<U>;
     }
 

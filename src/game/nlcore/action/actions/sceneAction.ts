@@ -6,21 +6,18 @@ import type {CalledActionResult} from "@core/gameTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {TypedAction} from "@core/action/actions";
-import {ITransition} from "@core/elements/transition/type";
 import {Story} from "@core/elements/story";
-import {RuntimeScriptError, Utils} from "@core/common/Utils";
+import {RuntimeScriptError} from "@core/common/Utils";
 import {Image} from "@core/elements/displayable/image";
+import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
+import {ImageAction} from "@core/action/actions/imageAction";
 
 export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneActionTypes] = typeof SceneActionTypes[keyof typeof SceneActionTypes]>
     extends TypedAction<SceneActionContentType, T, Scene> {
     static ActionTypes = SceneActionTypes;
 
     static handleSceneInit(sceneAction: SceneAction<typeof SceneActionTypes["init"]>, state: GameState, awaitable: Awaitable<CalledActionResult, any>) {
-        const [targetScene] = sceneAction.contentNode.getContent();
-        const scene = typeof targetScene === "string" ? state.getSceneByName(targetScene) : targetScene;
-        if (!scene) {
-            throw sceneAction._sceneNotFoundError(sceneAction.getSceneName(targetScene));
-        }
+        const [scene] = sceneAction.contentNode.getContent();
         if (state.isSceneActive(scene)) {
             return {
                 type: sceneAction.type,
@@ -60,7 +57,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         });
     }
 
-    applyTransition(state: GameState, transition: ITransition) {
+    applyTransition(state: GameState, transition: ImageTransition) {
         const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
             .registerSkipController(new SkipController(() => {
                 state.logger.info("Background Transition", "Skipped");
@@ -144,18 +141,13 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 .removeNamespace(this.callee.local.getNamespaceName());
             return super.executeAction(state);
         } else if (this.type === SceneActionTypes.transitionToScene) {
-            const [transition, targetScene, src] = (this.contentNode as ContentNode<SceneActionContentType["scene:transitionToScene"]>).getContent();
-            if (targetScene) {
-                const scene = state.getStory().getScene(targetScene);
-                if (!scene) {
-                    throw this._sceneNotFoundError(this.getSceneName(targetScene));
-                }
-                if (!scene.state.backgroundImage || !Utils.isImageSrc(scene.state.backgroundImage.config.src)) {
-                    return super.executeAction(state);
-                }
-                transition.setSrc(scene.state.backgroundImage.config.src);
+            const [transition, scene, src] = (this.contentNode as ContentNode<SceneActionContentType["scene:transitionToScene"]>).getContent();
+
+            transition._setPrevSrc(ImageAction.resolveCurrentSrc(this.callee.backgroundImage));
+            if (scene) {
+                transition._setTargetSrc(ImageAction.resolveCurrentSrc(scene.backgroundImage));
             } else if (src) {
-                transition.setSrc(src);
+                transition._setTargetSrc(src);
             }
 
             return this.applyTransition(state, transition);

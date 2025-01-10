@@ -1,7 +1,6 @@
 import {Actionable} from "@core/action/actionable";
 import {Transform, TransformState} from "@core/elements/transform/transform";
 import {EventDispatcher, Values} from "@lib/util/data";
-import {ITransition} from "@core/elements/transition/type";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {DisplayableActionContentType, DisplayableActionTypes} from "@core/action/actionTypes";
 import {Chained, Proxied} from "@core/action/chain";
@@ -9,10 +8,11 @@ import {LogicAction} from "@core/action/logicAction";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import type {TransformDefinitions} from "@core/elements/transform/type";
+import {Transition} from "@core/elements/transition/transition";
 
 /**@internal */
-export type DisplayableEventTypes = {
-    "event:displayable.applyTransition": [transition: ITransition, resolve: () => void];
+export type DisplayableEventTypes<TransitionType extends Transition> = {
+    "event:displayable.applyTransition": [transition: TransitionType, resolve: () => void];
     "event:displayable.applyTransform": [transform: Transform, resolve: () => void];
     "event:displayable.init": [resolve: () => void];
     "event:displayable.onMount": [];
@@ -21,13 +21,14 @@ export type DisplayableEventTypes = {
 /**@internal */
 export abstract class Displayable<
     StateData extends Record<string, any>,
-    Self extends Displayable<any, any>,
-    TransformType extends TransformDefinitions.Types = TransformDefinitions.Types
+    Self extends Displayable<any, any, any, any>,
+    TransformType extends TransformDefinitions.Types = TransformDefinitions.Types,
+    TransitionType extends Transition = Transition,
 >
     extends Actionable<StateData, Self>
-    implements EventfulDisplayable {
+    implements EventfulDisplayable<TransitionType> {
     /**@internal */
-    static EventTypes: { [K in keyof DisplayableEventTypes]: K } = {
+    static EventTypes: { [K in keyof DisplayableEventTypes<Transition>]: K } = {
         "event:displayable.applyTransition": "event:displayable.applyTransition",
         "event:displayable.applyTransform": "event:displayable.applyTransform",
         "event:displayable.init": "event:displayable.init",
@@ -35,7 +36,7 @@ export abstract class Displayable<
     };
 
     /**@internal */
-    readonly abstract events: EventDispatcher<DisplayableEventTypes>;
+    readonly abstract events: EventDispatcher<DisplayableEventTypes<TransitionType>>;
 
     abstract transformState: TransformState<any>;
 

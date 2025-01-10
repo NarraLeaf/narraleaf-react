@@ -3,7 +3,7 @@ import {useFlush} from "@player/lib/flush";
 import {useEffect} from "react";
 import {deepMerge} from "@lib/util/data";
 
-export function useTransition<T extends Element>(
+export function Legacy_useTransition<T extends Element>(
     {
         transition,
         props
@@ -27,4 +27,8 @@ export function useTransition<T extends Element>(
         (transition?.toElementProps() ?? [{}]).map((p) =>
             deepMerge<ElementProp<T>>({}, props, p)),
     ];
+}
+
+export function useTransition() {
+
 }
