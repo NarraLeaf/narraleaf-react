@@ -329,12 +329,13 @@ export class Image<
     }
 
     /**@internal */
-    _applyTransition(transition: ImageTransition): DisplayableAction<typeof DisplayableActionTypes.applyTransition, Image> {
-        return new DisplayableAction<typeof DisplayableActionTypes.applyTransition, Image>(
+    _applyTransition(transition: ImageTransition, handler: (transition: ImageTransition) => ImageTransition): DisplayableAction<typeof DisplayableActionTypes.applyTransition, Image> {
+        return new DisplayableAction<typeof DisplayableActionTypes.applyTransition, Image, ImageTransition>(
             this.chain(),
             DisplayableActionTypes.applyTransition,
             new ContentNode<DisplayableActionContentType<ImageTransition>["displayable:applyTransition"]>().setContent([
                 transition,
+                handler,
             ])
         );
     }
@@ -442,7 +443,14 @@ export class Image<
         transition?: ImageTransition
     ): ImageAction<typeof ImageAction.ActionTypes.setSrc> {
         if (transition) {
-            chain.chain(this._applyTransition(transition.copy() as ImageTransition));
+            chain.chain(this._applyTransition(
+                transition.copy() as ImageTransition,
+                (transition: ImageTransition) => {
+                    return transition
+                        ._setPrevSrc(ImageAction.resolveCurrentSrc(this))
+                        ._setTargetSrc(src);
+                }
+            ));
         }
         return new ImageAction<typeof ImageAction.ActionTypes.setSrc>(
             chain as Proxied<Image, Chained<LogicAction.Actions>>,

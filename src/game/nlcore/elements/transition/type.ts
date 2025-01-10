@@ -1,4 +1,4 @@
-import type {EventDispatcher} from "@lib/util/data";
+import type {EventDispatcher, EventToken} from "@lib/util/data";
 import React from "react";
 import type {AnimationPlaybackControls, DOMKeyframesDefinition} from "motion/react";
 import {Color, ImageSrc} from "@core/types";
@@ -110,8 +110,8 @@ export type TransitionTask<T extends HTMLElement, U extends TransitionAnimationT
 };
 
 export type AnimationController<T extends TransitionAnimationType[]> = {
-    onUpdate: (handler: (values: AnimationDataTypeArray<T>) => void) => void;
-    onComplete: (handler: () => void) => void;
+    onUpdate: (handler: (values: AnimationDataTypeArray<T>) => void) => EventToken;
+    onComplete: (handler: () => void) => EventToken;
     complete: () => void;
     start: () => void;
 };

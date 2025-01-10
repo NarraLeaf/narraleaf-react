@@ -7,10 +7,7 @@ import {useRatio} from "@player/provider/ratio";
 import clsx from "clsx";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
 import {Utils} from "@core/common/Utils";
-import {ITransition} from "@lib/game/nlcore/elements/transition/type";
-import {Legacy_useTransition} from "@player/lib/useTransition";
-import {useGame} from "@player/provider/game-state";
-import {deepMerge} from "@lib/util/data";
+import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 
 /**@internal */
 export default function Image(
@@ -24,7 +21,7 @@ export default function Image(
     const {ratio} = useRatio();
     const [wearables, setWearables] = useState<GameImage[]>([]);
     const ref = useRef<HTMLImageElement>(null);
-    const {ref: transformRef, transition} = useDisplayable({
+    const {transformRef, transitionRefs} = useDisplayable<ImageTransition, HTMLImageElement>({
         element: image,
         state: image.transformState,
         skipTransform: state.game.config.elements.img.allowSkipTransform,
@@ -35,6 +32,25 @@ export default function Image(
                 height: "100%",
             } : {}),
         },
+        transitionsProps: [
+            {
+                style: {
+                    position: "absolute",
+                    transformOrigin: "center",
+                }
+            },
+            {
+                style: {
+                    maxWidth: "none",
+                    maxHeight: "none",
+                    transform: "translate(-50%, -50%)",
+                    transformOrigin: "center",
+                    top: "50%",
+                    left: "50%",
+                    position: "absolute",
+                }
+            }
+        ],
     });
 
     useEffect(() => {
@@ -69,12 +85,17 @@ export default function Image(
             ref={transformRef}
             className={"absolute"}
         >
-            <ImageTransition
-                transition={transition}
-                ref={ref}
-                onWidthChange={handleWidthChange}
-                image={image}
-            />
+            <div className={"relative h-full w-full"}>
+                {transitionRefs.map((ref, key) => (
+                    <AspectScaleImage
+                        key={key}
+                        props={{}}
+                        id={""} // @todo: fix
+                        ref={ref}
+                        autoFit={image.config.autoFit}
+                    />
+                ))}
+            </div>
             <div
                 className={clsx("w-full h-full top-0 left-0 absolute")}
             >
@@ -90,66 +111,3 @@ export default function Image(
         </Inspect.mDiv>
     );
 };
-
-function ImageTransition(
-    {
-        transition,
-        ref,
-        onWidthChange,
-        image,
-    }: {
-        transition: ITransition | undefined,
-        ref: React.RefObject<HTMLImageElement | null>,
-        onWidthChange: () => void,
-        image: GameImage;
-    }
-) {
-    const {game} = useGame();
-    const [transitionProps] = Legacy_useTransition<HTMLImageElement>({
-        transition,
-        props: {
-            src: GameImage.getSrcURL(image) || GameImage.DefaultImagePlaceholder,
-            style: {
-                ...(game.config.app.debug ? {
-                    outline: "1px solid red",
-                } : {}),
-                transformOrigin: "center",
-            },
-        }
-    });
-
-    const elementStyles = [
-        {
-            style: {
-                position: "absolute",
-            }
-        },
-        {
-            style: {
-                maxWidth: "none",
-                maxHeight: "none",
-                transform: "translate(-50%, -50%)",
-                top: "50%",
-                left: "50%",
-                position: "absolute",
-            }
-        }
-    ];
-
-    return (
-        <>
-            <div className={"relative h-full w-full"}>
-                {transitionProps.map((elementProps, index) => {
-                    return <AspectScaleImage
-                        key={index}
-                        props={deepMerge(elementProps, elementStyles[index] || elementStyles[elementStyles.length - 1])}
-                        id={elementProps.src as any}
-                        ref={index === 0 ? ref : undefined}
-                        onWidthChange={onWidthChange}
-                        autoFit={image.config.autoFit}
-                    />;
-                })}
-            </div>
-        </>
-    );
-}

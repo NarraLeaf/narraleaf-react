@@ -199,10 +199,13 @@ export class Text
 
     /**@internal */
     private _applyTransition(chain: Proxied<Text, Chained<LogicAction.Actions>>, transition: TextTransition): DisplayableAction<typeof DisplayableActionTypes.applyTransition, Text> {
-        return new DisplayableAction<typeof DisplayableActionTypes.applyTransition, Text>(
+        return new DisplayableAction<typeof DisplayableActionTypes.applyTransition, Text, TextTransition>(
             chain,
             DisplayableActionTypes.applyTransition,
-            new ContentNode<DisplayableActionContentType["displayable:applyTransition"]>().setContent([transition])
+            new ContentNode<DisplayableActionContentType<TextTransition>["displayable:applyTransition"]>().setContent([
+                transition,
+                (transition: TextTransition) => transition._setElement(this),
+            ])
         );
     }
 }

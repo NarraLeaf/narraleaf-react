@@ -2,19 +2,18 @@ import {GameState} from "@player/gameState";
 import {Text as GameText} from "@core/elements/displayable/text";
 import React from "react";
 import {Transform} from "@core/elements/transform/transform";
-import {ITransition, SpanElementProp} from "@core/elements/transition/type";
-import {deepMerge} from "@lib/util/data";
 import Inspect from "@player/lib/Inspect";
 import {useRatio} from "@player/provider/ratio";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
-import {Legacy_useTransition} from "@player/lib/useTransition";
+import {TextTransition} from "@core/elements/transition/transitions/text/textTransition";
 
 /**@internal */
 export default function Text({state, text}: Readonly<{
     state: GameState;
     text: GameText;
 }>) {
-    const {ref, transition} = useDisplayable({
+    const {ratio} = useRatio();
+    const {transformRef, transitionRefs} = useDisplayable<TextTransition, HTMLSpanElement>({
         element: text,
         state: text.transformState,
         skipTransform: state.game.config.elements.text.allowSkipTransform,
@@ -36,7 +35,17 @@ export default function Text({state, text}: Readonly<{
         },
         transformStyle: {
             width: "fit-content",
-        }
+        },
+        transitionsProps: [
+            {
+                style: {
+                    width: "fit-content",
+                    whiteSpace: "nowrap",
+                    transform: `scale(${ratio.state.scale})`,
+                    transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
+                },
+            },
+        ],
     });
 
     return (
@@ -46,58 +55,19 @@ export default function Text({state, text}: Readonly<{
                 color={"green"}
                 border={"dashed"}
                 layout
-                ref={ref}
+                ref={transformRef}
                 className={"absolute"}
             >
-                <TextTransition transition={transition} text={text}/>
-            </Inspect.mDiv>
-        </Inspect.Div>
-    );
-}
-
-
-function TextTransition(
-    {
-        transition,
-        text,
-    }: {
-        transition: ITransition | undefined,
-        text: GameText;
-    }
-) {
-    const {ratio} = useRatio();
-    const [transitionProps] = Legacy_useTransition<HTMLSpanElement>({
-        transition,
-        props: {
-            style: {
-                width: "fit-content",
-                whiteSpace: "nowrap",
-                fontSize: text.state.fontSize,
-            },
-        }
-    });
-
-    return (
-        <>
-            {transitionProps.map((elementProps, index) => {
-                const mergedProps =
-                    deepMerge<SpanElementProp>({}, elementProps, ({
-                        style: {
-                            transform: `scale(${ratio.state.scale})`,
-                            transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
-                        }
-                    } satisfies SpanElementProp)) as any;
-                return (
-                    <Inspect.Span
-                        tag={"text.transition." + index}
-                        key={index}
-                        {...mergedProps}
+                {transitionRefs.map((ref, key) => (
+                    <span
+                        key={key}
+                        ref={ref}
                         className={text.config.className}
                     >
                         <span>{text.state.text}</span>
-                    </Inspect.Span>
-                );
-            })}
-        </>
+                    </span>
+                ))}
+            </Inspect.mDiv>
+        </Inspect.Div>
     );
 }

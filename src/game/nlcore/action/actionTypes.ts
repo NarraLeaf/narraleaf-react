@@ -33,7 +33,7 @@ export type DisplayableActionContentType<TransitionType extends Transition = Tra
             K extends "displayable:layerMoveTop" ? [void] :
                 K extends "displayable:layerMoveBottom" ? [void] :
                     K extends "displayable:applyTransform" ? [Transform] :
-                        K extends "displayable:applyTransition" ? [TransitionType] :
+                        K extends "displayable:applyTransition" ? [TransitionType, ((transition: TransitionType) => TransitionType)?] :
                             K extends "displayable:init" ? [Scene?] :
                                 any;
 }

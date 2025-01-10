@@ -46,8 +46,10 @@ export class DisplayableAction<
 
             return this.applyTransform(gameState, element, transform);
         } else if (this.type === DisplayableActionTypes.applyTransition) {
-            const [transition] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:applyTransition"]>).getContent();
+            const [trans, handler] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:applyTransition"]>).getContent();
             const element = this.callee;
+
+            const transition: TransitionType = handler ? handler(trans) : trans;
 
             return this.applyTransition(gameState, element, transition);
         } else if (this.type === DisplayableActionTypes.init) {
