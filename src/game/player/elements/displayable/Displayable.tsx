@@ -2,7 +2,8 @@ import React, {useEffect, useRef, useState} from "react";
 import {OverwriteDefinition, Transform, TransformState} from "@core/elements/transform/transform";
 import {
     AnimationController,
-    AnimationDataTypeArray, ElementProp,
+    AnimationDataTypeArray,
+    ElementProp,
     TransitionAnimationType,
     TransitionTask
 } from "@core/elements/transition/type";
@@ -30,6 +31,7 @@ export type DisplayableHookConfig<TransitionType extends Transition, U extends H
     onTransform?: (transform: Transform) => void;
     transformStyle?: React.CSSProperties;
     transitionsProps?: ElementProp<U>[];
+    propOverwrite?: (props: ElementProp<U>) => ElementProp<U>;
 };
 
 /**@internal */
@@ -49,6 +51,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         onTransform,
         transformStyle,
         transitionsProps = [],
+        propOverwrite,
     }: DisplayableHookConfig<TransitionType, U>): DisplayableHookResult<U> {
     const [flush] = useFlush();
     const [, setTransformStyle] = useState<React.CSSProperties>(transformStyle || {});
@@ -98,17 +101,29 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
                     );
                 }
                 const resolved = task.resolve[i](...values);
-                const mergedProps = deepMerge(
+                const mergedProps = deepMerge<ElementProp<U, React.HTMLAttributes<U>>>(
                     transitionsProps[i] || transitionsProps[transitionsProps.length - 1] || {},
                     resolved
                 );
-                assignProperties(ref, mergedProps); // @todo: preload
+                assignProperties(ref, propOverwrite ? propOverwrite(mergedProps) : mergedProps);
             });
         });
         transitionTask.controller.start();
 
         return eventToken.cancel;
     }, [transitionTask]);
+
+    useEffect(() => {
+        if (refs.current.some((ref) => !ref.current)) {
+            throw new RuntimeGameError("Displayable: Trying to access transition groups before they are mounted");
+        }
+        refs.current.forEach((ref, index) => {
+            if (!ref.current) {
+                throw new RuntimeGameError("Displayable: Trying to assign properties to unmounted element");
+            }
+            assignProperties(ref, transitionsProps[index] || transitionsProps[transitionsProps.length - 1] || {});
+        });
+    }, []);
 
     function handleOnTransform(transform: Transform) {
         setTransformStyle((prev) => {

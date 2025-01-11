@@ -15,9 +15,11 @@
     - `wear` is a new alias for `addWearable`
     - `asWearableOf` is a new alias for `bindWearable`
     - `init`, `setPosition`, `dispose`, `copy` are removed
+    - `IImageTransition` is removed, use `ImageTransition` instead
 - These methods of `Text` has been changed:
     - `applyTransform` -> `transform`
     - `applyTransition` is removed, applying transitions are still in planning
+    - `ITextTransition` is removed, use `TextTransition` instead
 - These methods are added to displayable elements (text, image):
     - `layerMoveUp`, `layerMoveDown`, `layerMoveTop`, `layerMoveBottom`
     - `pos`, `scale`, `rotate`, `opacity`
@@ -39,6 +41,8 @@
     - use `seek` property to set the initial seek position
 - Scene's config now can't specify the `invertY` and `invertX` properties, use story config `origin` instead
 - `Top`, `Center`, `Bottom`, `HBox`, and `VBox` are deprecated, use `PageRouter` API instead
+- `ITransition`s are all deprecated, use `Transition` API instead
+    - `FontSizeTransition` -> `FontSize`
 
 ### _Feature_
 

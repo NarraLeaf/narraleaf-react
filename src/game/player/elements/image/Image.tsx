@@ -8,6 +8,7 @@ import clsx from "clsx";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
 import {Utils} from "@core/common/Utils";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
+import {usePreloaded} from "@player/provider/preloaded";
 
 /**@internal */
 export default function Image(
@@ -21,6 +22,8 @@ export default function Image(
     const {ratio} = useRatio();
     const [wearables, setWearables] = useState<GameImage[]>([]);
     const ref = useRef<HTMLImageElement>(null);
+    const {cacheManager} = usePreloaded();
+    const ignored = useRef<string[]>([]);
     const {transformRef, transitionRefs} = useDisplayable<ImageTransition, HTMLImageElement>({
         element: image,
         state: image.transformState,
@@ -51,6 +54,26 @@ export default function Image(
                 }
             }
         ],
+        propOverwrite: (props) => {
+            if (props.src) {
+                if (!Utils.isDataURI(props.src)
+                    && (!cacheManager.has(props.src) && !cacheManager.isPreloading(props.src))
+                    && !ignored.current.includes(props.src)
+                ) {
+                    state.game.getLiveGame().getGameState()?.logger.warn("Image",
+                        `Image not preloaded: "${props.src}". `
+                        + "\nThis may be caused by complicated image action behavior that cannot be predicted. "
+                        + "\nTo fix this issue, you can manually register the image using scene.requestImagePreload(YourImageSrc). "
+                    );
+                    ignored.current.push(props.src);
+                }
+                return {
+                    ...props,
+                    src: cacheManager.get(props.src) || props.src,
+                };
+            }
+            return props;
+        }
     });
 
     useEffect(() => {
@@ -89,8 +112,6 @@ export default function Image(
                 {transitionRefs.map((ref, key) => (
                     <AspectScaleImage
                         key={key}
-                        props={{}}
-                        id={""} // @todo: fix
                         ref={ref}
                         autoFit={image.config.autoFit}
                     />
