@@ -43,42 +43,6 @@ export abstract class Displayable<
     abstract transformState: TransformState<any>;
 
     /**
-     * Move the layer up
-     * @chainable
-     */
-    public layerMoveUp(): Proxied<Self, Chained<LogicAction.Actions>> {
-        const chain = this.chain();
-        return this.chain(this.constructLayerAction(chain, DisplayableActionTypes.layerMoveUp));
-    }
-
-    /**
-     * Move the layer down
-     * @chainable
-     */
-    public layerMoveDown(): Proxied<Self, Chained<LogicAction.Actions>> {
-        const chain = this.chain();
-        return this.chain(this.constructLayerAction(chain, DisplayableActionTypes.layerMoveDown));
-    }
-
-    /**
-     * Move the layer to the top
-     * @chainable
-     */
-    public layerMoveTop(): Proxied<Self, Chained<LogicAction.Actions>> {
-        const chain = this.chain();
-        return this.chain(this.constructLayerAction(chain, DisplayableActionTypes.layerMoveTop));
-    }
-
-    /**
-     * Move the layer to the bottom
-     * @chainable
-     */
-    public layerMoveBottom(): Proxied<Self, Chained<LogicAction.Actions>> {
-        const chain = this.chain();
-        return this.chain(this.constructLayerAction(chain, DisplayableActionTypes.layerMoveBottom));
-    }
-
-    /**
      * Set Image Position
      *
      * @param position - The position of the image, expected {@link RawPosition} or {@link IPosition}

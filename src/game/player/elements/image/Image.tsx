@@ -109,16 +109,16 @@ export default function Image(
                         onSizeChanged={i === 0 ? handleWidthChange : undefined}
                     />
                 ))}
-            </div>
-            <div className={clsx("w-full h-full top-0 left-0 absolute")}>
-                {wearables.map((wearable) => (
-                    <div
-                        className={clsx("w-full h-full relative")}
-                        key={"wearable-" + wearable.getId()}
-                    >
-                        <Image image={wearable} state={state}/>
-                    </div>
-                ))}
+                <div className={clsx("w-full h-full top-0 left-0 absolute")}>
+                    {wearables.map((wearable) => (
+                        <div
+                            className={clsx("w-full h-full relative")}
+                            key={"wearable-" + wearable.getId()}
+                        >
+                            <Image image={wearable} state={state}/>
+                        </div>
+                    ))}
+                </div>
             </div>
         </Inspect.mDiv>
     );

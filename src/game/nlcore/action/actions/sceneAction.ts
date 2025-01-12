@@ -63,7 +63,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 state.logger.info("Background Transition", "Skipped");
                 return super.executeAction(state) as CalledActionResult;
             }));
-        this.callee.backgroundImage.events.emit(Image.EventTypes["event:displayable.applyTransition"], transition, () => {
+        this.callee.background.events.emit(Image.EventTypes["event:displayable.applyTransition"], transition, () => {
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
             state.stage.next();
         });
@@ -143,9 +143,9 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         } else if (this.type === SceneActionTypes.transitionToScene) {
             const [transition, scene, src] = (this.contentNode as ContentNode<SceneActionContentType["scene:transitionToScene"]>).getContent();
 
-            transition._setPrevSrc(ImageAction.resolveCurrentSrc(this.callee.backgroundImage));
+            transition._setPrevSrc(ImageAction.resolveCurrentSrc(this.callee.background));
             if (scene) {
-                transition._setTargetSrc(ImageAction.resolveCurrentSrc(scene.backgroundImage));
+                transition._setTargetSrc(ImageAction.resolveCurrentSrc(scene.background));
             } else if (src) {
                 transition._setTargetSrc(src);
             }

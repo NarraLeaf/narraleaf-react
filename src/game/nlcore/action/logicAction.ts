@@ -18,7 +18,7 @@ import {
     DisplayableActionContentType,
     DisplayableActionTypes,
     ImageActionContentType,
-    ImageActionTypes,
+    ImageActionTypes, LayerActionContentType, LayerActionTypes,
     MenuActionContentType,
     MenuActionTypes, PersistentActionContentType, PersistentActionTypes,
     SceneActionContentType,
@@ -47,9 +47,11 @@ import {Persistent} from "@core/elements/persistent";
 import {PersistentAction} from "@core/action/actions/persistentAction";
 import {ServiceSkeleton} from "@core/elements/service";
 import {ServiceAction, ServiceActionContentType} from "@core/action/serviceAction";
+import {Layer} from "@core/elements/layer";
+import {LayerAction} from "@core/action/actions/layerAction";
 
 export namespace LogicAction {
-    export type DisplayableElements = Text | Image | AbstractDisplayable<any, any>;
+    export type DisplayableElements = Text | Image | Layer | AbstractDisplayable<any, any>;
     export type GameElement =
         Character
         | Scene
@@ -78,7 +80,8 @@ export namespace LogicAction {
         | TextAction
         | DisplayableAction
         | PersistentAction
-        | ServiceAction;
+        | ServiceAction
+        | LayerAction;
     export type ActionTypes =
         Values<typeof CharacterActionTypes>
         | Values<typeof ConditionActionTypes>
@@ -92,7 +95,8 @@ export namespace LogicAction {
         | Values<typeof TextAction.ActionTypes>
         | Values<typeof DisplayableActionTypes>
         | Values<typeof PersistentActionTypes>
-        | StringKeyOf<ServiceActionContentType>;
+        | StringKeyOf<ServiceActionContentType>
+        | Values<typeof LayerActionTypes>;
     export type ActionContents =
         CharacterActionContentType
         & ConditionActionContentType
@@ -106,5 +110,6 @@ export namespace LogicAction {
         & TextActionContentType
         & DisplayableActionContentType
         & PersistentActionContentType
-        & ServiceActionContentType;
+        & ServiceActionContentType
+        & LayerActionContentType;
 }

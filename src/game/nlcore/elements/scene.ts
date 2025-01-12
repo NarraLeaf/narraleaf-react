@@ -20,12 +20,16 @@ import {Config, ConfigConstructor} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {Utils} from "@core/common/Utils";
+import {Layer} from "@core/elements/layer";
 
 /**@internal */
 export type SceneConfig = {
     name: string;
     backgroundMusicFade: number;
     voices: VoiceIdMap | VoiceSrcGenerator | null;
+    layers: Layer[];
+    defaultBackgroundLayer: Layer;
+    defaultDisplayableLayer: Layer;
 };
 /**@internal */
 export type SceneState = {
@@ -37,16 +41,23 @@ export interface ISceneUserConfig {
     /**
      * Background music
      */
-    backgroundMusic?: Sound | null;
+    backgroundMusic: Sound | null;
     /**
      * Background music fade duration, in milliseconds
      */
-    backgroundMusicFade?: number;
+    backgroundMusicFade: number;
     /**
      * Voice map or a function that returns the voice URL
      */
     voices?: VoiceIdMap | VoiceSrcGenerator;
-    background?: ImageSrc | Color;
+    /**
+     * Background src, can be a {@link Color} or an {@link Image}
+     */
+    background: ImageSrc | Color;
+    /**
+     * An array of {@link Layer}s
+     */
+    layers: Layer[];
 }
 
 export type JumpConfig = {
@@ -97,12 +108,20 @@ export class Scene extends Constructable<
         backgroundMusicFade: 0,
         voices: undefined,
         background: "#fff",
+        layers: [],
     });
     /**@internal */
     static DefaultSceneConfig = new ConfigConstructor<SceneConfig, EmptyObject>({
         name: "",
         backgroundMusicFade: 0,
         voices: null,
+        layers: [],
+        defaultBackgroundLayer: new Layer("[[Background]]", {
+            zIndex: -1,
+        }),
+        defaultDisplayableLayer: new Layer("[[Displayable]]", {
+            zIndex: 0,
+        }),
     });
     /**@internal */
     static DefaultSceneState = new ConfigConstructor<SceneState>({
@@ -128,7 +147,7 @@ export class Scene extends Constructable<
         return new Serializer<SceneState, {
             backgroundImage: (bg: Image) => ImageDataRaw;
             backgroundMusic: (sound: Sound | null) => SoundDataRaw | null;
-        }>({
+        }>({ // @todo: layer state
             backgroundImage: (bg) => bg.toData(),
             backgroundMusic: (sound) => sound?.toData() || null,
         }, {
@@ -162,17 +181,27 @@ export class Scene extends Constructable<
         return this.localPersistent;
     }
 
-    public get backgroundImage(): Image {
+    public get background(): Image {
         return this.state.backgroundImage;
     }
 
     constructor(name: string, config?: Partial<ISceneUserConfig>) {
         super();
 
+        const defaultBackgroundLayer = Scene.DefaultSceneConfig.getDefaultConfig().defaultBackgroundLayer.copy();
+        const defaultDisplayableLayer = Scene.DefaultSceneConfig.getDefaultConfig().defaultDisplayableLayer.copy();
+
         const userConfig = Scene.DefaultUserConfig.create(config);
         const sceneConfig = Scene.DefaultSceneConfig.create({
             ...userConfig.get(),
             name,
+            layers: [
+                ...userConfig.get().layers,
+                defaultBackgroundLayer,
+                defaultDisplayableLayer,
+            ],
+            defaultBackgroundLayer,
+            defaultDisplayableLayer,
         });
 
         this.userConfig = userConfig;
@@ -333,6 +362,7 @@ export class Scene extends Constructable<
         const futureActions = [
             this._init(this),
             this._initBackground(),
+            ...this.config.layers.map(l => l._init()),
             ...nonWearableImages
                 .filter(image => image.config.autoInit)
                 .map(image => image._init()),

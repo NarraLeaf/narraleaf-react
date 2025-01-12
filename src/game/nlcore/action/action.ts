@@ -51,6 +51,6 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Typ
 
     getFutureActions(_story: Story): LogicAction.Actions[] {
         const action = this.contentNode.getChild();
-        return (action && action.action) ? [action.action] : [];
+        return ((action && action.action) ? [action.action] : []);
     }
 }

@@ -22,6 +22,7 @@ import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 import Cursor from "@player/lib/Cursor";
 import {Story} from "@core/elements/story";
 import {PageRouter} from "@player/lib/PageRouter/PageRouter";
+import {Layer} from "@player/elements/player/Layer";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -181,10 +182,16 @@ export default function Player(
                         )}
                         <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
                             <KeyEventAnnouncer state={state} router={router}/>
-                            {state.getSceneElements().map(({scene, ele}) => (
+                            {state.getSceneElements().map(({scene, layers, texts, menus}) => (
                                 <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
-                                    <Displayables state={state} displayable={ele.displayable}/>
-                                    {ele.texts.map(({action, onClick}) => (
+                                    {([...layers.entries()].sort(([layerA], [layerB]) => {
+                                        return layerA.config.zIndex - layerB.config.zIndex;
+                                    }).map(([layer, ele]) => (
+                                        <Layer state={state} layer={layer} key={layer.getId()}>
+                                            <Displayables state={state} displayable={ele}/>
+                                        </Layer>
+                                    )))}
+                                    {texts.map(({action, onClick}) => (
                                         <Say
                                             state={state}
                                             key={"say-" + action.id}
@@ -195,7 +202,7 @@ export default function Player(
                                             }}
                                         />
                                     ))}
-                                    {ele.menus.map(({action, onClick}, i) => (
+                                    {menus.map(({action, onClick}, i) => (
                                         <div key={"menu-" + i}>
                                             <Menu
                                                 state={state}

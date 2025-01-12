@@ -17,6 +17,7 @@ import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
+import {Layer} from "@core/elements/layer";
 
 export type TagDefinition<T extends TagGroupDefinition | null> =
     T extends TagGroupDefinition ? TagDefinitionObject<T> : never;
@@ -35,6 +36,7 @@ type ImageConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | nu
     autoInit: boolean;
     src: Tag extends TagGroupDefinition ? TagDefinitionObject<Tag> : null;
     autoFit: boolean;
+    layer?: Layer;
 };
 type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | null> = {
     currentSrc: Tag extends null
@@ -61,6 +63,10 @@ export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGro
      * Auto resize image's width to fit the screen
      */
     autoFit?: boolean;
+    /**
+     * layer of the image
+     */
+    layer?: Layer;
 }
 
 /**@internal */

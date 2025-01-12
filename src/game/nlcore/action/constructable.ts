@@ -38,8 +38,7 @@ export class Constructable<
 
             cb(action);
 
-            const children = action.getFutureActions(story)
-                .filter(action => !seen.has(action));
+            const children = action.getFutureActions(story).filter(action => !seen.has(action));
             queue.push(...children);
         }
     }

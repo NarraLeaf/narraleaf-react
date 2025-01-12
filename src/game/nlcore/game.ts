@@ -88,6 +88,9 @@ export class Game {
                 width: 1920,
                 height: 1080 * 0.2,
             },
+            layers: {
+                allowSkipTransform: true,
+            },
         },
         elementStyles: {
             say: {

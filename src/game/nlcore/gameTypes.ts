@@ -118,6 +118,9 @@ export type GameConfig = {
         maxRouterHistory: number;
     };
     elements: {
+        /**
+         * For all `Character` elements
+         */
         say: {
             /**
              * When the player presses one of these keys, the game will show the next sentence
@@ -143,6 +146,9 @@ export type GameConfig = {
              */
             autoForwardDelay: number;
         },
+        /**
+         * For all `Image` elements
+         */
         img: {
             /**
              * If true, when you press [GameConfig.player.skipKey], the game will skip the image transform
@@ -153,9 +159,15 @@ export type GameConfig = {
              */
             allowSkipTransition: boolean;
         },
+        /**
+         * For all `Menu` elements
+         */
         menu: {
             use: MenuComponent;
         },
+        /**
+         * For all `Scene.background` elements
+         */
         background: {
             /**
              * If true, when you press [GameConfig.player.skipKey], the game will skip the background transform
@@ -187,7 +199,13 @@ export type GameConfig = {
              * For 16/9, the recommended value is 1080 * 0.2
              */
             height: number;
-        }
+        },
+        layers: {
+            /**
+             * If true, when you press [GameConfig.player.skipKey], the game will skip the text transform
+             */
+            allowSkipTransform: boolean;
+        },
     },
     elementStyles: {
         say: {

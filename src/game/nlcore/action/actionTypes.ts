@@ -18,24 +18,16 @@ import {ImageTransition} from "@core/elements/transition/transitions/image/image
 
 export const DisplayableActionTypes = {
     action: "displayable:action",
-    layerMoveUp: "displayable:layerMoveUp",
-    layerMoveDown: "displayable:layerMoveDown",
-    layerMoveTop: "displayable:layerMoveTop",
-    layerMoveBottom: "displayable:layerMoveBottom",
     applyTransform: "displayable:applyTransform",
     applyTransition: "displayable:applyTransition",
     init: "displayable:init",
 } as const;
 export type DisplayableActionContentType<TransitionType extends Transition = Transition> = {
     [K in typeof DisplayableActionTypes[keyof typeof DisplayableActionTypes]]:
-    K extends "displayable:layerMoveUp" ? [void] :
-        K extends "displayable:layerMoveDown" ? [void] :
-            K extends "displayable:layerMoveTop" ? [void] :
-                K extends "displayable:layerMoveBottom" ? [void] :
-                    K extends "displayable:applyTransform" ? [Transform] :
-                        K extends "displayable:applyTransition" ? [TransitionType, ((transition: TransitionType) => TransitionType)?] :
-                            K extends "displayable:init" ? [Scene?] :
-                                any;
+    K extends "displayable:applyTransform" ? [Transform] :
+        K extends "displayable:applyTransition" ? [TransitionType, ((transition: TransitionType) => TransitionType)?] :
+            K extends "displayable:init" ? [Scene?] :
+                any;
 }
 /* Character */
 export const CharacterActionTypes = {
@@ -192,4 +184,13 @@ export type PersistentActionContentType = {
     K extends "persistent:action" ? any :
         K extends "persistent:set" ? [string, unknown | ((value: unknown) => unknown)] :
             any;
+}
+/* Layer */
+export const LayerActionTypes = {
+    action: "layer:action",
+} as const;
+export type LayerActionContentType = {
+    [K in typeof LayerActionTypes[keyof typeof LayerActionTypes]]:
+    K extends "layer:action" ? any :
+        any;
 }

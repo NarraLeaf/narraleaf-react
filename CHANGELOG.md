@@ -28,7 +28,7 @@
     - Transformer API is completely deprecated
 - These methods of `Scene` has been changed:
     - `activate`, `deactivate` are removed, the game will manage the scene's lifecycle automatically
-    - `applyTransform` is removed, use `scene.backgroundImage` instead
+    - `applyTransform` is removed, use `scene.background` instead
     - `inherit` is removed
     - `requestImagePreload` -> `preloadImage
 - These methods of `Sound` has been changed:
@@ -308,7 +308,7 @@
 
 ### Changed
 
-- `scene.backgroundImageState` is deprecated, use `scene.backgroundImage` instead
+- `scene.backgroundImageState` is deprecated, use `scene.background` instead
 - Now applying of transformations and transitions are separated, you can now apply both at the same time
 - Deprecated `contentNode.initChild`
 - `liveGame.newGame`, `liveGame.deserialize` and `liveGame.serialize` now does not require a gameState instance

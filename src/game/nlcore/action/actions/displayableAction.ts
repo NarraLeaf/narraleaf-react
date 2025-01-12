@@ -19,28 +19,7 @@ export class DisplayableAction<
     static ActionTypes = DisplayableActionTypes;
 
     public executeAction(gameState: GameState) {
-        const scene = gameState.getLastSceneIfNot();
-        if (this.type === DisplayableActionTypes.layerMoveUp) {
-            gameState.moveUpElement(scene, this.callee);
-            gameState.stage.update();
-
-            return super.executeAction(gameState);
-        } else if (this.type === DisplayableActionTypes.layerMoveDown) {
-            gameState.moveDownElement(scene, this.callee);
-            gameState.stage.update();
-
-            return super.executeAction(gameState);
-        } else if (this.type === DisplayableActionTypes.layerMoveTop) {
-            gameState.moveTopElement(scene, this.callee);
-            gameState.stage.update();
-
-            return super.executeAction(gameState);
-        } else if (this.type === DisplayableActionTypes.layerMoveBottom) {
-            gameState.moveBottomElement(scene, this.callee);
-            gameState.stage.update();
-
-            return super.executeAction(gameState);
-        } else if (this.type === DisplayableActionTypes.applyTransform) {
+        if (this.type === DisplayableActionTypes.applyTransform) {
             const [transform] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:applyTransform"]>).getContent();
             const element = this.callee;
 
