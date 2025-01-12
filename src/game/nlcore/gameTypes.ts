@@ -5,6 +5,7 @@ import {PlayerStateData} from "@player/gameState";
 import {StorableData} from "@core/elements/persistent/type";
 import {MenuComponent, SayComponent} from "@player/elements/type";
 import React from "react";
+import {StringKeyOf} from "@lib/util/data";
 
 
 export interface SavedGame {
@@ -18,6 +19,7 @@ export interface SavedGame {
         elementStates: RawData<ElementStateRaw>[];
         stage: PlayerStateData;
         currentAction: string | null;
+        services: { [key: string]: unknown; };
     };
 }
 
@@ -110,6 +112,10 @@ export type GameConfig = {
          * Show overflowed content
          */
         showOverflow: boolean;
+        /**
+         * Max history size for the page router
+         */
+        maxRouterHistory: number;
     };
     elements: {
         say: {
@@ -138,13 +144,6 @@ export type GameConfig = {
             autoForwardDelay: number;
         },
         img: {
-            /**
-             * If true, the game will show a warning when loading takes longer than `elements.img.slowLoadThreshold`
-             * @deprecated
-             */
-            slowLoadWarning: boolean;
-            /**@deprecated */
-            slowLoadThreshold: number;
             /**
              * If true, when you press [GameConfig.player.skipKey], the game will skip the image transform
              */
@@ -234,7 +233,8 @@ export type GameConfig = {
             error: boolean;
             debug: boolean;
             trace: boolean;
-        },
+            verbose: boolean;
+        } | boolean;
         /**
          * If true, the game will show the inspector when you hover over the element
          */
@@ -245,11 +245,11 @@ export type GameSettings = {
     volume: number;
 };
 export type CalledActionResult<T extends keyof LogicAction.ActionContents = any> = {
-    [K in keyof LogicAction.ActionContents]: {
+    [K in StringKeyOf<LogicAction.ActionContents>]: {
         type: T extends undefined ? K : T;
         node: ContentNode<LogicAction.ActionContents[T extends undefined ? K : T]> | null;
     }
-}[keyof LogicAction.ActionContents];
+}[StringKeyOf<LogicAction.ActionContents>];
 
 
 

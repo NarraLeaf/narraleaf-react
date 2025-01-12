@@ -1,10 +1,7 @@
-import {Scene as GameScene, SceneEventTypes} from "@core/elements/scene";
-import {useRatio} from "@player/provider/ratio";
-import React, {useEffect, useState} from "react";
-import BackgroundTransition from "./BackgroundTransition";
+import {Scene as GameScene} from "@core/elements/scene";
+import React, {useEffect} from "react";
 import {GameState} from "@player/gameState";
-import {Sound} from "@core/elements/sound";
-import {Utils} from "@core/common/Utils";
+import clsx from "clsx";
 
 /**@internal */
 export default function Scene(
@@ -19,54 +16,30 @@ export default function Scene(
         children?: React.ReactNode;
         className?: string;
     }>) {
-    const {ratio} = useRatio();
-    const [backgroundMusic, setBackgroundMusic] =
-        useState<Sound | null>(() => scene.state.backgroundMusic);
-
-    async function stopWithFade(music: Sound, fade: number) {
-        await state.fadeSound(music, 0, fade);
-        state.stopSound(music);
-    }
-
-    async function fadeTo(music: Sound | null, fade?: number) {
-        const lastMusic = backgroundMusic;
-        const nextMusic = music;
-
-        await state.transitionSound(lastMusic, nextMusic, fade);
-
-        if (!nextMusic) {
-            return;
-        }
-
-        setBackgroundMusic(nextMusic);
-    }
-
     useEffect(() => {
-        const listeners: {
-            type: keyof SceneEventTypes;
-            listener: (...args: any[]) => void;
-        }[] = [
-            {
-                type: "event:scene.setBackgroundMusic",
-                listener: scene.events.on(GameScene.EventTypes["event:scene.setBackgroundMusic"], (music, fade) => {
-                    fadeTo(music, fade).then();
-                })
-            },
-            {
-                type: "event:scene.preUnmount",
-                listener: scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
-                    if (backgroundMusic) {
-                        stopWithFade(backgroundMusic, scene.state.backgroundMusicFade).then();
+        return scene.events.depends([
+            scene.events.on(GameScene.EventTypes["event:scene.setBackgroundMusic"], (music, fade) => {
+                return new Promise<void>((resolve) => {
+                    if (!scene.state.backgroundMusic) {
+                        return;
                     }
-                })
-            }
-        ];
-
-        return () => {
-            listeners.forEach(({type, listener}) => {
-                scene.events.off(type, listener);
-            });
-        };
+                    state.audioManager.stop(scene.state.backgroundMusic, fade).then(() => {
+                        scene.state.backgroundMusic = null;
+                        if (music) state.audioManager.play(music, {
+                            end: music.state.volume,
+                            duration: fade,
+                        }).then(resolve);
+                    });
+                });
+            }),
+            scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
+                if (scene.state.backgroundMusic) {
+                    return state.audioManager.stop(scene.state.backgroundMusic).then(() => {
+                        scene.state.backgroundMusic = null;
+                    });
+                }
+            }),
+        ]).cancel;
     }, []);
 
     useEffect(() => {
@@ -78,17 +51,7 @@ export default function Scene(
     }, []);
 
     return (
-        <div className={className}>
-            <BackgroundTransition scene={scene} props={{
-                width: ratio.state.width,
-                height: ratio.state.height,
-                src: Utils.isImageSrc(scene.state.background) ?
-                    Utils.srcToString(scene.state.background) : void 0,
-                style: {
-                    backgroundColor: Utils.isImageColor(scene.state.background) ?
-                        Utils.toHex(scene.state.background) : void 0,
-                }
-            }} state={state}/>
+        <div className={clsx(className, "w-full h-full")}>
             {children}
         </div>
     );

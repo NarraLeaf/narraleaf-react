@@ -5,6 +5,7 @@ import {DefaultElements} from "@player/elements/elements";
 import {ComponentsTypes} from "@player/elements/type";
 import {LiveGame} from "@core/game/liveGame";
 import {Preference} from "@core/game/preference";
+import {GameState} from "@player/gameState";
 
 enum GameSettingsNamespace {
     game = "game",
@@ -52,7 +53,7 @@ export class Game {
             ratioUpdateInterval: 50,
             preloadDelay: 100,
             preloadConcurrency: 5,
-            waitForPreload: false,
+            waitForPreload: true,
             preloadAllImages: true,
             forceClearCache: false,
             maxPreloadActions: 10,
@@ -60,6 +61,7 @@ export class Game {
             cursorHeight: 30,
             cursorWidth: 30,
             showOverflow: false,
+            maxRouterHistory: 10,
         },
         elements: {
             say: {
@@ -70,8 +72,6 @@ export class Game {
                 autoForwardDelay: 3 * 1000,
             },
             img: {
-                slowLoadWarning: true,
-                slowLoadThreshold: 2000,
                 allowSkipTransform: true,
                 allowSkipTransition: true,
             },
@@ -113,6 +113,7 @@ export class Game {
                 error: true,
                 debug: false,
                 trace: false,
+                verbose: false,
             },
             inspector: false,
         }
@@ -120,7 +121,7 @@ export class Game {
     static GameSettingsNamespace = GameSettingsNamespace;
 
     /**@internal */
-    readonly config: Readonly<GameConfig>;
+    config: GameConfig;
     /**@internal */
     liveGame: LiveGame | null = null;
     /**
@@ -134,6 +135,15 @@ export class Game {
      */
     constructor(config: DeepPartial<GameConfig>) {
         this.config = deepMerge<GameConfig>(Game.DefaultConfig, config);
+    }
+
+    /**
+     * Configure the game
+     */
+    public configure(config: DeepPartial<GameConfig>): this {
+        this.config = deepMerge<GameConfig>(this.config, config);
+        this.getLiveGame().getGameState()?.events.emit(GameState.EventTypes["event:state.player.requestFlush"]);
+        return this;
     }
 
     /**

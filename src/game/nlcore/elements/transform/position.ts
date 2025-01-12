@@ -89,7 +89,7 @@ export class PositionUtils {
             return `calc(${pos} + 0px)`;
         }
         const left = typeof pos === "number" ? `${pos}px` : pos;
-        return `calc(${left} + (${offset}px))`;
+        return `calc(${left} + ${offset}px)`;
     }
 
     static toCoord2D(pos: IPosition | D2Position): Coord2D {

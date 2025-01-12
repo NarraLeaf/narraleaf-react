@@ -5,6 +5,7 @@ import {Chained, Proxied} from "@core/action/chain";
 import {Awaitable} from "@lib/util/data";
 import {CalledActionResult} from "@core/gameTypes";
 
+
 export class TypedAction<
     ContentType extends Record<string, any> = Record<string, any>,
     T extends keyof ContentType & string = keyof ContentType & string,

@@ -1,5 +1,6 @@
 "use client";
 
+import "client-only";
 import React, {ReactNode, useContext, useState} from "react";
 import {Game} from "@core/game";
 
@@ -19,9 +20,9 @@ export function GameProvider({children, game}: { children?: ReactNode, game?: Ga
     const [_game, setGame] = useState<Game>(game || DefaultValue);
 
     return (
-        <GameContext.Provider value={{game: _game, setGame}}>
+        <GameContext value={{game: _game, setGame}}>
             {children}
-        </GameContext.Provider>
+        </GameContext>
     );
 }
 

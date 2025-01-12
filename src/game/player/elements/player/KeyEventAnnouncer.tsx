@@ -3,32 +3,33 @@ import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 import {throttle} from "@lib/util/data";
 import {Game} from "@core/common/game";
+import {Router} from "@player/lib/PageRouter/router";
 
 /**@internal */
-export function KeyEventAnnouncer({state}: Readonly<{
+export function KeyEventAnnouncer({state, router}: Readonly<{
     state: GameState;
+    router?: Router;
 }>) {
     const {game} = useGame();
 
     useEffect(() => {
-        if (!window) {
-            state.logger.warn("NarraLeaf-React: Announcer", "Cannot listen to window events" +
-                "\nThis component must be rendered in a browser environment");
+        const playerElement = game.getLiveGame().gameState!.playerCurrent;
+        if (!playerElement) {
+            state.logger.warn("KeyEventAnnouncer", "Failed to listen to playerElement events");
             return;
         }
 
         const listener = throttle((event: KeyboardEvent) => {
             if (game.config.player.skipKey.includes(event.key)
-                && game.preference.getPreference(Game.Preferences.skip)) {
+                && game.preference.getPreference(Game.Preferences.skip)
+                && (!router || !router.isActive())
+            ) {
+                state.logger.verbose("KeyEventAnnouncer", "Emitted event: state.player.skip");
                 state.events.emit(GameState.EventTypes["event:state.player.skip"]);
             }
         }, game.config.player.skipInterval);
-        window.addEventListener("keydown", listener);
-
-        return () => {
-            window.removeEventListener("keydown", listener);
-        };
-    }, []);
+        return game.getLiveGame().onPlayerEvent("keydown", listener).cancel;
+    }, [router]);
 
     return (<></>);
 }

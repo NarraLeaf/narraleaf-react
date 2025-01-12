@@ -62,23 +62,14 @@ export default function Say(
     }, [isFinished]);
 
     useEffect(() => {
-        const gameEvents = state.events.onEvents([
-            {
-                type: GameState.EventTypes["event:state.player.skip"],
-                listener: state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
-                    state.logger.log("NarraLeaf-React: Say", "Skipped");
-                    if (isFinished) {
-                        if (onClick) onClick();
-                    } else {
-                        setIsFinished(true);
-                    }
-                }),
+        return state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+            state.logger.log("NarraLeaf-React: Say", "Skipped");
+            if (isFinished) {
+                if (onClick) onClick();
+            } else {
+                setIsFinished(true);
             }
-        ]);
-
-        return () => {
-            gameEvents.cancel();
-        };
+        }).cancel;
     }, [isFinished]);
 
     useEffect(() => {

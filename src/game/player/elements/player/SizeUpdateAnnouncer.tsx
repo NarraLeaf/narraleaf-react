@@ -3,7 +3,7 @@ import {useRatio} from "@player/provider/ratio";
 
 /**@internal */
 export default function SizeUpdateAnnouncer(
-    {containerRef}: Readonly<{ containerRef: React.RefObject<HTMLDivElement> }>
+    {ref}: Readonly<{ ref: React.RefObject<HTMLDivElement | null> }>
 ) {
     const {ratio} = useRatio();
 
@@ -11,7 +11,7 @@ export default function SizeUpdateAnnouncer(
      * Request ratio update when the container size changes
      */
     useEffect(() => {
-        const container = containerRef.current;
+        const container = ref.current;
         if (!container) {
             return;
         }
@@ -25,7 +25,7 @@ export default function SizeUpdateAnnouncer(
         return () => {
             observer.disconnect();
         };
-    }, [containerRef.current]);
+    }, [ref.current]);
 
     return null;
 }
