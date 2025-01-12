@@ -84,13 +84,6 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }, [transformToken, transitionTask]);
 
     useEffect(() => {
-        if (!ref.current) {
-            throw new Error(`Scope not ready. Using element: ${element.constructor.name}`);
-        }
-        element.events.emit(Displayable.EventTypes["event:displayable.onMount"]);
-    }, []);
-
-    useEffect(() => {
         if (!transitionTask) {
             return;
         }
@@ -136,6 +129,13 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             assignProperties(ref, transitionsProps[index] || transitionsProps[transitionsProps.length - 1] || {});
         });
     }, [transitionTask]);
+
+    useEffect(() => {
+        if (!ref.current) {
+            throw new Error(`Scope not ready. Using element: ${element.constructor.name}`);
+        }
+        element.events.emit(Displayable.EventTypes["event:displayable.onMount"]);
+    }, []);
 
     function handleOnTransform(transform: Transform) {
         setTransformStyle((prev) => {

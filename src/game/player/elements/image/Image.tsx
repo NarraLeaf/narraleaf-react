@@ -38,6 +38,7 @@ export default function Image(
                 style: {
                     position: "absolute",
                     transformOrigin: "center",
+                    backgroundColor: Utils.isColor(image.state.currentSrc) ? Utils.colorToString(image.state.currentSrc) : undefined,
                 },
                 src: GameImage.getSrcURL(image) || GameImage.DefaultImagePlaceholder,
             },

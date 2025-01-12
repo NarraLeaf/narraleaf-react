@@ -20,8 +20,6 @@ import {Config, ConfigConstructor} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {Utils} from "@core/common/Utils";
-import Actions = LogicAction.Actions;
-import GameElement = LogicAction.GameElement;
 
 /**@internal */
 export type SceneConfig = {
@@ -57,7 +55,7 @@ export type JumpConfig = {
 }
 
 /**@internal */
-type ChainableAction = Proxied<GameElement, Chained<LogicAction.Actions>> | Actions;
+type ChainableAction = Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>> | LogicAction.Actions;
 /**@internal */
 type ChainedScene = Proxied<Scene, Chained<LogicAction.Actions>>;
 
@@ -79,7 +77,7 @@ export type SceneEventTypes = {
 };
 
 export class Scene extends Constructable<
-    Actions,
+    LogicAction.Actions,
     Scene
 > {
     /**@internal */
@@ -368,10 +366,10 @@ export class Scene extends Constructable<
             return;
         }
 
-        const seenActions = new Set<Actions>();
+        const seenActions = new Set<LogicAction.Actions>();
 
         const seenJump = new Set<SceneAction<typeof SceneActionTypes["jumpTo"]>>();
-        const queue: Actions[] = [this.sceneRoot];
+        const queue: LogicAction.Actions[] = [this.sceneRoot];
         const futureScene = new Set<Scene>();
 
         while (queue.length) {
@@ -506,6 +504,7 @@ export class Scene extends Constructable<
                 src: this.userConfig.get().background,
                 opacity: 1,
                 autoFit: true,
+                name: `[[Background Image of ${this.config.name}]]`,
             }),
         }).get();
     }

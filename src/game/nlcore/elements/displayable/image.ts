@@ -136,19 +136,18 @@ export class Image<
     });
 
     /**@internal */
-    static getInitialSrc(image: Image): string | Color | SelectElementFromEach<TagGroupDefinition> {
-        if (this.isTagSrc(image)) {
-            return [...image.config.src.defaults];
-        } else if (this.isStaticSrc(image)) {
-            const userSrc = image.userConfig.get().src;
-            if (Utils.isStaticImageData(userSrc)) {
-                return Utils.srcToURL(userSrc);
-            } else if (Utils.isColor(userSrc)) {
-                return userSrc;
-            } else if (Utils.isImageSrc(userSrc)) {
-                return Utils.srcToURL(userSrc);
-            }
+    static getInitialSrc(userConfig: IImageUserConfig): string | Color | SelectElementFromEach<TagGroupDefinition> {
+        if (this.isTagDefinition(userConfig.src)) {
+            return [...userConfig.src.defaults];
+        }
+
+        const userSrc = userConfig.src;
+        if (Utils.isStaticImageData(userSrc)) {
+            return Utils.srcToURL(userSrc);
+        } else if (Utils.isColor(userSrc)) {
             return userSrc;
+        } else if (Utils.isImageSrc(userSrc)) {
+            return Utils.srcToURL(userSrc);
         }
         return Image.DefaultImagePlaceholder;
     }
@@ -169,7 +168,8 @@ export class Image<
 
     /**@internal */
     static isStaticSrc(image: Image): image is Image<null> {
-        return !this.isTagSrc(image) && Utils.isImageSrc(image.userConfig.get().src);
+        const src = image.userConfig.get().src;
+        return !this.isTagSrc(image) && (Utils.isImageSrc(src) || Utils.isColor(src));
     }
 
     /**@internal */
@@ -226,16 +226,6 @@ export class Image<
         this.transformState = this.getInitialTransformState(userConfig);
 
         this.checkConfig().registerSrc();
-    }
-
-    /**@internal */
-    private registerSrc(): this {
-        if (Image.isTagSrc(this)) {
-            this.srcManager.registerRawSrc(Image.getSrcFromTags(this.config.src.defaults, this.config.src.resolve));
-        } else if (Utils.isImageSrc(this.state.currentSrc)) {
-            this.srcManager.registerRawSrc(Utils.srcToURL(this.state.currentSrc));
-        }
-        return this;
     }
 
     /**
@@ -474,6 +464,16 @@ export class Image<
     }
 
     /**@internal */
+    private registerSrc(): this {
+        if (Image.isTagSrc(this)) {
+            this.srcManager.registerRawSrc(Image.getSrcFromTags(this.config.src.defaults, this.config.src.resolve));
+        } else if (Utils.isImageSrc(this.state.currentSrc)) {
+            this.srcManager.registerRawSrc(Utils.srcToURL(this.state.currentSrc));
+        }
+        return this;
+    }
+
+    /**@internal */
     private createImageConfig(userConfig: Config<IImageUserConfig, {
         position: IPosition
     }>): Config<ImageConfig> {
@@ -489,7 +489,7 @@ export class Image<
     /**@internal */
     private getInitialState(): MergeConfig<ImageState> {
         return Image.DefaultImageState.create().assign({
-            currentSrc: Image.getInitialSrc(this),
+            currentSrc: Image.getInitialSrc(this.userConfig.get()),
         }).get();
     }
 

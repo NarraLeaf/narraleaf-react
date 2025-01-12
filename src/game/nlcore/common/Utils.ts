@@ -126,6 +126,17 @@ export class Utils {
         return `#${r}${g}${b}${a}`;
     }
 
+    public static colorToString(color: Color): string {
+        if (Utils.isHexString(color)) {
+            return color;
+        } else if (Utils.isNamedColor(color)) {
+            return color;
+        } else if (Utils.isRGBAColor(color)) {
+            return Utils.RGBAColorToHex(color);
+        }
+        throw new Error("Unknown color type");
+    }
+
     static isHexString(color: any): color is HexColor {
         if (typeof color !== "string") {
             return false;
