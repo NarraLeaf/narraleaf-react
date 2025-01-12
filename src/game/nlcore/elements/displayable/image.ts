@@ -142,7 +142,7 @@ export class Image<
         } else if (this.isStaticSrc(image)) {
             const userSrc = image.userConfig.get().src;
             if (Utils.isStaticImageData(userSrc)) {
-                return Utils.staticImageDataToSrc(userSrc);
+                return Utils.srcToURL(userSrc);
             } else if (Utils.isColor(userSrc)) {
                 return userSrc;
             } else if (Utils.isImageSrc(userSrc)) {
@@ -173,12 +173,14 @@ export class Image<
     }
 
     /**@internal */
-    public static getSrcURL(image: Image): string | null {
-        if (Image.isTagSrc(image)) {
+    public static getSrcURL(image: Image | string): string | null {
+        if (typeof image === "string") {
+            return image;
+        } else if (Image.isTagSrc(image)) {
             return Image.getSrcFromTags(image.state.currentSrc as string[], image.config.src.resolve);
         } else if (Image.isStaticSrc(image)) {
             if (Utils.isStaticImageData(image.state.currentSrc)) {
-                return Utils.staticImageDataToSrc(image.state.currentSrc);
+                return Utils.srcToURL(image.state.currentSrc);
             } else if (Utils.isColor(image.state.currentSrc)) {
                 return null;
             }
@@ -223,7 +225,17 @@ export class Image<
         this.state = this.getInitialState();
         this.transformState = this.getInitialTransformState(userConfig);
 
-        this.checkConfig();
+        this.checkConfig().registerSrc();
+    }
+
+    /**@internal */
+    private registerSrc(): this {
+        if (Image.isTagSrc(this)) {
+            this.srcManager.registerRawSrc(Image.getSrcFromTags(this.config.src.defaults, this.config.src.resolve));
+        } else if (Utils.isImageSrc(this.state.currentSrc)) {
+            this.srcManager.registerRawSrc(Utils.srcToURL(this.state.currentSrc));
+        }
+        return this;
     }
 
     /**

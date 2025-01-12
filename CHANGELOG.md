@@ -30,6 +30,7 @@
     - `activate`, `deactivate` are removed, the game will manage the scene's lifecycle automatically
     - `applyTransform` is removed, use `scene.backgroundImage` instead
     - `inherit` is removed
+    - `requestImagePreload` -> `preloadImage
 - These methods of `Sound` has been changed:
     - use `copy` to create a new sound instance
     - `play`, `stop` and `setVolume` method can receive a `duration` parameter
@@ -43,6 +44,8 @@
 - `Top`, `Center`, `Bottom`, `HBox`, and `VBox` are deprecated, use `PageRouter` API instead
 - `ITransition`s are all deprecated, use `Transition` API instead
     - `FontSizeTransition` -> `FontSize`
+    - `BaseImageTransition` -> `ImageTransition`
+    - `BaseTextTransition` -> `TextTransition`
 
 ### _Feature_
 
@@ -62,6 +65,7 @@
 ### Fixed
 
 - some errors being thrown when initializing the game
+- Components reach the React flush limit when applying transitions
 
 ### Updated
 

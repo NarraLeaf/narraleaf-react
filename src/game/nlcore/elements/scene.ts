@@ -8,7 +8,7 @@ import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
 import {DisplayableActionTypes, SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
-import {Control, Persistent, Story, Utils} from "@core/common/core";
+import {Control, Persistent, Story} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -19,6 +19,7 @@ import {DynamicPersistent} from "@core/elements/persistent";
 import {Config, ConfigConstructor} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
+import {Utils} from "@core/common/Utils";
 import Actions = LogicAction.Actions;
 import GameElement = LogicAction.GameElement;
 
@@ -383,7 +384,10 @@ export class Scene extends Constructable<
             if (action instanceof SceneAction) {
                 const currentScene = action.callee;
                 if (Utils.isImageSrc(currentScene.state.backgroundImage.state.currentSrc)) {
-                    this.srcManager.register(new Image({src: currentScene.state.backgroundImage.state.currentSrc}));
+                    this.srcManager.register({
+                        type: "image",
+                        src: Utils.srcToURL(currentScene.state.backgroundImage.state.currentSrc),
+                    });
                 }
 
                 if (action.type === SceneActionTypes.jumpTo) {
@@ -418,6 +422,8 @@ export class Scene extends Constructable<
                 const actions = controlAction.getFutureActions(story);
 
                 queue.push(...actions);
+            } else if (action instanceof DisplayableAction) {
+                this.srcManager.register(action.callee.srcManager.getSrc());
             }
             queue.push(...action.getFutureActions(story));
         }
@@ -484,13 +490,13 @@ export class Scene extends Constructable<
     /**
      * Manually register an image to preload
      */
-    public requestImagePreload(src: string) {
+    public preloadImage(src: string) {
         if (!Utils.isImageSrc(src)) {
             throw new Error("Invalid image source: " + src);
         }
         this.srcManager.register({
             type: "image",
-            src: new Image({src}),
+            src,
         });
     }
 

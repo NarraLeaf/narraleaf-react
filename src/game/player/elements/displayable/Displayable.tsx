@@ -10,7 +10,7 @@ import {
 import {useFlush} from "@player/lib/flush";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Displayable} from "@core/elements/displayable/displayable";
-import {Awaitable, deepMerge} from "@lib/util/data";
+import {Awaitable, deepMerge, KeyGen} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 import {Transition} from "@core/elements/transition/transition";
@@ -37,8 +37,12 @@ export type DisplayableHookConfig<TransitionType extends Transition, U extends H
 /**@internal */
 export type DisplayableHookResult<T extends HTMLElement> = {
     transformRef: React.RefObject<HTMLDivElement | null>;
-    transitionRefs: React.RefObject<T | null>[];
+    transitionRefs: RefGroupDefinition<T>[];
 };
+
+/**@internal */
+type RefGroupDefinition<T extends HTMLElement> = [ref: React.RefObject<T | null>, key: string];
+type RefGroup<T extends HTMLElement> = React.RefObject<RefGroupDefinition<T>[]>;
 
 /**@internal */
 export function useDisplayable<TransitionType extends Transition<U>, U extends HTMLElement>(
@@ -61,7 +65,9 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }>(null);
     const [transformToken, setTransformToken] = useState<null | Awaitable<void>>(null);
     const ref = React.useRef<HTMLDivElement | null>(null);
-    const refs = useRef<React.RefObject<U | null>[]>(initRefs());
+    const [keyGen] = useState(() => new KeyGen("displayable.refGroup"));
+    const currentKey = useRef<string>(keyGen.next());
+    const refs = useRef<RefGroupDefinition<U>[]>(initRefs()) satisfies RefGroup<U>;
     const {game} = useGame();
     const gameState = game.getLiveGame().getGameState()!;
 
@@ -88,19 +94,22 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         if (!transitionTask) {
             return;
         }
-        if (refs.current.some((ref) => !ref.current)) {
+        if (refs.current.some(([ref]) => !ref.current)) {
             throw new RuntimeGameError("Displayable: Trying to access transition groups before they are mounted");
         }
 
         const {controller, task} = transitionTask;
         const eventToken = controller.onUpdate((values: AnimationDataTypeArray<TransitionAnimationType[]>) => {
-            refs.current.forEach((ref, i) => {
-                if (!task.resolve[i]) {
+            refs.current.forEach(([ref], i) => {
+                const currentResolve = task.resolve[i];
+                const resolver = typeof currentResolve === "function" ? currentResolve : currentResolve.resolver;
+                if (!resolver) {
                     throw new RuntimeGameError(
                         `Displayable: Trying to resolve element props but found no resolver. (reading: transitionTask.task.resolve[${i}])`
                     );
                 }
-                const resolved = task.resolve[i](...values);
+
+                const resolved = resolver(...values);
                 const mergedProps = deepMerge<ElementProp<U, React.HTMLAttributes<U>>>(
                     transitionsProps[i] || transitionsProps[transitionsProps.length - 1] || {},
                     resolved
@@ -114,16 +123,19 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }, [transitionTask]);
 
     useEffect(() => {
-        if (refs.current.some((ref) => !ref.current)) {
+        if (!refs.current || !refs.current.length) {
+            throw new RuntimeGameError("Displayable: Transition group refs are not initialized correctly");
+        }
+        if (refs.current.some(([ref]) => !ref.current)) {
             throw new RuntimeGameError("Displayable: Trying to access transition groups before they are mounted");
         }
-        refs.current.forEach((ref, index) => {
+        refs.current.forEach(([ref], index) => {
             if (!ref.current) {
                 throw new RuntimeGameError("Displayable: Trying to assign properties to unmounted element");
             }
             assignProperties(ref, transitionsProps[index] || transitionsProps[transitionsProps.length - 1] || {});
         });
-    }, []);
+    }, [transitionTask]);
 
     function handleOnTransform(transform: Transform) {
         setTransformStyle((prev) => {
@@ -137,7 +149,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         onTransform?.(transform);
     }
 
-    function assignProperties<T extends HTMLElement>(ref: React.RefObject<T | null>, properties: Partial<React.HTMLAttributes<T>>) {
+    function assignProperties(ref: React.RefObject<U | null>, properties: ElementProp<U, React.HTMLAttributes<U>>) {
         if (!ref.current) {
             throw new RuntimeGameError("Displayable: Trying to assign properties to unmounted element");
         }
@@ -145,13 +157,13 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         const element = ref.current;
         const styleUpdates: Partial<CSSStyleDeclaration> = {};
 
-        const attributesToUpdate: Record<string, string> = {};
+        const attributesToUpdate: ElementProp<U, React.HTMLAttributes<U>> = {} as ElementProp<U, React.HTMLAttributes<U>>;
         Object.keys(properties).forEach((k) => {
-            const key = k as keyof React.HTMLAttributes<T>;
+            const key = k as keyof Partial<ElementProp<U>>;
             if (key === "style" && properties.style) {
                 Object.assign(styleUpdates, properties.style);
-            } else if (properties[key] !== undefined) {
-                attributesToUpdate[key] = String(properties[key]);
+            } else if (properties[key] !== undefined && key !== "key") {
+                attributesToUpdate[key] = properties[key];
             }
         });
 
@@ -159,7 +171,8 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             Object.assign(element.style, styleUpdates);
         }
 
-        for (const [attr, value] of Object.entries(attributesToUpdate)) {
+        const overwrite = propOverwrite ? propOverwrite(attributesToUpdate) : attributesToUpdate;
+        for (const [attr, value] of Object.entries(overwrite)) {
             element.setAttribute(attr, value);
         }
     }
@@ -200,13 +213,32 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             task,
             controller,
         });
-        refs.current = task.resolve.map(() => React.createRef<U | null>());
+
+        let nextKey: string;
+        refs.current = task.resolve.map((solution) => {
+            const ref = React.createRef<U | null>();
+            const type = typeof solution === "function" ? undefined : solution.key;
+
+            if (!type) {
+                return [ref, keyGen.next()];
+            }
+            if (type === "target") {
+                nextKey = keyGen.next();
+                return [ref, nextKey];
+            } else if (type === "current") {
+                return [ref, currentKey.current];
+            }
+
+            throw new RuntimeGameError("Displayable: Invalid key type");
+        });
 
         controller.onComplete(() => {
-            refs.current.forEach((ref) => {
+            refs.current.forEach(([ref]) => {
                 ref.current = null;
             });
+            currentKey.current = nextKey;
             refs.current = initRefs();
+
             setTransitionTask(null);
             resolve();
         });
@@ -233,8 +265,8 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         }
     }
 
-    function initRefs(): React.RefObject<U | null>[] {
-        return [React.createRef<U | null>()];
+    function initRefs(): RefGroupDefinition<U>[] {
+        return [[React.createRef<U | null>(), currentKey.current]];
     }
 
     return {

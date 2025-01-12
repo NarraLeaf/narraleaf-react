@@ -22,6 +22,7 @@ import {ImageAction} from "@core/action/actions/imageAction";
 import {isNamedColor} from "@lib/util/data";
 import {Action} from "@core/action/action";
 import {Story} from "@core/elements/story";
+import {Word} from "@core/elements/character/word";
 
 export class RGBColor {
     static isHexString(color: any): color is HexColor {
@@ -176,6 +177,7 @@ export class StaticScriptWarning extends UseError<{
     }
 }
 
+/**@internal */
 type ImageState = {
     /**@deprecated */
     isDisposed: boolean;
@@ -305,5 +307,26 @@ export class RuntimeGameError extends Error {
         super(message);
         this.name = "RuntimeGameError";
     }
+}
+
+/**
+ * Alias for {@link Word.color}
+ */
+export function c(text: string | Word, color: Color): Word {
+    return Word.color(text, color);
+}
+
+/**
+ * Alias for {@link Word.bold}
+ */
+export function b(text: string | Word): Word {
+    return Word.bold(text);
+}
+
+/**
+ * Alias for {@link Word.italic}
+ */
+export function i(text: string | Word): Word {
+    return Word.italic(text);
 }
 

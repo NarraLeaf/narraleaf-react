@@ -58,7 +58,7 @@ export default function Text({state, text}: Readonly<{
                 ref={transformRef}
                 className={"absolute"}
             >
-                {transitionRefs.map((ref, key) => (
+                {transitionRefs.map(([ref, key]) => (
                     <span
                         key={key}
                         ref={ref}

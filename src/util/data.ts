@@ -1117,3 +1117,14 @@ export function isPureObject(obj: any, seen: WeakSet<any> = new WeakSet()): bool
     // Passed all checks
     return true;
 }
+
+export class KeyGen {
+    private counter = 0;
+
+    constructor(private prefix: string = "") {
+    }
+
+    next() {
+        return `${this.prefix ? this.prefix + "-" : ""}${this.counter++}`;
+    }
+}

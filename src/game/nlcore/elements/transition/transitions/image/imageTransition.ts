@@ -1,5 +1,10 @@
 import {Transition} from "@core/elements/transition/transition";
-import {ImgElementProp, TransitionAnimationType} from "@core/elements/transition/type";
+import {
+    AnimationDataTypeArray,
+    ImgElementProp,
+    TransitionAnimationType,
+    TransitionResolver
+} from "@core/elements/transition/type";
 import {Color, ImageSrc} from "@core/types";
 import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {deepMerge} from "@lib/util/data";
@@ -23,18 +28,14 @@ export abstract class ImageTransition<T extends TransitionAnimationType[] = any>
         return this;
     }
 
-    /**
-     * Merge image props with the current src
-     */
-    public withPrevSrc(props: ImgElementProp): ImgElementProp {
-        return deepMerge(props, this._srcToProps(this._prevSrc));
+    override asPrev<T extends TransitionAnimationType[] = any>(resolver: (...args: AnimationDataTypeArray<T>) => ImgElementProp): TransitionResolver<HTMLImageElement, T> {
+        return super.asPrev((...args: AnimationDataTypeArray<T>) =>
+            deepMerge(resolver(...args), this._srcToProps(this._prevSrc)));
     }
 
-    /**
-     * Merge image props with target src
-     */
-    public withTargetSrc(props: ImgElementProp): ImgElementProp {
-        return deepMerge(props, this._srcToProps(this._targetSrc));
+    override asTarget<T extends TransitionAnimationType[] = any>(resolver: (...args: AnimationDataTypeArray<T>) => ImgElementProp): TransitionResolver<HTMLImageElement, T> {
+        return super.asTarget((...args: AnimationDataTypeArray<T>) =>
+            deepMerge(resolver(...args), this._srcToProps(this._targetSrc)));
     }
 
     /**@package */

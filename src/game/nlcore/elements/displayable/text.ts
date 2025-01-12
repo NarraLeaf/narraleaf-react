@@ -160,7 +160,7 @@ export class Text
     public setFontSize(fontSize: number, duration: number = 0, easing?: TransformDefinitions.EasingDefinition): Proxied<Text, Chained<LogicAction.Actions>> {
         return this.combineActions(new Control(), chain => {
             if (duration) {
-                const transition = new FontSize(fontSize, duration, easing) satisfies TextTransition;
+                const transition: TextTransition = new FontSize(fontSize, duration, easing) as TextTransition;
                 chain.chain(this._applyTransition(chain, transition));
             }
             const action = new TextAction<typeof TextAction.ActionTypes.setFontSize>(

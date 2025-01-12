@@ -2,12 +2,14 @@ import {TransitionAnimationType, TransitionTask} from "@core/elements/transition
 import {TransformDefinitions} from "@core/elements/transform/type";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 
-export class Dissolve extends ImageTransition<[TransitionAnimationType.Number]> {
+type DissolveAnimation = [TransitionAnimationType.Number];
+
+export class Dissolve extends ImageTransition<DissolveAnimation> {
     constructor(private duration: number, private easing?: TransformDefinitions.EasingDefinition) {
         super();
     }
 
-    createTask(): TransitionTask<HTMLImageElement, [TransitionAnimationType.Number]> {
+    createTask(): TransitionTask<HTMLImageElement, DissolveAnimation> {
         return {
             animations: [{
                 type: TransitionAnimationType.Number,
@@ -17,16 +19,16 @@ export class Dissolve extends ImageTransition<[TransitionAnimationType.Number]> 
                 ease: this.easing,
             }],
             resolve: [
-                (opacity: number) => this.withPrevSrc({
+                this.asPrev<DissolveAnimation>((opacity: number) => ({
                     style: {
                         opacity: 1 - opacity,
                     }
-                }),
-                (opacity: number) => this.withTargetSrc({
+                })),
+                this.asTarget<DissolveAnimation>((opacity: number) => ({
                     style: {
                         opacity: opacity,
-                    }
-                }),
+                    },
+                })),
             ],
         };
     }

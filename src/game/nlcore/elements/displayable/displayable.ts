@@ -9,6 +9,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import type {TransformDefinitions} from "@core/elements/transform/type";
 import {Transition} from "@core/elements/transition/transition";
+import {SrcManager} from "@core/action/srcManager";
 
 /**@internal */
 export type DisplayableEventTypes<TransitionType extends Transition> = {
@@ -18,7 +19,6 @@ export type DisplayableEventTypes<TransitionType extends Transition> = {
     "event:displayable.onMount": [];
 };
 
-/**@internal */
 export abstract class Displayable<
     StateData extends Record<string, any>,
     Self extends Displayable<any, any, any, any>,
@@ -37,6 +37,8 @@ export abstract class Displayable<
 
     /**@internal */
     readonly abstract events: EventDispatcher<DisplayableEventTypes<TransitionType>>;
+    /**@internal */
+    public readonly srcManager = new SrcManager();
 
     abstract transformState: TransformState<any>;
 

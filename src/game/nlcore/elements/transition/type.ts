@@ -1,7 +1,6 @@
 import type {EventDispatcher, EventToken} from "@lib/util/data";
 import React from "react";
 import type {AnimationPlaybackControls, DOMKeyframesDefinition} from "motion/react";
-import {Color, ImageSrc} from "@core/types";
 import {TransformDefinitions} from "@core/elements/transform/type";
 
 /**@internal */
@@ -56,18 +55,6 @@ export interface ITransition<T extends ElementProp = Record<string, any>> {
     complete(): void;
 }
 
-/**@deprecated */
-export interface IImageTransition<T extends ElementProp = ImgElementProp> extends ITransition<T> {
-    setSrc(src: ImageSrc | Color): void;
-
-    copy(): IImageTransition<T>;
-}
-
-/**@deprecated */
-export interface ITextTransition<T extends ElementProp = SpanElementProp> extends ITransition<T> {
-    copy(): ITextTransition<T>;
-}
-
 /**@internal */
 export type EventTypes<T extends any[]> = {
     "start": [null];
@@ -75,18 +62,11 @@ export type EventTypes<T extends any[]> = {
     "end": [null];
 };
 
-export const TransitionEventTypes: {
-    [K in keyof EventTypes<any>]: K;
-} = {
-    "start": "start",
-    "update": "update",
-    "end": "end",
-};
-
 export enum TransitionAnimationType {
     Number,
     HexColor,
 }
+
 export type AnimationTypeToData<T extends TransitionAnimationType> =
     T extends TransitionAnimationType.Number ? number :
         T extends TransitionAnimationType.HexColor ? string :
@@ -103,10 +83,14 @@ export type AnimationTaskMapArray<T extends TransitionAnimationType[]> = {
 export type AnimationDataTypeArray<T extends TransitionAnimationType[]> = {
     [K in keyof T]: AnimationTypeToData<T[K]>;
 };
-export type TransitionRef<T extends HTMLElement> = React.RefObject<T[]>;
+export type TransitionResolver<T extends HTMLElement, U extends TransitionAnimationType[]> =
+    ((...args: AnimationDataTypeArray<U>) => ElementProp<T>) | {
+    resolver: ((...args: AnimationDataTypeArray<U>) => ElementProp<T>);
+    key: "target" | "current";
+};
 export type TransitionTask<T extends HTMLElement, U extends TransitionAnimationType[] = never[]> = {
     animations: AnimationTaskMapArray<U>;
-    resolve: ((...args: AnimationDataTypeArray<U>) => ElementProp<T>)[];
+    resolve: TransitionResolver<T, U>[];
 };
 
 export type AnimationController<T extends TransitionAnimationType[]> = {

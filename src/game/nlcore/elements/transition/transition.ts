@@ -3,7 +3,9 @@ import {
     AnimationDataTypeArray,
     AnimationTaskMapArray,
     AnimationTypeToData,
+    ElementProp,
     TransitionAnimationType,
+    TransitionResolver,
     TransitionTask
 } from "@core/elements/transition/type";
 import {TransformDefinitions} from "@core/elements/transform/type";
@@ -11,7 +13,7 @@ import type {AnimationPlaybackControls} from "motion/react";
 import {animate} from "motion/react";
 
 
-export abstract class Transition<T extends HTMLElement = HTMLElement, U extends TransitionAnimationType[] = TransitionAnimationType[]> {
+export abstract class Transition<T extends HTMLElement = HTMLElement, U extends TransitionAnimationType[] = any> {
     public static AnimationType = TransitionAnimationType;
 
     /**
@@ -19,19 +21,21 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
      */
     abstract createTask(): TransitionTask<T, U>;
 
-    abstract copy(): Transition<T, U>;
+    abstract copy(): any;
 
     /**@package */
     public requestAnimations(tasks: AnimationTaskMapArray<U>): AnimationController<U> {
         const values: AnimationDataTypeArray<U> = tasks.map(v => v.start) as AnimationDataTypeArray<U>;
         const controllers: AnimationPlaybackControls[] = [] as AnimationPlaybackControls[];
 
-        let completed: boolean = false;
+        // for some reason, controller.state isn't working,
+        // so we have to keep track of the completed tasks
+        let completed: number = 0;
 
         const onUpdateListeners: ((values: AnimationDataTypeArray<U>) => void)[] = [];
         const onCompleteListeners: (() => void)[] = [];
         const complete = () => {
-            if (completed) {
+            if (completed === tasks.length) {
                 return;
             }
             controllers.forEach(controller => controller.complete());
@@ -44,9 +48,9 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
                 controllers.push(this.requestMotion(task, {
                     onComplete: () => {
                         values[index] = task.end;
-                        completed = true;
+                        completed++;
 
-                        if (controllers.every(controller => controller.state === "finished")) {
+                        if (completed === tasks.length) {
                             onCompleteListeners.forEach(v => v());
                         }
                     },
@@ -84,6 +88,31 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
             complete,
             start,
         } satisfies AnimationController<U>;
+    }
+
+    /**
+     * Mark the resolver as the current state
+     *
+     * any resolver that is marked as current will be applied to the current state
+     * and be disposed of when the transition is completed
+     */
+    public asPrev<U extends TransitionAnimationType[] = any>(resolver: (...args: AnimationDataTypeArray<U>) => ElementProp<T>): TransitionResolver<T, U> {
+        return {
+            resolver,
+            key: "current",
+        } satisfies TransitionResolver<T, U>;
+    }
+
+    /**
+     * Mark the resolver as the target state
+     *
+     * any resolver that is marked as a target will be kept as the target state after the transition
+     */
+    public asTarget<U extends TransitionAnimationType[] = any>(resolver: (...args: AnimationDataTypeArray<U>) => ElementProp<T>): TransitionResolver<T, U> {
+        return {
+            resolver,
+            key: "target",
+        } satisfies TransitionResolver<T, U>;
     }
 
     /**@package */

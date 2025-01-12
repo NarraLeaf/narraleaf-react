@@ -3,7 +3,6 @@ import React, {useEffect, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import Inspect from "@player/lib/Inspect";
 import AspectScaleImage from "@player/elements/image/AspectScaleImage";
-import {useRatio} from "@player/provider/ratio";
 import clsx from "clsx";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
 import {Utils} from "@core/common/Utils";
@@ -19,11 +18,10 @@ export default function Image(
         image: GameImage;
         state: GameState;
     }>) {
-    const {ratio} = useRatio();
     const [wearables, setWearables] = useState<GameImage[]>([]);
-    const ref = useRef<HTMLImageElement>(null);
     const {cacheManager} = usePreloaded();
     const ignored = useRef<string[]>([]);
+    const containerRef = useRef<HTMLDivElement>(null);
     const {transformRef, transitionRefs} = useDisplayable<ImageTransition, HTMLImageElement>({
         element: image,
         state: image.transformState,
@@ -40,7 +38,8 @@ export default function Image(
                 style: {
                     position: "absolute",
                     transformOrigin: "center",
-                }
+                },
+                src: GameImage.getSrcURL(image) || GameImage.DefaultImagePlaceholder,
             },
             {
                 style: {
@@ -82,19 +81,11 @@ export default function Image(
         }).cancel;
     }, []);
 
-    useEffect(() => {
-        handleWidthChange();
-        return ratio.onUpdate(handleWidthChange);
-    }, [ref, transformRef]);
-
-    function handleWidthChange() {
-        if (transformRef.current && ref.current) {
-            const autoFitFactor = image.config.autoFit ? (state.game.config.player.width / ref.current.naturalWidth) : 1;
-            const newWidth = ref.current.naturalWidth * ratio.state.scale * autoFitFactor;
-            const newHeight = ref.current.naturalHeight * ratio.state.scale * autoFitFactor;
-            Object.assign(transformRef.current.style, {
-                width: `${newWidth}px`,
-                height: `${newHeight}px`,
+    function handleWidthChange(width: number, height: number) {
+        if (containerRef.current) {
+            Object.assign(containerRef.current.style, {
+                width: `${width}px`,
+                height: `${height}px`,
             });
         }
     }
@@ -108,18 +99,17 @@ export default function Image(
             ref={transformRef}
             className={"absolute"}
         >
-            <div className={"relative h-full w-full"}>
-                {transitionRefs.map((ref, key) => (
+            <div className={"relative h-full w-full"} ref={containerRef}>
+                {transitionRefs.map(([ref, key], i) => (
                     <AspectScaleImage
                         key={key}
                         ref={ref}
                         autoFit={image.config.autoFit}
+                        onSizeChanged={i === 0 ? handleWidthChange : undefined}
                     />
                 ))}
             </div>
-            <div
-                className={clsx("w-full h-full top-0 left-0 absolute")}
-            >
+            <div className={clsx("w-full h-full top-0 left-0 absolute")}>
                 {wearables.map((wearable) => (
                     <div
                         className={clsx("w-full h-full relative")}
