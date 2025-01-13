@@ -62,6 +62,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     const [transitionTask, setTransitionTask] = useState<null | {
         task: TransitionTask<U, any>;
         controller: AnimationController<any>;
+        transition: Transition<U>;
     }>(null);
     const [transformToken, setTransformToken] = useState<null | Awaitable<void>>(null);
     const ref = React.useRef<HTMLDivElement | null>(null);
@@ -212,6 +213,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         setTransitionTask({
             task,
             controller,
+            transition: newTransition,
         });
 
         let nextKey: string;
@@ -258,6 +260,11 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             gameState.logger.debug("transform skipped");
         }
         if (skipTransition && transitionTask) {
+            const finalStyles = transitionTask.transition.toFinalStyle(transitionTask.task);
+            refs.current.forEach(([ref], i) => {
+                assignProperties(ref, propOverwrite ? propOverwrite(finalStyles[i]) : finalStyles[i]);
+            });
+
             transitionTask.controller.complete();
             setTransitionTask(null);
 

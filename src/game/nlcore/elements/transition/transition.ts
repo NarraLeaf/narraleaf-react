@@ -90,6 +90,16 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
         } satisfies AnimationController<U>;
     }
 
+    /**@package */
+    public toFinalStyle(task: TransitionTask<T, U>): ElementProp<T>[] {
+        return task.resolve.map(resolver => {
+            if (typeof resolver === "function") {
+                return resolver(...task.animations.map(v => v.end) as AnimationDataTypeArray<U>);
+            }
+            return resolver.resolver(...task.animations.map(v => v.end) as AnimationDataTypeArray<U>);
+        });
+    }
+
     /**
      * Mark the resolver as the current state
      *

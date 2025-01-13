@@ -365,13 +365,19 @@ export class Transform<T extends TransformDefinitions.Types = any> {
             }
             Object.assign(ref.current.style, style);
         };
+
+        let skipped: boolean = false, seq: TransformDefinitions.Sequence<T>[];
         const skip = () => {
-            controllers.forEach(c => c.complete());
-            while (sequences.length) {
-                const {props} = sequences.shift()!;
+            controllers.forEach(c => c.stop());
+            skipped = true;
+            while (seq.length) {
+                const {props} = seq.shift()!;
                 transformState.assign(lock, props);
             }
-            assignStyle(Transform.constructStyle(gameState, transformState.state, overwrites) as CSSProps);
+
+            const finalStyle = Transform.constructStyle(gameState, transformState.state, overwrites) as CSSProps;
+            assignStyle(finalStyle);
+            gameState.logger.debug("Transform", "Skipped transform.", finalStyle);
             transformState.unlock(lock);
         };
         const awaitable = new Awaitable<void>()
@@ -380,8 +386,14 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         gameState.logger.debug("Transform", "Ready to animate transform.", sequences, this);
 
         this.runAsync(async () => {
-            for (let i = 0; i < this.sequenceOptions.repeat; i++) {
-                for (const {props, options} of sequences) {
+            transform: for (let i = 0; i < this.sequenceOptions.repeat; i++) {
+                seq = [...sequences];
+                while (seq.length) {
+                    if (skipped) {
+                        break transform;
+                    }
+
+                    const {props, options} = seq.shift()!;
                     if (!transformState.canWrite(lock)) {
                         gameState.logger.weakError("Transform", "Failed to animate transform, state is locked.", props);
                         return;
