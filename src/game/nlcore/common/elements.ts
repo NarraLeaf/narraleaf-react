@@ -14,6 +14,7 @@ import {Text} from "@core/elements/displayable/text";
 import {Pause} from "@core/elements/character/pause";
 import {Persistent} from "@core/elements/persistent";
 import {Service} from "@core/elements/service";
+import {Layer} from "@core/elements/layer";
 
 export {
     Character,
@@ -33,4 +34,5 @@ export {
     Pause,
     Persistent,
     Service,
+    Layer,
 };

@@ -8,6 +8,7 @@ import type {CalledActionResult} from "@core/gameTypes";
 import {Scene} from "@core/elements/scene";
 import {Transform} from "@core/elements/transform/transform";
 import {Transition} from "@core/elements/transition/transition";
+import {Layer} from "@core/elements/layer";
 
 
 export class DisplayableAction<
@@ -32,10 +33,10 @@ export class DisplayableAction<
 
             return this.applyTransition(gameState, element, transition);
         } else if (this.type === DisplayableActionTypes.init) {
-            const [scene] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:init"]>).getContent();
+            const [scene, layer, isElement] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:init"]>).getContent();
             const element = this.callee;
 
-            return this.initDisplayable(gameState, scene, element);
+            return this.initDisplayable(gameState, scene, element, layer || null, isElement);
         }
 
         throw this.unknownTypeError();
@@ -69,25 +70,26 @@ export class DisplayableAction<
         return awaitable;
     }
 
-    public initDisplayable(state: GameState, scene: Scene | undefined, element: Displayable<any, any>): Awaitable<CalledActionResult> {
-        const lastScene = state.findElementByDisplayable(this.callee);
-        if (lastScene) {
-            state.disposeDisplayable(element, lastScene.scene);
+    public initDisplayable(state: GameState, scene: Scene | null, element: Displayable<any, any>, layer: Layer | null, isElement: boolean | undefined = true): Awaitable<CalledActionResult> {
+        if (isElement !== false) {
+            const lastScene = state.findElementByDisplayable(this.callee, layer);
+            if (lastScene) {
+                state.disposeDisplayable(element, lastScene.scene, layer);
+            }
+
+            state
+                .createDisplayable(element, scene, layer);
         }
 
-        state
-            .createDisplayable(element, scene)
-            .flush();
+        state.flush();
 
         const awaitable = new Awaitable<CalledActionResult>()
             .registerSkipController(new SkipController(() =>
                 super.executeAction(state) as CalledActionResult));
-        element.events.once(Displayable.EventTypes["event:displayable.onMount"], () => {
-            element.events.emit(Displayable.EventTypes["event:displayable.init"], () => {
-                awaitable.resolve(super.executeAction(state) as CalledActionResult);
-                state.stage.next();
-            });
-        });
+        element.events.any(Displayable.EventTypes["event:displayable.init"], () => {
+            awaitable.resolve(super.executeAction(state) as CalledActionResult);
+            state.stage.next();
+        }).then(Awaitable.nothing);
 
         return awaitable;
     }

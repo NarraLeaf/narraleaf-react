@@ -49,7 +49,7 @@ export class ConfigConstructor<
                     return [
                         key,
                         newValue !== undefined ?
-                            (this.handlers[key] ? this.handlers[key]!(newValue) : newValue) :
+                            (typeof this.handlers[key] === "function" ? this.handlers[key]!(newValue) : newValue) :
                             value,
                     ];
                 })

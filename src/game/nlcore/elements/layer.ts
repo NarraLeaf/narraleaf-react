@@ -8,8 +8,16 @@ import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/dis
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {EventDispatcher} from "@lib/util/data";
 import {LayerAction} from "@core/action/actions/layerAction";
-import {LayerActionContentType, LayerActionTypes} from "@core/action/actionTypes";
+import {
+    DisplayableActionContentType,
+    DisplayableActionTypes,
+    LayerActionContentType,
+    LayerActionTypes
+} from "@core/action/actionTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
+import {DisplayableAction} from "@core/action/actions/displayableAction";
+import {Image} from "@core/elements/displayable/image";
+import {Text} from "@core/elements/displayable/text";
 
 export interface ILayerUserConfig extends CommonDisplayableConfig {
     /**
@@ -31,8 +39,7 @@ type LayerState = {
     zIndex: number;
 };
 /**@internal */
-/* @todo */ // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-type LayerDataRaw = {};
+type LayerDataRaw = Record<string, any>;
 /**@internal */
 export type LayerEventTypes = {} & DisplayableEventTypes<any>;
 
@@ -47,6 +54,7 @@ export class Layer
     static DefaultUserConfig = new ConfigConstructor<ILayerUserConfig, EmptyObject>({
         zIndex: 0,
         ...TransformState.DefaultTransformState.getDefaultConfig(),
+        opacity: 1,
     });
 
     /**
@@ -91,6 +99,19 @@ export class Layer
         this.transformState = this.getInitialTransformState();
     }
 
+    /**
+     * Include displayables in the layer.
+     *
+     * Same as {@link Displayable.useLayer}
+     */
+    public include(elements: (Image | Text)[] | Image | Text): this {
+        const e = Array.isArray(elements) ? elements : [elements];
+        e.forEach((element) => {
+            element.useLayer(this);
+        });
+        return this;
+    }
+
     /**@internal */
     copy(): Layer {
         return new Layer(this.config.name, this.userConfig.get());
@@ -110,8 +131,17 @@ export class Layer
     }
 
     /**@internal */
-    _init(): LayerAction<typeof LayerActionTypes.action> {
-        return new LayerAction(this.chain(), LayerActionTypes.action, new ContentNode<LayerActionContentType["layer:action"]>());
+    _init(): LogicAction.Actions[] {
+        return [
+            new LayerAction(this.chain(), LayerActionTypes.action, new ContentNode<LayerActionContentType["layer:action"]>()),
+            new DisplayableAction<typeof DisplayableActionTypes.init>(
+                this.chain(),
+                DisplayableActionTypes.init,
+                new ContentNode<DisplayableActionContentType["displayable:init"]>().setContent([
+                    null, null, false
+                ])
+            )
+        ];
     }
     /**@internal */
     /**@internal */

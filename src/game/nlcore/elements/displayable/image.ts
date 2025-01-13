@@ -36,7 +36,7 @@ type ImageConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | nu
     autoInit: boolean;
     src: Tag extends TagGroupDefinition ? TagDefinitionObject<Tag> : null;
     autoFit: boolean;
-    layer?: Layer;
+    layer: Layer | undefined;
 };
 type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | null> = {
     currentSrc: Tag extends null
@@ -49,12 +49,12 @@ export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGro
     /**
      * The name of the image, only for debugging purposes
      */
-    name?: string;
+    name: string;
     /**
      * If set to false, the image won't be initialized unless you call `init` method
      * @default true
      */
-    autoInit?: boolean;
+    autoInit: boolean;
     /**
      * Image Src, see [Image](https://react.narraleaf.com/documentation/core/elements/image) for more information
      */
@@ -62,7 +62,7 @@ export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGro
     /**
      * Auto resize image's width to fit the screen
      */
-    autoFit?: boolean;
+    autoFit: boolean;
     /**
      * layer of the image
      */
@@ -113,6 +113,7 @@ export class Image<
         autoInit: true,
         src: Image.DefaultImagePlaceholder,
         autoFit: false,
+        layer: undefined,
         ...TransformState.DefaultTransformState.getDefaultConfig(),
     }, {
         position: (value: RawPosition | IPosition | undefined) => {
@@ -131,6 +132,7 @@ export class Image<
         autoInit: true,
         src: null,
         autoFit: false,
+        layer: undefined,
     });
 
     /**
@@ -318,6 +320,17 @@ export class Image<
         return this.bindWearable(parent);
     }
 
+    /**
+     * Use layer for the image, will override the layer in the image config
+     */
+    public useLayer(layer: Layer | null): this {
+        this.userConfig.get().layer = layer || undefined;
+        Object.assign(this.config, {
+            layer: layer || undefined,
+        });
+        return this;
+    }
+
     /**@internal */
     toData(): ImageDataRaw {
         return {
@@ -354,7 +367,8 @@ export class Image<
             this.chain(),
             DisplayableActionTypes.init,
             new ContentNode<DisplayableActionContentType<ImageTransition>["displayable:init"]>().setContent([
-                scene
+                scene || null,
+                this.config.layer || null,
             ])
         );
     }

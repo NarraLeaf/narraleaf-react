@@ -11,15 +11,17 @@ import {Scene} from "@core/elements/scene";
 import {Control} from "@core/elements/control";
 import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
-import {ConfigConstructor} from "@lib/util/config";
+import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {TextTransition} from "@core/elements/transition/transitions/text/textTransition";
 import {FontSize} from "@core/elements/transition/transitions/text/fontSize";
+import {Layer} from "@core/elements/layer";
 
 export type TextConfig = {
     alignX: "left" | "center" | "right";
     alignY: "top" | "center" | "bottom";
     className?: string;
+    layer: Layer | undefined;
 };
 export type TextState = {
     fontSize: number;
@@ -55,6 +57,10 @@ export interface ITextUserConfig extends CommonDisplayableConfig {
      * The text content
      */
     text: string;
+    /**
+     * Layer of the text
+     */
+    layer?: Layer;
 }
 
 /**@internal */
@@ -93,6 +99,7 @@ export class Text
         alignX: "center",
         alignY: "center",
         className: "",
+        layer: undefined,
     });
 
     /**@internal */
@@ -118,6 +125,8 @@ export class Text
     public state: TextState;
     /**@internal */
     readonly events: EventDispatcher<TextEventTypes> = new EventDispatcher();
+    /**@internal */
+    private userConfig: Config<ITextUserConfig>;
 
     constructor(config: Partial<TextConfig>);
     constructor(text: string, config?: Partial<TextConfig>);
@@ -131,10 +140,9 @@ export class Text
         const textConfig = Text.DefaultTextConfig.create(userConfig.get());
         const [transformState] = userConfig.extract(Text.DefaultTextTransformState.keys());
 
+        this.userConfig = userConfig;
         this.config = textConfig.get();
-        this.state = Text.DefaultTextState.create().assign({
-            text: userConfig.get().text,
-        }).get();
+        this.state = this.getInitialState();
         this.transformState =
             new TransformState<TransformDefinitions.TextTransformProps>(transformState.get());
     }
@@ -172,6 +180,15 @@ export class Text
         });
     }
 
+    /**
+     * Use a layer for the Text, will override the layer in the text config
+     */
+    public useLayer(layer: Layer): this {
+        this.userConfig.get().layer = layer;
+        Object.assign(this.config, {layer});
+        return this;
+    }
+
     /**@internal */
     toData(): TextDataRaw {
         return {
@@ -193,7 +210,17 @@ export class Text
         return new DisplayableAction<typeof DisplayableActionTypes.init, Text>(
             this.chain(),
             DisplayableActionTypes.init,
-            new ContentNode<DisplayableActionContentType["displayable:init"]>().setContent([scene])
+            new ContentNode<DisplayableActionContentType["displayable:init"]>().setContent([
+                scene || null, this.config.layer || null
+            ])
+        );
+    }
+
+    /**@internal */
+    override reset() {
+        this.state = this.getInitialState();
+        this.transformState = new TransformState<TransformDefinitions.TextTransformProps>(
+            this.userConfig.extract(TransformState.DefaultTransformState.keys())[0].get()
         );
     }
 
@@ -207,6 +234,14 @@ export class Text
                 (transition: TextTransition) => transition._setElement(this),
             ])
         );
+    }
+
+    /**@internal */
+    private getInitialState(): MergeConfig<TextState> {
+        return Text.DefaultTextState.create({
+            fontSize: this.userConfig.get().fontSize,
+            text: this.userConfig.get().text,
+        }).get();
     }
 }
 

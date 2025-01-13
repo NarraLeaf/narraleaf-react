@@ -220,6 +220,10 @@ export class Awaitable<T, U = T> {
         }
         return this.result;
     }
+
+    isSolved() {
+        return this.solved;
+    }
 }
 
 export function safeClone<T>(obj: T): T {

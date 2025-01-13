@@ -20,17 +20,14 @@
     - `applyTransform` -> `transform`
     - `applyTransition` is removed, applying transitions are still in planning
     - `ITextTransition` is removed, use `TextTransition` instead
-- These methods are added to displayable elements (text, image):
-    - `layerMoveUp`, `layerMoveDown`, `layerMoveTop`, `layerMoveBottom`
-    - `pos`, `scale`, `rotate`, `opacity`
 - These methods of `Transform` has been changed:
     - `overwrite` is removed
     - Transformer API is completely deprecated
-- These methods of `Scene` has been changed:
+- These methods/properties of `Scene` has been changed:
     - `activate`, `deactivate` are removed, the game will manage the scene's lifecycle automatically
-    - `applyTransform` is removed, use `scene.background` instead
+    - `applyTransform` is removed, use `scene.background.transform` instead
     - `inherit` is removed
-    - `requestImagePreload` -> `preloadImage
+    - `requestImagePreload` -> `preloadImage`
 - These methods of `Sound` has been changed:
     - use `copy` to create a new sound instance
     - `play`, `stop` and `setVolume` method can receive a `duration` parameter
@@ -53,6 +50,7 @@
 - Use `liveGame.requestFullScreen` and `liveGame.exitFullScreen` to request full screen on the player element
 - Use `liveGame.onPlayerEvent` to listen to the dom events of the player element
 - `PageRouter` API: a new way to manage page layers
+- `Layer` API: manage layers for displayable elements
 
 ### Added
 
@@ -61,6 +59,9 @@
   see [MDN: <named-color>](https://developer.mozilla.org/en-US/docs/Web/CSS/named-color) for a list of supported colors.
 - use `game.configure` to configure the game instead of constructing a new game instance
 - use `ImageConfig.autoFit` to automatically fit the image to the player width
+- These methods are added to displayable elements (text, image):
+  - `pos`, `scale`, `rotate`, `opacity`
+  - `useLayer`
 
 ### Fixed
 
@@ -308,7 +309,7 @@
 
 ### Changed
 
-- `scene.backgroundImageState` is deprecated, use `scene.background` instead
+- `scene.backgroundImageState` is deprecated, use `scene.backgroundImage` instead
 - Now applying of transformations and transitions are separated, you can now apply both at the same time
 - Deprecated `contentNode.initChild`
 - `liveGame.newGame`, `liveGame.deserialize` and `liveGame.serialize` now does not require a gameState instance

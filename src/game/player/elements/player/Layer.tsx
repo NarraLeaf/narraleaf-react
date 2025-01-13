@@ -31,9 +31,9 @@ export function Layer(
 
     return (
         <>
-            <motion.div layout className={"absolute"} ref={transformRef}>
+            <motion.div layout className={"absolute w-full h-full"} ref={transformRef}>
                 {transitionRefs.map(([ref, key]) => (
-                    <div ref={ref} key={key}>
+                    <div className={"absolute w-full h-full"} ref={ref} key={key}>
                         {children}
                     </div>
                 ))}

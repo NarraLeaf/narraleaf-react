@@ -102,8 +102,11 @@ export class GameState {
         return this.state.elements.find(e => e.scene === scene) || null;
     }
 
-    public findElementByDisplayable(displayable: LogicAction.DisplayableElements): PlayerStateElement | null {
+    public findElementByDisplayable(displayable: LogicAction.DisplayableElements, layer: Layer | null = null): PlayerStateElement | null {
         return this.state.elements.find(e => {
+            if (layer) {
+                return e.layers.get(layer)?.includes(displayable) || false;
+            }
             for (const elements of e.layers.values()) {
                 if (elements.includes(displayable)) return true;
             }
@@ -243,12 +246,15 @@ export class GameState {
         const targetScene = this.getLastSceneIfNot(scene);
 
         const targetElement = this.findElementByScene(targetScene);
-        if (!targetElement) return this;
+        if (!targetElement) {
+            throw this.sceneNotFound();
+        }
 
         const targetLayer = targetElement.layers.get(layer || targetScene.config.defaultDisplayableLayer);
         if (!targetLayer) {
             throw this.layerNotFound();
         }
+        targetLayer.push(displayable);
         return this;
     }
 
@@ -416,7 +422,7 @@ export class GameState {
     }
 
     private layerNotFound() {
-        return new RuntimeGameError("Layer not found, target layer may not be activated. This is an internal error, please report this to the developer.");
+        return new RuntimeGameError("Layer not found, target layer may not be activated. You may forgot to add the layer to the scene config");
     }
 
     private constructLayerMap(layers: Record<string, string[]>, elementMap: Map<string, LogicAction.GameElement>): Map<Layer, LogicAction.DisplayableElements[]> {

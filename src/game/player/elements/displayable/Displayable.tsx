@@ -269,6 +269,8 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         return [[React.createRef<U | null>(), currentKey.current]];
     }
 
+    element.events.emit(Displayable.EventTypes["event:displayable.onFlush"]);
+
     return {
         transformRef: ref,
         transitionRefs: refs.current,

@@ -15,6 +15,7 @@ import {Image, TagGroupDefinition} from "@core/elements/displayable/image";
 import {FadeOptions} from "@core/elements/type";
 import {Transition} from "@core/elements/transition/transition";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
+import {Layer} from "@core/elements/layer";
 
 export const DisplayableActionTypes = {
     action: "displayable:action",
@@ -26,7 +27,7 @@ export type DisplayableActionContentType<TransitionType extends Transition = Tra
     [K in typeof DisplayableActionTypes[keyof typeof DisplayableActionTypes]]:
     K extends "displayable:applyTransform" ? [Transform] :
         K extends "displayable:applyTransition" ? [TransitionType, ((transition: TransitionType) => TransitionType)?] :
-            K extends "displayable:init" ? [Scene?] :
+            K extends "displayable:init" ? [scene: Scene | null, layer: Layer | null, isElement?: boolean] :
                 any;
 }
 /* Character */

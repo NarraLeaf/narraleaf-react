@@ -7,7 +7,8 @@ export type DisplayableAnimationEvents =
     | "event:displayable.applyTransform"
     | "event:displayable.applyTransition"
     | "event:displayable.init"
-    | "event:displayable.onMount";
+    | "event:displayable.onMount"
+    | "event:displayable.onFlush";
 /**@internal */
 export type EventfulDisplayableEvents<TransitionType extends Transition> = {
     [K in DisplayableAnimationEvents]:
@@ -15,7 +16,8 @@ export type EventfulDisplayableEvents<TransitionType extends Transition> = {
         K extends "event:displayable.applyTransition" ? [transition: TransitionType, resolve: () => void] :
             K extends "event:displayable.init" ? [resolve: () => void] :
                 K extends "event:displayable.onMount" ? [] :
-                    never;
+                    K extends "event:displayable.onFlush" ? [] :
+                        never;
 }
 
 /**@internal */

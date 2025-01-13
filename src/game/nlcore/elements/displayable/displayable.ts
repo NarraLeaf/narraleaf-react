@@ -17,6 +17,7 @@ export type DisplayableEventTypes<TransitionType extends Transition> = {
     "event:displayable.applyTransform": [transform: Transform, resolve: () => void];
     "event:displayable.init": [resolve: () => void];
     "event:displayable.onMount": [];
+    "event:displayable.onFlush": [];
 };
 
 export abstract class Displayable<
@@ -33,6 +34,7 @@ export abstract class Displayable<
         "event:displayable.applyTransform": "event:displayable.applyTransform",
         "event:displayable.init": "event:displayable.init",
         "event:displayable.onMount": "event:displayable.onMount",
+        "event:displayable.onFlush": "event:displayable.onFlush",
     };
 
     /**@internal */
@@ -40,6 +42,7 @@ export abstract class Displayable<
     /**@internal */
     public readonly srcManager = new SrcManager();
 
+    /**@internal */
     abstract transformState: TransformState<any>;
 
     /**

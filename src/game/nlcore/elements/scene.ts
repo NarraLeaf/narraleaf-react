@@ -147,7 +147,7 @@ export class Scene extends Constructable<
         return new Serializer<SceneState, {
             backgroundImage: (bg: Image) => ImageDataRaw;
             backgroundMusic: (sound: Sound | null) => SoundDataRaw | null;
-        }>({ // @todo: layer state
+        }>({
             backgroundImage: (bg) => bg.toData(),
             backgroundMusic: (sound) => sound?.toData() || null,
         }, {
@@ -277,6 +277,31 @@ export class Scene extends Constructable<
         ));
     }
 
+    /**
+     * Add actions to the scene
+     */
+    public action(actions: (ChainableAction | ChainableAction[])[]): this;
+
+    public action(actions: ((scene: Scene) => ChainableAction[]) | (() => ChainableAction[])): this;
+
+    public action(actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[]) | (() => ChainableAction[])): this {
+        this.actions = actions;
+        return this;
+    }
+
+    /**
+     * Manually register an image to preload
+     */
+    public preloadImage(src: string) {
+        if (!Utils.isImageSrc(src)) {
+            throw new Error("Invalid image source: " + src);
+        }
+        this.srcManager.register({
+            type: "image",
+            src,
+        });
+    }
+
     /**@internal */
     override toData(): SceneDataRaw | null {
         return {
@@ -287,18 +312,6 @@ export class Scene extends Constructable<
     /**@internal */
     override fromData(data: SceneDataRaw): this {
         this.state = Scene.getStateSerializer(this).deserialize(data.state);
-        return this;
-    }
-
-    /**
-     * Add actions to the scene
-     */
-    public action(actions: (ChainableAction | ChainableAction[])[]): this;
-
-    public action(actions: ((scene: Scene) => ChainableAction[]) | (() => ChainableAction[])): this;
-
-    public action(actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[]) | (() => ChainableAction[])): this {
-        this.actions = actions;
         return this;
     }
 
@@ -359,10 +372,10 @@ export class Scene extends Constructable<
             }
         });
 
-        const futureActions = [
+        const futureActions: LogicAction.Actions[] = [
             this._init(this),
+            ...this.config.layers.flatMap(l => l._init()),
             this._initBackground(),
-            ...this.config.layers.map(l => l._init()),
             ...nonWearableImages
                 .filter(image => image.config.autoInit)
                 .map(image => image._init()),
@@ -515,19 +528,7 @@ export class Scene extends Constructable<
         this.state = this.getInitialState();
     }
 
-    /**
-     * Manually register an image to preload
-     */
-    public preloadImage(src: string) {
-        if (!Utils.isImageSrc(src)) {
-            throw new Error("Invalid image source: " + src);
-        }
-        this.srcManager.register({
-            type: "image",
-            src,
-        });
-    }
-
+    /**@internal */
     private getInitialState(): SceneState {
         return Scene.DefaultSceneState.create().assign({
             backgroundImage: new Image({
@@ -535,6 +536,7 @@ export class Scene extends Constructable<
                 opacity: 1,
                 autoFit: true,
                 name: `[[Background Image of ${this.config.name}]]`,
+                layer: this.config.defaultBackgroundLayer,
             }),
         }).get();
     }
