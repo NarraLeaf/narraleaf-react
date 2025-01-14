@@ -473,7 +473,7 @@ export class Lock {
     private listeners: (() => void)[] = [];
     private unlockListeners: (() => void)[] = [];
 
-    public lock() {
+    public lock(): this {
         this.locked = true;
         return this;
     }
@@ -1131,4 +1131,15 @@ export class KeyGen {
     next() {
         return `${this.prefix ? this.prefix + "-" : ""}${this.counter++}`;
     }
+}
+
+export function once<T extends (...args: any[]) => any>(fn: T): T {
+    let called = false;
+    return function (...args: T extends ((...args: infer P) => any) ? P : never[]) {
+        if (called) {
+            return;
+        }
+        called = true;
+        return fn(...args);
+    } as T;
 }

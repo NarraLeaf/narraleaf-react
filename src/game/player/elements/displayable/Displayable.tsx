@@ -29,6 +29,7 @@ export type DisplayableHookConfig<TransitionType extends Transition, U extends H
     state: TransformState<any>;
     element: EventfulDisplayable<TransitionType>;
     onTransform?: (transform: Transform) => void;
+    /**@deprecated */
     transformStyle?: React.CSSProperties;
     transitionsProps?: ElementProp<U>[];
     propOverwrite?: (props: ElementProp<U>) => ElementProp<U>;
@@ -53,12 +54,10 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         skipTransition,
         overwriteDefinition,
         onTransform,
-        transformStyle,
         transitionsProps = [],
         propOverwrite,
     }: DisplayableHookConfig<TransitionType, U>): DisplayableHookResult<U> {
     const [flush] = useFlush();
-    const [, setTransformStyle] = useState<React.CSSProperties>(transformStyle || {});
     const [transitionTask, setTransitionTask] = useState<null | {
         task: TransitionTask<U, any>;
         controller: AnimationController<any>;
@@ -139,12 +138,14 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }, []);
 
     function handleOnTransform(transform: Transform) {
-        setTransformStyle((prev) => {
-            const style = Object.assign({}, prev, state.toStyle(gameState, overwriteDefinition));
-            Object.assign(ref.current!.style, style);
-            return style;
-        });
+        const style = state.toStyle(gameState, overwriteDefinition);
+        Object.assign(ref.current!.style, style);
+        console.debug("Displayable", "Transform applied", ref.current, style, ref.current!.style.left);
         gameState.logger.debug("Displayable", "Transform applied", ref.current, state.toStyle(gameState, overwriteDefinition));
+
+        setTimeout(() => {
+            console.debug("Displayable", "Transform $0", ref.current, ref.current!.style.left);
+        }, 50);
 
         flush();
         onTransform?.(transform);
@@ -182,10 +183,11 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         if (transformToken) {
             transformToken.abort();
             setTransformToken(null);
+        } else {
+            const initialStyle = state.toStyle(gameState, overwriteDefinition);
+            Object.assign(ref.current!.style, initialStyle);
+            gameState.logger.debug("Displayable", "Initial style applied", ref.current, initialStyle);
         }
-
-        const initialStyle = state.toStyle(gameState, overwriteDefinition);
-        Object.assign(ref.current!.style, initialStyle);
 
         const awaitable = transform.animate(
             state,

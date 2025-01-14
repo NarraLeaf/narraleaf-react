@@ -2,7 +2,16 @@ import type {CommonDisplayableConfig, CommonImagePosition,} from "@core/types";
 import {ImagePosition,} from "@core/types";
 import type {AnimationPlaybackControls, DOMKeyframesDefinition, DynamicAnimationOptions} from "motion/react";
 import {animate} from "motion";
-import {Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, toHex} from "@lib/util/data";
+import {
+    Awaitable,
+    deepMerge,
+    DeepPartial,
+    MultiLock,
+    onlyValidFields,
+    Serializer,
+    SkipController,
+    toHex
+} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {TransformDefinitions} from "./type";
 import {
@@ -115,7 +124,7 @@ export class TransformState<T extends TransformDefinitions.Types> {
         return this.state;
     }
 
-    public assign(key: symbol, state: Partial<T>) {
+    public assign(key: symbol, state: Partial<T>): this {
         if (!this.canWrite(key)) {
             throw new Error("Trying to write a locked transform state.");
         }
@@ -156,6 +165,18 @@ export class TransformState<T extends TransformDefinitions.Types> {
 
     public serialize(): Record<string, any> {
         return TransformState.TransformStateSerializer.serialize(this.state);
+    }
+
+    public clone(): TransformState<T> {
+        return new TransformState<T>(TransformState.mergeState<T>({}, this.state));
+    }
+
+    public overwrite(key: symbol, state: Partial<T>): this {
+        if (!this.canWrite(key)) {
+            throw new Error("Trying to write a locked transform state.");
+        }
+        this.state = Object.assign({}, this.state, state);
+        return this;
     }
 }
 
@@ -359,66 +380,78 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         const controllers: AnimationPlaybackControls[] = [];
         const lock = transformState.lock();
         const sequences: TransformDefinitions.Sequence<T>[] = this.constructSequence();
-        const assignStyle = (style: CSSProps) => {
-            if (!ref.current) {
-                throw new Error("No ref found when animating.");
-            }
-            Object.assign(ref.current.style, style);
-        };
+        const finalState = this.toFinalState(transformState);
 
-        let skipped: boolean = false, seq: TransformDefinitions.Sequence<T>[];
+        const multiLock = new MultiLock();
+        const transformLock = multiLock.register().lock();
+
+        let skipped: boolean = false, completed: boolean = false;
         const skip = () => {
-            controllers.forEach(c => c.stop());
             skipped = true;
-            while (seq.length) {
-                const {props} = seq.shift()!;
-                transformState.assign(lock, props);
-            }
-
-            const finalStyle = Transform.constructStyle(gameState, transformState.state, overwrites) as CSSProps;
-            assignStyle(finalStyle);
-            gameState.logger.debug("Transform", "Skipped transform.", finalStyle);
-            transformState.unlock(lock);
+            multiLock.unlock(transformLock);
+            controllers.forEach(c => c.complete());
         };
         const awaitable = new Awaitable<void>()
             .registerSkipController(new SkipController(skip));
+        const onCompleted = () => {
+            if (completed || (!skipped && multiLock.isLocked())) {
+                return;
+            }
+
+            completed = true;
+
+            transformState.overwrite(lock, finalState.get());
+            // gameState.schedule(() => {
+            gameState.logger.debug("Transform", "Transform Completed", transformState.toStyle(gameState, overwrites));
+            transformState.unlock(lock);
+            awaitable.resolve();
+            // }, 2);
+        };
 
         gameState.logger.debug("Transform", "Ready to animate transform.", sequences, this);
 
         this.runAsync(async () => {
-            transform: for (let i = 0; i < this.sequenceOptions.repeat; i++) {
-                seq = [...sequences];
-                while (seq.length) {
+            transformTask: for (let i = 0; i < this.sequenceOptions.repeat; i++) {
+                for (const {props, options} of sequences) {
                     if (skipped) {
-                        break transform;
+                        multiLock.unlock(transformLock);
+                        break transformTask;
                     }
 
-                    const {props, options} = seq.shift()!;
-                    if (!transformState.canWrite(lock)) {
-                        gameState.logger.weakError("Transform", "Failed to animate transform, state is locked.", props);
+                    // make sure the state is not locked
+                    if (!transformState.canWrite(lock) || !transformState.isLocked()) {
+                        gameState.logger.weakError("Transform", "Failed to animate transform, state is locked or not accessible.", transformState);
                         return;
                     }
 
+                    // check if the ref is available
                     if (!ref.current) {
                         throw new Error("No ref found when animating.");
                     }
 
+                    // construct the style and animate
                     const style = transformState.assign(lock, props).toFramesDefinition(gameState, overwrites);
                     const control = animate(
                         ref.current,
                         style as DOMKeyframesDefinition,
                         this.optionsToMotionOptions(options) || {}
                     );
+                    const mLock = multiLock.register().lock();
                     const complete = () => {
+                        // gameState.schedule(() => {
                         gameState.logger.debug("Transform", "Transform animation completed.", props);
                         controllers.splice(controllers.indexOf(control), 1);
-                        Object.assign(ref.current!.style, style);
+
+                        multiLock.off(mLock);
+                        onCompleted();
+                        // }, 20);
                     };
                     controllers.push(control);
                     control.play();
 
                     gameState.logger.debug("Transform", "Animating transform.", ref.current, style, this.optionsToMotionOptions(options) || {});
 
+                    // wait for the animation to complete
                     if (options?.sync === false) {
                         control.then(complete, () => {
                             gameState.logger.error("Failed to animate transform.");
@@ -427,16 +460,43 @@ export class Transform<T extends TransformDefinitions.Types = any> {
                         await new Promise<void>(r => control.then(() => {
                             r();
                         }));
-                        await gameState.wait(2);
                         complete();
                     }
                 }
             }
-            transformState.unlock(lock);
-            awaitable.resolve();
+            multiLock.unlock(transformLock);
+            onCompleted();
         });
 
         return awaitable;
+    }
+
+    /**@internal */
+    public toFinalStyle(transformState: TransformState<T>, gameState: GameState, overwrites?: OverwriteDefinition): CSSProps {
+        const clone = transformState.clone();
+        const sequences = this.constructSequence();
+        const lock = clone.lock();
+
+        for (const {props} of sequences) {
+            clone.assign(lock, props);
+        }
+
+        clone.unlock(lock);
+        return clone.toStyle(gameState, overwrites);
+    }
+
+    /**@internal */
+    public toFinalState(transformState: TransformState<T>): TransformState<T> {
+        const clone = transformState.clone();
+        const sequences = this.constructSequence();
+        const lock = clone.lock();
+
+        for (const {props} of sequences) {
+            clone.assign(lock, props);
+        }
+
+        clone.unlock(lock);
+        return clone;
     }
 
     /**@internal */

@@ -168,7 +168,7 @@ export class GameState {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    public schedule(ms: number, callback: () => void): () => void {
+    public schedule(callback: () => void, ms: number): () => void {
         const timeout = setTimeout(callback, ms);
         return () => clearTimeout(timeout);
     }
