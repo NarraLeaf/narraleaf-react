@@ -1058,8 +1058,8 @@ export function ThenableAll(thenables: Thenable<any>[]): Promise<any[]> {
     }));
 }
 
-export function onlyValidFields<T extends Record<string, any>>(obj: T): Partial<T> {
-    const result: Partial<T> = {};
+export function onlyValidFields<T extends Record<string, any>>(obj: T): T {
+    const result: T = {} as T;
     for (const key in obj) {
         if (obj[key] !== undefined) {
             result[key] = obj[key];

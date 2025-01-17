@@ -22,16 +22,16 @@ export namespace TransformDefinitions {
         duration: number;
         ease: EasingDefinition;
         delay: number;
+        at: TransformDefinitions.SequenceAtDefinition;
     } & {
-        sync: boolean;
+        /**@deprecated */
+        sync?: boolean;
     };
     export type TransformConfig = {
         sync: boolean;
-    }
-    export type CommonSequenceProps = {
-        sync: boolean;
         repeat: number;
-    }
+        repeatDelay: number;
+    };
     export type ImageTransformProps = CommonDisplayableConfig & {};
     export type TextTransformProps = CommonDisplayableConfig & {
         fontColor?: Color;
@@ -42,5 +42,6 @@ export namespace TransformDefinitions {
     export type Sequence<T> = {
         props: SequenceProps<T>,
         options: SequenceOptions
-    }
+    };
+    export type SequenceAtDefinition = number | `+${number}` | `-${number}`;
 }

@@ -1,17 +1,15 @@
-import type {CommonDisplayableConfig, CommonImagePosition,} from "@core/types";
-import {ImagePosition,} from "@core/types";
-import type {AnimationPlaybackControls, DOMKeyframesDefinition, DynamicAnimationOptions} from "motion/react";
-import {animate} from "motion";
-import {
-    Awaitable,
-    deepMerge,
-    DeepPartial,
-    MultiLock,
-    onlyValidFields,
-    Serializer,
-    SkipController,
-    toHex
-} from "@lib/util/data";
+import React from "react";
+import type {CommonDisplayableConfig, CommonImagePosition} from "@core/types";
+import {ImagePosition} from "@core/types";
+import {animate} from "motion/react";
+import type {
+    At,
+    DOMKeyframesDefinition,
+    DOMSegmentWithTransition,
+    DynamicAnimationOptions,
+    SequenceOptions
+} from "motion";
+import {Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, toHex} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {TransformDefinitions} from "./type";
 import {
@@ -25,10 +23,8 @@ import {
     RawPosition
 } from "./position";
 import {CSSProps} from "@core/elements/transition/type";
-import React from "react";
 import {ConfigConstructor} from "@lib/util/config";
-import Sequence = TransformDefinitions.Sequence;
-import SequenceProps = TransformDefinitions.SequenceProps;
+import {RuntimeScriptError} from "@core/common/Utils";
 
 export type Transformers =
     "position"
@@ -115,9 +111,11 @@ export class TransformState<T extends TransformDefinitions.Types> {
         };
     }
 
+    public state: Partial<T> = {};
     private locked: symbol | null = null;
 
-    constructor(public state: Partial<T> = {}) {
+    constructor(state: Partial<T> = {}) {
+        this.state = state;
     }
 
     public get(): Partial<T> {
@@ -155,7 +153,7 @@ export class TransformState<T extends TransformDefinitions.Types> {
         return this;
     }
 
-    public toFramesDefinition(gameState: GameState, overwrites?: OverwriteDefinition): Partial<DOMKeyframesDefinition> {
+    public toFramesDefinition(gameState: GameState, overwrites?: OverwriteDefinition): DOMKeyframesDefinition {
         return onlyValidFields(Transform.constructStyle(gameState, this.state, overwrites));
     }
 
@@ -182,7 +180,7 @@ export class TransformState<T extends TransformDefinitions.Types> {
 
 export class Transform<T extends TransformDefinitions.Types = any> {
     /**@internal */
-    static defaultSequenceOptions: Partial<TransformDefinitions.CommonSequenceProps> = {
+    static defaultConfig: Partial<TransformDefinitions.TransformConfig> = {
         sync: true,
         repeat: 1,
     };
@@ -203,7 +201,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
      * Apply transform immediately
      */
     public static immediate<T extends TransformDefinitions.Types>(
-        props: SequenceProps<T>,
+        props: TransformDefinitions.SequenceProps<T>,
     ): Transform<T> {
         return new Transform<T>(props, {
             duration: 0,
@@ -322,7 +320,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         return {
             ...Transform.positionToCSS(props.position, invertY, invertX),
             opacity: props.opacity,
-            color: ("fontColor" in props && props.fontColor) ? toHex((props as TransformDefinitions.TextTransformProps).fontColor!) : undefined, // @unsafe
+            color: ("fontColor" in props && props.fontColor) ? toHex((props as TransformDefinitions.TextTransformProps).fontColor!) : undefined,
             transform: transform ? transform(props) : Transform.propToCSSTransform(state, props),
             scale: scale ? scale(props) : undefined,
             ...(overwrite ? overwrite(props) : {}),
@@ -330,7 +328,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     }
 
     /**@internal */
-    private readonly sequenceOptions: TransformDefinitions.CommonSequenceProps;
+    private readonly config: TransformDefinitions.TransformConfig;
     /**@internal */
     private sequences: TransformDefinitions.Sequence<T>[] = [];
 
@@ -346,21 +344,21 @@ export class Transform<T extends TransformDefinitions.Types = any> {
      * });
      * ```
      */
-    constructor(sequences: Sequence<T>[], transformConfig?: Partial<TransformDefinitions.TransformConfig>);
+    constructor(sequences: TransformDefinitions.Sequence<T>[], transformConfig?: Partial<TransformDefinitions.TransformConfig>);
 
-    constructor(props: SequenceProps<T>, options?: Partial<TransformDefinitions.CommonTransformProps>);
+    constructor(props: TransformDefinitions.SequenceProps<T>, options?: Partial<TransformDefinitions.CommonTransformProps>);
 
-    constructor(arg0: Sequence<T>[] | SequenceProps<T>, arg1?: Partial<TransformDefinitions.TransformConfig> | Partial<TransformDefinitions.CommonTransformProps>) {
+    constructor(arg0: TransformDefinitions.Sequence<T>[] | TransformDefinitions.SequenceProps<T>, arg1?: Partial<TransformDefinitions.TransformConfig> | Partial<TransformDefinitions.CommonTransformProps>) {
         if (Array.isArray(arg0)) {
             this.sequences.push(...arg0);
-            this.sequenceOptions =
-                Object.assign({}, Transform.defaultSequenceOptions, arg1 || {}) as TransformDefinitions.CommonSequenceProps;
+            this.config =
+                Object.assign({}, Transform.defaultConfig, arg1 || {}) as TransformDefinitions.TransformConfig;
         } else {
             const [props, options] =
-                [(arg0 as SequenceProps<T>), (arg1 || Transform.defaultOptions as Partial<TransformDefinitions.CommonTransformProps>)];
+                [(arg0 as TransformDefinitions.SequenceProps<T>), (arg1 || Transform.defaultOptions as Partial<TransformDefinitions.CommonTransformProps>)];
             this.sequences.push({props, options: options || {}});
-            this.sequenceOptions =
-                Object.assign({}, Transform.defaultSequenceOptions) as TransformDefinitions.CommonSequenceProps;
+            this.config =
+                Object.assign({}, Transform.defaultConfig) as TransformDefinitions.TransformConfig;
         }
     }
 
@@ -377,134 +375,52 @@ export class Transform<T extends TransformDefinitions.Types = any> {
             overwrites?: OverwriteDefinition,
         },
     ): Awaitable<void> {
-        const controllers: AnimationPlaybackControls[] = [];
+        if (!ref.current) {
+            throw new Error("No ref found when animating.");
+        }
+
+        const {
+            finalState,
+            sequences,
+            options,
+        } = this.constructAnimation({
+            gameState,
+            transformState,
+            overwrites,
+            current: ref.current,
+        });
+
         const lock = transformState.lock();
-        const sequences: TransformDefinitions.Sequence<T>[] = this.constructSequence();
-        const finalState = this.toFinalState(transformState);
-
-        const multiLock = new MultiLock();
-        const transformLock = multiLock.register().lock();
-
-        let skipped: boolean = false, completed: boolean = false;
+        const token = animate(sequences, options);
         const skip = () => {
-            skipped = true;
-            multiLock.unlock(transformLock);
-            controllers.forEach(c => c.complete());
+            token.complete();
         };
         const awaitable = new Awaitable<void>()
             .registerSkipController(new SkipController(skip));
-        const onCompleted = () => {
-            if (completed || (!skipped && multiLock.isLocked())) {
-                return;
-            }
+        const onComplete = () => {
+            transformState
+                .overwrite(lock, finalState.get())
+                .unlock(lock);
 
-            completed = true;
-
-            transformState.overwrite(lock, finalState.get());
-            // gameState.schedule(() => {
             gameState.logger.debug("Transform", "Transform Completed", transformState.toStyle(gameState, overwrites));
-            transformState.unlock(lock);
             awaitable.resolve();
-            // }, 2);
         };
 
-        gameState.logger.debug("Transform", "Ready to animate transform.", sequences, this);
-
-        this.runAsync(async () => {
-            transformTask: for (let i = 0; i < this.sequenceOptions.repeat; i++) {
-                for (const {props, options} of sequences) {
-                    if (skipped) {
-                        multiLock.unlock(transformLock);
-                        break transformTask;
-                    }
-
-                    // make sure the state is not locked
-                    if (!transformState.canWrite(lock) || !transformState.isLocked()) {
-                        gameState.logger.weakError("Transform", "Failed to animate transform, state is locked or not accessible.", transformState);
-                        return;
-                    }
-
-                    // check if the ref is available
-                    if (!ref.current) {
-                        throw new Error("No ref found when animating.");
-                    }
-
-                    // construct the style and animate
-                    const style = transformState.assign(lock, props).toFramesDefinition(gameState, overwrites);
-                    const control = animate(
-                        ref.current,
-                        style as DOMKeyframesDefinition,
-                        this.optionsToMotionOptions(options) || {}
-                    );
-                    const mLock = multiLock.register().lock();
-                    const complete = () => {
-                        // gameState.schedule(() => {
-                        gameState.logger.debug("Transform", "Transform animation completed.", props);
-                        controllers.splice(controllers.indexOf(control), 1);
-
-                        multiLock.off(mLock);
-                        onCompleted();
-                        // }, 20);
-                    };
-                    controllers.push(control);
-                    control.play();
-
-                    gameState.logger.debug("Transform", "Animating transform.", ref.current, style, this.optionsToMotionOptions(options) || {});
-
-                    // wait for the animation to complete
-                    if (options?.sync === false) {
-                        control.then(complete, () => {
-                            gameState.logger.error("Failed to animate transform.");
-                        });
-                    } else {
-                        await new Promise<void>(r => control.then(() => {
-                            r();
-                        }));
-                        complete();
-                    }
-                }
-            }
-            multiLock.unlock(transformLock);
-            onCompleted();
+        token.then(onComplete, () => {
+            gameState.logger.error("Failed to animate transform.");
         });
+
+        gameState.logger.debug("Transform", "Ready to animate transform.", {
+            finalState,
+            sequences,
+            options,
+        }, this);
 
         return awaitable;
     }
 
-    /**@internal */
-    public toFinalStyle(transformState: TransformState<T>, gameState: GameState, overwrites?: OverwriteDefinition): CSSProps {
-        const clone = transformState.clone();
-        const sequences = this.constructSequence();
-        const lock = clone.lock();
-
-        for (const {props} of sequences) {
-            clone.assign(lock, props);
-        }
-
-        clone.unlock(lock);
-        return clone.toStyle(gameState, overwrites);
-    }
-
-    /**@internal */
-    public toFinalState(transformState: TransformState<T>): TransformState<T> {
-        const clone = transformState.clone();
-        const sequences = this.constructSequence();
-        const lock = clone.lock();
-
-        for (const {props} of sequences) {
-            clone.assign(lock, props);
-        }
-
-        clone.unlock(lock);
-        return clone;
-    }
-
-    /**@internal */
-    public isSync(): boolean {
-        return this.sequenceOptions.sync;
-    }
-
     /**
+     * Create a new transform that repeats {@link n} x current repeat count times.
      * @example
      * ```ts
      * transform
@@ -515,36 +431,109 @@ export class Transform<T extends TransformDefinitions.Types = any> {
      */
     public repeat(n: number): Transform<T> {
         const newTransform = this.copy();
-        newTransform.sequenceOptions.repeat *= n;
+        newTransform.config.repeat *= n;
         return newTransform;
     }
 
-    /**@internal */
-    optionsToMotionOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions | void {
+    public getOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions & At {
         if (!options) {
-            return options;
+            return {};
         }
-        const {duration, ease} = options;
+        const {duration, ease, delay, at} = options;
         return {
             duration: duration !== undefined ? (duration / 1000) : 0,
             ease,
-        } satisfies DynamicAnimationOptions;
+            delay: delay !== undefined ? (delay / 1000) : 0,
+            at: this.toSeconds(at),
+        } satisfies DynamicAnimationOptions & At;
+    }
+
+    /**
+     * @internal
+     * **CAUTION**: don't lock this transformState before calling this method.
+     */
+    public constructAnimation(
+        {
+            gameState,
+            transformState,
+            overwrites = {},
+            current,
+        }: {
+            gameState: GameState;
+            transformState: TransformState<any>;
+            overwrites?: OverwriteDefinition;
+            current: Element;
+        }
+    ): {
+        finalState: TransformState<any>;
+        sequences: DOMSegmentWithTransition[];
+        options: SequenceOptions;
+    } {
+        const state = transformState.clone();
+        const lock = state.lock();
+        return {
+            finalState: state,
+            sequences: this.sequences.map(({props, options}) => {
+                const segDefinition = state.assign(lock, props).toFramesDefinition(
+                    gameState,
+                    overwrites
+                );
+                return [
+                    current,
+                    segDefinition,
+                    this.getOptions(options),
+                ] satisfies DOMSegmentWithTransition;
+            }) satisfies DOMSegmentWithTransition[],
+            options: this.getSequenceOptions(),
+        };
+    }
+
+    /**@internal */
+    public getSequenceOptions(): SequenceOptions {
+        const {repeat, repeatDelay} = this.config;
+        return {
+            repeat,
+            repeatDelay: repeatDelay / 1000,
+        };
     }
 
     public copy(): Transform<T> {
-        return new Transform<T>(this.sequences, this.sequenceOptions);
+        return new Transform<T>(this.sequences, this.config);
     }
 
     /**@internal */
-    private constructSequence(): TransformDefinitions.Sequence<T>[] {
-        return this.sequences.map(({props, options}) => ({props, options}));
-    }
+    public toSeconds(atDefinition: TransformDefinitions.SequenceAtDefinition | undefined): TransformDefinitions.SequenceAtDefinition | undefined {
+        if (typeof atDefinition === "undefined") {
+            return atDefinition;
+        }
+        if (typeof atDefinition === "number") {
+            return atDefinition / 1000;
+        }
 
-    /**@internal */
-    private runAsync(fn: () => any): void {
-        return void (async function () {
-            return void fn();
-        })();
+        /**
+         * Regex:
+         * - `(?<sign>[+-])`: match a sign of `+` or `-`.
+         * - `(?<number>\d+)`: match a number.
+         * Matches:
+         * - `+n`: positive number.
+         * - `-n`: negative number.
+         */
+        const regex = /^(?<sign>[+-])(?<number>\d+)$/;
+        const match = regex.exec(atDefinition);
+
+        if (!match) {
+            throw new RuntimeScriptError("Invalid at definition. At definition must be a number or a string in the format of `+n` or `-n`.");
+        }
+
+        const [_$0, sign, numStr] = match;
+        const num = Number(numStr);
+
+        if (isNaN(num)) {
+            throw new RuntimeScriptError("Invalid number in at definition.");
+        }
+
+        const result = num / 1000;
+        return sign === "+" ? `+${result}` : `-${result}`;
     }
 }
 
