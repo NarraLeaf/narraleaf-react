@@ -49,9 +49,9 @@ export default function AspectScaleImage(
     function updateWidth() {
         const currentRef = ref || imgRef;
         if (currentRef.current && currentRef.current.naturalWidth) {
-            const autoFitFactor = autoFit ? (game.config.player.width / currentRef.current.naturalWidth) : 1;
-            const newWidth = currentRef.current.naturalWidth * ratio.state.scale * autoFitFactor;
-            const newHeight = currentRef.current.naturalHeight * ratio.state.scale * autoFitFactor;
+            const autoFitFactorWidth = autoFit ? (game.config.player.width / currentRef.current.naturalWidth) : 1;
+            const newWidth = currentRef.current.naturalWidth * ratio.state.scale * autoFitFactorWidth;
+            const newHeight = currentRef.current.naturalHeight * ratio.state.scale * autoFitFactorWidth;
 
             setWidth(newWidth);
             setHeight(newHeight);

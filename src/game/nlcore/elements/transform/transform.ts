@@ -113,6 +113,7 @@ export class TransformState<T extends TransformDefinitions.Types> {
 
     public state: Partial<T> = {};
     private locked: symbol | null = null;
+    private frozen: boolean = false;
 
     constructor(state: Partial<T> = {}) {
         this.state = state;
@@ -122,7 +123,15 @@ export class TransformState<T extends TransformDefinitions.Types> {
         return this.state;
     }
 
+    public freeze(): this {
+        this.frozen = true;
+        return this;
+    }
+
     public assign(key: symbol, state: Partial<T>): this {
+        if (this.frozen) {
+            throw new Error("Trying to write a frozen transform state.");
+        }
         if (!this.canWrite(key)) {
             throw new Error("Trying to write a locked transform state.");
         }
@@ -170,6 +179,9 @@ export class TransformState<T extends TransformDefinitions.Types> {
     }
 
     public overwrite(key: symbol, state: Partial<T>): this {
+        if (this.frozen) {
+            throw new Error("Trying to write a frozen transform state.");
+        }
         if (!this.canWrite(key)) {
             throw new Error("Trying to write a locked transform state.");
         }
@@ -180,9 +192,8 @@ export class TransformState<T extends TransformDefinitions.Types> {
 
 export class Transform<T extends TransformDefinitions.Types = any> {
     /**@internal */
-    static defaultConfig: Partial<TransformDefinitions.TransformConfig> = {
+    static defaultConfig: TransformDefinitions.TransformConfig = {
         sync: true,
-        repeat: 1,
     };
     /**@internal */
     static defaultOptions: TransformDefinitions.SequenceProps<any> = {
@@ -409,6 +420,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         token.then(onComplete, () => {
             gameState.logger.error("Failed to animate transform.");
         });
+        token.play();
 
         gameState.logger.debug("Transform", "Ready to animate transform.", {
             finalState,
@@ -431,6 +443,9 @@ export class Transform<T extends TransformDefinitions.Types = any> {
      */
     public repeat(n: number): Transform<T> {
         const newTransform = this.copy();
+        if (!newTransform.config.repeat) {
+            newTransform.config.repeat = 1;
+        }
         newTransform.config.repeat *= n;
         return newTransform;
     }
@@ -441,10 +456,10 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         }
         const {duration, ease, delay, at} = options;
         return {
-            duration: duration !== undefined ? (duration / 1000) : 0,
+            duration: this.toSeconds(duration, undefined),
             ease,
-            delay: delay !== undefined ? (delay / 1000) : 0,
-            at: this.toSeconds(at),
+            delay: this.toSeconds(delay, undefined),
+            at: this.atToSeconds(at),
         } satisfies DynamicAnimationOptions & At;
     }
 
@@ -471,19 +486,20 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     } {
         const state = transformState.clone();
         const lock = state.lock();
+        const sequences = this.sequences.map(({props, options}) => {
+            const segDefinition = state.assign(lock, props).toFramesDefinition(
+                gameState,
+                overwrites
+            );
+            return [
+                current,
+                segDefinition,
+                this.getOptions(options),
+            ] satisfies DOMSegmentWithTransition;
+        }) satisfies DOMSegmentWithTransition[];
         return {
-            finalState: state,
-            sequences: this.sequences.map(({props, options}) => {
-                const segDefinition = state.assign(lock, props).toFramesDefinition(
-                    gameState,
-                    overwrites
-                );
-                return [
-                    current,
-                    segDefinition,
-                    this.getOptions(options),
-                ] satisfies DOMSegmentWithTransition;
-            }) satisfies DOMSegmentWithTransition[],
+            finalState: state.unlock(lock).freeze(),
+            sequences: sequences,
             options: this.getSequenceOptions(),
         };
     }
@@ -492,8 +508,8 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     public getSequenceOptions(): SequenceOptions {
         const {repeat, repeatDelay} = this.config;
         return {
-            repeat,
-            repeatDelay: repeatDelay / 1000,
+            repeat: this.toSeconds(repeat, undefined),
+            repeatDelay: this.toSeconds(repeatDelay, undefined),
         };
     }
 
@@ -502,7 +518,15 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     }
 
     /**@internal */
-    public toSeconds(atDefinition: TransformDefinitions.SequenceAtDefinition | undefined): TransformDefinitions.SequenceAtDefinition | undefined {
+    public toSeconds<T>(ms: number | undefined, defaultValue: T): number | T {
+        if (typeof ms === "undefined") {
+            return defaultValue;
+        }
+        return ms / 1000;
+    }
+
+    /**@internal */
+    public atToSeconds(atDefinition: TransformDefinitions.SequenceAtDefinition | undefined): TransformDefinitions.SequenceAtDefinition | undefined {
         if (typeof atDefinition === "undefined") {
             return atDefinition;
         }

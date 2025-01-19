@@ -29,8 +29,8 @@ export namespace TransformDefinitions {
     };
     export type TransformConfig = {
         sync: boolean;
-        repeat: number;
-        repeatDelay: number;
+        repeat?: number;
+        repeatDelay?: number;
     };
     export type ImageTransformProps = CommonDisplayableConfig & {};
     export type TextTransformProps = CommonDisplayableConfig & {

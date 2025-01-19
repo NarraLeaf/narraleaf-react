@@ -60,16 +60,6 @@ export class PositionUtils {
         return arg === PositionUtils.Unknown;
     }
 
-    static wrap(def: CSSProps): CSSProps {
-        return {
-            left: "auto",
-            top: "auto",
-            right: "auto",
-            bottom: "auto",
-            ...def,
-        };
-    }
-
     static D2PositionToCSS(pos: D2Position, invertX = false, invertY = false): CSSProps {
         const posY = this.calc(pos.y, pos.yoffset);
         const posX = this.calc(pos.x, pos.xoffset);
@@ -171,6 +161,16 @@ export class PositionUtils {
             return this.rawPositionToCoord2D(arg);
         }
         throw new Error("Invalid position type");
+    }
+
+    static wrap(def: CSSProps): CSSProps {
+        return {
+            left: "auto",
+            top: "auto",
+            right: "auto",
+            bottom: "auto",
+            ...def,
+        };
     }
 }
 

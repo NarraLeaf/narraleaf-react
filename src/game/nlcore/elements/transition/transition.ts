@@ -48,6 +48,7 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
                 controllers.push(this.requestMotion(task, {
                     onComplete: () => {
                         values[index] = task.end;
+                        onUpdateListeners.forEach(v => v(values));
                         completed++;
 
                         if (completed === tasks.length) {

@@ -1,13 +1,13 @@
 import {Image as GameImage} from "@core/elements/displayable/image";
 import React, {useEffect, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
-import Inspect from "@player/lib/Inspect";
 import AspectScaleImage from "@player/elements/image/AspectScaleImage";
 import clsx from "clsx";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
 import {Utils} from "@core/common/Utils";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {usePreloaded} from "@player/provider/preloaded";
+import {motion} from "motion/react";
 
 /**@internal */
 export default function Image(
@@ -22,7 +22,7 @@ export default function Image(
     const {cacheManager} = usePreloaded();
     const ignored = useRef<string[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
-    const {transformRef, transitionRefs} = useDisplayable<ImageTransition, HTMLImageElement>({
+    const {transformRef, transitionRefs, isTransforming} = useDisplayable<ImageTransition, HTMLImageElement>({
         element: image,
         state: image.transformState,
         skipTransform: state.game.config.elements.img.allowSkipTransform,
@@ -92,13 +92,10 @@ export default function Image(
     }
 
     return (
-        <Inspect.mDiv
-            tag={"image.aspectScaleContainer"}
-            color={"green"}
-            border={"dashed"}
-            layout
+        <motion.div
+            layout={isTransforming}
             ref={transformRef}
-            className={"absolute"}
+            className={"absolute w-max h-max"}
         >
             <div className={"relative h-full w-full"} ref={containerRef}>
                 {transitionRefs.map(([ref, key], i) => (
@@ -120,6 +117,6 @@ export default function Image(
                     ))}
                 </div>
             </div>
-        </Inspect.mDiv>
+        </motion.div>
     );
 };

@@ -17,11 +17,6 @@ import {Transition} from "@core/elements/transition/transition";
 import {RuntimeGameError} from "@core/common/Utils";
 
 /**@internal */
-export type StatefulObject = {
-    state: Record<any, any>;
-};
-
-/**@internal */
 export type DisplayableHookConfig<TransitionType extends Transition, U extends HTMLElement> = {
     skipTransition?: boolean;
     skipTransform?: boolean;
@@ -39,6 +34,7 @@ export type DisplayableHookConfig<TransitionType extends Transition, U extends H
 export type DisplayableHookResult<T extends HTMLElement> = {
     transformRef: React.RefObject<HTMLDivElement | null>;
     transitionRefs: RefGroupDefinition<T>[];
+    isTransforming: boolean;
 };
 
 /**@internal */
@@ -80,8 +76,10 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }, [transformToken, transitionTask, refs]);
 
     useEffect(() => {
-        return gameState.events.on(GameState.EventTypes["event:state.player.skip"], skip).cancel;
-    }, [transformToken, transitionTask]);
+        return gameState.events.depends([
+            gameState.events.on(GameState.EventTypes["event:state.player.skip"], skip),
+        ]).cancel;
+    }, [transformToken, transitionTask, refs]);
 
     useEffect(() => {
         if (!transitionTask) {
@@ -137,15 +135,15 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         element.events.emit(Displayable.EventTypes["event:displayable.onMount"]);
     }, []);
 
-    function handleOnTransform(transform: Transform) {
-        const style = state.toStyle(gameState, overwriteDefinition);
-        Object.assign(ref.current!.style, style);
-        console.debug("Displayable", "Transform applied", ref.current, style, ref.current!.style.left);
-        gameState.logger.debug("Displayable", "Transform applied", ref.current, state.toStyle(gameState, overwriteDefinition));
+    useEffect(() => {
+        const initialStyle = state.toStyle(gameState, overwriteDefinition);
 
-        setTimeout(() => {
-            console.debug("Displayable", "Transform $0", ref.current, ref.current!.style.left);
-        }, 50);
+        Object.assign(ref.current!.style, initialStyle);
+        gameState.logger.debug("Displayable", "Initial style applied", ref.current, initialStyle);
+    }, []);
+
+    function handleOnTransform(transform: Transform) {
+        console.debug("Displayable", "Transform applied", state.toStyle(gameState, overwriteDefinition), ref.current);
 
         flush();
         onTransform?.(transform);
@@ -183,10 +181,6 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         if (transformToken) {
             transformToken.abort();
             setTransformToken(null);
-        } else {
-            const initialStyle = state.toStyle(gameState, overwriteDefinition);
-            Object.assign(ref.current!.style, initialStyle);
-            gameState.logger.debug("Displayable", "Initial style applied", ref.current, initialStyle);
         }
 
         const awaitable = transform.animate(
@@ -283,6 +277,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     return {
         transformRef: ref,
         transitionRefs: refs.current,
+        isTransforming: !!transformToken,
     };
 }
 
