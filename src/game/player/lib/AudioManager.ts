@@ -38,18 +38,21 @@ export class AudioManager {
         if (this.state.has(sound)) {
             this.abortTask(this.getState(sound).group);
         }
-        const {group, token} = this.initSound(sound);
+        const {group, token, onPlayTask, onEndTask} = this.initSound(sound);
 
         this.state.set(sound, {group, token});
         return this.pushTask(group, new ChainedAwaitable()
+            .addTask(onPlayTask)
             .addTask(this.fadeTo(group, token, {
                 ...options,
                 start: 0,
             }))
-            .addTask(this.createTask(() => {
+            .addTask(this.createTask((resolve) => {
                 sound.state.volume = options.end;
                 sound.state.paused = false;
+                resolve();
             }))
+            .addTask(onEndTask)
             .run());
     }
 
@@ -62,8 +65,9 @@ export class AudioManager {
         }
         return this.pushTask(state.group, new ChainedAwaitable()
             .addTask(this.fadeTo(state.group, state.token, {start: sound.state.volume, end: 0, duration}))
-            .addTask(this.createTask(() => {
+            .addTask(this.createTask((resolve) => {
                 state.group.volume(sound.state.volume, state.token);
+                resolve();
             }))
             .addTask(this.stopSound(state.group, state.token))
             .run());
@@ -78,8 +82,9 @@ export class AudioManager {
         }
         return this.pushTask(state.group, new ChainedAwaitable()
             .addTask(this.fadeTo(state.group, state.token, {start: sound.state.volume, end: volume, duration}))
-            .addTask(this.createTask(() => {
+            .addTask(this.createTask((resolve) => {
                 sound.state.volume = volume;
+                resolve();
             }))
             .run());
     }
@@ -94,9 +99,10 @@ export class AudioManager {
         return this.pushTask(state.group, new ChainedAwaitable()
             .addTask(this.fadeTo(state.group, state.token, {start: sound.state.volume, end: 0, duration}))
             .addTask(this.pauseSound(state.group, state.token))
-            .addTask(this.createTask(() => {
+            .addTask(this.createTask((resolve) => {
                 state.group.volume(sound.state.volume, state.token);
                 sound.state.paused = true;
+                resolve();
             }))
             .run());
     }
@@ -111,8 +117,9 @@ export class AudioManager {
         return this.pushTask(state.group, new ChainedAwaitable()
             .addTask(this.fadeTo(state.group, state.token, {start: 0, end: sound.state.volume, duration}))
             .addTask(this.resumeSound(state.group, state.token))
-            .addTask(this.createTask(() => {
+            .addTask(this.createTask((resolve) => {
                 sound.state.paused = false;
+                resolve();
             }))
             .run());
     }
@@ -190,11 +197,45 @@ export class AudioManager {
         this.tasks.clear();
     }
 
-    private initSound(sound: Sound): SoundState {
+    private initSound(sound: Sound): SoundState & {
+        onPlayTask?: ChainedAwaitableTask;
+        onEndTask?: ChainedAwaitableTask;
+    } {
         if (this.state.has(sound)) {
             return this.state.get(sound)!;
         }
-        const group = Reflect.construct(this.gameState.getHowl(), [this.getHowlConfig(sound)]);
+        const audioManager = this;
+        const [onPlay, onPlayTask] = this.wrapTask();
+        const [onEnd, onEndTask] = this.wrapTask();
+        const group = Reflect.construct(this.gameState.getHowl(), [this.getHowlConfig(sound, {
+            onend() {
+                onEnd.resolve();
+            },
+            onplay() {
+                onPlay.resolve();
+            },
+            onloaderror(_, error: unknown) {
+                const code = error as 1 | 2 | 3 | 4;
+                /**
+                 * 1 - The fetching process for the media resource was aborted by the user agent at the user's request.
+                 * 2 - A network error of some description caused the user agent to stop fetching the media resource, after the resource was established to be usable.
+                 * 3 - An error of some description occurred while decoding the media resource, after the resource was established to be usable.
+                 * 4 - The media resource indicated by the src attribute or assigned media provider object was not suitable.
+                 * For more information, see https://github.com/goldfire/howler.js?tab=readme-ov-file#onloaderror-function
+                 */
+                const messages: {
+                    [K in 1 | 2 | 3 | 4]: string;
+                } = {
+                    1: "The fetching process for the media resource was aborted by the user agent at the user's request.",
+                    2: "A network error of some description caused the user agent to stop fetching the media resource, after the resource was established to be usable.",
+                    3: "An error of some description occurred while decoding the media resource, after the resource was established to be usable.",
+                    4: "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+                };
+                audioManager.gameState.logger.error("AudioManager", `Failed to load sound (src: "${sound.config.src}")`
+                    + ` \n${messages[code]}`
+                    + " \nFor more information, see https://github.com/goldfire/howler.js?tab=readme-ov-file#onloaderror-function");
+            }
+        })]);
         const token = group.play();
         this.state.set(sound, {group, token});
         group
@@ -204,7 +245,7 @@ export class AudioManager {
         if (sound.state.paused) {
             group.pause(token);
         }
-        return {group, token};
+        return {group, token, onPlayTask, onEndTask};
     }
 
     private pushTask(spirit: Howler.Howl, awaitable: Awaitable<void>): Awaitable<void> {
@@ -230,22 +271,32 @@ export class AudioManager {
     }
 
     private fadeTo(group: Howler.Howl, token: number, options: FadeOptions): ChainedAwaitableTask {
-        let fadeHandler: () => void;
+        let fadeHandler: () => void, schedule: VoidFunction | undefined;
 
         const start = options.start ?? group.volume();
         const end = options.end ?? group.volume();
         const duration = options.duration;
         const skipController = new SkipController<void>(() => {
             group.volume(end, token);
-            group.off("fade", fadeHandler, token);
+            fadeHandler();
         });
         const handler = (awaitable: Awaitable<void>) => {
             group.volume(start, token);
             group.fade(start, end, duration, token);
             fadeHandler = () => {
+                if (awaitable.isSolved()) {
+                    return;
+                }
+                if (schedule) {
+                    schedule();
+                    schedule = undefined;
+                }
                 awaitable.resolve();
             };
-            group.once("fade", fadeHandler, token);
+            schedule = this.gameState.schedule(() => {
+                schedule = undefined;
+                fadeHandler();
+            }, duration);
         };
         return [handler, skipController];
     }
@@ -275,13 +326,27 @@ export class AudioManager {
             loop: sound.config.loop,
             rate: sound.state.rate,
             html5: sound.config.streaming,
-            preload: sound.config.preload,
             ...options,
         } satisfies Howler.HowlOptions;
     }
 
-    private createTask(handler: () => void): ChainedAwaitableTask {
-        return [handler];
+    private createTask(handler: (resolve: () => void) => void): ChainedAwaitableTask {
+        return [(awaitable) => {
+            handler(awaitable.resolve.bind(awaitable));
+        }];
+    }
+
+    private wrapTask(): [awaitable: Awaitable<void>, task: ChainedAwaitableTask] {
+        const awaitable = new Awaitable<void>();
+        return [awaitable, [(a) => {
+            if (awaitable.isSolved()) {
+                a.resolve();
+            } else {
+                awaitable.then(() => {
+                    a.resolve();
+                });
+            }
+        }]];
     }
 }
 

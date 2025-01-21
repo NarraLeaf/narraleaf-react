@@ -46,14 +46,6 @@ export interface ISoundUserConfig {
      */
     streaming: boolean;
     /**
-     * Automatically begin downloading the audio file when the Howl is defined.
-     *
-     * This preloading behavior is provided by the [Howler.js](https://github.com/goldfire/howler.js) library.
-     * For license and dependencies, see [NarraLeaf-React: License](https://react.narraleaf.com/documentation/info/license).
-     * @default false
-     */
-    preload: boolean;
-    /**
      * Initial position in seconds
      * @default 0
      */
@@ -64,7 +56,6 @@ type SoundConfig = {
     src: string;
     loop: boolean;
     streaming: boolean;
-    preload: boolean;
     seek: number;
 };
 
@@ -85,7 +76,6 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         volume: 1,
         streaming: false,
         rate: 1,
-        preload: false,
         seek: 0,
     });
 
@@ -94,7 +84,6 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         src: Sound.noSound,
         loop: false,
         streaming: false,
-        preload: false,
         seek: 0,
     });
 

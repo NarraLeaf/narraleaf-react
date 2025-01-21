@@ -999,7 +999,10 @@ export class ChainedAwaitable extends Awaitable<void, void> {
         if (skipController) this.registerSkipController(skipController);
     }
 
-    addTask(task: [handler: ChainedAwaitableTaskHandler, skipController?: SkipController<void, []>]): this {
+    addTask(task?: [handler: ChainedAwaitableTaskHandler, skipController?: SkipController<void, []>]): this {
+        if (!task) {
+            return this;
+        }
         this.tasks.push(task);
         return this;
     }
@@ -1031,11 +1034,11 @@ export class ChainedAwaitable extends Awaitable<void, void> {
             return;
         }
         const [handler, skipController] = this.tasks.shift()!;
-        const awaitable = new Awaitable<void, void>(() => {
-            handler(awaitable);
-        }, skipController);
+        const awaitable = new Awaitable<void, void>(Awaitable.nothing, skipController);
         this.current = awaitable;
         this.current.then(() => this.onTaskComplete());
+
+        handler(awaitable);
     }
 }
 
