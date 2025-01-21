@@ -2,14 +2,19 @@ import {TransitionAnimationType, TransitionTask} from "@core/elements/transition
 import {TransformDefinitions} from "@core/elements/transform/type";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 
-type DissolveAnimation = [TransitionAnimationType.Number];
+type AnimationType = [TransitionAnimationType.Number];
 
-export class Dissolve extends ImageTransition<DissolveAnimation> {
+export class Dissolve extends ImageTransition<AnimationType> {
+    /**
+     * Fade out the original image and fade in the target image at the same time.
+     * @param duration duration in milliseconds
+     * @param easing easing definition or existing easing name
+     */
     constructor(private duration: number, private easing?: TransformDefinitions.EasingDefinition) {
         super();
     }
 
-    createTask(): TransitionTask<HTMLImageElement, DissolveAnimation> {
+    createTask(): TransitionTask<HTMLImageElement, AnimationType> {
         return {
             animations: [{
                 type: TransitionAnimationType.Number,
@@ -19,12 +24,12 @@ export class Dissolve extends ImageTransition<DissolveAnimation> {
                 ease: this.easing,
             }],
             resolve: [
-                this.asPrev<DissolveAnimation>((opacity: number) => ({
+                this.asPrev<AnimationType>((opacity: number) => ({
                     style: {
                         opacity: 1 - opacity,
                     }
                 })),
-                this.asTarget<DissolveAnimation>((opacity: number) => ({
+                this.asTarget<AnimationType>((opacity: number) => ({
                     style: {
                         opacity: opacity,
                     },

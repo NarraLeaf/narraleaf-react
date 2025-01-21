@@ -11,6 +11,7 @@ import {
 import {TransformDefinitions} from "@core/elements/transform/type";
 import type {AnimationPlaybackControls} from "motion/react";
 import {animate} from "motion/react";
+import {GameState} from "@player/gameState";
 
 
 export abstract class Transition<T extends HTMLElement = HTMLElement, U extends TransitionAnimationType[] = any> {
@@ -19,7 +20,7 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
     /**
      * Create a transition task, this method shouldn't have any side effects
      */
-    abstract createTask(): TransitionTask<T, U>;
+    abstract createTask(gameState: GameState): TransitionTask<T, U>;
 
     abstract copy(): any;
 

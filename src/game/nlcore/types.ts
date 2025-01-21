@@ -29,6 +29,10 @@ export interface StaticImageData {
 export type ImageSrc = string | StaticImageData;
 export type HexColor = `#${string}`;
 
+export type Length = number
+    | `${number}px`;
+export type RelativeLength = Length | "100%";
+
 export type CommonImagePosition = "left" | "center" | "right";
 export type CommonDisplayableConfig = {
     /**

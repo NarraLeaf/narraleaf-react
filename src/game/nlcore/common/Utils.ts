@@ -1,9 +1,9 @@
 import type {
     Color,
     HexColor,
-    ImageSrc,
+    ImageSrc, Length,
     NamedColor,
-    NextJSStaticImageData,
+    NextJSStaticImageData, RelativeLength,
     RGBAColor,
     StaticImageData
 } from "@core/types";
@@ -23,6 +23,7 @@ import {isNamedColor} from "@lib/util/data";
 import {Action} from "@core/action/action";
 import {Story} from "@core/elements/story";
 import {Word} from "@core/elements/character/word";
+import {CSSProps} from "@core/elements/transition/type";
 
 export class RGBColor {
     static isHexString(color: any): color is HexColor {
@@ -141,7 +142,7 @@ export class Utils {
         if (typeof color !== "string") {
             return false;
         }
-        return /^#([0-9A-F]{6}|[0-9A-F]{3})$/i.test(color);
+        return /^#([0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{4}|[0-9A-F]{8})$/i.test(color);
     }
 
     /**
@@ -156,6 +157,49 @@ export class Utils {
 
     public static isDataURI(src: string) {
         return src.startsWith("data:");
+    }
+
+    public static offset(
+        ori: [xOri: string, yOri: string],
+        offset: [xOffset: number, yOffset: number],
+        invert: {invertX: boolean, invertY: boolean} = {invertX: false, invertY: false}
+    ): CSSProps {
+        const [xOri, yOri] = ori;
+        const [xOffset, yOffset] = offset;
+
+        const posX = this.calc(xOri, xOffset);
+        const posY = this.calc(yOri, yOffset);
+        const xRes = invert.invertX ? {right: posX} : {left: posX};
+        const yRes = invert.invertY ? {bottom: posY} : {top: posY};
+
+        return {
+            left: "auto",
+            right: "auto",
+            top: "auto",
+            bottom: "auto",
+            ...xRes,
+            ...yRes,
+        };
+    }
+
+    public static calc(a: string | number, b?: string | number): string {
+        const aStr = typeof a === "string" ? a : `${a}px`;
+
+        if (b === undefined) {
+            return `calc(${aStr} + 0px)`;
+        }
+        const sign = typeof b === "string" ? "+" : (b < 0 ? "-" : "+");
+        const bStr = typeof b === "string" ? b : `${Math.abs(b)}px`;
+
+        return `calc(${aStr} ${sign} ${bStr})`;
+    }
+
+    public static formatLength(length: RelativeLength): string {
+        return typeof length === "number" ? `${length}px` : length;
+    }
+
+    public static toPixel(length: Length): number {
+        return typeof length === "number" ? length : parseFloat(length);
     }
 }
 

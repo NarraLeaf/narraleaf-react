@@ -1,6 +1,7 @@
 import {Transition} from "@core/elements/transition/transition";
 import {
-    AnimationDataTypeArray,
+    AnimationController,
+    AnimationDataTypeArray, AnimationTaskMapArray,
     ImgElementProp,
     TransitionAnimationType,
     TransitionResolver
@@ -15,6 +16,8 @@ export abstract class ImageTransition<T extends TransitionAnimationType[] = any>
     private _prevSrc: Color | ImageSrc | undefined;
     /**@package */
     private _targetSrc: Color | ImageSrc | undefined;
+    /**@package */
+    private _currentSrc: Color | ImageSrc | undefined;
 
     /**@package */
     _setPrevSrc(src: Color | ImageSrc | undefined): this {
@@ -26,6 +29,35 @@ export abstract class ImageTransition<T extends TransitionAnimationType[] = any>
     _setTargetSrc(src: Color | ImageSrc | undefined): this {
         this._targetSrc = src;
         return this;
+    }
+
+    /**@package */
+    _setCurrentSrc(src: Color | ImageSrc | undefined): this {
+        this._currentSrc = src;
+        return this;
+    }
+
+    /**@package */
+    _getPrevSrc(): Color | ImageSrc | undefined {
+        return this._prevSrc;
+    }
+
+    /**@package */
+    _getTargetSrc(): Color | ImageSrc | undefined {
+        return this._targetSrc;
+    }
+
+    /**@package */
+    _getCurrentSrc(): Color | ImageSrc | undefined {
+        return this._currentSrc;
+    }
+
+    override requestAnimations(tasks: AnimationTaskMapArray<T>): AnimationController<T> {
+        const controllers = super.requestAnimations(tasks);
+        controllers.onComplete(() => {
+            this._setCurrentSrc(this._getTargetSrc());
+        });
+        return controllers;
     }
 
     override asPrev<T extends TransitionAnimationType[] = any>(resolver: (...args: AnimationDataTypeArray<T>) => ImgElementProp): TransitionResolver<HTMLImageElement, T> {
@@ -45,8 +77,6 @@ export abstract class ImageTransition<T extends TransitionAnimationType[] = any>
                 src: Image.DefaultImagePlaceholder,
                 style: {
                     backgroundColor: Utils.isRGBAColor(src) ? Utils.RGBAColorToHex(src) : src,
-                    width: "100%", // @unsafe: may not work as expected
-                    height: "100%",
                 }
             } satisfies ImgElementProp;
         } else if (Utils.isImageSrc(src)) {

@@ -61,6 +61,7 @@ export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGro
     src: ImageSrcType<Tag>;
     /**
      * Auto resize image's width to fit the screen
+     * @default false
      */
     autoFit: boolean;
     /**

@@ -17,7 +17,7 @@ import {Transition} from "@core/elements/transition/transition";
 import {RuntimeGameError} from "@core/common/Utils";
 
 /**@internal */
-export type DisplayableHookConfig<TransitionType extends Transition, U extends HTMLElement> = {
+export type DisplayableHookConfig<TransitionType extends Transition<U>, U extends HTMLElement> = {
     skipTransition?: boolean;
     skipTransform?: boolean;
     overwriteDefinition?: OverwriteDefinition;
@@ -26,15 +26,24 @@ export type DisplayableHookConfig<TransitionType extends Transition, U extends H
     onTransform?: (transform: Transform) => void;
     /**@deprecated */
     transformStyle?: React.CSSProperties;
-    transitionsProps?: ElementProp<U>[];
+    transitionsProps?: ElementProp<U>[] | ((task: TransitionTaskWithController<TransitionType, U> | null) => (ElementProp<U>[]));
     propOverwrite?: (props: ElementProp<U>) => ElementProp<U>;
 };
 
 /**@internal */
-export type DisplayableHookResult<T extends HTMLElement> = {
+type TransitionTaskWithController<TransitionType extends Transition<U>, U extends HTMLElement> = {
+    task: TransitionTask<U, any>;
+    controller: AnimationController<any>;
+    transition: TransitionType;
+    resolve: VoidFunction;
+};
+
+/**@internal */
+export type DisplayableHookResult<TransitionType extends Transition<U>, U extends HTMLElement> = {
     transformRef: React.RefObject<HTMLDivElement | null>;
-    transitionRefs: RefGroupDefinition<T>[];
+    transitionRefs: RefGroupDefinition<U>[];
     isTransforming: boolean;
+    transitionTask: TransitionTaskWithController<TransitionType, U> | null;
 };
 
 /**@internal */
@@ -52,13 +61,9 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         onTransform,
         transitionsProps = [],
         propOverwrite,
-    }: DisplayableHookConfig<TransitionType, U>): DisplayableHookResult<U> {
+    }: DisplayableHookConfig<TransitionType, U>): DisplayableHookResult<TransitionType, U> {
     const [flush] = useFlush();
-    const [transitionTask, setTransitionTask] = useState<null | {
-        task: TransitionTask<U, any>;
-        controller: AnimationController<any>;
-        transition: Transition<U>;
-    }>(null);
+    const [transitionTask, setTransitionTask] = useState<null | TransitionTaskWithController<TransitionType, U>>(null);
     const [transformToken, setTransformToken] = useState<null | Awaitable<void>>(null);
     const ref = React.useRef<HTMLDivElement | null>(null);
     const [keyGen] = useState(() => new KeyGen("displayable.refGroup"));
@@ -66,6 +71,9 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     const refs = useRef<RefGroupDefinition<U>[]>(initRefs()) satisfies RefGroup<U>;
     const {game} = useGame();
     const gameState = game.getLiveGame().getGameState()!;
+    const evaluatedTransProps = typeof transitionsProps === "function"
+        ? transitionsProps(transitionTask)
+        : transitionsProps;
 
     useEffect(() => {
         return element.events.depends([
@@ -102,13 +110,12 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
                 const resolved = resolver(...values);
                 const mergedProps = deepMerge<ElementProp<U, React.HTMLAttributes<U>>>(
-                    transitionsProps[i] || transitionsProps[transitionsProps.length - 1] || {},
+                    evaluatedTransProps[i] || evaluatedTransProps[evaluatedTransProps.length - 1] || {},
                     resolved
                 );
                 assignProperties(ref, propOverwrite ? propOverwrite(mergedProps) : mergedProps);
             });
         });
-        transitionTask.controller.start();
 
         return eventToken.cancel;
     }, [transitionTask]);
@@ -124,7 +131,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             if (!ref.current) {
                 throw new RuntimeGameError("Displayable: Trying to assign properties to unmounted element");
             }
-            assignProperties(ref, transitionsProps[index] || transitionsProps[transitionsProps.length - 1] || {});
+            assignProperties(ref, evaluatedTransProps[index] || evaluatedTransProps[evaluatedTransProps.length - 1] || {});
         });
     }, [transitionTask]);
 
@@ -132,6 +139,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         if (!ref.current) {
             throw new Error(`Scope not ready. Using element: ${element.constructor.name}`);
         }
+
         element.events.emit(Displayable.EventTypes["event:displayable.onMount"]);
     }, []);
 
@@ -204,12 +212,13 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             transitionTask.controller.complete();
         }
 
-        const task = newTransition.createTask();
+        const task = newTransition.createTask(gameState);
         const controller = newTransition.requestAnimations(task.animations);
         setTransitionTask({
             task,
             controller,
             transition: newTransition,
+            resolve,
         });
 
         let nextKey: string;
@@ -229,13 +238,14 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
             throw new RuntimeGameError("Displayable: Invalid key type");
         });
+        if (!nextKey!) {
+            throw new RuntimeGameError("Displayable: No target key found");
+        }
+        currentKey.current = nextKey;
 
+        controller.start();
         controller.onComplete(() => {
-            refs.current.forEach(([ref]) => {
-                ref.current = null;
-            });
-            currentKey.current = nextKey;
-            refs.current = initRefs();
+            resetRefs();
 
             setTransitionTask(null);
             resolve();
@@ -256,13 +266,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             gameState.logger.debug("transform skipped");
         }
         if (skipTransition && transitionTask) {
-            const finalStyles = transitionTask.transition.toFinalStyle(transitionTask.task);
-            refs.current.forEach(([ref], i) => {
-                assignProperties(ref, propOverwrite ? propOverwrite(finalStyles[i]) : finalStyles[i]);
-            });
-
             transitionTask.controller.complete();
-            setTransitionTask(null);
 
             gameState.logger.debug("transition skipped");
         }
@@ -272,12 +276,20 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         return [[React.createRef<U | null>(), currentKey.current]];
     }
 
+    function resetRefs() {
+        refs.current.forEach(([ref]) => {
+            ref.current = null;
+        });
+        refs.current = initRefs();
+    }
+
     element.events.emit(Displayable.EventTypes["event:displayable.onFlush"]);
 
     return {
         transformRef: ref,
         transitionRefs: refs.current,
         isTransforming: !!transformToken,
+        transitionTask,
     };
 }
 

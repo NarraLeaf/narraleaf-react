@@ -65,7 +65,7 @@ export class Chained<T, Self extends Chainable<any, any> = any> {
 }
 
 /**
- * - T - the action type
+ * - U - the action type
  * - U - self constructor
  */
 export class Chainable<T, U extends Chainable<any, any>> extends BaseElement {
