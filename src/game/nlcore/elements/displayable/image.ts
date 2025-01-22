@@ -8,7 +8,7 @@ import {DisplayableActionContentType, DisplayableActionTypes, ImageActionContent
 import {LogicAction} from "@core/game";
 import {EmptyObject} from "@core/elements/transition/type";
 import {IPosition, PositionUtils, RawPosition} from "@core/elements/transform/position";
-import {EventDispatcher, SelectElementFromEach, Serializer} from "@lib/util/data";
+import {EventDispatcher, FlexibleTuple, SelectElementFromEach, Serializer} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {Control} from "@core/elements/control";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -37,6 +37,7 @@ type ImageConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | nu
     src: Tag extends TagGroupDefinition ? TagDefinitionObject<Tag> : null;
     autoFit: boolean;
     layer: Layer | undefined;
+    isBackground: boolean;
 };
 type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | null> = {
     currentSrc: Tag extends null
@@ -80,9 +81,7 @@ export type ImageDataRaw = {
 export type ImageEventTypes = {
     "event:wearable.create": [Image];
 } & DisplayableEventTypes<ImageTransition>;
-/**@internal */
 export type TagGroupDefinition = string[][];
-/**@internal */
 export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectElementFromEach<T>) => string;
 
 
@@ -134,6 +133,7 @@ export class Image<
         src: null,
         autoFit: false,
         layer: undefined,
+        isBackground: false,
     });
 
     /**
@@ -254,11 +254,14 @@ export class Image<
      */
     public char(src: ImageSrc | Color, transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public char(tags: SelectElementFromEach<Tags>, transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
+    public char(tags: SelectElementFromEach<Tags> | FlexibleTuple<SelectElementFromEach<Tags>>, transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public char(arg0: ImageSrc | Color | SelectElementFromEach<Tags>, transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
+    public char(arg0: ImageSrc | Color | SelectElementFromEach<Tags> | FlexibleTuple<SelectElementFromEach<Tags>>, transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.combineActions(new Control(), chain => {
             if (Utils.isImageSrc(arg0) || Utils.isColor(arg0)) {
+                if (Utils.isColor(arg0) && !this.config.isBackground) {
+                    throw new Error("Color src is not allowed for non-background image");
+                }
                 return chain.chain(this._setSrc(chain, arg0, transition));
             } else {
                 const action = new ImageAction<typeof ImageAction.ActionTypes.setAppearance>(
@@ -407,29 +410,38 @@ export class Image<
     resolveTags(
         oldTags: SelectElementFromEach<Tags> | string[],
         newTags: SelectElementFromEach<Tags> | string[]
-    ): SelectElementFromEach<Tags> {
+    ): string[] {
         if (!Image.isTagSrc(this)) {
             throw new Error("Tag not defined\nTag must be defined in the image config");
         }
         const tagMap: Map<string, string[]> = this.constructTagMap(this.config.src.groups);
-        const resultTags: Set<string> = new Set();
+        const result: Map<string[], string | null> = new Map();
+        const resultTags: string[] = [];
+        this.config.src.groups.forEach(group => {
+            result.set(group, null);
+        });
 
         const resolve = (tags: SelectElementFromEach<Tags> | string[]) => {
-            for (const tag of tags) {
-                const conflictGroup = tagMap.get(tag);
-                if (!conflictGroup) continue;
+            tags.forEach(tag => {
+                const group = tagMap.get(tag);
+                if (!group) return;
 
-                for (const conflictTag of conflictGroup) {
-                    resultTags.delete(conflictTag);
-                }
-                resultTags.add(tag);
-            }
+                result.set(group, tag);
+            });
         };
 
         resolve(oldTags);
         resolve(newTags);
 
-        return Array.from(resultTags) as SelectElementFromEach<Tags>;
+        this.config.src.groups.forEach(group => {
+            const tag = result.get(group);
+            if (!tag) {
+                throw new Error(`Invalid Tag Group. Tag group "${group.join(", ")}" is not resolved`);
+            }
+            resultTags.push(tag);
+        });
+
+        return resultTags;
     }
 
     /**@internal */
@@ -482,6 +494,14 @@ export class Image<
                 src
             ])
         );
+    }
+
+    /**@internal */
+    _setIsBackground(isBackground: boolean): this {
+        Object.assign(this.config, {
+            isBackground: isBackground,
+        });
+        return this;
     }
 
     /**@internal */

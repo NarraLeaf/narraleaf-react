@@ -110,13 +110,13 @@ export class SrcManager {
                 };
             } else if (action.type === ImageActionTypes.setAppearance) {
                 const tags = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setAppearance"]]>).getContent()[0];
-                if (typeof imageAction.callee.config.src !== "function") {
+                if (!imageAction.callee.config.src || typeof imageAction.callee.config.src?.resolve !== "function") {
                     throw imageAction.callee._invalidSrcHandlerError();
                 }
                 if (Image.isTagSrc(imageAction.callee) && tags.length === (imageAction.callee.config.src as TagDefinition<TagGroupDefinition>).groups.length) {
                     return {
                         type: "image",
-                        src: Image.fromSrc(Image.getSrcFromTags(tags, imageAction.callee.config.src)),
+                        src: Image.fromSrc(Image.getSrcFromTags(tags, imageAction.callee.config.src.resolve)),
                         activeType: "scene"
                     };
                 }

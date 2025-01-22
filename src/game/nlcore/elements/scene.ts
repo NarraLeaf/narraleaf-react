@@ -537,7 +537,7 @@ export class Scene extends Constructable<
                 autoFit: true,
                 name: `[[Background Image of ${this.config.name}]]`,
                 layer: this.config.defaultBackgroundLayer,
-            }),
+            })._setIsBackground(true),
         }).get();
     }
 

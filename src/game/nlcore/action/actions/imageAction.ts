@@ -6,7 +6,7 @@ import {Awaitable, SkipController} from "@lib/util/data";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {TypedAction} from "@core/action/actions";
 import {Displayable} from "@core/elements/displayable/displayable";
-import {Utils} from "@core/common/Utils";
+import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {Color} from "@core/types";
 
 export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageActionTypes] = typeof ImageActionTypes[keyof typeof ImageActionTypes]>
@@ -51,9 +51,13 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 });
             });
         } else if (this.type === ImageActionTypes.setSrc) {
-            this.callee.state.currentSrc =
-                (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
-            state.logger.debug("Image Set Src", this.callee.state.currentSrc);
+            const src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
+            if (Utils.isColor(src) && !this.callee.config.isBackground) {
+                throw new RuntimeScriptError("Color src is not allowed for non-background image");
+            }
+
+            this.callee.state.currentSrc = src;
+            state.logger.debug("Image Set Src", src);
 
             state.stage.update();
             return super.executeAction(state);
@@ -80,13 +84,13 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     ._setTargetSrc(newSrc);
 
                 this.callee.events.emit("event:displayable.applyTransition", transition, () => {
-                    this.callee.state.currentSrc = newTags;
+                    this.callee.state.currentSrc = newTags as [];
                     awaitable.resolve(super.executeAction(state) as CalledActionResult);
                     state.stage.next();
                 });
                 return awaitable;
             }
-            this.callee.state.currentSrc = newTags;
+            this.callee.state.currentSrc = newTags as [];
             return super.executeAction(state);
         }
 
