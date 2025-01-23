@@ -176,6 +176,12 @@ export class Scene extends Constructable<
     private readonly localPersistent: DynamicPersistent;
     /**@internal */
     private readonly userConfig: Config<ISceneUserConfig, EmptyObject>;
+    /**@internal */
+    private _futureActions_: LogicAction.Actions[] = [];
+    /**@internal */
+    get __futureActions__() {
+        return this._futureActions_;
+    }
 
     public get local(): Persistent<any> {
         return this.localPersistent;
@@ -238,7 +244,7 @@ export class Scene extends Constructable<
                     "scene:preUnmount",
                     new ContentNode<SceneActionContentType["scene:preUnmount"]>().setContent([])
                 ))
-                ._transitionToScene(jumpConfig.transition, scene)
+                ._transitionToScene(jumpConfig.transition, scene.state.backgroundImage.state.currentSrc)
                 .chain(this._init(scene));
             if (jumpConfig.unloadScene) {
                 chain.chain(this._exit());
@@ -333,7 +339,7 @@ export class Scene extends Constructable<
         }).flat(2);
 
         const images: Image[] = [], texts: Text[] = [];
-        this.getAllChildrenElements(story, userActions).forEach(element => {
+        this.getAllChildrenElements(story, userActions, {allowFutureScene: false}).forEach(element => {
             if (Chained.isChained(element)) {
                 return;
             }
@@ -374,11 +380,11 @@ export class Scene extends Constructable<
 
         const futureActions: LogicAction.Actions[] = [
             this._init(this),
-            ...this.config.layers.flatMap(l => l._init()),
+            ...this.config.layers.flatMap(l => l._init(this)),
             this._initBackground(),
             ...nonWearableImages
                 .filter(image => image.config.autoInit)
-                .map(image => image._init()),
+                .map(image => image._init(this)),
             ...usedWearableImages.map(image => {
                 if (!wearableImagesMap.has(image)) {
                     throw new Error("Wearable image must have a parent image");
@@ -394,6 +400,7 @@ export class Scene extends Constructable<
         constructed?.setParent(sceneRoot);
 
         this.sceneRoot?.setContentNode(sceneRoot);
+        this._futureActions_ = futureActions;
 
         return this;
     }
@@ -460,13 +467,13 @@ export class Scene extends Constructable<
                 this.srcManager.register(action.callee);
             } else if (action instanceof ControlAction) {
                 const controlAction = action as ControlAction;
-                const actions = controlAction.getFutureActions(story);
+                const actions = controlAction.getFutureActions(story, {allowFutureScene: true});
 
                 queue.push(...actions);
             } else if (action instanceof DisplayableAction) {
                 this.srcManager.register(action.callee.srcManager.getSrc());
             }
-            queue.push(...action.getFutureActions(story));
+            queue.push(...action.getFutureActions(story, {allowFutureScene: true}));
         }
 
         futureScene.forEach(scene => {
@@ -479,7 +486,7 @@ export class Scene extends Constructable<
      * @internal STILL IN DEVELOPMENT
      */
     assignActionId(story: Story) {
-        const actions = this.getAllChildren(story, this.sceneRoot || []);
+        const actions = this.getAllChildren(story, this.sceneRoot || [], {allowFutureScene: true});
 
         actions.forEach((action, i) => {
             action.setId(`action-${i}`);
@@ -531,13 +538,13 @@ export class Scene extends Constructable<
     /**@internal */
     private getInitialState(): SceneState {
         return Scene.DefaultSceneState.create().assign({
-            backgroundImage: new Image({
+            backgroundImage: this.state?.backgroundImage ? this.state.backgroundImage.reset() : (new Image({
                 src: this.userConfig.get().background,
                 opacity: 1,
                 autoFit: true,
                 name: `[[Background Image of ${this.config.name}]]`,
                 layer: this.config.defaultBackgroundLayer,
-            })._setIsBackground(true),
+            })._setIsBackground(true)),
         }).get();
     }
 
@@ -562,19 +569,11 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _transitionToScene(transition?: ImageTransition, scene?: Scene, src?: ImageSrc | Color): ChainedScene {
+    private _transitionToScene(transition?: ImageTransition, src?: ImageSrc | Color | []): ChainedScene {
         const chain = this.chain();
-        if (transition) {
-            const action = new SceneAction<typeof SceneActionTypes["transitionToScene"]>(
-                chain,
-                SceneActionTypes["transitionToScene"],
-                new ContentNode<SceneActionContentType[typeof SceneActionTypes["transitionToScene"]]>().setContent([
-                    transition.copy() as ImageTransition,
-                    scene,
-                    src
-                ])
-            );
-            chain.chain(action);
+        if (transition && src) {
+            const action = this.state.backgroundImage.char(src as any, transition);
+            chain.chain((action as Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>>).getActions());
         }
         return chain;
     }

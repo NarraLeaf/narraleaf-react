@@ -7,6 +7,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {TypedAction} from "@core/action/actions";
 import {Story} from "@core/elements/story";
 import {LogicAction} from "@core/action/logicAction";
+import {ActionSearchOptions} from "@core/types";
 
 export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuActionTypes] = typeof MenuActionTypes[keyof typeof MenuActionTypes]>
     extends TypedAction<MenuActionContentType, T, Menu> {
@@ -29,8 +30,8 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
         return awaitable;
     }
 
-    getFutureActions(story: Story): LogicAction.Actions[] {
+    getFutureActions(story: Story, options: ActionSearchOptions): LogicAction.Actions[] {
         const menu = (this.contentNode as ContentNode<MenuActionContentType["menu:action"]>).getContent();
-        return [...this.callee._getFutureActions(menu.choices), ...super.getFutureActions(story)];
+        return [...this.callee._getFutureActions(menu.choices), ...super.getFutureActions(story, options)];
     }
 }

@@ -7,6 +7,7 @@ import type {CalledActionResult} from "@core/gameTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {TypedAction} from "@core/action/actions";
 import {Story} from "@core/elements/story";
+import {ActionSearchOptions} from "@core/types";
 
 export class ControlAction<T extends typeof ControlActionTypes[keyof typeof ControlActionTypes] = typeof ControlActionTypes[keyof typeof ControlActionTypes]>
     extends TypedAction<ControlActionContentType, T, Control> {
@@ -158,9 +159,9 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         throw new Error("Unknown control action type: " + this.type);
     }
 
-    getFutureActions(story: Story): LogicAction.Actions[] {
+    getFutureActions(story: Story, options: ActionSearchOptions): LogicAction.Actions[] {
         const actions = this.contentNode.getContent()[0];
-        const childActions = super.getFutureActions(story);
+        const childActions = super.getFutureActions(story, options);
         return [...actions, ...childActions];
     }
 }

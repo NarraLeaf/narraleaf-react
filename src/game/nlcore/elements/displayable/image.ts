@@ -366,12 +366,12 @@ export class Image<
     }
 
     /**@internal */
-    _init(scene?: Scene): DisplayableAction<typeof DisplayableActionTypes.init, Image> {
+    _init(scene: Scene): DisplayableAction<typeof DisplayableActionTypes.init, Image> {
         return new DisplayableAction<typeof DisplayableActionTypes.init, Image>(
             this.chain(),
             DisplayableActionTypes.init,
             new ContentNode<DisplayableActionContentType<ImageTransition>["displayable:init"]>().setContent([
-                scene || null,
+                scene,
                 this.config.layer || null,
             ])
         );
@@ -398,9 +398,10 @@ export class Image<
     }
 
     /**@internal */
-    override reset() {
+    override reset(): this {
         this.state = this.getInitialState();
         this.transformState = this.getInitialTransformState(this.userConfig);
+        return this;
     }
 
     /**

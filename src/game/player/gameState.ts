@@ -402,7 +402,10 @@ export class GameState {
 
     private removeElements(scene: Scene): this {
         const index = this.state.elements.findIndex(s => s.scene === scene);
-        if (index === -1) return this;
+        if (index === -1) {
+            this.logger.weakWarn("Scene not found when removing elements", scene.getId());
+            return this;
+        }
         this.state.elements.splice(index, 1);
         return this;
     }
@@ -422,7 +425,7 @@ export class GameState {
     }
 
     private layerNotFound() {
-        return new RuntimeGameError("Layer not found, target layer may not be activated. You may forgot to add the layer to the scene config");
+        return new RuntimeGameError("Layer not found, target layer may not be activated. You may forget to add the layer to the scene config");
     }
 
     private constructLayerMap(layers: Record<string, string[]>, elementMap: Map<string, LogicAction.GameElement>): Map<Layer, LogicAction.DisplayableElements[]> {

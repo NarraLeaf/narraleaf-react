@@ -222,3 +222,7 @@ export type NamedColor =
     | "whitesmoke"
     | "yellow"
     | "yellowgreen";
+
+export interface ActionSearchOptions {
+    allowFutureScene?: boolean;
+}

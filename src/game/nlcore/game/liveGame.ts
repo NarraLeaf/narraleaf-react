@@ -186,7 +186,7 @@ export class LiveGame {
         story.forEachChild(story, story.entryScene?.getSceneRoot() || [], action => {
             actionMaps.set(action.getId(), action);
             elementMaps.set(action.callee.getId(), action.callee);
-        });
+        }, {allowFutureScene: true});
 
         // restore storable
         this.storable.clear().load(store);

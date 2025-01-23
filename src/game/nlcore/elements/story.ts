@@ -242,7 +242,7 @@ export class Story extends Constructable<
                 seen.add(action.callee);
             }
 
-            const children = action.getFutureActions(this);
+            const children = action.getFutureActions(this, {allowFutureScene: true});
             queue.push(...children);
         }
         return this;

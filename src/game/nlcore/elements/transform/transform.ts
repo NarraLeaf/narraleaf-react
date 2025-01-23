@@ -417,9 +417,9 @@ export class Transform<T extends TransformDefinitions.Types = any> {
             awaitable.resolve();
         };
 
-        token.then(onComplete, () => {
-            gameState.logger.error("Failed to animate transform.");
-        });
+        token.then(onComplete, ((arg0: unknown) => {
+            gameState.logger.error("Failed to animate transform. " + (arg0?.toString?.() || ""));
+        }) as any);
         token.play();
 
         gameState.logger.debug("Transform", "Ready to animate transform.", {

@@ -11,6 +11,7 @@ import {RuntimeScriptError} from "@core/common/Utils";
 import {Image} from "@core/elements/displayable/image";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {ImageAction} from "@core/action/actions/imageAction";
+import {ActionSearchOptions} from "@core/types";
 
 export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneActionTypes] = typeof SceneActionTypes[keyof typeof SceneActionTypes]>
     extends TypedAction<SceneActionContentType, T, Scene> {
@@ -75,16 +76,16 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             return super.executeAction(state);
         } else if (this.type === SceneActionTypes.sleep) {
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-            const content = (this.contentNode as ContentNode<number | Promise<any> | Awaitable<any, any>>).getContent();
+            const timeout = (this.contentNode as ContentNode<number | Promise<any> | Awaitable<any, any>>).getContent();
             const wait = new Promise<void>(resolve => {
-                if (typeof content === "number") {
-                    setTimeout(() => {
+                if (typeof timeout === "number") {
+                    state.schedule(() => {
                         resolve();
-                    }, content);
-                } else if (Awaitable.isAwaitable<any, any>(content)) {
-                    content.then(resolve);
+                    }, timeout);
+                } else if (Awaitable.isAwaitable<any, any>(timeout)) {
+                    timeout.then(resolve);
                 } else {
-                    content?.then(resolve);
+                    timeout?.then(resolve);
                 }
             });
             wait.then(() => {
@@ -102,6 +103,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             state
                 .offSrcManager(this.callee.srcManager)
                 .removeScene(this.callee);
+            this.callee.state.backgroundImage.reset();
 
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
             this.callee.events.once("event:scene.unmount", () => {
@@ -156,8 +158,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         throw new Error("Unknown scene action type: " + this.type);
     }
 
-    getFutureActions(story: Story): LogicAction.Actions[] {
-        if (this.type === SceneActionTypes.jumpTo) {
+    getFutureActions(story: Story, searchOptions: ActionSearchOptions = {}): LogicAction.Actions[] {
+        if (this.type === SceneActionTypes.jumpTo && searchOptions.allowFutureScene !== false) {
             // It doesn't care about the actions after jumpTo
             // because they won't be executed
             const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];

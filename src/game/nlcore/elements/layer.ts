@@ -18,6 +18,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {Image} from "@core/elements/displayable/image";
 import {Text} from "@core/elements/displayable/text";
+import {Scene} from "@core/elements/scene";
 
 export interface ILayerUserConfig extends CommonDisplayableConfig {
     /**
@@ -131,14 +132,14 @@ export class Layer
     }
 
     /**@internal */
-    _init(): LogicAction.Actions[] {
+    _init(scene: Scene): LogicAction.Actions[] {
         return [
             new LayerAction(this.chain(), LayerActionTypes.action, new ContentNode<LayerActionContentType["layer:action"]>()),
             new DisplayableAction<typeof DisplayableActionTypes.init>(
                 this.chain(),
                 DisplayableActionTypes.init,
                 new ContentNode<DisplayableActionContentType["displayable:init"]>().setContent([
-                    null, null, false
+                    scene, null, false
                 ])
             )
         ];
