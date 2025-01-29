@@ -21,7 +21,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Typ
         this.callee = callee;
         this.type = type;
         this.contentNode = contentNode;
-        this.__stack = getCallStack();
+        this.__stack = getCallStack(0);
         this._id = "";
     }
 

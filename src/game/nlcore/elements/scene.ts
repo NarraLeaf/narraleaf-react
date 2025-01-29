@@ -116,10 +116,10 @@ export class Scene extends Constructable<
         backgroundMusicFade: 0,
         voices: null,
         layers: [],
-        defaultBackgroundLayer: new Layer("[[Background]]", {
+        defaultBackgroundLayer: new Layer("[[Background Layer]]", {
             zIndex: -1,
         }),
-        defaultDisplayableLayer: new Layer("[[Displayable]]", {
+        defaultDisplayableLayer: new Layer("[[Displayable Layer]]", {
             zIndex: 0,
         }),
     });
@@ -191,11 +191,25 @@ export class Scene extends Constructable<
         return this.state.backgroundImage;
     }
 
+    public get backgroundLayer(): Layer {
+        return this.config.defaultBackgroundLayer;
+    }
+
+    public get displayableLayer(): Layer {
+        return this.config.defaultDisplayableLayer;
+    }
+
     constructor(name: string, config?: Partial<ISceneUserConfig>) {
         super();
 
-        const defaultBackgroundLayer = Scene.DefaultSceneConfig.getDefaultConfig().defaultBackgroundLayer.copy();
-        const defaultDisplayableLayer = Scene.DefaultSceneConfig.getDefaultConfig().defaultDisplayableLayer.copy();
+        const defaultBackgroundLayer = Scene.DefaultSceneConfig
+            .getDefaultConfig().defaultBackgroundLayer
+            .copy()
+            .setName("[[Background Layer of " + name + "]]");
+        const defaultDisplayableLayer = Scene.DefaultSceneConfig
+            .getDefaultConfig().defaultDisplayableLayer
+            .copy()
+            .setName("[[Displayable Layer of " + name + "]]");
 
         const userConfig = Scene.DefaultUserConfig.create(config);
         const sceneConfig = Scene.DefaultSceneConfig.create({
@@ -235,7 +249,9 @@ export class Scene extends Constructable<
      * @chainable
      */
     public jumpTo(scene: Scene, config: Partial<JumpConfig> = {}): ChainedScene {
-        return this.combineActions(new Control(), chain => {
+        return this.combineActions(new Control({
+            allowFutureScene: false,
+        }), chain => {
             const defaultJumpConfig: Partial<JumpConfig> = {unloadScene: true};
             const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig, config);
             chain
@@ -244,8 +260,8 @@ export class Scene extends Constructable<
                     "scene:preUnmount",
                     new ContentNode<SceneActionContentType["scene:preUnmount"]>().setContent([])
                 ))
-                ._transitionToScene(jumpConfig.transition, scene.state.backgroundImage.state.currentSrc)
-                .chain(this._init(scene));
+                .chain(this._initScene(scene))
+                ._transitionToScene(jumpConfig.transition, scene.state.backgroundImage.state.currentSrc);
             if (jumpConfig.unloadScene) {
                 chain.chain(this._exit());
             }
@@ -379,9 +395,7 @@ export class Scene extends Constructable<
         });
 
         const futureActions: LogicAction.Actions[] = [
-            this._init(this),
-            ...this.config.layers.flatMap(l => l._init(this)),
-            this._initBackground(),
+            ...this._initScene(this),
             ...nonWearableImages
                 .filter(image => image.config.autoInit)
                 .map(image => image._init(this)),
@@ -588,8 +602,17 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _initBackground(): DisplayableAction<typeof DisplayableActionTypes.init, Image> {
-        return this.state.backgroundImage._init(this);
+    private _initScene(scene: Scene): LogicAction.Actions[] {
+        return [
+            scene._init(scene),
+            ...scene.config.layers.flatMap(l => l._init(scene)),
+            scene._initBackground(scene, scene.config.defaultBackgroundLayer),
+        ];
+    }
+
+    /**@internal */
+    private _initBackground(target: Scene, layer: Layer): DisplayableAction<typeof DisplayableActionTypes.init, Image> {
+        return target.state.backgroundImage._init(target, layer);
     }
 }
 

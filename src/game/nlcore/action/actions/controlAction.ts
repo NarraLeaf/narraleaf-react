@@ -160,6 +160,10 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
     }
 
     getFutureActions(story: Story, options: ActionSearchOptions): LogicAction.Actions[] {
+        if (this.callee.config.allowFutureScene === false && options.allowFutureScene === false) {
+            return [...super.getFutureActions(story, options)];
+        }
+
         const actions = this.contentNode.getContent()[0];
         const childActions = super.getFutureActions(story, options);
         return [...actions, ...childActions];

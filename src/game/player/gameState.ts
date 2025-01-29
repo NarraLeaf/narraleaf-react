@@ -116,7 +116,7 @@ export class GameState {
 
     public addScene(scene: Scene): this {
         if (this.sceneExists(scene)) return this;
-        this.state.elements.push({
+        this.state.elements.unshift({
             scene,
             texts: [],
             menus: [],

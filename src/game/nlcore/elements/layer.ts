@@ -119,6 +119,12 @@ export class Layer
     }
 
     /**@internal */
+    setName(name: string): this {
+        this.config.name = name;
+        return this;
+    }
+
+    /**@internal */
     private getInitialState(): MergeConfig<LayerState> {
         return Layer.DefaultState.create({
             zIndex: this.config.zIndex,

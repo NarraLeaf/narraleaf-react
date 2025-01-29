@@ -366,13 +366,13 @@ export class Image<
     }
 
     /**@internal */
-    _init(scene: Scene): DisplayableAction<typeof DisplayableActionTypes.init, Image> {
+    _init(scene: Scene, layer?: Layer): DisplayableAction<typeof DisplayableActionTypes.init, Image> {
         return new DisplayableAction<typeof DisplayableActionTypes.init, Image>(
             this.chain(),
             DisplayableActionTypes.init,
             new ContentNode<DisplayableActionContentType<ImageTransition>["displayable:init"]>().setContent([
                 scene,
-                this.config.layer || null,
+                layer || this.config.layer || null,
             ])
         );
     }
