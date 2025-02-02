@@ -105,15 +105,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 .removeScene(this.callee);
             this.callee.state.backgroundImage.reset();
 
-            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-            this.callee.events.once("event:scene.unmount", () => {
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                });
-                state.stage.next();
-            });
-            return awaitable;
+            return super.executeAction(state);
         } else if (this.type === SceneActionTypes.jumpTo) {
             const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
             const current = this.contentNode;

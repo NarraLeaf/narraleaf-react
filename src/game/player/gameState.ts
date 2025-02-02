@@ -406,8 +406,18 @@ export class GameState {
             this.logger.weakWarn("Scene not found when removing elements", scene.getId());
             return this;
         }
+
+        this.resetLayers(this.state.elements[index].layers);
         this.state.elements.splice(index, 1);
         return this;
+    }
+
+    private resetLayers(layers: Map<Layer, LogicAction.DisplayableElements[]>) {
+        layers.forEach((elements) => {
+            elements.forEach(element => {
+                element.reset();
+            });
+        });
     }
 
     private createWaitableAction<A extends Record<any, any>, T = undefined>(action: A, after?: (arg0: T) => void) {
