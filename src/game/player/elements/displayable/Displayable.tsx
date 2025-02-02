@@ -181,6 +181,9 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
         const overwrite = propOverwrite ? propOverwrite(attributesToUpdate) : attributesToUpdate;
         for (const [attr, value] of Object.entries(overwrite)) {
+            if (element.getAttribute(attr) === value) {
+                continue;
+            }
             element.setAttribute(attr, value);
         }
     }
