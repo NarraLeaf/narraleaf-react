@@ -25,11 +25,12 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
                     state.logger.info("NarraLeaf-React: Text Font Size", "Skipped");
                     return super.executeAction(state) as CalledActionResult;
                 }));
-
-            this.callee.events.emit(Text.EventTypes["event:displayable.applyTransform"], transform, () => {
+            const exposed = state.getExposedStateForce(this.callee);
+            exposed.applyTransform(transform, () => {
                 awaitable.resolve(super.executeAction(state) as CalledActionResult);
                 state.stage.next();
             });
+
             return awaitable;
         }
 

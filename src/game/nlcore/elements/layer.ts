@@ -4,9 +4,8 @@ import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {TransformState} from "@core/elements/transform/transform";
 import {EmptyObject} from "./transition/type";
 import {TransformDefinitions} from "@core/elements/transform/type";
-import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
+import {Displayable} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
-import {EventDispatcher} from "@lib/util/data";
 import {LayerAction} from "@core/action/actions/layerAction";
 import {
     DisplayableActionContentType,
@@ -41,12 +40,10 @@ type LayerState = {
 };
 /**@internal */
 type LayerDataRaw = Record<string, any>;
-/**@internal */
-export type LayerEventTypes = {} & DisplayableEventTypes<any>;
 
 export class Layer
     extends Displayable<LayerDataRaw, Layer, TransformDefinitions.ImageTransformProps>
-    implements EventfulDisplayable<any> {
+    implements EventfulDisplayable {
 
     /**
      * @internal
@@ -81,8 +78,6 @@ export class Layer
     public state: LayerState;
     /**@internal */
     public transformState: TransformState<TransformDefinitions.ImageTransformProps>;
-    /**@internal */
-    public readonly events: EventDispatcher<LayerEventTypes> = new EventDispatcher();
     /**@internal */
     private userConfig: Config<ILayerUserConfig>;
 
@@ -125,19 +120,6 @@ export class Layer
     }
 
     /**@internal */
-    private getInitialState(): MergeConfig<LayerState> {
-        return Layer.DefaultState.create({
-            zIndex: this.config.zIndex,
-        }).get();
-    }
-
-    /**@internal */
-    private getInitialTransformState(): TransformState<TransformDefinitions.ImageTransformProps> {
-        const [transformState] = this.userConfig.extract(TransformState.DefaultTransformState.keys());
-        return new TransformState(TransformState.DefaultTransformState.create(transformState.get()).get());
-    }
-
-    /**@internal */
     _init(scene: Scene): LogicAction.Actions[] {
         return [
             new LayerAction(this.chain(), LayerActionTypes.action, new ContentNode<LayerActionContentType["layer:action"]>()),
@@ -150,6 +132,20 @@ export class Layer
             )
         ];
     }
+
+    /**@internal */
+    private getInitialState(): MergeConfig<LayerState> {
+        return Layer.DefaultState.create({
+            zIndex: this.config.zIndex,
+        }).get();
+    }
+
+    /**@internal */
+    private getInitialTransformState(): TransformState<TransformDefinitions.ImageTransformProps> {
+        const [transformState] = this.userConfig.extract(TransformState.DefaultTransformState.keys());
+        return new TransformState(TransformState.DefaultTransformState.create(transformState.get()).get());
+    }
+
     /**@internal */
     /**@internal */
 }

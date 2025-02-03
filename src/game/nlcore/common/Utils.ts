@@ -364,6 +364,14 @@ export class RuntimeGameError extends Error {
     }
 }
 
+/**@internal */
+export class RuntimeInternalError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "RuntimeInternalError";
+    }
+}
+
 /**
  * Alias for {@link Word.color}
  */

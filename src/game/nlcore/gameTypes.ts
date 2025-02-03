@@ -6,6 +6,7 @@ import {StorableData} from "@core/elements/persistent/type";
 import {MenuComponent, SayComponent} from "@player/elements/type";
 import React from "react";
 import {StringKeyOf} from "@lib/util/data";
+import {GuardConfig} from "@player/guard";
 
 
 export interface SavedGame {
@@ -302,6 +303,10 @@ export type GameConfig = {
          * If true, the game will show the inspector when you hover over the element
          */
         inspector: boolean;
+        /**
+         * The config of {@link GameStateGuard}
+         */
+        guard: GuardConfig;
     };
 };
 export type GameSettings = {

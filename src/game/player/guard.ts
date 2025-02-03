@@ -1,8 +1,11 @@
 import {GameState} from "@player/gameState";
 
+export enum GuardWarningType {
+    invalidExposedStateUnmounting = "invalidExposedStateUnmounting",
+}
+
 export interface GuardConfig {
-    unassignedElement: boolean;
-    unremovedScene: boolean;
+    [GuardWarningType.invalidExposedStateUnmounting]: boolean;
 }
 
 type GuardTask = {
@@ -18,11 +21,23 @@ type GuardTask = {
 export class GameStateGuard {
     private watching: GameState | null = null;
     private guardTasks: GuardTask[] = [];
+    private warnings: [GuardWarningType, string][] = [];
     constructor(public readonly config: GuardConfig) {
     }
 
-    observe(state: GameState) {
+    observe(state: GameState): this {
         this.watching = state;
+        return this;
+    }
+
+    warn(type: GuardWarningType, message: string): string {
+        this.warnings.push([type, message]);
+        this.watching?.logger.warn(message);
+        return message;
+    }
+
+    getWarnings(): [GuardWarningType, string][] {
+        return [...this.warnings];
     }
 }
 

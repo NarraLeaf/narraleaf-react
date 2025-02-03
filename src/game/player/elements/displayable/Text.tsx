@@ -6,6 +6,7 @@ import Inspect from "@player/lib/Inspect";
 import {useRatio} from "@player/provider/ratio";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
 import {TextTransition} from "@core/elements/transition/transitions/text/textTransition";
+import {useExposeState} from "@player/lib/useExposeState";
 
 /**@internal */
 export default function Text({state, text}: Readonly<{
@@ -13,7 +14,13 @@ export default function Text({state, text}: Readonly<{
     text: GameText;
 }>) {
     const {ratio} = useRatio();
-    const {transformRef, transitionRefs} = useDisplayable<TextTransition, HTMLSpanElement>({
+    const {
+        transformRef,
+        transitionRefs,
+        initDisplayable,
+        applyTransform,
+        applyTransition,
+    } = useDisplayable<TextTransition, HTMLSpanElement>({
         element: text,
         state: text.transformState,
         skipTransform: state.game.config.elements.text.allowSkipTransform,
@@ -46,6 +53,12 @@ export default function Text({state, text}: Readonly<{
                 },
             },
         ],
+    });
+
+    useExposeState(text, {
+        initDisplayable,
+        applyTransform,
+        applyTransition,
     });
 
     return (

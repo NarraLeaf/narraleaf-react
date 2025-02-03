@@ -1,6 +1,6 @@
 import {Actionable} from "@core/action/actionable";
 import {Transform, TransformState} from "@core/elements/transform/transform";
-import {EventDispatcher, Values} from "@lib/util/data";
+import {Values} from "@lib/util/data";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {DisplayableActionContentType, DisplayableActionTypes} from "@core/action/actionTypes";
 import {Chained, Proxied} from "@core/action/chain";
@@ -8,37 +8,22 @@ import {LogicAction} from "@core/action/logicAction";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import type {TransformDefinitions} from "@core/elements/transform/type";
-import {Transition} from "@core/elements/transition/transition";
 import {SrcManager} from "@core/action/srcManager";
-
-/**@internal */
-export type DisplayableEventTypes<TransitionType extends Transition> = {
-    "event:displayable.applyTransition": [transition: TransitionType, resolve: () => void];
-    "event:displayable.applyTransform": [transform: Transform, resolve: () => void];
-    "event:displayable.init": [resolve: () => void];
-    "event:displayable.onMount": [];
-    "event:displayable.onFlush": [];
-};
 
 export abstract class Displayable<
     StateData extends Record<string, any>,
-    Self extends Displayable<any, any, any, any>,
+    Self extends Displayable<any, any, any>,
     TransformType extends TransformDefinitions.Types = TransformDefinitions.Types,
-    TransitionType extends Transition = Transition,
 >
     extends Actionable<StateData, Self>
-    implements EventfulDisplayable<TransitionType> {
-    /**@internal */
-    static EventTypes: { [K in keyof DisplayableEventTypes<Transition>]: K } = {
-        "event:displayable.applyTransition": "event:displayable.applyTransition",
-        "event:displayable.applyTransform": "event:displayable.applyTransform",
-        "event:displayable.init": "event:displayable.init",
-        "event:displayable.onMount": "event:displayable.onMount",
-        "event:displayable.onFlush": "event:displayable.onFlush",
-    };
+    implements EventfulDisplayable {
 
-    /**@internal */
-    readonly abstract events: EventDispatcher<DisplayableEventTypes<TransitionType>>;
+    /**
+     * @internal
+     * @deprecated The game is no longer store the events in the game element, this undermines the abstraction of the game element.
+     * Use `useExposeState` instead
+     */
+    // events
     /**@internal */
     public readonly srcManager = new SrcManager();
 

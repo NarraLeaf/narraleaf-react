@@ -49,9 +49,11 @@ import {ServiceSkeleton} from "@core/elements/service";
 import {ServiceAction, ServiceActionContentType} from "@core/action/serviceAction";
 import {Layer} from "@core/elements/layer";
 import {LayerAction} from "@core/action/actions/layerAction";
+import {ExposedStateType} from "@player/type";
 
 export namespace LogicAction {
     export type DisplayableElements = Text | Image | Layer | AbstractDisplayable<any, any>;
+    export type DisplayableExposed = ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text;
     export type GameElement =
         Character
         | Scene

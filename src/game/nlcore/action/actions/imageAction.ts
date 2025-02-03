@@ -5,9 +5,9 @@ import type {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, SkipController} from "@lib/util/data";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {TypedAction} from "@core/action/actions";
-import {Displayable} from "@core/elements/displayable/displayable";
 import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {Color} from "@core/types";
+import {ExposedStateType} from "@player/type";
 
 export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageActionTypes] = typeof ImageActionTypes[keyof typeof ImageActionTypes]>
     extends TypedAction<ImageActionContentType, T, Image> {
@@ -40,16 +40,19 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
 
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === ImageActionTypes.initWearable) {
-            const [image] = (this.contentNode as ContentNode<ImageActionContentType["image:initWearable"]>).getContent();
+            const [wearable] = (this.contentNode as ContentNode<ImageActionContentType["image:initWearable"]>).getContent();
+            const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
+            const awaitable = new Awaitable<CalledActionResult>(v => v);
 
-            return this.resolveAwaitable((resolve) => {
-                this.callee.events.any("event:wearable.create", image).then(() => {
-                    this.callee.events.emit(Displayable.EventTypes["event:displayable.init"], () => {
-                        resolve(super.executeAction(state) as CalledActionResult);
-                        state.stage.next();
-                    });
+            exposed.createWearable(wearable);
+            state.getExposedStateAsync<ExposedStateType.image>(wearable, (wearableState) => {
+                wearableState.initDisplayable(() => {
+                    awaitable.resolve(super.executeAction(state) as CalledActionResult);
+                    state.stage.next();
                 });
             });
+
+            return awaitable;
         } else if (this.type === ImageActionTypes.setSrc) {
             const src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
             if (Utils.isColor(src) && !this.callee.config.isBackground) {
@@ -83,11 +86,13 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     ._setPrevSrc(ImageAction.resolveCurrentSrc(this.callee))
                     ._setTargetSrc(newSrc);
 
-                this.callee.events.emit("event:displayable.applyTransition", transition, () => {
+                const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
+                exposed.applyTransition(transition, () => {
                     this.callee.state.currentSrc = newTags as [];
                     awaitable.resolve(super.executeAction(state) as CalledActionResult);
                     state.stage.next();
                 });
+
                 return awaitable;
             }
             this.callee.state.currentSrc = newTags as [];

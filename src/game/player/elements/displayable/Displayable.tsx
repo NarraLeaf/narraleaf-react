@@ -9,7 +9,6 @@ import {
 } from "@core/elements/transition/type";
 import {useFlush} from "@player/lib/flush";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
-import {Displayable} from "@core/elements/displayable/displayable";
 import {Awaitable, deepMerge, KeyGen} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
@@ -22,7 +21,7 @@ export type DisplayableHookConfig<TransitionType extends Transition<U>, U extend
     skipTransform?: boolean;
     overwriteDefinition?: OverwriteDefinition;
     state: TransformState<any>;
-    element: EventfulDisplayable<TransitionType>;
+    element: EventfulDisplayable;
     onTransform?: (transform: Transform) => void;
     /**@deprecated */
     transformStyle?: React.CSSProperties;
@@ -44,6 +43,9 @@ export type DisplayableHookResult<TransitionType extends Transition<U>, U extend
     transitionRefs: RefGroupDefinition<U>[];
     isTransforming: boolean;
     transitionTask: TransitionTaskWithController<TransitionType, U> | null;
+    initDisplayable: (resolve: () => void) => void;
+    applyTransform: (transform: Transform, resolve: () => void) => void;
+    applyTransition: (transition: Transition, resolve: () => void) => void;
 };
 
 /**@internal */
@@ -62,7 +64,6 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         transitionsProps = [],
         propOverwrite,
     }: DisplayableHookConfig<TransitionType, U>): DisplayableHookResult<TransitionType, U> {
-    const [flush] = useFlush();
     const [transitionTask, setTransitionTask] = useState<null | TransitionTaskWithController<TransitionType, U>>(null);
     const [transformToken, setTransformToken] = useState<null | Awaitable<void>>(null);
     const ref = React.useRef<HTMLDivElement | null>(null);
@@ -74,14 +75,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     const evaluatedTransProps = typeof transitionsProps === "function"
         ? transitionsProps(transitionTask)
         : transitionsProps;
-
-    useEffect(() => {
-        return element.events.depends([
-            element.events.on(Displayable.EventTypes["event:displayable.applyTransform"], applyTransform),
-            element.events.on(Displayable.EventTypes["event:displayable.applyTransition"], applyTransition),
-            element.events.on(Displayable.EventTypes["event:displayable.init"], initDisplayable),
-        ]).cancel;
-    }, [transformToken, transitionTask, refs]);
+    const [flush] = useFlush([transformToken, transitionTask, refs]);
 
     useEffect(() => {
         return gameState.events.depends([
@@ -139,8 +133,6 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         if (!ref.current) {
             throw new Error(`Scope not ready. Using element: ${element.constructor.name}`);
         }
-
-        element.events.emit(Displayable.EventTypes["event:displayable.onMount"]);
     }, []);
 
     useEffect(() => {
@@ -286,13 +278,14 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         refs.current = initRefs();
     }
 
-    element.events.emit(Displayable.EventTypes["event:displayable.onFlush"]);
-
     return {
         transformRef: ref,
         transitionRefs: refs.current,
         isTransforming: !!transformToken,
         transitionTask,
+        initDisplayable,
+        applyTransform,
+        applyTransition: applyTransition as (transition: Transition, resolve: () => void) => void,
     };
 }
 

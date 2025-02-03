@@ -7,17 +7,19 @@ export default function AspectScaleImage(
     {
         ref,
         onSizeChanged,
+        onLoad,
         autoFit = false,
     }: Readonly<{
         ref?: React.RefObject<HTMLImageElement | null>;
         onSizeChanged?: (width: number, height: number) => void;
+        onLoad?: () => void;
         autoFit?: boolean;
     }>
 ) {
     const imgRef = useRef<HTMLImageElement>(null);
     const {ratio} = useRatio();
-    const [width, setWidth] = React.useState<number>(0);
-    const [height, setHeight] = React.useState<number>(0);
+    const [width, setWidth] = React.useState<number>(() => ratio.state.width);
+    const [height, setHeight] = React.useState<number>(() => ratio.state.height);
     const {game} = useGame();
 
     useEffect(() => {
@@ -76,6 +78,9 @@ export default function AspectScaleImage(
 
     function handleOnLoad() {
         updateWidth();
+        if (onLoad) {
+            onLoad();
+        }
     }
 
     return (

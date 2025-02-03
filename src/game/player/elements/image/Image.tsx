@@ -1,5 +1,5 @@
 import {Image as GameImage} from "@core/elements/displayable/image";
-import React, {useEffect, useRef, useState} from "react";
+import React, {useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import AspectScaleImage from "@player/elements/image/AspectScaleImage";
 import clsx from "clsx";
@@ -8,6 +8,13 @@ import {Utils} from "@core/common/Utils";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {usePreloaded} from "@player/provider/preloaded";
 import {motion} from "motion/react";
+import {EventDispatcher} from "@lib/util/data";
+import {useExposeState} from "@player/lib/useExposeState";
+import {ExposedStateType} from "@player/type";
+
+export type ImageEvents = {
+    "event:image.onLoad": [];
+};
 
 /**@internal */
 export default function Image(
@@ -18,11 +25,19 @@ export default function Image(
         image: GameImage;
         state: GameState;
     }>) {
+    const [events] = useState<EventDispatcher<ImageEvents>>(() => new EventDispatcher<ImageEvents>());
     const [wearables, setWearables] = useState<GameImage[]>([]);
     const {cacheManager} = usePreloaded();
     const ignored = useRef<string[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
-    const {transformRef, transitionRefs, isTransforming} = useDisplayable<ImageTransition, HTMLImageElement>({
+    const {
+        transformRef,
+        transitionRefs,
+        isTransforming,
+        initDisplayable,
+        applyTransition,
+        applyTransform,
+    } = useDisplayable<ImageTransition, HTMLImageElement>({
         element: image,
         state: image.transformState,
         skipTransform: state.game.config.elements.img.allowSkipTransform,
@@ -80,19 +95,28 @@ export default function Image(
         }
     });
 
-    useEffect(() => {
-        return image.events.on(GameImage.EventTypes["event:wearable.create"], (wearable: GameImage) => {
+    useExposeState<ExposedStateType.image>(image, {
+        createWearable: (wearable: GameImage) => {
             setWearables((prev) => [...prev, wearable]);
-        }).cancel;
-    }, []);
+        },
+        initDisplayable,
+        applyTransform,
+        applyTransition,
+        events,
+    });
 
     function handleWidthChange(width: number, height: number) {
         if (containerRef.current) {
+            events.emit("event:image.onLoad");
             Object.assign(containerRef.current.style, {
                 width: `${width}px`,
                 height: `${height}px`,
             });
         }
+    }
+
+    function handleOnLoad() {
+        events.emit("event:image.onLoad");
     }
 
     return (
@@ -108,6 +132,7 @@ export default function Image(
                         ref={ref}
                         autoFit={image.config.autoFit}
                         onSizeChanged={i === 0 ? handleWidthChange : undefined}
+                        onLoad={i === 0 ? handleOnLoad : undefined}
                     />
                 ))}
                 <div className={clsx("w-full h-full top-0 left-0 absolute")}>

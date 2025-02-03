@@ -9,7 +9,7 @@ import {DisplayableActionContentType, DisplayableActionTypes, TextActionContentT
 import {TextAction} from "@core/action/actions/textAction";
 import {Scene} from "@core/elements/scene";
 import {Control} from "@core/elements/control";
-import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
+import {Displayable} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
@@ -72,14 +72,13 @@ export type TextDataRaw = {
 export type TextEventTypes = {
     "event:text.show": [Transform];
     "event:text.hide": [Transform];
-} & DisplayableEventTypes<TextTransition>;
+};
 
 export class Text
-    extends Displayable<TextDataRaw, Text, TransformDefinitions.TextTransformProps, TextTransition>
-    implements EventfulDisplayable<TextTransition> {
+    extends Displayable<TextDataRaw, Text, TransformDefinitions.TextTransformProps>
+    implements EventfulDisplayable {
     /**@internal */
     static EventTypes: { [K in keyof TextEventTypes]: K } = {
-        ...Displayable.EventTypes,
         "event:text.show": "event:text.show",
         "event:text.hide": "event:text.hide",
     };

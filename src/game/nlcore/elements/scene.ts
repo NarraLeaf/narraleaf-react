@@ -6,7 +6,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {EmptyObject} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
-import {DisplayableActionTypes, SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
+import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
 import {Control, Persistent, Story} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
@@ -178,6 +178,7 @@ export class Scene extends Constructable<
     private readonly userConfig: Config<ISceneUserConfig, EmptyObject>;
     /**@internal */
     private _futureActions_: LogicAction.Actions[] = [];
+
     /**@internal */
     get __futureActions__() {
         return this._futureActions_;
@@ -248,7 +249,7 @@ export class Scene extends Constructable<
      * Any operations after the jump operation won't be executed
      * @chainable
      */
-    public jumpTo(scene: Scene, config: Partial<JumpConfig> = {}): ChainedScene {
+    public jumpTo(scene: Scene, config: Partial<JumpConfig> = {}): ChainableAction {
         return this.combineActions(new Control({
             allowFutureScene: false,
         }), chain => {
@@ -378,7 +379,9 @@ export class Scene extends Constructable<
             if (image.config.isWearable) {
                 usedWearableImages.push(image);
             } else {
-                nonWearableImages.push(image);
+                if (image.config.autoInit) {
+                    nonWearableImages.push(image);
+                }
             }
             for (const wearable of image.config.wearables) {
                 if (
@@ -397,7 +400,6 @@ export class Scene extends Constructable<
         const futureActions: LogicAction.Actions[] = [
             ...this._initScene(this),
             ...nonWearableImages
-                .filter(image => image.config.autoInit)
                 .map(image => image._init(this)),
             ...usedWearableImages.map(image => {
                 if (!wearableImagesMap.has(image)) {
@@ -606,13 +608,15 @@ export class Scene extends Constructable<
         return [
             scene._init(scene),
             ...scene.config.layers.flatMap(l => l._init(scene)),
-            scene._initBackground(scene, scene.config.defaultBackgroundLayer),
+            ...scene._initBackground(scene, scene.config.defaultBackgroundLayer),
         ];
     }
 
     /**@internal */
-    private _initBackground(target: Scene, layer: Layer): DisplayableAction<typeof DisplayableActionTypes.init, Image> {
-        return target.state.backgroundImage._init(target, layer);
+    private _initBackground(target: Scene, layer: Layer): LogicAction.Actions[] {
+        return [
+            target.state.backgroundImage._init(target, layer),
+        ];
     }
 }
 

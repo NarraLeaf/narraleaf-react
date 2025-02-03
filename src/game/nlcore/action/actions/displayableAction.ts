@@ -9,11 +9,12 @@ import {Scene} from "@core/elements/scene";
 import {Transform} from "@core/elements/transform/transform";
 import {Transition} from "@core/elements/transition/transition";
 import {Layer} from "@core/elements/layer";
+import {LogicAction} from "@core/action/logicAction";
 
 
 export class DisplayableAction<
     T extends Values<typeof DisplayableActionTypes> = Values<typeof DisplayableActionTypes>,
-    Self extends Displayable<any, any, any, any> = Displayable<any, any>,
+    Self extends Displayable<any, any, any> = Displayable<any, any>,
     TransitionType extends Transition = Transition,
 >
     extends TypedAction<DisplayableActionContentType<TransitionType>, T, Self> {
@@ -48,11 +49,13 @@ export class DisplayableAction<
                 state.logger.info("Displayable Transition", "Skipped");
                 return super.executeAction(state) as CalledActionResult;
             }));
-        element.events.emit(Displayable.EventTypes["event:displayable.applyTransform"], transform, () => {
+        const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
+        exposed.applyTransform(transform, () => {
             onFinished?.();
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
             state.stage.next();
         });
+
         return awaitable;
     }
 
@@ -62,11 +65,13 @@ export class DisplayableAction<
                 state.logger.info("Displayable Transition", "Skipped");
                 return super.executeAction(state) as CalledActionResult;
             }));
-        element.events.emit(Displayable.EventTypes["event:displayable.applyTransition"], transition, () => {
+        const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
+        exposed.applyTransition(transition, () => {
             onFinished?.();
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
             state.stage.next();
         });
+
         return awaitable;
     }
 
@@ -77,19 +82,19 @@ export class DisplayableAction<
                 state.disposeDisplayable(element, lastScene.scene, layer);
             }
 
-            state
-                .createDisplayable(element, scene, layer);
+            state.createDisplayable(element, scene, layer);
         }
-
         state.flush();
 
         const awaitable = new Awaitable<CalledActionResult>()
             .registerSkipController(new SkipController(() =>
                 super.executeAction(state) as CalledActionResult));
-        element.events.any(Displayable.EventTypes["event:displayable.init"], () => {
-            awaitable.resolve(super.executeAction(state) as CalledActionResult);
-            state.stage.next();
-        }).then(Awaitable.nothing);
+        state.getExposedStateAsync<LogicAction.DisplayableExposed>(element, (exposed) => {
+            exposed.initDisplayable(() => {
+                awaitable.resolve(super.executeAction(state) as CalledActionResult);
+                state.stage.next();
+            });
+        });
 
         return awaitable;
     }

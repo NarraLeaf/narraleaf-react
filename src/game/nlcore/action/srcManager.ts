@@ -116,7 +116,7 @@ export class SrcManager {
                 if (Image.isTagSrc(imageAction.callee) && tags.length === (imageAction.callee.config.src as TagDefinition<TagGroupDefinition>).groups.length) {
                     return {
                         type: "image",
-                        src: Image.fromSrc(Image.getSrcFromTags(tags, imageAction.callee.config.src.resolve)),
+                        src: Image.getSrcFromTags(tags, imageAction.callee.config.src.resolve),
                         activeType: "scene"
                     };
                 }

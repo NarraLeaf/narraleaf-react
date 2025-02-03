@@ -8,11 +8,11 @@ import {DisplayableActionContentType, DisplayableActionTypes, ImageActionContent
 import {LogicAction} from "@core/game";
 import {EmptyObject} from "@core/elements/transition/type";
 import {IPosition, PositionUtils, RawPosition} from "@core/elements/transform/position";
-import {EventDispatcher, FlexibleTuple, SelectElementFromEach, Serializer} from "@lib/util/data";
+import {FlexibleTuple, SelectElementFromEach, Serializer} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {Control} from "@core/elements/control";
 import {ImageAction} from "@core/action/actions/imageAction";
-import {Displayable, DisplayableEventTypes} from "@core/elements/displayable/displayable";
+import {Displayable} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
@@ -80,7 +80,8 @@ export type ImageDataRaw = {
 /**@internal */
 export type ImageEventTypes = {
     "event:wearable.create": [Image];
-} & DisplayableEventTypes<ImageTransition>;
+    "event:image.load": [];
+};
 export type TagGroupDefinition = string[][];
 export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectElementFromEach<T>) => string;
 
@@ -88,14 +89,9 @@ export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectEleme
 export class Image<
     Tags extends TagGroupDefinition | null = TagGroupDefinition | null
 >
-    extends Displayable<ImageDataRaw, Image, TransformDefinitions.ImageTransformProps, ImageTransition>
-    implements EventfulDisplayable<ImageTransition> {
+    extends Displayable<ImageDataRaw, Image, TransformDefinitions.ImageTransformProps>
+    implements EventfulDisplayable {
 
-    /**@internal */
-    static EventTypes: { [K in keyof ImageEventTypes]: K } = {
-        ...Displayable.EventTypes,
-        "event:wearable.create": "event:wearable.create",
-    };
     /**@internal */
     public static DefaultImagePlaceholder = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAwAB/6Vf9WYAAAAASUVORK5CYII=";
 
@@ -215,8 +211,6 @@ export class Image<
 
     /**@internal*/
     public readonly config: Readonly<ImageConfig<Tags>>;
-    /**@internal */
-    public readonly events: EventDispatcher<ImageEventTypes> = new EventDispatcher();
     /**@internal */
     public state: ImageState<Tags>;
     /**@internal */

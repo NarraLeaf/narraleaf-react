@@ -6,6 +6,7 @@ import {ComponentsTypes} from "@player/elements/type";
 import {LiveGame} from "@core/game/liveGame";
 import {Preference} from "@core/game/preference";
 import {GameState} from "@player/gameState";
+import {GuardWarningType} from "@player/guard";
 
 enum GameSettingsNamespace {
     game = "game",
@@ -119,6 +120,9 @@ export class Game {
                 verbose: false,
             },
             inspector: false,
+            guard: {
+                [GuardWarningType.invalidExposedStateUnmounting]: true,
+            },
         }
     };
     static GameSettingsNamespace = GameSettingsNamespace;

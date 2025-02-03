@@ -8,10 +8,10 @@ import {LogicAction} from "@core/action/logicAction";
 import {TypedAction} from "@core/action/actions";
 import {Story} from "@core/elements/story";
 import {RuntimeScriptError} from "@core/common/Utils";
-import {Image} from "@core/elements/displayable/image";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {ImageAction} from "@core/action/actions/imageAction";
 import {ActionSearchOptions} from "@core/types";
+import {ExposedStateType} from "@player/type";
 
 export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneActionTypes] = typeof SceneActionTypes[keyof typeof SceneActionTypes]>
     extends TypedAction<SceneActionContentType, T, Scene> {
@@ -64,10 +64,12 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 state.logger.info("Background Transition", "Skipped");
                 return super.executeAction(state) as CalledActionResult;
             }));
-        this.callee.background.events.emit(Image.EventTypes["event:displayable.applyTransition"], transition, () => {
+        const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee.background);
+        exposed.applyTransition(transition, () => {
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
             state.stage.next();
         });
+
         return awaitable;
     }
 

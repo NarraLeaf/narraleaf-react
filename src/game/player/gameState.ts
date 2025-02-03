@@ -1,7 +1,6 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher} from "@lib/util/data";
+import {EventDispatcher, Values} from "@lib/util/data";
 import {Choice, MenuData} from "@core/elements/menu";
-import {Image} from "@core/elements/displayable/image";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
@@ -13,14 +12,16 @@ import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 import {Sentence} from "@core/elements/character/sentence";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {Logger} from "@lib/util/logger";
-import {RuntimeGameError} from "@core/common/Utils";
+import {RuntimeGameError, RuntimeInternalError} from "@core/common/Utils";
 import {Story} from "@core/elements/story";
 import {Script} from "@core/elements/script";
 import {LiveGame} from "@core/game/liveGame";
 import {Word} from "@core/elements/character/word";
-import {Chosen} from "@player/type";
+import {Chosen, ExposedKeys, ExposedState, ExposedStateType} from "@player/type";
 import {AudioManager, AudioManagerDataRaw} from "@player/lib/AudioManager";
 import {Layer} from "@core/elements/layer";
+import {GameStateGuard, GuardWarningType} from "@player/guard";
+import {LiveGameEventToken} from "@core/types";
 
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -69,6 +70,7 @@ type GameStateEvents = {
     "event:state.end": [];
     "event:state.player.skip": [];
     "event:state.player.requestFlush": [];
+    "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
 };
 
 export class GameState {
@@ -76,6 +78,7 @@ export class GameState {
         "event:state.end": "event:state.end",
         "event:state.player.skip": "event:state.player.skip",
         "event:state.player.requestFlush": "event:state.player.requestFlush",
+        "event.state.onExpose": "event.state.onExpose",
     };
     state: PlayerState = {
         sounds: [],
@@ -86,6 +89,8 @@ export class GameState {
     stage: StageUtils;
     game: Game;
     playerCurrent: HTMLDivElement | null = null;
+    exposedState: Map<Values<ExposedKeys>, object> = new Map();
+    guard: GameStateGuard;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
     public readonly audioManager: AudioManager;
@@ -96,6 +101,7 @@ export class GameState {
         this.events = new EventDispatcher();
         this.logger = new Logger(game, "NarraLeaf-React");
         this.audioManager = new AudioManager(this);
+        this.guard = new GameStateGuard(this.game.config.app.guard).observe(this);
     }
 
     public findElementByScene(scene: Scene): PlayerStateElement | null {
@@ -234,10 +240,6 @@ export class GameState {
         menus.push(action);
     }
 
-    public createWearable(parent: Image, image: Image): Promise<any> {
-        return parent.events.any(Image.EventTypes["event:wearable.create"], image);
-    }
-
     public createDisplayable(
         displayable: LogicAction.DisplayableElements,
         scene: Scene | null = null,
@@ -331,6 +333,65 @@ export class GameState {
 
     public clearTimeout(timeout: NodeJS.Timeout): void {
         clearTimeout(timeout);
+    }
+
+    public mountState<T extends ExposedStateType>(key: ExposedKeys[T], state: ExposedState[T]): {
+        unMount: () => void;
+    } {
+        if (this.exposedState.has(key)) {
+            throw new RuntimeInternalError("State already mounted");
+        }
+        if (!key) {
+            throw new RuntimeInternalError("Invalid state key");
+        }
+
+        this.exposedState.set(key, state);
+        this.events.emit(GameState.EventTypes["event.state.onExpose"], key, state);
+        return {
+            unMount: () => {
+                this.unMountState(key);
+            }
+        };
+    }
+
+    public unMountState(key: Values<ExposedKeys>): this {
+        if (!this.exposedState.has(key)) {
+            this.guard.warn(GuardWarningType.invalidExposedStateUnmounting, "State not found when unmounting");
+        }
+        this.exposedState.delete(key);
+        return this;
+    }
+
+    public isStateMounted(key: Values<ExposedKeys>): boolean {
+        return this.exposedState.has(key);
+    }
+
+    public getExposedState<T extends ExposedStateType>(key: ExposedKeys[T]): ExposedState[T] | null {
+        return this.exposedState.get(key) as ExposedState[T] || null;
+    }
+
+    public getExposedStateForce<T extends ExposedStateType>(key: ExposedKeys[T]): ExposedState[T] {
+        const state = this.getExposedState(key);
+        if (!state) {
+            throw new RuntimeGameError("State not found, key: " + key);
+        }
+        return state;
+    }
+
+    public getExposedStateAsync<T extends ExposedStateType>(key: ExposedKeys[T], onExpose: (state: ExposedState[T]) => void): LiveGameEventToken | null {
+        const state = this.getExposedState(key);
+        if (state) {
+            onExpose(state);
+            return null;
+        } else {
+            const token = this.events.on(GameState.EventTypes["event.state.onExpose"], (k, s) => {
+                if (k === key) {
+                    onExpose(s as ExposedState[T]);
+                    token.cancel();
+                }
+            });
+            return token;
+        }
     }
 
     /**
