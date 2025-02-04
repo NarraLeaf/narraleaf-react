@@ -2,27 +2,25 @@ import "client-only";
 import "@player/lib/styles/style.css";
 
 import clsx from "clsx";
-import React, {useEffect, useReducer, useState} from "react";
-import {Awaitable, createMicroTask, MultiLock} from "@lib/util/data";
-import {CalledActionResult} from "@core/gameTypes";
-import AspectRatio from "@player/lib/AspectRatio";
-import Isolated from "@player/lib/isolated";
-import {default as StageScene} from "@player/elements/scene/Scene";
-import {usePreloaded} from "@player/provider/preloaded";
-import {Preload} from "@player/elements/preload/Preload";
-import {Preloaded} from "@player/lib/Preloaded";
-import {GameState, PlayerAction} from "@player/gameState";
-import {useGame} from "@player/provider/game-state";
-import {PlayerProps} from "@player/elements/type";
-import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 import {flushSync} from "react-dom";
-import Displayables from "@player/elements/displayable/Displayables";
-import {ErrorBoundary} from "@player/lib/ErrorBoundary";
-import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 import Cursor from "@player/lib/Cursor";
 import {Story} from "@core/elements/story";
+import Isolated from "@player/lib/isolated";
+import {Preloaded} from "@player/lib/Preloaded";
+import AspectRatio from "@player/lib/AspectRatio";
+import {PlayerProps} from "@player/elements/type";
+import {CalledActionResult} from "@core/gameTypes";
+import {useGame} from "@player/provider/game-state";
+import {ErrorBoundary} from "@player/lib/ErrorBoundary";
+import {usePreloaded} from "@player/provider/preloaded";
+import {Preload} from "@player/elements/preload/Preload";
+import {GameState, PlayerAction} from "@player/gameState";
+import React, {useEffect, useReducer, useState} from "react";
 import {PageRouter} from "@player/lib/PageRouter/PageRouter";
-import {Layer} from "@player/elements/player/Layer";
+import {default as StageScene} from "@player/elements/scene/Scene";
+import {Awaitable, createMicroTask, MultiLock} from "@lib/util/data";
+import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
+import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -55,9 +53,6 @@ export default function Player(
     const containerRef = React.createRef<HTMLDivElement>();
     const [ready, setReady] = useState(false);
     const readyHandlerExecuted = React.useRef(false);
-
-    const Say = game.config.elements.say.use;
-    const Menu = game.config.elements.menu.use;
 
     function next() {
         let exited = false;
@@ -182,41 +177,8 @@ export default function Player(
                         )}
                         <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
                             <KeyEventAnnouncer state={state} router={router}/>
-                            {state.getSceneElements().map(({scene, layers, texts, menus}) => (
-                                <StageScene key={"scene-" + scene.getId()} state={state} scene={scene}>
-                                    {([...layers.entries()].sort(([layerA], [layerB]) => {
-                                        return layerA.config.zIndex - layerB.config.zIndex;
-                                    }).map(([layer, ele]) => (
-                                        <Layer state={state} layer={layer} key={layer.getId()}>
-                                            <Displayables state={state} displayable={ele}/>
-                                        </Layer>
-                                    )))}
-                                    {texts.map(({action, onClick}) => (
-                                        <Say
-                                            state={state}
-                                            key={"say-" + action.id}
-                                            action={action}
-                                            onClick={() => {
-                                                onClick();
-                                                next();
-                                            }}
-                                        />
-                                    ))}
-                                    {menus.map(({action, onClick}, i) => (
-                                        <div key={"menu-" + i}>
-                                            <Menu
-                                                state={state}
-                                                prompt={action.prompt}
-                                                choices={action.choices}
-                                                afterChoose={(choice) => {
-                                                    onClick(choice);
-                                                    next();
-                                                }}
-                                                words={action.words}
-                                            />
-                                        </div>
-                                    ))}
-                                </StageScene>
+                            {state.getSceneElements().map((elements) => (
+                                <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements}/>
                             ))}
                         </OnlyPreloaded>
                         <Preload state={state}/>
@@ -244,9 +206,6 @@ function OnlyPreloaded({children, onLoaded}: Readonly<{
                 setPreloadedReady(true);
                 onLoaded();
             }),
-            preloaded.events.on(Preloaded.EventTypes["event:preloaded.unmount"], () => {
-                setPreloadedReady(false);
-            })
         ]).cancel;
     }, []);
 

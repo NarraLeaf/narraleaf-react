@@ -139,13 +139,13 @@ export abstract class Displayable<
      * ```
      * @chainable
      */
-    public show(): Proxied<Text, Chained<LogicAction.Actions>>;
+    public show(): Proxied<Self, Chained<LogicAction.Actions>>;
 
-    public show(options: Transform<TransformType>): Proxied<Text, Chained<LogicAction.Actions>>;
+    public show(options: Transform<TransformType>): Proxied<Self, Chained<LogicAction.Actions>>;
 
-    public show(options: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>>;
+    public show(options: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Self, Chained<LogicAction.Actions>>;
 
-    public show(options?: Transform<TransformType> | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>> {
+    public show(options?: Transform<TransformType> | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Self, Chained<LogicAction.Actions>> {
         const chain = this.chain();
         const trans =
             (options instanceof Transform) ? options.copy() : new Transform<TransformType>({
@@ -173,13 +173,13 @@ export abstract class Displayable<
      * ```
      * @chainable
      */
-    public hide(): Proxied<Text, Chained<LogicAction.Actions>>;
+    public hide(): Proxied<Self, Chained<LogicAction.Actions>>;
 
-    public hide(options: Transform<TransformType>): Proxied<Text, Chained<LogicAction.Actions>>;
+    public hide(options: Transform<TransformType>): Proxied<Self, Chained<LogicAction.Actions>>;
 
-    public hide(options: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>>;
+    public hide(options: Partial<TransformDefinitions.CommonTransformProps>): Proxied<Self, Chained<LogicAction.Actions>>;
 
-    public hide(options?: Transform<TransformType> | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Text, Chained<LogicAction.Actions>> {
+    public hide(options?: Transform<TransformType> | Partial<TransformDefinitions.CommonTransformProps>): Proxied<Self, Chained<LogicAction.Actions>> {
         const chain = this.chain();
         const trans =
             (options instanceof Transform) ? options.copy() : new Transform<TransformType>({

@@ -46,6 +46,7 @@ export type DisplayableHookResult<TransitionType extends Transition<U>, U extend
     initDisplayable: (resolve: () => void) => void;
     applyTransform: (transform: Transform, resolve: () => void) => void;
     applyTransition: (transition: Transition, resolve: () => void) => void;
+    deps: React.DependencyList;
 };
 
 /**@internal */
@@ -286,6 +287,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         initDisplayable,
         applyTransform,
         applyTransition: applyTransition as (transition: Transition, resolve: () => void) => void,
+        deps: [transformToken, transitionTask, refs],
     };
 }
 

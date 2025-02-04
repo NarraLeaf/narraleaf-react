@@ -20,6 +20,7 @@ export default function Text({state, text}: Readonly<{
         initDisplayable,
         applyTransform,
         applyTransition,
+        deps,
     } = useDisplayable<TextTransition, HTMLSpanElement>({
         element: text,
         state: text.transformState,
@@ -59,7 +60,7 @@ export default function Text({state, text}: Readonly<{
         initDisplayable,
         applyTransform,
         applyTransition,
-    });
+    }, [...deps]);
 
     return (
         <Inspect.Div>

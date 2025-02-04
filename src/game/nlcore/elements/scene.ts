@@ -1,5 +1,5 @@
 import {Constructable} from "../action/constructable";
-import {deepMerge, EventDispatcher, Serializer} from "@lib/util/data";
+import {deepMerge, EventDispatcher, Serializer, TypeOf} from "@lib/util/data";
 import {Color, ImageSrc} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
@@ -249,12 +249,14 @@ export class Scene extends Constructable<
      * Any operations after the jump operation won't be executed
      * @chainable
      */
-    public jumpTo(scene: Scene, config: Partial<JumpConfig> = {}): ChainableAction {
+    public jumpTo(scene: Scene, config: Partial<JumpConfig> | JumpConfig["transition"] = {}): ChainableAction {
         return this.combineActions(new Control({
             allowFutureScene: false,
         }), chain => {
             const defaultJumpConfig: Partial<JumpConfig> = {unloadScene: true};
-            const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig, config);
+            const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig,
+                TypeOf(config) === TypeOf.DataTypes.object ? config : {transition: config}
+            );
             chain
                 .chain(new SceneAction<typeof SceneActionTypes.preUnmount>(
                     chain,
@@ -313,15 +315,18 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Manually register an image to preload
+     * Manually register image sources
      */
-    public preloadImage(src: string) {
+    public preloadImage(src: string | string[]) {
         if (!Utils.isImageSrc(src)) {
             throw new Error("Invalid image source: " + src);
         }
-        this.srcManager.register({
-            type: "image",
-            src,
+        const imageSrc = Array.isArray(src) ? src : [src];
+        imageSrc.forEach(src => {
+            this.srcManager.register({
+                type: "image",
+                src,
+            });
         });
     }
 

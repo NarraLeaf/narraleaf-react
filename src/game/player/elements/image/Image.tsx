@@ -37,6 +37,7 @@ export default function Image(
         initDisplayable,
         applyTransition,
         applyTransform,
+        deps,
     } = useDisplayable<ImageTransition, HTMLImageElement>({
         element: image,
         state: image.transformState,
@@ -82,7 +83,7 @@ export default function Image(
                     state.game.getLiveGame().getGameState()?.logger.warn("Image",
                         `Image not preloaded: "${props.src}". `
                         + "\nThis may be caused by complicated image action behavior that cannot be predicted. "
-                        + "\nTo fix this issue, you can manually register the image using scene.requestImagePreload(YourImageSrc). "
+                        + "\nTo fix this issue, you can manually register the image using scene.preloadImage(YourImageSrc). "
                     );
                     ignored.current.push(props.src);
                 }
@@ -103,7 +104,7 @@ export default function Image(
         applyTransform,
         applyTransition,
         events,
-    });
+    }, [...deps]);
 
     function handleWidthChange(width: number, height: number) {
         if (containerRef.current) {

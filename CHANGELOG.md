@@ -67,6 +67,8 @@
 
 - some errors being thrown when initializing the game
 - Components reach the React flush limit when applying transitions
+- The game stops working when entering scenes that reference each other
+- Short black screen between scene transitions
 
 ### Updated
 
@@ -74,6 +76,8 @@
 - Refactored displayable components
 - Refactored the way to play sounds
 - Transform now doesn't store its controllers and states, transform states are now stored in the element states
+- The game no longer stores the events in the game element, this undermines the abstraction of the game element.  
+Use `useExposeState` to expose the component state to the game element. 
 
 ## [0.2.3] - 2024/12/27
 
