@@ -25,6 +25,7 @@ export type PreloadedEventTypes = {
     "event:preloaded.change": [];
     "event:preloaded.mount": [];
     "event:preloaded.ready": [];
+    "event:preloaded.unmount": [];
 }
 
 export class Preloaded {
@@ -34,12 +35,14 @@ export class Preloaded {
         "event:preloaded.change": "event:preloaded.change",
         "event:preloaded.mount": "event:preloaded.mount",
         "event:preloaded.ready": "event:preloaded.ready",
+        "event:preloaded.unmount": "event:preloaded.unmount",
     };
     preloaded: PreloadedSrc[] = [];
     events: EventDispatcher<PreloadedEventTypes> = new EventDispatcher();
 
     public add<T extends PreloadedSrcTypes = PreloadedSrcTypes>(src: PreloadedSrc<T>): this {
-        if (this.has(this.getSrc(src))) return this;
+        const urlSrc = this.getSrc(src);
+        if (urlSrc && this.has(urlSrc)) return this;
         this.preloaded.push(src);
         this.events.emit(Preloaded.EventTypes["event:preloaded.add"], src);
         this.events.emit(Preloaded.EventTypes["event:preloaded.change"]);
@@ -81,7 +84,7 @@ export class Preloaded {
         return this;
     }
 
-    getSrc(src: Src | string): string {
+    getSrc(src: Src | string): string | null {
         return SrcManager.getSrc(src);
     }
 }

@@ -1,17 +1,18 @@
 import {Sound} from "@core/elements/sound";
-import {Image as GameImage, Image} from "@core/elements/displayable/image";
-import {Story, Utils} from "@core/common/core";
+import {Image as GameImage, Image, TagDefinition, TagGroupDefinition} from "@core/elements/displayable/image";
+import {Story} from "@core/common/core";
 import {StaticImageData} from "@core/types";
 import {LogicAction} from "@core/action/logicAction";
 import {ImageAction} from "@core/action/actions/imageAction";
 import {ImageActionContentType, ImageActionTypes, SceneActionTypes} from "@core/action/actionTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
+import {Utils} from "../common/Utils";
 
 export type SrcType = "image" | "video" | "audio";
 export type Src = {
     type: "image";
-    src: Image;
+    src: Image | string;
 } | {
     type: "video";
     src: string;
@@ -33,11 +34,11 @@ export class SrcManager {
     } as const;
 
     static catSrc(src: Src[]): {
-        image: Image[];
+        image: (Image | string)[];
         video: string[];
         audio: Sound[];
     } {
-        const images: Set<Image> = new Set();
+        const images: Set<Image | string> = new Set();
         const videos: Set<string> = new Set();
         const audios: Set<Sound> = new Set();
 
@@ -58,15 +59,15 @@ export class SrcManager {
         };
     }
 
-    static getSrc(src: Src | string | Image): string {
+    static getSrc(src: Src | string | Image): string | null {
         if (typeof src === "string") {
             return src;
         }
         if (src instanceof Image) {
-            return GameImage.getSrc(src.state);
+            return GameImage.getSrcURL(src);
         }
         if (src.type === "image") {
-            return GameImage.getSrc(src.src.state);
+            return GameImage.getSrcURL(src.src);
         } else if (src.type === "video") {
             return src.src;
         } else if (src.type === "audio") {
@@ -78,45 +79,28 @@ export class SrcManager {
     static getPreloadableSrc(story: Story, action: LogicAction.Actions): (Src & {
         activeType: "scene" | "once"
     }) | null {
-        if (action.is<SceneAction<typeof SceneActionTypes["setBackground"]>>(SceneAction, SceneActionTypes.setBackground)) {
-            const content = action.contentNode.getContent()[0];
-            const src = Utils.backgroundToSrc(content);
-            if (src) {
-                return {
-                    type: "image",
-                    src: new Image({src}),
-                    activeType: "scene"
-                };
-            }
-        } else if (action.is<SceneAction<typeof SceneActionTypes["jumpTo"]>>(SceneAction, SceneActionTypes.jumpTo)) {
+        if (action.is<SceneAction<typeof SceneActionTypes["jumpTo"]>>(SceneAction, SceneActionTypes.jumpTo)) {
             const targetScene = action.contentNode.getContent()[0];
             const scene = story.getScene(targetScene, true);
-            const sceneBackground = scene.config.background;
-            if (Utils.isStaticImageData(sceneBackground) || typeof sceneBackground === "string") {
+            const sceneBackground = scene.state.backgroundImage;
+            if (Utils.isImageURL(sceneBackground.config.src)) {
                 return {
                     type: "image",
-                    src: new Image({src: sceneBackground}),
+                    src: sceneBackground.config.src,
                     activeType: "once"
                 };
             }
         } else if (action instanceof ImageAction) {
             const imageAction = action as ImageAction;
-            if (imageAction.callee.config.tag) {
-                return {
-                    type: "image",
-                    src: new Image({
-                        src: Image.getSrcFromTags(imageAction.callee.config.tag.defaults, imageAction.callee.config.src)
-                    }),
-                    activeType: "scene"
-                };
-            }
             if (action.is<ImageAction<typeof ImageActionTypes["setSrc"]>>(ImageAction, ImageActionTypes.setSrc)) {
                 const content = action.contentNode.getContent()[0];
-                return {
-                    type: "image",
-                    src: new Image({src: content}),
-                    activeType: "scene"
-                };
+                if (Utils.isImageSrc(content)) {
+                    return {
+                        type: "image",
+                        src: Utils.srcToURL(content),
+                        activeType: "scene"
+                    };
+                }
             } else if (action.type === ImageActionTypes.initWearable) {
                 const image = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["initWearable"]]>).getContent()[0];
                 return {
@@ -126,22 +110,13 @@ export class SrcManager {
                 };
             } else if (action.type === ImageActionTypes.setAppearance) {
                 const tags = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setAppearance"]]>).getContent()[0];
-                if (typeof imageAction.callee.config.src !== "function") {
+                if (!imageAction.callee.config.src || typeof imageAction.callee.config.src?.resolve !== "function") {
                     throw imageAction.callee._invalidSrcHandlerError();
                 }
-                if (tags.length === imageAction.callee.state.tag?.groups.length) {
+                if (Image.isTagSrc(imageAction.callee) && tags.length === (imageAction.callee.config.src as TagDefinition<TagGroupDefinition>).groups.length) {
                     return {
                         type: "image",
-                        src: Image.fromSrc(Image.getSrcFromTags(tags, imageAction.callee.config.src)),
-                        activeType: "scene"
-                    };
-                }
-            } else if (action.type === ImageActionTypes.init) {
-                const src = action.callee.config.src;
-                if (typeof src === "string" || Utils.isStaticImageData(src)) {
-                    return {
-                        type: "image",
-                        src: new Image({src}),
+                        src: Image.getSrcFromTags(tags, imageAction.callee.config.src.resolve),
                         activeType: "scene"
                     };
                 }
@@ -166,17 +141,14 @@ export class SrcManager {
             this.src.push({type: "audio", src: arg0});
         } else if (arg0 instanceof Image || Utils.isStaticImageData(arg0)) {
             if (arg0 instanceof Image) {
-                if (this.isSrcRegistered(GameImage.getSrc(arg0.state))) return this;
+                if (!Utils.isImageURL(arg0.state.currentSrc)) return this;
+                if (this.isSrcRegistered(GameImage.getSrcURL(arg0))) return this;
             } else {
-                if (this.isSrcRegistered(Utils.srcToString(arg0["src"]))) return this;
+                if (this.isSrcRegistered(Utils.srcToURL(arg0["src"]))) return this;
             }
             this.src.push({
                 type: "image", src:
-                    arg0 instanceof Image ? new Image({
-                        src: Image.getSrc(arg0.state),
-                    }) : new Image({
-                        src: Utils.staticImageDataToSrc(arg0),
-                    })
+                    Utils.isStaticImageData(arg0) ? Utils.srcToURL(arg0) : (arg0.state.currentSrc as string)
             });
         } else if (typeof arg0 === "object") {
             if (this.isSrcRegistered(arg0["src"] || "")) return this;
@@ -197,13 +169,20 @@ export class SrcManager {
         return this;
     }
 
-    isSrcRegistered(src: string | Sound | Image): boolean {
+    registerRawSrc(src: string): this {
+        if (this.isSrcRegistered(src)) return this;
+        this.src.push({type: "image", src: src});
+        return this;
+    }
+
+    isSrcRegistered(src: string | Sound | Image | null): boolean {
+        if (!src) return false;
         const target = src instanceof Sound ? src.getSrc() : src;
         return this.src.some(s => {
             if (s.type === SrcManager.SrcTypes.audio) {
                 return target === s.src.getSrc();
             } else if (s.type === SrcManager.SrcTypes.image) {
-                return target === GameImage.getSrc(s.src.state);
+                return target === GameImage.getSrcURL(s.src);
             } else {
                 return target === s.src;
             }
@@ -211,7 +190,7 @@ export class SrcManager {
     }
 
     getSrc(): Src[] {
-        return this.src;
+        return [...this.src];
     }
 
     getSrcByType(type: SrcType): Src[] {

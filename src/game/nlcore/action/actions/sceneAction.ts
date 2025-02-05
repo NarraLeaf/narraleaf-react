@@ -6,21 +6,19 @@ import type {CalledActionResult} from "@core/gameTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {TypedAction} from "@core/action/actions";
-import {SoundAction} from "@core/action/actions/soundAction";
-import {ITransition} from "@core/elements/transition/type";
 import {Story} from "@core/elements/story";
 import {RuntimeScriptError} from "@core/common/Utils";
+import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
+import {ImageAction} from "@core/action/actions/imageAction";
+import {ActionSearchOptions} from "@core/types";
+import {ExposedState, ExposedStateType} from "@player/type";
 
 export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneActionTypes] = typeof SceneActionTypes[keyof typeof SceneActionTypes]>
     extends TypedAction<SceneActionContentType, T, Scene> {
     static ActionTypes = SceneActionTypes;
 
     static handleSceneInit(sceneAction: SceneAction<typeof SceneActionTypes["init"]>, state: GameState, awaitable: Awaitable<CalledActionResult, any>) {
-        const [targetScene] = sceneAction.contentNode.getContent();
-        const scene = typeof targetScene === "string" ? state.getSceneByName(targetScene) : targetScene;
-        if (!scene) {
-            throw sceneAction._sceneNotFoundError(sceneAction.getSceneName(targetScene));
-        }
+        const [scene] = sceneAction.contentNode.getContent();
         if (state.isSceneActive(scene)) {
             return {
                 type: sceneAction.type,
@@ -30,79 +28,60 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
 
         state
             .registerSrcManager(scene.srcManager)
-            .addScene(scene);
+            .addScene(scene)
+            .flush();
         scene.local.init(state.game.getLiveGame().getStorable());
 
-        SceneAction.registerEventListeners(scene, state, () => {
+        state.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
+            SceneAction.initBackgroundMusic(scene, exposed);
             awaitable.resolve({
                 type: sceneAction.type,
                 node: sceneAction.contentNode.getChild()
             });
             state.stage.next();
+
+            state.logger.debug("Scene Action", "Scene init");
         });
 
         return awaitable;
     }
 
-    static registerEventListeners(scene: Scene, state: GameState, onInit?: () => void) {
-        scene.events.once("event:scene.unmount", () => {
-            state.offSrcManager(scene.srcManager);
-        });
-
-        scene.events.once("event:scene.mount", () => {
-            if (scene.state.backgroundMusic) {
-                SoundAction.initSound(state, scene.state.backgroundMusic);
-                scene.events.emit("event:scene.setBackgroundMusic",
-                    scene.state.backgroundMusic,
-                    scene.config.backgroundMusicFade
-                );
-            }
-        });
-
-        scene.events.any("event:displayable.init").then(() => {
-            if (onInit) {
-                onInit();
-            }
-        });
+    static initBackgroundMusic(scene: Scene, exposed: ExposedState[ExposedStateType.scene]) {
+        if (scene.state.backgroundMusic) {
+            exposed.setBackgroundMusic(scene.state.backgroundMusic, scene.config.backgroundMusicFade);
+        }
     }
 
-    applyTransition(state: GameState, transition: ITransition) {
+    applyTransition(state: GameState, transition: ImageTransition) {
         const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
             .registerSkipController(new SkipController(() => {
                 state.logger.info("Background Transition", "Skipped");
-                return {
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                };
+                return super.executeAction(state) as CalledActionResult;
             }));
-        this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
-            awaitable.resolve({
-                type: this.type,
-                node: this.contentNode.getChild()
-            });
+        const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee.background);
+        exposed.applyTransition(transition, () => {
+            awaitable.resolve(super.executeAction(state) as CalledActionResult);
             state.stage.next();
         });
+
         return awaitable;
     }
 
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === SceneActionTypes.action) {
             return super.executeAction(state);
-        } else if (this.type === SceneActionTypes.setBackground) {
-            this.callee.state.background = (this.contentNode as ContentNode<SceneActionContentType["scene:setBackground"]>).getContent()![0];
-            return super.executeAction(state);
         } else if (this.type === SceneActionTypes.sleep) {
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-            const content = (this.contentNode as ContentNode<number | Promise<any> | Awaitable<any, any>>).getContent();
+            const timeout = (this.contentNode as ContentNode<number | Promise<any> | Awaitable<any, any>>).getContent();
             const wait = new Promise<void>(resolve => {
-                if (typeof content === "number") {
-                    setTimeout(() => {
+                if (typeof timeout === "number") {
+                    state.schedule(() => {
                         resolve();
-                    }, content);
-                } else if (Awaitable.isAwaitable<any, any>(content)) {
-                    content.then(resolve);
+                    }, timeout);
+                } else if (Awaitable.isAwaitable<any, any>(timeout)) {
+                    timeout.then(resolve);
                 } else {
-                    content?.then(resolve);
+                    timeout?.then(resolve);
                 }
             });
             wait.then(() => {
@@ -113,9 +92,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 state.stage.next();
             });
             return awaitable;
-        } else if (this.type === SceneActionTypes.applyTransition) {
-            const [transition] = (this.contentNode as ContentNode<SceneActionContentType["scene:applyTransition"]>).getContent();
-            return this.applyTransition(state, transition);
         } else if (this.is<SceneAction<"scene:init">>(SceneAction, "scene:init")) {
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
             return SceneAction.handleSceneInit(this, state, awaitable);
@@ -123,16 +99,9 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             state
                 .offSrcManager(this.callee.srcManager)
                 .removeScene(this.callee);
+            this.callee.state.backgroundImage.reset();
 
-            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-            this.callee.events.once("event:scene.unmount", () => {
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                });
-                state.stage.next();
-            });
-            return awaitable;
+            return super.executeAction(state);
         } else if (this.type === SceneActionTypes.jumpTo) {
             const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
             const current = this.contentNode;
@@ -150,8 +119,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             };
         } else if (this.type === SceneActionTypes.setBackgroundMusic) {
             const [sound, fade] = (this.contentNode as ContentNode<SceneActionContentType["scene:setBackgroundMusic"]>).getContent();
+            const scene = this.callee;
+            const exposed = state.getExposedStateForce<ExposedStateType.scene>(scene);
 
-            this.callee.events.emit("event:scene.setBackgroundMusic", sound, fade || 0);
+            exposed.setBackgroundMusic(sound, fade || 0);
 
             return super.executeAction(state);
         } else if (this.type === SceneActionTypes.preUnmount) {
@@ -161,37 +132,14 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 .getStorable()
                 .removeNamespace(this.callee.local.getNamespaceName());
             return super.executeAction(state);
-        } else if (this.type === SceneActionTypes.applyTransform) {
-            const [transform] = (this.contentNode as ContentNode<SceneActionContentType["scene:applyTransform"]>).getContent();
-            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
-                .registerSkipController(new SkipController(() => {
-                    return {
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    };
-                }));
-            this.callee.events.any("event:displayable.applyTransform", transform)
-                .then(() => {
-                    awaitable.resolve({
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    });
-                    state.stage.next();
-                });
-            return awaitable;
         } else if (this.type === SceneActionTypes.transitionToScene) {
-            const [transition, targetScene, src] = (this.contentNode as ContentNode<SceneActionContentType["scene:transitionToScene"]>).getContent();
-            if (targetScene) {
-                const scene = state.getStory().getScene(targetScene);
-                if (!scene) {
-                    throw this._sceneNotFoundError(this.getSceneName(targetScene));
-                }
-                if (!scene.config.background) {
-                    return super.executeAction(state);
-                }
-                transition.setSrc(scene.config.background);
+            const [transition, scene, src] = (this.contentNode as ContentNode<SceneActionContentType["scene:transitionToScene"]>).getContent();
+
+            transition._setPrevSrc(ImageAction.resolveCurrentSrc(this.callee.background));
+            if (scene) {
+                transition._setTargetSrc(ImageAction.resolveCurrentSrc(scene.background));
             } else if (src) {
-                transition.setSrc(src);
+                transition._setTargetSrc(src);
             }
 
             return this.applyTransition(state, transition);
@@ -200,8 +148,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         throw new Error("Unknown scene action type: " + this.type);
     }
 
-    getFutureActions(story: Story): LogicAction.Actions[] {
-        if (this.type === SceneActionTypes.jumpTo) {
+    getFutureActions(story: Story, searchOptions: ActionSearchOptions = {}): LogicAction.Actions[] {
+        if (this.type === SceneActionTypes.jumpTo && searchOptions.allowFutureScene !== false) {
             // It doesn't care about the actions after jumpTo
             // because they won't be executed
             const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
@@ -226,6 +174,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
     }
 
     getSceneName(scene: Scene | string): string {
-        return typeof scene === "string" ? scene : scene.name;
+        return typeof scene === "string" ? scene : scene.config.name;
     }
 }

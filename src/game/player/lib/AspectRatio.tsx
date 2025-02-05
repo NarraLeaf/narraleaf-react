@@ -1,30 +1,34 @@
 import clsx from "clsx";
-import React, {useEffect, useReducer, useState} from "react";
+import React, {useEffect, useState} from "react";
 import {useRatio} from "@player/provider/ratio";
 import {useGame} from "@player/provider/game-state";
 import {debounce} from "@lib/util/data";
+import {GameState} from "@player/gameState";
+import {useFlush} from "@player/lib/flush";
 
 export default function AspectRatio(
     {
         children,
-        className
+        className,
+        gameState,
     }: {
         children: React.ReactNode,
         className?: string;
+        gameState: GameState;
     }) {
     const [style, setStyle] = useState({});
     const {ratio} = useRatio();
     const {game} = useGame();
-    const [, forceUpdate] = useReducer((x) => x + 1, 0);
+    const [flush] = useFlush();
 
     const MIN_WIDTH = game.config.player.minWidth;
     const MIN_HEIGHT = game.config.player.minHeight;
 
     useEffect(() => {
-        let resizeTimeout: NodeJS.Timeout;
+        gameState.logger.debug("AspectRatio", "mount, using interval", game.config.player.ratioUpdateInterval);
         const updateStyle = () => {
             if (ratio.isLocked()) {
-                console.warn("NarraLeaf-React: Ratio is locked, skipping update");
+                gameState.logger.weakWarn("Ratio is locked, skipping update");
                 return;
             }
 
@@ -63,7 +67,7 @@ export default function AspectRatio(
                 const scale = width / game.config.player.width;
                 ratio.update(width, height, scale);
                 ratio.updateMin(MIN_WIDTH, MIN_HEIGHT);
-                forceUpdate();
+                flush();
             }
         };
 
@@ -71,12 +75,6 @@ export default function AspectRatio(
 
         const handleResize = () => {
             updateStyle();
-            clearTimeout(resizeTimeout);
-
-            ratio.pause();
-            resizeTimeout = setTimeout(() => {
-                ratio.resume();
-            }, 100);
         };
 
         const listener = debounce(handleResize, game.config.player.ratioUpdateInterval);
@@ -88,10 +86,13 @@ export default function AspectRatio(
 
         return () => {
             window.removeEventListener("resize", listener);
-            clearTimeout(resizeTimeout);
             updateRequestListenerToken();
         };
-    }, [ratio]);
+    }, [ratio, game.config.player.ratioUpdateInterval]);
+
+    useEffect(() => {
+        return gameState.events.on(GameState.EventTypes["event:state.player.requestFlush"], flush).cancel;
+    }, [gameState]);
 
     return (
         <div id={game.config.player.contentContainerId}

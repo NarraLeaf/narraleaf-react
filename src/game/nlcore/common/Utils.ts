@@ -1,4 +1,12 @@
-import type {Background, color, HexColor, ImageColor, ImageSrc, NextJSStaticImageData} from "@core/types";
+import type {
+    Color,
+    HexColor,
+    ImageSrc, Length,
+    NamedColor,
+    NextJSStaticImageData, RelativeLength,
+    RGBAColor,
+    StaticImageData
+} from "@core/types";
 import type {Scene} from "@core/elements/scene";
 import type {Image} from "@core/elements/displayable/image";
 import type {LogicAction} from "@core/action/logicAction";
@@ -11,9 +19,11 @@ import {
 import {ContentNode} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
-import {toHex, Values} from "@lib/util/data";
+import {isNamedColor} from "@lib/util/data";
 import {Action} from "@core/action/action";
 import {Story} from "@core/elements/story";
+import {Word} from "@core/elements/character/word";
+import {CSSProps} from "@core/elements/transition/type";
 
 export class RGBColor {
     static isHexString(color: any): color is HexColor {
@@ -51,62 +61,93 @@ export class RGBColor {
     public toHex() {
         return "#" + this.r.toString(16) + this.g.toString(16) + this.b.toString(16);
     }
-
-    public toImageColor(): ImageColor {
-        return {
-            r: this.r,
-            g: this.g,
-            b: this.b,
-            a: this.a,
-        };
-    }
 }
 
 /**@internal */
 export class Utils {
     static RGBColor = RGBColor;
 
-    public static srcToString(src: string | NextJSStaticImageData): string {
+    public static srcToURL(src: string | NextJSStaticImageData): string {
         return typeof src === "string" ? src : src.src;
     }
 
+    /**
+     * @deprecated Use {@link srcToURL} instead
+     */
     public static staticImageDataToSrc(image: NextJSStaticImageData | string): string {
         return typeof image === "string" ? image : image.src;
     }
 
-    public static isStaticImageData(src: any): src is NextJSStaticImageData {
+    /**
+     * Accepts: {@link StaticImageData}
+     * @param src
+     */
+    public static isStaticImageData(src: any): src is StaticImageData {
         return src?.src !== undefined && typeof src.src === "string";
-    }
-
-    public static backgroundToSrc(background: Background["background"]): string | null {
-        return Utils.isStaticImageData(background) ? background.src : (
-            (background as any)?.["url"] || null
-        );
     }
 
     public static isExternalSrc(src: string) {
         return src.startsWith("http://") || src.startsWith("https://");
     }
 
+    /**
+     * Accepts: {@link ImageSrc}
+     */
     public static isImageSrc(src: any): src is ImageSrc {
-        return (typeof src === "string" && !this.isHexString(src)) || Utils.isStaticImageData(src);
+        return (typeof src === "string" && !this.isColor(src)) || Utils.isStaticImageData(src);
     }
 
-    public static isImageColor(color: any): color is ImageColor {
-        return Utils.isHexString(color) || Utils.isPlainColor(color);
+    /**
+     * Accepts: {@link string}
+     */
+    public static isImageURL(src: any): src is string {
+        return typeof src === "string" && !this.isColor(src);
     }
 
-    public static isPlainColor(color: any): color is color {
-        return color && (typeof color === "string" || (typeof color === "object" && "r" in color && "g" in color && "b" in color));
+    /**
+     * Accepts: {@link Color}
+     */
+    public static isColor(color: any): color is Color {
+        return Utils.isHexString(color) || Utils.isNamedColor(color) || Utils.isRGBAColor(color);
+    }
+
+    public static isNamedColor(color: any): color is NamedColor {
+        return isNamedColor(color);
+    }
+
+    public static isRGBAColor(color: any): color is RGBAColor {
+        return color && typeof color === "object" && "r" in color && "g" in color && "b" in color;
+    }
+
+    public static RGBAColorToHex(color: RGBAColor): HexColor {
+        const r = color.r.toString(16).padStart(2, "0");
+        const g = color.g.toString(16).padStart(2, "0");
+        const b = color.b.toString(16).padStart(2, "0");
+        const a = color.a ? (Math.round(color.a * 255)).toString(16).padStart(2, "0") : "";
+        return `#${r}${g}${b}${a}`;
+    }
+
+    public static colorToString(color: Color): string {
+        if (Utils.isHexString(color)) {
+            return color;
+        } else if (Utils.isNamedColor(color)) {
+            return color;
+        } else if (Utils.isRGBAColor(color)) {
+            return Utils.RGBAColorToHex(color);
+        }
+        throw new Error("Unknown color type");
     }
 
     static isHexString(color: any): color is HexColor {
         if (typeof color !== "string") {
             return false;
         }
-        return /^#([0-9A-F]{6}|[0-9A-F]{3})$/i.test(color);
+        return /^#([0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{4}|[0-9A-F]{8})$/i.test(color);
     }
 
+    /**
+     * @deprecated Use {@link srcToURL} instead
+     */
     public static toBackgroundSrc(src: ImageSrc): string {
         if (typeof src === "string") {
             return src;
@@ -114,8 +155,51 @@ export class Utils {
         return src.src;
     }
 
-    public static toHex(color: ImageColor): HexColor {
-        return toHex(color);
+    public static isDataURI(src: string) {
+        return src.startsWith("data:");
+    }
+
+    public static offset(
+        ori: [xOri: string, yOri: string],
+        offset: [xOffset: number, yOffset: number],
+        invert: {invertX: boolean, invertY: boolean} = {invertX: false, invertY: false}
+    ): CSSProps {
+        const [xOri, yOri] = ori;
+        const [xOffset, yOffset] = offset;
+
+        const posX = this.calc(xOri, xOffset);
+        const posY = this.calc(yOri, yOffset);
+        const xRes = invert.invertX ? {right: posX} : {left: posX};
+        const yRes = invert.invertY ? {bottom: posY} : {top: posY};
+
+        return {
+            left: "auto",
+            right: "auto",
+            top: "auto",
+            bottom: "auto",
+            ...xRes,
+            ...yRes,
+        };
+    }
+
+    public static calc(a: string | number, b?: string | number): string {
+        const aStr = typeof a === "string" ? a : `${a}px`;
+
+        if (b === undefined) {
+            return `calc(${aStr} + 0px)`;
+        }
+        const sign = typeof b === "string" ? "+" : (b < 0 ? "-" : "+");
+        const bStr = typeof b === "string" ? b : `${Math.abs(b)}px`;
+
+        return `calc(${aStr} ${sign} ${bStr})`;
+    }
+
+    public static formatLength(length: RelativeLength): string {
+        return typeof length === "number" ? `${length}px` : length;
+    }
+
+    public static toPixel(length: Length): number {
+        return typeof length === "number" ? length : parseFloat(length);
     }
 }
 
@@ -148,7 +232,9 @@ export class StaticScriptWarning extends UseError<{
     }
 }
 
+/**@internal */
 type ImageState = {
+    /**@deprecated */
     isDisposed: boolean;
     usedExternalSrc: boolean;
 };
@@ -211,13 +297,13 @@ export class StaticChecker {
         } else if (action instanceof SceneAction) {
             const scene = action.callee;
 
-            if (scenes.has(scene.name)) {
-                if (scenes.get(scene.name) !== scene) {
-                    const message = `Scene with name: ${scene.name} is duplicated\nScene: ${scene.name}\n\nAt: ${action.__stack}`;
+            if (scenes.has(scene.config.name)) {
+                if (scenes.get(scene.config.name) !== scene) {
+                    const message = `Scene with name: ${scene.config.name} is duplicated\nScene: ${scene.config.name}\n\nAt: ${action.__stack}`;
                     throw new StaticScriptWarning(message);
                 }
             } else {
-                scenes.set(scene.name, scene);
+                scenes.set(scene.config.name, scene);
             }
 
             if (action.type === SceneActionTypes.jumpTo) {
@@ -234,27 +320,10 @@ export class StaticChecker {
     }
 
     private checkImage(state: ImageState, action: ImageAction) {
-        if (action.type === ImageActionTypes.dispose) {
-            if (state.isDisposed) {
-                const message = `Image is disposed multiple times before action: ${action.type}\nImage: ${action.callee.name}\nAction: ${action.type}\n\nAt: ${action.__stack}`;
-                throw new StaticScriptWarning(message);
-            }
-            state.isDisposed = true;
-        } else if (([
-            ImageActionTypes.init,
-            ImageActionTypes.show,
-            ImageActionTypes.hide,
-            ImageActionTypes.applyTransform,
-            ImageActionTypes.applyTransition,
-        ] as Values<typeof ImageActionTypes>[]).includes(action.type)) {
-            if (state.isDisposed) {
-                const message = `Image is disposed before action: ${action.type}\nImage: ${action.callee.name}\nAction: ${action.type}\n\nAt: ${action.__stack}`;
-                throw new StaticScriptWarning(message);
-            }
-        } else if (action.type === ImageActionTypes.setSrc) {
+        if (action.type === ImageActionTypes.setSrc) {
             const node = (action.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>);
             const src = node.getContent()[0];
-            if (Utils.isExternalSrc(src)) {
+            if (Utils.isImageURL(src) && Utils.isExternalSrc(src)) {
                 state.usedExternalSrc = true;
             }
         }
@@ -293,5 +362,34 @@ export class RuntimeGameError extends Error {
         super(message);
         this.name = "RuntimeGameError";
     }
+}
+
+/**@internal */
+export class RuntimeInternalError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "RuntimeInternalError";
+    }
+}
+
+/**
+ * Alias for {@link Word.color}
+ */
+export function c(text: string | Word, color: Color): Word {
+    return Word.color(text, color);
+}
+
+/**
+ * Alias for {@link Word.bold}
+ */
+export function b(text: string | Word): Word {
+    return Word.bold(text);
+}
+
+/**
+ * Alias for {@link Word.italic}
+ */
+export function i(text: string | Word): Word {
+    return Word.italic(text);
 }
 

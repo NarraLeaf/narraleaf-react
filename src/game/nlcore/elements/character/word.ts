@@ -1,25 +1,26 @@
-import {Color, color, Font} from "@core/types";
+import {Color, Font} from "@core/types";
 import {deepMerge} from "@lib/util/data";
 import {DynamicWord} from "@core/elements/character/sentence";
 import {ScriptCtx} from "@core/elements/script";
 import {Pause, Pausing} from "@core/elements/character/pause";
 
 export type WordConfig = {
-    className?: string;
-    ruby?: string;
-} & Color & Font;
+    className: string;
+    ruby: string;
+    color: Color;
+} & Font;
 
 export class Word<T extends string | DynamicWord | Pausing = string | DynamicWord | Pausing> {
     /**@internal */
     static defaultConfig: Partial<WordConfig> = {};
     /**@internal */
-    static defaultColor: color = "#000";
+    static defaultColor: Color = "#000";
 
     static isWord(obj: any): obj is Word {
         return obj instanceof Word;
     }
 
-    public static color(text: string | Word, color: color): Word {
+    public static color(text: string | Word, color: Color): Word {
         if (Word.isWord(text)) {
             return text.copy().inherit({color});
         }

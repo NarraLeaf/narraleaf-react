@@ -22,6 +22,11 @@ export function Preload(
     const currentAction = game.getLiveGame().getCurrentAction();
     const story = game.getLiveGame().story;
 
+    function onPreloaderUnmount() {
+        state.logger.debug(LogTag, "Preload unmounted");
+        preloaded.events.emit(Preloaded.EventTypes["event:preloaded.unmount"]);
+    }
+
     /**
      * preload logic 2.0
      *
@@ -31,26 +36,26 @@ export function Preload(
         if (typeof fetch === "undefined") {
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             state.logger.warn(LogTag, "Fetch is not supported in this environment, skipping preload");
-            return;
+            return onPreloaderUnmount;
         }
         if (!game.config.player.preloadAllImages) {
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             state.logger.debug(LogTag, "Preload all images is disabled, skipping preload");
-            return;
+            return onPreloaderUnmount;
         }
         if (game.config.player.forceClearCache) {
             cacheManager.clear();
             state.logger.weakWarn(LogTag, "Cache cleared");
         }
-        if (!story) {
-            state.logger.weakWarn(LogTag, "Story not found, skipping preload");
-            return;
+        if (!story || !lastScene) {
+            state.logger.weakWarn(LogTag, "Story/Scene not found, skipping preload");
+            return onPreloaderUnmount;
         }
 
         const timeStart = performance.now();
         const sceneSrc = SrcManager.catSrc([
-            ...(lastScene?.srcManager?.src || []),
-            ...(lastScene?.srcManager?.getFutureSrc() || []),
+            ...(lastScene.srcManager?.src || []),
+            ...(lastScene.srcManager?.getFutureSrc() || []),
         ]);
         const taskPool = new TaskPool(
             game.config.player.preloadConcurrency,
@@ -58,21 +63,31 @@ export function Preload(
         );
         const loadedSrc: string[] = [];
         const logGroup = state.logger.group(LogTag, true);
+        const preloadingSrc: string[] = [];
 
-        state.logger.debug(LogTag, "preloading:", sceneSrc);
+        state.logger.debug(LogTag, "preloading:", sceneSrc, lastScene);
 
         for (const image of sceneSrc.image) {
             const src = SrcManager.getSrc(image);
-            loadedSrc.push(src);
-
-            if (cacheManager.has(src) || cacheManager.isPreloading(src)) {
-                state.logger.debug(LogTag, `Image already loaded (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
+            if (!src) {
                 continue;
             }
+            loadedSrc.push(src);
+
+            if (cacheManager.has(src) || cacheManager.isPreloading(src) || preloadingSrc.includes(src)) {
+                state.logger.debug(LogTag, `Image already loaded (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
+                preloadingSrc.push(src);
+                continue;
+            }
+            preloadingSrc.push(src);
             taskPool.addTask(() => new Promise(resolve => {
-                cacheManager.preload(src)
+                cacheManager.preload(state, src)
                     .onFinished(() => {
                         state.logger.debug(LogTag, `Image loaded (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
+                        resolve();
+                    })
+                    .onErrored(() => {
+                        state.logger.weakError(LogTag, `Failed to preload image (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
                         resolve();
                     });
             }));
@@ -86,7 +101,6 @@ export function Preload(
             if (game.config.player.waitForPreload) {
                 preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             }
-            state.events.emit(GameState.EventTypes["event:state.preload.loaded"]);
             cacheManager.filter(loadedSrc);
         });
 
@@ -95,10 +109,7 @@ export function Preload(
         }
         preloaded.events.emit(Preloaded.EventTypes["event:preloaded.mount"]);
 
-        return () => {
-            state.events.emit(GameState.EventTypes["event:state.preload.unmount"]);
-            state.logger.debug(LogTag, "Preload unmounted");
-        };
+        return onPreloaderUnmount;
     }, [lastScene, story]);
 
     /**
@@ -160,6 +171,9 @@ export function Preload(
 
         for (const image of actionSrc.image) {
             const src = SrcManager.getSrc(image);
+            if (!src) {
+                continue;
+            }
             preloadSrc.push(src);
 
             if (cacheManager.has(src) || cacheManager.isPreloading(src)) {
@@ -167,9 +181,13 @@ export function Preload(
                 continue;
             }
             taskPool.addTask(() => new Promise(resolve => {
-                cacheManager.preload(src)
+                cacheManager.preload(state, src)
                     .onFinished(() => {
                         state.logger.debug(LogTag, `Image loaded (${actionSrc.image.indexOf(image) + 1}/${actionSrc.image.length})`, src);
+                        resolve();
+                    })
+                    .onErrored(() => {
+                        state.logger.weakError(LogTag, `Failed to preload image (${actionSrc.image.indexOf(image) + 1}/${actionSrc.image.length})`, src);
                         resolve();
                     });
             }));

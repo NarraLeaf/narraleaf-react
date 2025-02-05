@@ -4,6 +4,7 @@ import type {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, getCallStack} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {Story} from "@core/elements/story";
+import {ActionSearchOptions} from "@core/types";
 
 export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Type extends string = any> {
     static ActionTypes = {
@@ -20,7 +21,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Typ
         this.callee = callee;
         this.type = type;
         this.contentNode = contentNode;
-        this.__stack = getCallStack();
+        this.__stack = getCallStack(0);
         this._id = "";
     }
 
@@ -49,8 +50,8 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Typ
         return this;
     }
 
-    getFutureActions(_story: Story): LogicAction.Actions[] {
+    getFutureActions(_story: Story, _options: ActionSearchOptions): LogicAction.Actions[] {
         const action = this.contentNode.getChild();
-        return (action && action.action) ? [action.action] : [];
+        return ((action && action.action) ? [action.action] : []);
     }
 }
