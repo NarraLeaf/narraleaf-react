@@ -11,7 +11,7 @@ import {RuntimeScriptError} from "@core/common/Utils";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {ImageAction} from "@core/action/actions/imageAction";
 import {ActionSearchOptions} from "@core/types";
-import {ExposedStateType} from "@player/type";
+import {ExposedState, ExposedStateType} from "@player/type";
 
 export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneActionTypes] = typeof SceneActionTypes[keyof typeof SceneActionTypes]>
     extends TypedAction<SceneActionContentType, T, Scene> {
@@ -32,30 +32,24 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             .flush();
         scene.local.init(state.game.getLiveGame().getStorable());
 
-        SceneAction.registerEventListeners(scene, state, () => {
+        state.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
+            SceneAction.initBackgroundMusic(scene, exposed);
             awaitable.resolve({
                 type: sceneAction.type,
                 node: sceneAction.contentNode.getChild()
             });
             state.stage.next();
+
+            state.logger.debug("Scene Action", "Scene init");
         });
 
         return awaitable;
     }
 
-    static registerEventListeners(scene: Scene, state: GameState, onInit?: () => void) {
-        scene.events.once("event:scene.mount", () => {
-            if (scene.state.backgroundMusic) {
-                scene.events.emit("event:scene.setBackgroundMusic",
-                    scene.state.backgroundMusic,
-                    scene.config.backgroundMusicFade
-                );
-            }
-            state.logger.debug("Scene Action", "Scene init");
-            if (onInit) {
-                onInit();
-            }
-        });
+    static initBackgroundMusic(scene: Scene, exposed: ExposedState[ExposedStateType.scene]) {
+        if (scene.state.backgroundMusic) {
+            exposed.setBackgroundMusic(scene.state.backgroundMusic, scene.config.backgroundMusicFade);
+        }
     }
 
     applyTransition(state: GameState, transition: ImageTransition) {
@@ -125,8 +119,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             };
         } else if (this.type === SceneActionTypes.setBackgroundMusic) {
             const [sound, fade] = (this.contentNode as ContentNode<SceneActionContentType["scene:setBackgroundMusic"]>).getContent();
+            const scene = this.callee;
+            const exposed = state.getExposedStateForce<ExposedStateType.scene>(scene);
 
-            this.callee.events.emit("event:scene.setBackgroundMusic", sound, fade || 0);
+            exposed.setBackgroundMusic(sound, fade || 0);
 
             return super.executeAction(state);
         } else if (this.type === SceneActionTypes.preUnmount) {

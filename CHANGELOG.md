@@ -69,6 +69,8 @@
 - Components reach the React flush limit when applying transitions
 - The game stops working when entering scenes that reference each other
 - Short black screen between scene transitions
+- Color-based background image behaves incorrectly
+- Incorrect element states when jumping to the current scene
 
 ### Updated
 

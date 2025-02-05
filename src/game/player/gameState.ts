@@ -378,11 +378,15 @@ export class GameState {
         return state;
     }
 
-    public getExposedStateAsync<T extends ExposedStateType>(key: ExposedKeys[T], onExpose: (state: ExposedState[T]) => void): LiveGameEventToken | null {
+    public getExposedStateAsync<T extends ExposedStateType>(key: ExposedKeys[T], onExpose: (state: ExposedState[T]) => void): LiveGameEventToken {
         const state = this.getExposedState(key);
         if (state) {
-            onExpose(state);
-            return null;
+            const cancel = this.schedule(() => {
+                onExpose(state);
+            }, 0);
+            return {
+                cancel,
+            };
         } else {
             const token = this.events.on(GameState.EventTypes["event.state.onExpose"], (k, s) => {
                 if (k === key) {
@@ -448,7 +452,9 @@ export class GameState {
 
             this.state.elements.push(ele);
             this.registerSrcManager(scene.srcManager);
-            SceneAction.registerEventListeners(scene, this);
+            this.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
+                SceneAction.initBackgroundMusic(scene, exposed);
+            });
         });
         this.audioManager.fromData(audio, elementMap);
     }

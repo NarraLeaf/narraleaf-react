@@ -84,7 +84,6 @@ export type SceneEventTypes = {
     "event:scene.unmount": [],
     "event:scene.preUnmount": [],
     "event:scene.imageLoaded": [],
-    "event:scene.setBackgroundMusic": [Sound | null, number];
 };
 
 export class Scene extends Constructable<
@@ -100,7 +99,6 @@ export class Scene extends Constructable<
         "event:scene.unmount": "event:scene.unmount",
         "event:scene.preUnmount": "event:scene.preUnmount",
         "event:scene.imageLoaded": "event:scene.imageLoaded",
-        "event:scene.setBackgroundMusic": "event:scene.setBackgroundMusic",
     };
     /**@internal */
     static DefaultUserConfig = new ConfigConstructor<ISceneUserConfig, EmptyObject>({

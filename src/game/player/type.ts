@@ -7,6 +7,8 @@ import {Transition} from "@core/elements/transition/transition";
 import {Layer} from "@core/elements/layer";
 import {Text} from "@core/elements/displayable/text";
 import {Displayable} from "@core/elements/displayable/displayable";
+import {Scene} from "@core/elements/scene";
+import {Sound} from "@core/elements/sound";
 
 export * from "@player/elements/type";
 export type Chosen = Choice & {
@@ -17,6 +19,7 @@ export enum ExposedStateType {
     image = "narraleaf:image",
     text = "narraleaf:text",
     layer = "narraleaf:layer",
+    scene = "narraleaf:scene",
 }
 
 export type ExposedState = {
@@ -36,11 +39,15 @@ export type ExposedState = {
         initDisplayable: (onResolve: () => void) => void;
         applyTransform: (transform: Transform, onResolve: () => void) => void;
         applyTransition: (transition: Transition<any>, onResolve: () => void) => void;
-    }
+    };
+    [ExposedStateType.scene]: {
+        setBackgroundMusic: (music: Sound | null, fade: number) => Promise<void>;
+    };
 };
 
 export type ExposedKeys = {
     [ExposedStateType.image]: Image | Displayable<any, any>;
     [ExposedStateType.text]: Text | Displayable<any, any>;
     [ExposedStateType.layer]: Layer | Displayable<any, any>;
+    [ExposedStateType.scene]: Scene;
 };

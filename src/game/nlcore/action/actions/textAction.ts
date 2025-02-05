@@ -6,6 +6,7 @@ import {Awaitable, SkipController} from "@lib/util/data";
 import {Text} from "@core/elements/displayable/text";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Transform} from "@core/elements/transform/transform";
+import {ExposedStateType} from "@player/type";
 
 export class TextAction<T extends typeof TextActionTypes[keyof typeof TextActionTypes] = typeof TextActionTypes[keyof typeof TextActionTypes]>
     extends TypedAction<TextActionContentType, T, Text> {
@@ -25,7 +26,7 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
                     state.logger.info("NarraLeaf-React: Text Font Size", "Skipped");
                     return super.executeAction(state) as CalledActionResult;
                 }));
-            const exposed = state.getExposedStateForce(this.callee);
+            const exposed = state.getExposedStateForce<ExposedStateType.text>(this.callee);
             exposed.applyTransform(transform, () => {
                 awaitable.resolve(super.executeAction(state) as CalledActionResult);
                 state.stage.next();

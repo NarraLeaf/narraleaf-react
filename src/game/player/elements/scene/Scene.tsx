@@ -5,6 +5,9 @@ import clsx from "clsx";
 import {Layer} from "@player/elements/player/Layer";
 import Displayables from "@player/elements/displayable/Displayables";
 import {useGame} from "@player/provider/game-state";
+import {useExposeState} from "@player/lib/useExposeState";
+import {ExposedStateType} from "@player/type";
+import {Sound} from "@core/elements/sound";
 
 /**@internal */
 export default function Scene(
@@ -24,20 +27,6 @@ export default function Scene(
 
     useEffect(() => {
         return scene.events.depends([
-            scene.events.on(GameScene.EventTypes["event:scene.setBackgroundMusic"], (music, fade) => {
-                return new Promise<void>((resolve) => {
-                    if (!scene.state.backgroundMusic) {
-                        return;
-                    }
-                    state.audioManager.stop(scene.state.backgroundMusic, fade).then(() => {
-                        scene.state.backgroundMusic = null;
-                        if (music) state.audioManager.play(music, {
-                            end: music.state.volume,
-                            duration: fade,
-                        }).then(resolve);
-                    });
-                });
-            }),
             scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
                 if (scene.state.backgroundMusic) {
                     return state.audioManager.stop(scene.state.backgroundMusic).then(() => {
@@ -57,6 +46,23 @@ export default function Scene(
             state.logger.debug("Scene", "Scene unmounted", scene.getId());
         };
     }, []);
+
+    useExposeState<ExposedStateType.scene>(scene, {
+        setBackgroundMusic(music: Sound | null, fade: number) {
+            return new Promise<void>((resolve) => {
+                if (!scene.state.backgroundMusic) {
+                    return;
+                }
+                state.audioManager.stop(scene.state.backgroundMusic, fade).then(() => {
+                    scene.state.backgroundMusic = null;
+                    if (music) state.audioManager.play(music, {
+                        end: music.state.volume,
+                        duration: fade,
+                    }).then(resolve);
+                });
+            });
+        }
+    });
 
     return (
         <div className={clsx(className, "w-full h-full")}>

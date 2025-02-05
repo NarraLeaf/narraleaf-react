@@ -54,9 +54,11 @@ export default function AspectScaleImage(
             if (currentRef.current.naturalWidth * currentRef.current.naturalHeight === 1) {
                 const newWidth = ratio.state.width;
                 const newHeight = ratio.state.height;
+                const newAspectRatio = `${newWidth} / ${newHeight}`;
 
                 setWidth(newWidth);
                 setHeight(newHeight);
+                currentRef.current.style.aspectRatio = newAspectRatio;
 
                 if (onSizeChanged) {
                     onSizeChanged(newWidth, newHeight);
