@@ -307,6 +307,11 @@ export type GameConfig = {
          * The config of {@link GameStateGuard}
          */
         guard: GuardConfig;
+        /**
+         * Quality of the screenshot, between 0 and 1
+         * @default 1
+         */
+        screenshotQuality: number;
     };
 };
 export type GameSettings = {

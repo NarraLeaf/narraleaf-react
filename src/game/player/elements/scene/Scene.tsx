@@ -65,7 +65,7 @@ export default function Scene(
     });
 
     return (
-        <div className={clsx(className, "w-full h-full")}>
+        <div className={clsx(className, "w-full h-full absolute")}>
             {([...layers.entries()].sort(([layerA], [layerB]) => {
                 return layerA.config.zIndex - layerB.config.zIndex;
             }).map(([layer, ele]) => (

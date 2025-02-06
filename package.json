@@ -37,6 +37,7 @@
     "globals": "^15.9.0",
     "husky": "^9.1.6",
     "jest": "^27.0.6",
+    "motion": "^11.15.0",
     "postcss-loader": "^8.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -53,13 +54,12 @@
     "webpack": "^5.94.0",
     "webpack-bundle-analyzer": "^4.10.2",
     "webpack-cli": "^4.10.0",
-    "motion": "^11.15.0",
     "webpack-dev-server": "^5.1.0"
   },
   "peerDependencies": {
     "@emotion/is-prop-valid": "*",
-    "react": ">=19",
     "motion": "^11.15.0",
+    "react": ">=19",
     "react-dom": ">=19"
   },
   "peerDependenciesMeta": {
@@ -73,7 +73,6 @@
   "files": [
     "dist"
   ],
-
   "keywords": [
     "react",
     "visual-novel",
@@ -88,6 +87,7 @@
     "client-only": "^0.0.1",
     "clsx": "^2.1.1",
     "howler": "^2.2.4",
+    "html-to-image": "^1.11.11",
     "prop-types": "^15.8.1"
   },
   "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447"

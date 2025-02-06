@@ -123,6 +123,7 @@ export class Game {
             guard: {
                 [GuardWarningType.invalidExposedStateUnmounting]: true,
             },
+            screenshotQuality: 1,
         }
     };
     static GameSettingsNamespace = GameSettingsNamespace;

@@ -51,6 +51,7 @@ export default function Player(
         dispatch: (action) => dispatch(action),
     }));
     const containerRef = React.createRef<HTMLDivElement>();
+    const mainContentRef = React.createRef<HTMLDivElement>();
     const [ready, setReady] = useState(false);
     const readyHandlerExecuted = React.useRef(false);
 
@@ -83,10 +84,12 @@ export default function Player(
             game.getLiveGame().loadStory(story);
         }
         state.playerCurrent = containerRef.current;
+        state.mainContentNode = mainContentRef.current;
 
         return () => {
             game.getLiveGame().setGameState(undefined);
             state.playerCurrent = null;
+
         };
     }, [game, story]);
 
@@ -164,7 +167,7 @@ export default function Player(
             >
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
                     <SizeUpdateAnnouncer ref={containerRef}/>
-                    <Isolated className={"absolute"} style={{
+                    <Isolated className={"absolute"} ref={mainContentRef} style={{
                         cursor: state.game.config.player.cursor ? "none" : "auto",
                         overflow: state.game.config.player.showOverflow ? "visible" : "hidden",
                     }}>

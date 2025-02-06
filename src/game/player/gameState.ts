@@ -22,6 +22,7 @@ import {AudioManager, AudioManagerDataRaw} from "@player/lib/AudioManager";
 import {Layer} from "@core/elements/layer";
 import {GameStateGuard, GuardWarningType} from "@player/guard";
 import {LiveGameEventToken} from "@core/types";
+import * as htmlToImage from "html-to-image";
 
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -89,11 +90,13 @@ export class GameState {
     stage: StageUtils;
     game: Game;
     playerCurrent: HTMLDivElement | null = null;
+    mainContentNode: HTMLDivElement | null = null;
     exposedState: Map<Values<ExposedKeys>, object> = new Map();
     guard: GameStateGuard;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
     public readonly audioManager: AudioManager;
+    public readonly htmlToImage = htmlToImage;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;

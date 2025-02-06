@@ -51,6 +51,8 @@
 - Use `liveGame.onPlayerEvent` to listen to the dom events of the player element
 - `PageRouter` API: a new way to manage page layers
 - `Layer` API: manage layers for displayable elements
+- Use `liveGame.capturePng`, `liveGame.captureJpeg`, `liveGame.captureSvg`, and `liveGame.capturePngBlob` to capture the game screen  
+The screenshot behavior is provided by [html-to-image](https://github.com/bubkoo/html-to-image)
 
 ### Added
 

@@ -117,9 +117,7 @@ export class LiveGame {
      * Note: even if you change just a single line of script, the saved game might not be compatible with the new version
      */
     public serialize(): SavedGame {
-        if (!this.gameState) {
-            throw new Error("No game state");
-        }
+        this.assertGameState();
         const gameState = this.gameState;
 
         const story = this.story;
@@ -157,9 +155,7 @@ export class LiveGame {
      * After calling this method, the current game state will be lost, and the stage will trigger force reset
      */
     public deserialize(savedGame: SavedGame) {
-        if (!this.gameState) {
-            throw new Error("No game state");
-        }
+        this.assertGameState();
         const gameState = this.gameState;
 
         const story = this.story;
@@ -222,6 +218,50 @@ export class LiveGame {
     }
 
     /**
+     * Capture the game screenshot, will only include the player element
+     *
+     * Returns a PNG image base64-encoded data URL
+     */
+    capturePng(): Promise<string> {
+        this.assertGameState();
+        this.assertPlayerElement();
+        return this.gameState.htmlToImage.toPng(this.gameState.mainContentNode!);
+    }
+
+    /**
+     * Capture the game screenshot, will only include the player element
+     *
+     * Returns compressed JPEG image data URL
+     */
+    captureJpeg(): Promise<string> {
+        this.assertGameState();
+        this.assertPlayerElement();
+        return this.gameState.htmlToImage.toJpeg(this.gameState.mainContentNode!);
+    }
+
+    /**
+     * Capture the game screenshot, will only include the player element
+     *
+     * Returns an SVG data URL
+     */
+    captureSvg(): Promise<string> {
+        this.assertGameState();
+        this.assertPlayerElement();
+        return this.gameState.htmlToImage.toSvg(this.gameState.mainContentNode!);
+    }
+
+    /**
+     * Capture the game screenshot, will only include the player element
+     *
+     * Returns a PNG image blob
+     */
+    capturePngBlob(): Promise<Blob | null> {
+        this.assertGameState();
+        this.assertPlayerElement();
+        return this.gameState.htmlToImage.toBlob(this.gameState.mainContentNode!);
+    }
+
+    /**
      * When a character says something
      */
     public onCharacterPrompt(fc: LiveGameEventHandler<LiveGameEvent["event:character.prompt"]>): LiveGameEventToken {
@@ -239,9 +279,7 @@ export class LiveGame {
      * Start a new game
      */
     public newGame() {
-        if (!this.gameState) {
-            throw new Error("No game state");
-        }
+        this.assertGameState();
         const gameState = this.gameState;
         const logGroup = gameState.logger.group("LiveGame (newGame)", true);
 
@@ -281,9 +319,7 @@ export class LiveGame {
      * see [MDN-requestFullscreen](https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen)
      */
     public requestFullScreen(options?: FullscreenOptions | undefined): Promise<void> | void {
-        if (!this.gameState) {
-            throw new RuntimeGameError("No game state found, make sure you call this method in effect hooks or event handlers");
-        }
+        this.assertGameState();
         const LogTag = "LiveGame.requestFullScreen";
         try {
             const element = this.gameState.playerCurrent;
@@ -305,9 +341,7 @@ export class LiveGame {
      * Exit full screen
      */
     public exitFullScreen(): Promise<void> | void {
-        if (!this.gameState) {
-            throw new RuntimeGameError("No game state found, make sure you call this method in effect hooks or event handlers");
-        }
+        this.assertGameState();
         const LogTag = "LiveGame.exitFullScreen";
         try {
             if (document.exitFullscreen) {
@@ -328,9 +362,7 @@ export class LiveGame {
         listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
         options?: boolean | AddEventListenerOptions
     ): LiveGameEventToken {
-        if (!this.gameState) {
-            throw new RuntimeGameError("No game state found, make sure you call this method in effect hooks or event handlers");
-        }
+        this.assertPlayerElement();
         const element = this.gameState.playerCurrent;
         if (!element) {
             this.gameState.logger.warn("LiveGame.onEvent", "No player element found");
@@ -536,5 +568,26 @@ export class LiveGame {
                 services: {},
             }
         };
+    }
+
+    /**
+     * @internal
+     * @throws {RuntimeGameError} - If the game state isn't found
+     */
+    private assertGameState(): asserts this is { gameState: GameState } {
+        if (!this.gameState) {
+            throw new RuntimeGameError("No game state found, make sure you call this method in effect hooks or event handlers");
+        }
+    }
+
+    /**
+     * @internal
+     * @throws {RuntimeGameError} - If the player element isn't mounted
+     */
+    private assertPlayerElement(): asserts this is { gameState: GameState & {playerCurrent: HTMLDivElement } } {
+        this.assertGameState();
+        if (!this.gameState.playerCurrent) {
+            throw new RuntimeGameError("Player Element Not Mounted");
+        }
     }
 }
