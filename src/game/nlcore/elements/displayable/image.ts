@@ -281,6 +281,9 @@ export class Image<
     public addWearable(children: Image | Image[]): this {
         const wearables = Array.isArray(children) ? children : [children];
         for (const child of wearables) {
+            if (child === this) {
+                throw new RuntimeScriptError("Cannot add self as a wearable");
+            }
             this.config.wearables.push(child);
             Object.assign(child.config, {
                 isWearable: true,
@@ -304,8 +307,7 @@ export class Image<
      * @param parent - The parent image
      */
     public bindWearable(parent: Image): this {
-        parent.addWearable([this as Image]);
-        return this;
+        return parent.addWearable([this]) as this;
     }
 
     /**

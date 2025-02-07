@@ -33,29 +33,6 @@ export class ConfigConstructor<
         this.handlers = handlers || {} as ConfigHandlers<Raw, Handlers>;
     }
 
-    mergeWithDefaultConfig(
-        config: Partial<Raw>,
-    ): MergeConfig<Raw, Handlers> {
-        return Object.fromEntries(
-            Object.entries(this.defaultConfig)
-                .map(([key, value]) => {
-                    const newValue = config[key];
-                    if (typeof newValue === "object" && !Array.isArray(newValue) && newValue !== null && Object.getPrototypeOf(newValue) === Object.prototype) {
-                        return [
-                            key,
-                            deepMerge({}, newValue),
-                        ];
-                    }
-                    return [
-                        key,
-                        newValue !== undefined ?
-                            (typeof this.handlers[key] === "function" ? this.handlers[key]!(newValue) : newValue) :
-                            value,
-                    ];
-                })
-        ) as MergeConfig<Raw, Handlers>;
-    }
-
     create(
         config: Partial<Raw> = {},
     ): Config<Raw, Handlers> {
@@ -72,6 +49,49 @@ export class ConfigConstructor<
 
     getDefaultConfig(): Raw {
         return this.defaultConfig;
+    }
+
+    private mergeWithDefaultConfig(
+        config: Partial<Raw>,
+    ): MergeConfig<Raw, Handlers> {
+        return Object.fromEntries(
+            Object.entries(this.defaultConfig)
+                .map(([key, value]) => [
+                    key,
+                    this.mergeValue(key, value, config[key])
+                ])
+        ) as MergeConfig<Raw, Handlers>;
+    }
+
+    private mergeValue(
+        key: string,
+        defaultValue: any,
+        newValue: any
+    ): any {
+        if (this.isPlainObject(newValue)) {
+            return deepMerge({}, newValue);
+        }
+        if (Array.isArray(defaultValue)) {
+            if (Array.isArray(newValue) && newValue.length > 0) {
+                return [...newValue];
+            }
+            return [...defaultValue];
+        }
+        if (newValue !== undefined) {
+            return this.applyHandler(key, newValue);
+        }
+        return defaultValue;
+    }
+
+    private isPlainObject(value: any): boolean {
+        return typeof value === "object" && !Array.isArray(value) && value !== null && Object.getPrototypeOf(value) === Object.prototype;
+    }
+
+    private applyHandler(
+        key: string,
+        value: any
+    ): any {
+        return typeof this.handlers[key] === "function" ? this.handlers[key]!(value) : value;
     }
 }
 

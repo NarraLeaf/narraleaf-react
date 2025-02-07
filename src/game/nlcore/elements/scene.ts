@@ -392,9 +392,9 @@ export class Scene extends Constructable<
                     && wearableImagesMap.get(wearable) !== image
                 ) {
                     throw new Error("Wearable image cannot be used multiple times" +
-                        "\nYou may bind the same wearable image to multiple parent images" +
-                        "\nParent Conflict: " + wearableImagesMap.get(wearable)?.getId() +
-                        "\nCurrent Parent: " + image.getId());
+                        "\nMaybe you bind the same wearable image to multiple parent images" +
+                        "\nParent Conflict (src: " + wearableImagesMap.get(wearable)?.state.currentSrc + ")" +
+                        "\nCurrent Parent (src: " + image.state.currentSrc + ")");
                 }
                 wearableImagesMap.set(wearable, image);
             }
