@@ -7,6 +7,8 @@ import {useRatio} from "@player/provider/ratio";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
 import {TextTransition} from "@core/elements/transition/transitions/text/textTransition";
 import {useExposeState} from "@player/lib/useExposeState";
+import {ExposedStateType} from "@player/type";
+import {useFlush} from "@player/lib/flush";
 
 /**@internal */
 export default function Text({state, text}: Readonly<{
@@ -14,6 +16,7 @@ export default function Text({state, text}: Readonly<{
     text: GameText;
 }>) {
     const {ratio} = useRatio();
+    const [flush] = useFlush();
     const {
         transformRef,
         transitionRefs,
@@ -21,6 +24,7 @@ export default function Text({state, text}: Readonly<{
         applyTransform,
         applyTransition,
         deps,
+        isTransforming,
     } = useDisplayable<TextTransition, HTMLSpanElement>({
         element: text,
         state: text.transformState,
@@ -41,9 +45,6 @@ export default function Text({state, text}: Readonly<{
                 };
             },
         },
-        transformStyle: {
-            width: "fit-content",
-        },
         transitionsProps: [
             {
                 style: {
@@ -56,10 +57,11 @@ export default function Text({state, text}: Readonly<{
         ],
     });
 
-    useExposeState(text, {
+    useExposeState<ExposedStateType.text>(text, {
         initDisplayable,
         applyTransform,
         applyTransition,
+        flush,
     }, [...deps]);
 
     return (
@@ -68,7 +70,7 @@ export default function Text({state, text}: Readonly<{
                 tag={"text.container"}
                 color={"green"}
                 border={"dashed"}
-                layout
+                layout={isTransforming}
                 ref={transformRef}
                 className={"absolute"}
             >

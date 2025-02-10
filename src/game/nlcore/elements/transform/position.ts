@@ -18,19 +18,16 @@ export interface IPosition {
     toCSS(): D2Position;
 }
 
-/**@internal */
 export type Coord2DPosition = {
     x: number | `${"-" | ""}${number}%`;
     y: number | `${"-" | ""}${number}%`;
 } & Partial<OffsetPosition>;
 
-/**@internal */
 export type AlignPosition = {
     xalign: number;
     yalign: number;
 } & Partial<OffsetPosition>;
 
-/**@internal */
 export type OffsetPosition = {
     xoffset: number;
     yoffset: number;
@@ -44,7 +41,6 @@ export type D2Position<X = any, Y = any> = {
     yoffset: UnknownAble<number>;
 }
 
-/**@internal */
 export type RawPosition = CommonPositionType
     | (Coord2DPosition & { xalign?: never; yalign?: never })
     | (AlignPosition & { x?: never; y?: never });

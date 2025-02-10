@@ -2,12 +2,14 @@ import {TextTransition} from "@core/elements/transition/transitions/text/textTra
 import {TransitionAnimationType, TransitionTask} from "@core/elements/transition/type";
 import {TransformDefinitions} from "@core/elements/transform/type";
 
-export class FontSize extends TextTransition<[TransitionAnimationType.Number]> {
+type AnimationType = [TransitionAnimationType.Number];
+
+export class FontSize extends TextTransition<AnimationType> {
     constructor(private textSize: number, private duration: number, private easing?: TransformDefinitions.EasingDefinition) {
         super();
     }
 
-    createTask(): TransitionTask<HTMLSpanElement, [TransitionAnimationType.Number]> {
+    createTask(): TransitionTask<HTMLSpanElement, AnimationType> {
         return {
             animations: [{
                 type: TransitionAnimationType.Number,
@@ -17,11 +19,11 @@ export class FontSize extends TextTransition<[TransitionAnimationType.Number]> {
                 ease: this.easing,
             }],
             resolve: [
-                (fontSize: number) => ({
+                this.asTarget<AnimationType>((fontSize: number) => ({
                     style: {
-                        fontSize: fontSize,
+                        fontSize: `${fontSize}px`,
                     }
-                }),
+                })),
             ],
         };
     }

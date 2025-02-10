@@ -18,12 +18,6 @@ export abstract class Displayable<
     extends Actionable<StateData, Self>
     implements EventfulDisplayable {
 
-    /**
-     * @internal
-     * @deprecated The game is no longer store the events in the game element, this undermines the abstraction of the game element.
-     * Use `useExposeState` instead
-     */
-    // events
     /**@internal */
     public readonly srcManager = new SrcManager();
 

@@ -34,6 +34,7 @@ export type ExposedState = {
         initDisplayable: (onResolve: () => void) => void;
         applyTransform: (transform: Transform, onResolve: () => void) => void;
         applyTransition: (transition: Transition<any>, onResolve: () => void) => void;
+        flush: () => void;
     };
     [ExposedStateType.layer]: {
         initDisplayable: (onResolve: () => void) => void;

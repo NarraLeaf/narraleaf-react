@@ -16,6 +16,7 @@ import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {TextTransition} from "@core/elements/transition/transitions/text/textTransition";
 import {FontSize} from "@core/elements/transition/transitions/text/fontSize";
 import {Layer} from "@core/elements/layer";
+import {EmptyObject} from "@core/elements/transition/type";
 
 export type TextConfig = {
     alignX: "left" | "center" | "right";
@@ -111,6 +112,7 @@ export class Text
     /**@internal */
     static DefaultTextTransformState = new ConfigConstructor<TransformDefinitions.TextTransformProps>({
         fontColor: "#000000",
+        ...TransformState.DefaultTransformState.getDefaultConfig(),
     });
 
     /**@internal */
@@ -137,13 +139,11 @@ export class Text
         } : arg0;
         const userConfig = Text.DefaultUserConfig.create(config);
         const textConfig = Text.DefaultTextConfig.create(userConfig.get());
-        const [transformState] = userConfig.extract(Text.DefaultTextTransformState.keys());
 
         this.userConfig = userConfig;
         this.config = textConfig.get();
         this.state = this.getInitialState();
-        this.transformState =
-            new TransformState<TransformDefinitions.TextTransformProps>(transformState.get());
+        this.transformState = this.getInitialTransformState(userConfig);
     }
 
     /**
@@ -216,11 +216,17 @@ export class Text
     }
 
     /**@internal */
+    private getInitialTransformState(
+        userConfig: Config<ITextUserConfig, EmptyObject>
+    ): TransformState<TransformDefinitions.TextTransformProps> {
+        const [transformState] = userConfig.extract(Text.DefaultTextTransformState.keys());
+        return new TransformState(Text.DefaultTextTransformState.create(transformState.get()).get());
+    }
+
+    /**@internal */
     override reset() {
         this.state = this.getInitialState();
-        this.transformState = new TransformState<TransformDefinitions.TextTransformProps>(
-            this.userConfig.extract(TransformState.DefaultTransformState.keys())[0].get()
-        );
+        this.transformState = this.getInitialTransformState(this.userConfig);
     }
 
     /**@internal */
