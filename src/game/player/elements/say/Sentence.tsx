@@ -61,14 +61,12 @@ export default function Sentence(
             pauseTimerRef.current = null;
             skipToNext(true);
             if (onCompleted) {
-                gameState.logger.info("Say", "Completed", pauseTimerRef.current, finished, isFinished);
                 onCompleted();
             }
             return;
         }
 
         if (isFinished || finished || isPaused || pauseTimerRef.current) {
-            gameState.logger.debug("Sentence.tsx", "locked", isFinished, finished, isPaused);
             return;
         }
 
@@ -76,7 +74,6 @@ export default function Sentence(
         if (done) {
             setIsFinished(true);
             if (onCompleted) {
-                gameState.logger.info("Say", "Completed", done, value);
                 onCompleted();
             }
             return;
@@ -121,7 +118,6 @@ export default function Sentence(
             if (done) {
                 setIsFinished(true);
                 if (onCompleted) {
-                    gameState.logger.info("Say", "Completed", done, value);
                     onCompleted();
                 }
                 exited = true;

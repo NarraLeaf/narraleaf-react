@@ -6,7 +6,6 @@ import {Awaitable, SkipController} from "@lib/util/data";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Sentence} from "@core/elements/character/sentence";
 import {TypedAction} from "@core/action/actions";
-import {SoundAction} from "@core/action/actions/soundAction";
 import {Sound} from "@core/elements/sound";
 
 export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof CharacterActionTypes] = typeof CharacterActionTypes[keyof typeof CharacterActionTypes]>
@@ -39,15 +38,12 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             const voice = CharacterAction.getVoice(state, sentence);
 
             if (voice) {
-                SoundAction.initSound(state, voice);
-                state.playSound(voice, () => {
-                    state.stopSound(voice);
-                });
+                state.audioManager.play(voice);
             }
 
-            state.createText(this.getId(), sentence, () => {
+            state.createDialog(this.getId(), sentence, () => {
                 if (voice) {
-                    state.stopSound(voice);
+                    state.audioManager.stop(voice);
                 }
 
                 awaitable.resolve({

@@ -1,5 +1,4 @@
 import React, {ErrorInfo, ReactNode} from "react";
-import PropTypes from "prop-types";
 import ErrorFallback from "@player/lib/ErrorFallback";
 
 interface ErrorBoundaryProps {
@@ -13,10 +12,6 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-    static propTypes = {
-        children: PropTypes.node.isRequired,
-    };
-
     static getDerivedStateFromError(error: Error) {
         return {hasError: true, error, errorInfo: null};
     }
