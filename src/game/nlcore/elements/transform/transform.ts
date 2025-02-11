@@ -450,6 +450,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         return newTransform;
     }
 
+    /**@internal */
     public getOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions & At {
         if (!options) {
             return {};

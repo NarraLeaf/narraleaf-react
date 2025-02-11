@@ -64,6 +64,8 @@ The screenshot behavior is provided by [html-to-image](https://github.com/bubkoo
 - These methods are added to displayable elements (text, image):
   - `pos`, `scale`, `rotate`, `opacity`
   - `useLayer`
+- These methods are added to `Text`:
+  - `setFontColor`
 
 ### Fixed
 

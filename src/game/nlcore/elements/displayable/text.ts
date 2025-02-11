@@ -1,5 +1,5 @@
 import {Color, CommonDisplayableConfig} from "@core/types";
-import {EventDispatcher, Serializer} from "@lib/util/data";
+import {Serializer} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {LogicAction} from "@core/action/logicAction";
 import {Transform, TransformState} from "@core/elements/transform/transform";
@@ -69,21 +69,10 @@ export type TextDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;
 };
-/**@internal */
-export type TextEventTypes = {
-    "event:text.show": [Transform];
-    "event:text.hide": [Transform];
-};
 
 export class Text
     extends Displayable<TextDataRaw, Text, TransformDefinitions.TextTransformProps>
     implements EventfulDisplayable {
-    /**@internal */
-    static EventTypes: { [K in keyof TextEventTypes]: K } = {
-        "event:text.show": "event:text.show",
-        "event:text.hide": "event:text.hide",
-    };
-
     /**@internal */
     static DefaultUserConfig = new ConfigConstructor<ITextUserConfig>({
         alignX: "center",
@@ -125,13 +114,11 @@ export class Text
     /**@internal */
     public state: TextState;
     /**@internal */
-    readonly events: EventDispatcher<TextEventTypes> = new EventDispatcher();
-    /**@internal */
     private userConfig: Config<ITextUserConfig>;
 
-    constructor(config: Partial<TextConfig>);
-    constructor(text: string, config?: Partial<TextConfig>);
-    constructor(arg0: Partial<TextConfig> | string, arg1: Partial<TextConfig> = {}) {
+    constructor(config: Partial<ITextUserConfig>);
+    constructor(text: string, config?: Partial<ITextUserConfig>);
+    constructor(arg0: Partial<ITextUserConfig> | string, arg1: Partial<ITextUserConfig> = {}) {
         super();
         const config = typeof arg0 === "string" ? {
             ...arg1,
@@ -158,6 +145,19 @@ export class Text
             new ContentNode<TextActionContentType["text:setText"]>().setContent([text])
         );
         return chain.chain(action);
+    }
+
+    /**
+     * Set the font color of the Text
+     * @chainable
+     */
+    public setFontColor(color: Color, duration: number = 0, easing?: TransformDefinitions.EasingDefinition): Proxied<Text, Chained<LogicAction.Actions>> {
+        return this.transform(new Transform<TransformDefinitions.TextTransformProps>({
+            fontColor: color,
+        }, {
+            duration,
+            ease: easing,
+        }));
     }
 
     /**
@@ -216,17 +216,17 @@ export class Text
     }
 
     /**@internal */
+    override reset() {
+        this.state = this.getInitialState();
+        this.transformState = this.getInitialTransformState(this.userConfig);
+    }
+
+    /**@internal */
     private getInitialTransformState(
         userConfig: Config<ITextUserConfig, EmptyObject>
     ): TransformState<TransformDefinitions.TextTransformProps> {
         const [transformState] = userConfig.extract(Text.DefaultTextTransformState.keys());
         return new TransformState(Text.DefaultTextTransformState.create(transformState.get()).get());
-    }
-
-    /**@internal */
-    override reset() {
-        this.state = this.getInitialState();
-        this.transformState = this.getInitialTransformState(this.userConfig);
     }
 
     /**@internal */

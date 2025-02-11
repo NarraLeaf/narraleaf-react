@@ -145,7 +145,4 @@ export class Layer
         const [transformState] = this.userConfig.extract(TransformState.DefaultTransformState.keys());
         return new TransformState(TransformState.DefaultTransformState.create(transformState.get()).get());
     }
-
-    /**@internal */
-    /**@internal */
 }

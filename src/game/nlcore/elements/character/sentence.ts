@@ -6,7 +6,6 @@ import {Color, Font} from "@core/types";
 import type {ScriptCtx} from "@core/elements/script";
 import {Pause, Pausing} from "@core/elements/character/pause";
 
-/**@internal */
 export type SentenceConfig = {
     pause?: boolean | number;
     voice: Sound | null;

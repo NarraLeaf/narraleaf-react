@@ -42,8 +42,8 @@ export type D2Position<X = any, Y = any> = {
 }
 
 export type RawPosition = CommonPositionType
-    | (Coord2DPosition & { xalign?: never; yalign?: never })
-    | (AlignPosition & { x?: never; y?: never });
+    | (Partial<Coord2DPosition> & { xalign?: never; yalign?: never })
+    | (Partial<AlignPosition> & { x?: never; y?: never });
 
 type Unknown = typeof PositionUtils.Unknown;
 type UnknownAble<T> = T | Unknown;

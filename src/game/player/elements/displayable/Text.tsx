@@ -52,6 +52,7 @@ export default function Text({state, text}: Readonly<{
                     whiteSpace: "nowrap",
                     transform: `scale(${ratio.state.scale})`,
                     transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
+                    fontSize: `${text.state.fontSize}px`,
                 },
             },
         ],

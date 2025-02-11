@@ -1,6 +1,5 @@
 import {Actionable} from "@core/action/actionable";
 import {Transform, TransformState} from "@core/elements/transform/transform";
-import {Values} from "@lib/util/data";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {DisplayableActionContentType, DisplayableActionTypes} from "@core/action/actionTypes";
 import {Chained, Proxied} from "@core/action/chain";
@@ -187,17 +186,5 @@ export abstract class Displayable<
             ])
         );
         return chain.chain(action);
-    }
-
-
-    protected constructLayerAction<T extends Values<typeof DisplayableActionTypes>>(
-        chain: Proxied<Self, Chained<LogicAction.Actions>>,
-        type: T,
-    ): DisplayableAction {
-        return new DisplayableAction(
-            chain,
-            type,
-            new ContentNode<DisplayableActionContentType[T]>(),
-        );
     }
 }

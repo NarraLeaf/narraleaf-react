@@ -76,12 +76,6 @@ export type ImageDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;
 };
-
-/**@internal */
-export type ImageEventTypes = {
-    "event:wearable.create": [Image];
-    "event:image.load": [];
-};
 export type TagGroupDefinition = string[][];
 export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectElementFromEach<T>) => string;
 
