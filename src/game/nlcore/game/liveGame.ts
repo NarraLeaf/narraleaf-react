@@ -60,10 +60,9 @@ export class LiveGame {
     public game: Game;
     public gameLock = new MultiLock();
     public events: EventDispatcher<LiveGameEvent> = new EventDispatcher();
+    public story: Story | null = null;
     /**@internal */
     currentSavedGame: SavedGame | null = null;
-    /**@internal */
-    story: Story | null = null;
     /**@internal */
     lockedAwaiting: Awaitable<CalledActionResult, any> | null = null;
     /**@internal */

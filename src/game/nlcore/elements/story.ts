@@ -124,12 +124,12 @@ export class Story extends Constructable<
     /**
      * Get a registered service, throw an error if the service isn't found
      */
-    public getService(name: string): Service {
+    public getService<T extends Service>(name: string): T {
         const service = this.services.get(name);
         if (!service) {
             throw new StaticScriptWarning(`Trying to access service ${name} before it's registered, please use "story.registerService" to register the service`);
         }
-        return service;
+        return service as T;
     }
 
     /**@internal */

@@ -65,9 +65,7 @@ export type JumpConfig = {
     unloadScene: boolean;
 }
 
-/**@internal */
 type ChainableAction = Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>> | LogicAction.Actions;
-/**@internal */
 type ChainedScene = Proxied<Scene, Chained<LogicAction.Actions>>;
 
 /**@internal */
@@ -315,7 +313,7 @@ export class Scene extends Constructable<
     /**
      * Manually register image sources
      */
-    public preloadImage(src: string | string[]) {
+    public preloadImage(src: string | string[]): this {
         if (!Utils.isImageSrc(src)) {
             throw new Error("Invalid image source: " + src);
         }
@@ -326,6 +324,8 @@ export class Scene extends Constructable<
                 src,
             });
         });
+
+        return this;
     }
 
     /**@internal */

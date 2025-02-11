@@ -13,9 +13,7 @@ type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
 export type SoundDataRaw = {
     state: Record<string, any>;
 };
-/**@internal */
 export type VoiceIdMap = Record<string | number, string | Sound>;
-/**@internal */
 export type VoiceSrcGenerator = (id: string | number) => string | Sound;
 
 export interface ISoundUserConfig {
