@@ -18,19 +18,16 @@ export interface IPosition {
     toCSS(): D2Position;
 }
 
-/**@internal */
 export type Coord2DPosition = {
     x: number | `${"-" | ""}${number}%`;
     y: number | `${"-" | ""}${number}%`;
 } & Partial<OffsetPosition>;
 
-/**@internal */
 export type AlignPosition = {
     xalign: number;
     yalign: number;
 } & Partial<OffsetPosition>;
 
-/**@internal */
 export type OffsetPosition = {
     xoffset: number;
     yoffset: number;
@@ -44,10 +41,9 @@ export type D2Position<X = any, Y = any> = {
     yoffset: UnknownAble<number>;
 }
 
-/**@internal */
 export type RawPosition = CommonPositionType
-    | (Coord2DPosition & { xalign?: never; yalign?: never })
-    | (AlignPosition & { x?: never; y?: never });
+    | (Partial<Coord2DPosition> & { xalign?: never; yalign?: never })
+    | (Partial<AlignPosition> & { x?: never; y?: never });
 
 type Unknown = typeof PositionUtils.Unknown;
 type UnknownAble<T> = T | Unknown;
@@ -58,16 +54,6 @@ export class PositionUtils {
 
     static isUnknown(arg: any): arg is typeof PositionUtils.Unknown {
         return arg === PositionUtils.Unknown;
-    }
-
-    static wrap(def: CSSProps): CSSProps {
-        return {
-            left: "auto",
-            top: "auto",
-            right: "auto",
-            bottom: "auto",
-            ...def,
-        };
     }
 
     static D2PositionToCSS(pos: D2Position, invertX = false, invertY = false): CSSProps {
@@ -89,7 +75,7 @@ export class PositionUtils {
             return `calc(${pos} + 0px)`;
         }
         const left = typeof pos === "number" ? `${pos}px` : pos;
-        return `calc(${left} + (${offset}px))`;
+        return `calc(${left} + ${offset}px)`;
     }
 
     static toCoord2D(pos: IPosition | D2Position): Coord2D {
@@ -171,6 +157,16 @@ export class PositionUtils {
             return this.rawPositionToCoord2D(arg);
         }
         throw new Error("Invalid position type");
+    }
+
+    static wrap(def: CSSProps): CSSProps {
+        return {
+            left: "auto",
+            top: "auto",
+            right: "auto",
+            bottom: "auto",
+            ...def,
+        };
     }
 }
 

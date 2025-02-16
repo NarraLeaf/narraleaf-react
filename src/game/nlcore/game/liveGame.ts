@@ -15,6 +15,7 @@ import {ControlAction} from "@core/action/actions/controlAction";
 import {LiveGameEventHandler, LiveGameEventToken} from "@core/types";
 import {Character} from "@core/elements/character";
 import {Sentence} from "@core/elements/character/sentence";
+import {RuntimeGameError} from "@core/common/Utils";
 
 /**@internal */
 type LiveGameEvent = {
@@ -59,10 +60,9 @@ export class LiveGame {
     public game: Game;
     public gameLock = new MultiLock();
     public events: EventDispatcher<LiveGameEvent> = new EventDispatcher();
+    public story: Story | null = null;
     /**@internal */
     currentSavedGame: SavedGame | null = null;
-    /**@internal */
-    story: Story | null = null;
     /**@internal */
     lockedAwaiting: Awaitable<CalledActionResult, any> | null = null;
     /**@internal */
@@ -116,9 +116,7 @@ export class LiveGame {
      * Note: even if you change just a single line of script, the saved game might not be compatible with the new version
      */
     public serialize(): SavedGame {
-        if (!this.gameState) {
-            throw new Error("No game state");
-        }
+        this.assertGameState();
         const gameState = this.gameState;
 
         const story = this.story;
@@ -143,8 +141,9 @@ export class LiveGame {
                 stage,
                 currentAction,
                 elementStates,
-            }
-        };
+                services: story.serializeServices(),
+            },
+        } satisfies SavedGame;
     }
 
     /**
@@ -155,9 +154,7 @@ export class LiveGame {
      * After calling this method, the current game state will be lost, and the stage will trigger force reset
      */
     public deserialize(savedGame: SavedGame) {
-        if (!this.gameState) {
-            throw new Error("No game state");
-        }
+        this.assertGameState();
         const gameState = this.gameState;
 
         const story = this.story;
@@ -176,6 +173,7 @@ export class LiveGame {
                 stage,
                 elementStates,
                 currentAction,
+                services,
             }
         } = savedGame;
 
@@ -183,7 +181,7 @@ export class LiveGame {
         story.forEachChild(story, story.entryScene?.getSceneRoot() || [], action => {
             actionMaps.set(action.getId(), action);
             elementMaps.set(action.callee.getId(), action.callee);
-        });
+        }, {allowFutureScene: true});
 
         // restore storable
         this.storable.clear().load(store);
@@ -211,45 +209,78 @@ export class LiveGame {
             this.currentAction = action;
         }
 
+        // restore services
+        story.deserializeServices(services);
+
         gameState.stage.forceUpdate();
         gameState.stage.next();
+    }
+
+    /**
+     * Capture the game screenshot, will only include the player element
+     *
+     * Returns a PNG image base64-encoded data URL
+     */
+    capturePng(): Promise<string> {
+        this.assertGameState();
+        this.assertPlayerElement();
+        return this.gameState.htmlToImage.toPng(this.gameState.mainContentNode!);
+    }
+
+    /**
+     * Capture the game screenshot, will only include the player element
+     *
+     * Returns compressed JPEG image data URL
+     */
+    captureJpeg(): Promise<string> {
+        this.assertGameState();
+        this.assertPlayerElement();
+        return this.gameState.htmlToImage.toJpeg(this.gameState.mainContentNode!);
+    }
+
+    /**
+     * Capture the game screenshot, will only include the player element
+     *
+     * Returns an SVG data URL
+     */
+    captureSvg(): Promise<string> {
+        this.assertGameState();
+        this.assertPlayerElement();
+        return this.gameState.htmlToImage.toSvg(this.gameState.mainContentNode!);
+    }
+
+    /**
+     * Capture the game screenshot, will only include the player element
+     *
+     * Returns a PNG image blob
+     */
+    capturePngBlob(): Promise<Blob | null> {
+        this.assertGameState();
+        this.assertPlayerElement();
+        return this.gameState.htmlToImage.toBlob(this.gameState.mainContentNode!);
     }
 
     /**
      * When a character says something
      */
     public onCharacterPrompt(fc: LiveGameEventHandler<LiveGameEvent["event:character.prompt"]>): LiveGameEventToken {
-        const eventName = LiveGame.EventTypes["event:character.prompt"];
-        const event = this.events.on(eventName, fc);
-        return {
-            cancel: () => {
-                this.events.off(eventName, event);
-            }
-        };
+        return this.events.on(LiveGame.EventTypes["event:character.prompt"], fc);
     }
 
     /**
      * When a player chooses a menu
      */
     public onMenuChoose(fc: LiveGameEventHandler<LiveGameEvent["event:menu.choose"]>): LiveGameEventToken {
-        const eventName = LiveGame.EventTypes["event:menu.choose"];
-        const event = this.events.on(eventName, fc);
-        return {
-            cancel: () => {
-                this.events.off(eventName, event);
-            }
-        };
+        return this.events.on(LiveGame.EventTypes["event:menu.choose"], fc);
     }
 
     /**
      * Start a new game
      */
     public newGame() {
-        if (!this.gameState) {
-            throw new Error("No game state");
-        }
+        this.assertGameState();
         const gameState = this.gameState;
-        const logGroup = gameState.logger.group("LiveGame");
+        const logGroup = gameState.logger.group("LiveGame (newGame)", true);
 
         this.reset({gameState});
         this.initNamespaces();
@@ -275,6 +306,74 @@ export class LiveGame {
         logGroup.end();
 
         return this;
+    }
+
+    /**
+     * Request full screen on Chrome/Safari/Firefox/IE/Edge/Opera, the player element will be full screen
+     *
+     * **Note**: this method should be called in response to a user gesture (for example, a click event)
+     *
+     * Safari iOS and Webview iOS aren't supported,
+     * for more information,
+     * see [MDN-requestFullscreen](https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen)
+     */
+    public requestFullScreen(options?: FullscreenOptions | undefined): Promise<void> | void {
+        this.assertGameState();
+        const LogTag = "LiveGame.requestFullScreen";
+        try {
+            const element = this.gameState.playerCurrent;
+            if (!element) {
+                this.gameState.logger.warn(LogTag, "No player element found");
+                return;
+            }
+            if (element.requestFullscreen) {
+                return element.requestFullscreen(options);
+            } else {
+                this.gameState.logger.warn(LogTag, "Fullscreen is not supported");
+            }
+        } catch (e) {
+            this.gameState.logger.error(LogTag, e);
+        }
+    }
+
+    /**
+     * Exit full screen
+     */
+    public exitFullScreen(): Promise<void> | void {
+        this.assertGameState();
+        const LogTag = "LiveGame.exitFullScreen";
+        try {
+            if (document.exitFullscreen) {
+                return document.exitFullscreen();
+            } else {
+                this.gameState.logger.warn(LogTag, "Fullscreen is not supported");
+            }
+        } catch (e) {
+            this.gameState.logger.error(LogTag, e);
+        }
+    }
+
+    /**
+     * Listen to the events of the player element
+     */
+    onPlayerEvent<K extends keyof HTMLElementEventMap>(
+        type: K,
+        listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
+        options?: boolean | AddEventListenerOptions
+    ): LiveGameEventToken {
+        this.assertPlayerElement();
+        const element = this.gameState.playerCurrent;
+        if (!element) {
+            this.gameState.logger.warn("LiveGame.onEvent", "No player element found");
+            return {
+                cancel: () => {
+                },
+            };
+        }
+        element.addEventListener(type, listener, options);
+        return {
+            cancel: () => element.removeEventListener(type, listener, options),
+        };
     }
 
     /**@internal */
@@ -459,10 +558,35 @@ export class LiveGame {
                 store: {},
                 stage: {
                     scenes: [],
+                    audio: {
+                        sounds: [],
+                    },
                 },
                 elementStates: [],
                 currentAction: this.story?.entryScene?.getSceneRoot().getId() || null,
+                services: {},
             }
         };
+    }
+
+    /**
+     * @internal
+     * @throws {RuntimeGameError} - If the game state isn't found
+     */
+    private assertGameState(): asserts this is { gameState: GameState } {
+        if (!this.gameState) {
+            throw new RuntimeGameError("No game state found, make sure you call this method in effect hooks or event handlers");
+        }
+    }
+
+    /**
+     * @internal
+     * @throws {RuntimeGameError} - If the player element isn't mounted
+     */
+    private assertPlayerElement(): asserts this is { gameState: GameState & {playerCurrent: HTMLDivElement } } {
+        this.assertGameState();
+        if (!this.gameState.playerCurrent) {
+            throw new RuntimeGameError("Player Element Not Mounted");
+        }
     }
 }

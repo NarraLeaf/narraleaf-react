@@ -5,145 +5,97 @@ import type {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, SkipController} from "@lib/util/data";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {TypedAction} from "@core/action/actions";
+import {RuntimeScriptError, Utils} from "@core/common/Utils";
+import {Color} from "@core/types";
+import {ExposedStateType} from "@player/type";
 
 export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageActionTypes] = typeof ImageActionTypes[keyof typeof ImageActionTypes]>
     extends TypedAction<ImageActionContentType, T, Image> {
     static ActionTypes = ImageActionTypes;
 
+    public static resolveTagSrc(image: Image, tags: string[]) {
+        if (!Image.isTagSrc(image)) {
+            throw image._mixedSrcError();
+        }
+
+        const oldTags = image.state.currentSrc as string[];
+        const newTags = image.resolveTags(oldTags, tags);
+        return Image.getSrcFromTags(newTags, image.config.src.resolve);
+    }
+
+    public static resolveCurrentSrc(image: Image): string | Color {
+        if (Image.isStaticSrc(image)) {
+            return Utils.isImageSrc(image.state.currentSrc)
+                ? Utils.srcToURL(image.state.currentSrc)
+                : image.state.currentSrc;
+        } else if (Image.isTagSrc(image)) {
+            return Image.getSrcFromTags(image.state.currentSrc as string[], image.config.src.resolve);
+        }
+
+        throw image._mixedSrcError();
+    }
+
     declare type: T;
     declare contentNode: ContentNode<ImageActionContentType[T]>;
 
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
-        if (this.type === ImageActionTypes.init) {
-            if (this.callee.config.isWearable) {
-                throw new Error(
-                    "Cannot init wearable image with init action" +
-                    "\nIt seems like you are trying to init a wearable image with an init action, or use this wearable image without parent."
-                );
-            }
+        if (this.type === ImageActionTypes.initWearable) {
+            const [wearable] = (this.contentNode as ContentNode<ImageActionContentType["image:initWearable"]>).getContent();
+            const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
+            const awaitable = new Awaitable<CalledActionResult>(v => v);
 
-            const lastScene = state.findElementByDisplayable(this.callee);
-            if (lastScene) {
-                state.disposeImage(this.callee, lastScene.scene);
-            }
-
-            const scene = (this.contentNode as ContentNode<ImageActionContentType["image:init"]>).getContent()[0];
-            state.createImage(this.callee, scene);
-
-            return this.resolveAwaitable(async (resolve) => {
-                await this.callee.events.any("event:displayable.init");
-
-                resolve(super.executeAction(state));
-                state.stage.next();
+            exposed.createWearable(wearable);
+            state.getExposedStateAsync<ExposedStateType.image>(wearable, (wearableState) => {
+                wearableState.initDisplayable(() => {
+                    awaitable.resolve(super.executeAction(state) as CalledActionResult);
+                    state.stage.next();
+                });
             });
-        } else if (this.type === ImageActionTypes.initWearable) {
-            const [image] = (this.contentNode as ContentNode<ImageActionContentType["image:initWearable"]>).getContent();
 
-            return this.resolveAwaitable(async (resolve) => {
-                await this.callee.events.any("event:wearable.create", image);
-                await image.events.any("event:displayable.init");
-
-                resolve(super.executeAction(state));
-                state.stage.next();
-            });
+            return awaitable;
         } else if (this.type === ImageActionTypes.setSrc) {
-            if (this.callee.state.tag) {
-                throw this.callee._mixedSrcError();
+            const src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
+            if (Utils.isColor(src) && !this.callee.config.isBackground) {
+                throw new RuntimeScriptError("Color src is not allowed for non-background image");
             }
 
-            this.callee.state.src = (this.contentNode as ContentNode<ImageActionContentType["image:setSrc"]>).getContent()[0];
-            state.logger.debug("Image - Set Src", this.callee.state.src);
+            this.callee.state.currentSrc = src;
+            state.logger.debug("Image Set Src", src);
 
             state.stage.update();
             return super.executeAction(state);
-        } else if (([
-            ImageActionTypes.show,
-            ImageActionTypes.hide,
-            ImageActionTypes.applyTransform
-        ] as T[]).includes(this.type)) {
-            const awaitable =
-                new Awaitable<CalledActionResult, CalledActionResult>(v => v)
-                    .registerSkipController(new SkipController(() => {
-                        if (this.type === ImageActionTypes.hide) {
-                            this.callee.state.display = false;
-                        }
-                        return super.executeAction(state) as CalledActionResult;
-                    }));
-            const transform =
-                (this.contentNode as ContentNode<ImageActionContentType["image:show"]>).getContent()[1];
-
-            if (this.type === ImageActionTypes.show) {
-                this.callee.state.display = true;
-                state.stage.update();
-            }
-
-            state.animateImage(Image.EventTypes["event:displayable.applyTransform"], this.callee, [
-                transform
-            ], () => {
-                if (this.type === ImageActionTypes.hide) {
-                    this.callee.state.display = false;
-                }
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode?.getChild(),
-                });
-            });
-            return awaitable;
-        } else if (this.type === ImageActionTypes.dispose) {
-            state.disposeImage(this.callee);
-            this.callee._$setDispose();
-            return super.executeAction(state);
-        } else if (this.type === ImageActionTypes.applyTransition) {
-            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
-                .registerSkipController(new SkipController(() => {
-                    return {
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    };
-                }));
-            const transition =
-                (this.contentNode as ContentNode<ImageActionContentType["image:applyTransition"]>).getContent()[0];
-            this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                });
-                state.stage.next();
-            });
-            return awaitable;
         } else if (this.type === ImageActionTypes.flush) {
             return super.executeAction(state);
         } else if (this.type === ImageActionTypes.setAppearance) {
             const [tags, transition] =
                 (this.contentNode as ContentNode<ImageActionContentType["image:setAppearance"]>).getContent();
-            if (!this.callee.state.tag || !this.callee.state.currentTags) {
-                throw this.callee._srcNotSpecifiedError();
+            if (!Image.isTagSrc(this.callee)) {
+                throw this.callee._mixedSrcError();
             }
 
-            const newTags = this.callee.resolveTags(this.callee.state.currentTags, tags);
-            const newSrc = Image.getSrcFromTags(newTags, this.callee.state.src);
+            const oldTags = this.callee.state.currentSrc as string[];
+            const newTags = this.callee.resolveTags(oldTags, tags);
+            const newSrc = Image.getSrcFromTags(newTags, this.callee.config.src.resolve);
 
             state.logger.debug("Image - Set Appearance", newTags, newSrc);
 
             if (transition) {
                 const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
-                    .registerSkipController(new SkipController(() => {
-                        return {
-                            type: this.type,
-                            node: this.contentNode.getChild()
-                        };
-                    }));
-                transition.setSrc(newSrc);
-                this.callee.events.any("event:displayable.applyTransition", transition).then(() => {
-                    this.callee.state.currentTags = newTags;
-                    awaitable.resolve({
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    });
+                    .registerSkipController(new SkipController(() => super.executeAction(state) as CalledActionResult));
+                transition
+                    ._setPrevSrc(ImageAction.resolveCurrentSrc(this.callee))
+                    ._setTargetSrc(newSrc);
+
+                const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
+                exposed.applyTransition(transition, () => {
+                    this.callee.state.currentSrc = newTags as [];
+                    awaitable.resolve(super.executeAction(state) as CalledActionResult);
                     state.stage.next();
                 });
+
+                return awaitable;
             }
-            this.callee.state.currentTags = newTags;
+            this.callee.state.currentSrc = newTags as [];
             return super.executeAction(state);
         }
 

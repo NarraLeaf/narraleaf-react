@@ -36,7 +36,7 @@ export class Preference<T extends Record<string, string | boolean | number | nul
     public onPreferenceChange<U extends StringKeyof<T>>(key: U, listener: (value: T[U]) => void): PreferenceEventToken;
     public onPreferenceChange(listener: (key: StringKeyof<T>, value: T[StringKeyof<T>]) => void): PreferenceEventToken;
     public onPreferenceChange<U extends StringKeyof<T>>(arg0: U | ((key: StringKeyof<T>, value: T[StringKeyof<T>]) => void), listener?: (value: T[U]) => void): PreferenceEventToken {
-        const event = this.events.on(Preference.EventTypes["event:game.preference.change"], (key, value) => {
+        return this.events.on(Preference.EventTypes["event:game.preference.change"], (key, value) => {
             if (typeof arg0 === "string") {
                 if (arg0 === key && listener) {
                     listener(value);
@@ -45,9 +45,6 @@ export class Preference<T extends Record<string, string | boolean | number | nul
                 arg0(key, value);
             }
         });
-        return {
-            cancel: () => this.events.off(Preference.EventTypes["event:game.preference.change"], event),
-        };
     }
 
     /**

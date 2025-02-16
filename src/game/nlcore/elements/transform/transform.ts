@@ -1,17 +1,30 @@
-import type {Background, color, CommonDisplayable, CommonImagePosition,} from "@core/types";
-import {ImagePosition,} from "@core/types";
-import type {AnimationPlaybackControls, DOMKeyframesDefinition, DynamicAnimationOptions} from "framer-motion";
-import {deepMerge, DeepPartial, sleep, toHex} from "@lib/util/data";
+import React from "react";
+import type {CommonDisplayableConfig, CommonImagePosition} from "@core/types";
+import {ImagePosition} from "@core/types";
+import {animate} from "motion/react";
+import type {
+    At,
+    DOMKeyframesDefinition,
+    DOMSegmentWithTransition,
+    DynamicAnimationOptions,
+    SequenceOptions
+} from "motion";
+import {Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, toHex} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {TransformDefinitions} from "./type";
-import {Align, CommonPosition, Coord2D, IPosition, PositionUtils, RawPosition} from "./position";
+import {
+    Align,
+    CommonPosition,
+    CommonPositionType,
+    Coord2D,
+    D2Position,
+    IPosition,
+    PositionUtils,
+    RawPosition
+} from "./position";
 import {CSSProps} from "@core/elements/transition/type";
-import {Utils} from "@core/common/Utils";
-import {animate} from "framer-motion/dom";
-import React from "react";
-import {ImageConfig} from "@core/elements/displayable/image";
-import Sequence = TransformDefinitions.Sequence;
-import SequenceProps = TransformDefinitions.SequenceProps;
+import {ConfigConstructor} from "@lib/util/config";
+import {RuntimeScriptError} from "@core/common/Utils";
 
 export type Transformers =
     "position"
@@ -25,18 +38,8 @@ export type Transformers =
     | "transform"
     | "fontColor";
 export type TransformHandler<T> = (value: T) => DOMKeyframesDefinition;
-export type TransformersMap = {
-    "position": CommonDisplayable["position"],
-    "opacity": number,
-    "scale": number,
-    "rotation": number,
-    "display": string,
-    "src": string,
-    "backgroundColor": Background["background"],
-    "backgroundOpacity": number,
-    "transform": TransformDefinitions.Types,
-    "fontColor": color;
-}
+/**@internal */
+export type TransformStateProps = TransformDefinitions.Types;
 
 const CommonImagePositionMap = {
     [ImagePosition.left]: "25.33%",
@@ -44,11 +47,153 @@ const CommonImagePositionMap = {
     [ImagePosition.right]: "75.66%"
 } as const;
 
-export class Transform<T extends TransformDefinitions.Types = object> {
+type OverwriteMap = {
+    transform: React.CSSProperties["transform"];
+    scale: React.CSSProperties["scale"];
+    overwrite: CSSProps;
+};
+export type OverwriteDefinition = {
+    [K in keyof OverwriteMap]?: OverwriteHandler<OverwriteMap[K]>;
+};
+type OverwriteHandler<T> = (value: Partial<TransformDefinitions.Types>) => T;
+
+/**@internal */
+export class TransformState<T extends TransformDefinitions.Types> {
+    static DefaultTransformState = new ConfigConstructor<CommonDisplayableConfig>({
+        scale: 1,
+        rotation: 0,
+        position: new CommonPosition(CommonPositionType.Center),
+        opacity: 0,
+        alt: "",
+    });
+
+    static TransformStateSerializer = new Serializer<
+        TransformDefinitions.Types,
+        {
+            position: (pos: IPosition | RawPosition) => D2Position;
+        }
+    >({
+        position: (pos) => PositionUtils.toCoord2D(PositionUtils.tryParsePosition(pos)!),
+    }, {
+        position: PositionUtils.toCoord2D,
+    });
+
+    static deserialize<T extends TransformDefinitions.Types>(data: Record<string, any>): TransformState<T> {
+        return new TransformState<T>(TransformState.TransformStateSerializer.deserialize(data) as Partial<T>);
+    }
+
+    static mergePosition(
+        a: RawPosition | IPosition | undefined,
+        b: RawPosition | IPosition | undefined
+    ): Coord2D {
+        if (!a && !b) {
+            throw new Error("No position found.");
+        }
+        if (!a || !b) {
+            return PositionUtils.toCoord2D(PositionUtils.tryParsePosition(a || b)!);
+        }
+        return PositionUtils.mergePosition(
+            PositionUtils.tryParsePosition(a),
+            PositionUtils.tryParsePosition(b)
+        );
+    }
+
+    static mergeState<T extends TransformStateProps>(a: Partial<T>, b: Partial<T>): Partial<T> {
+        if ("position" in a && "position" in b) {
+            const position = this.mergePosition(a.position, b.position);
+            return {
+                ...Object.assign({}, a, b),
+                position,
+            };
+        }
+        return {
+            ...Object.assign({}, a, b),
+        };
+    }
+
+    public state: Partial<T> = {};
+    private locked: symbol | null = null;
+    private frozen: boolean = false;
+
+    constructor(state: Partial<T> = {}) {
+        this.state = state;
+    }
+
+    public get(): Partial<T> {
+        return this.state;
+    }
+
+    public freeze(): this {
+        this.frozen = true;
+        return this;
+    }
+
+    public assign(key: symbol, state: Partial<T>): this {
+        if (this.frozen) {
+            throw new Error("Trying to write a frozen transform state.");
+        }
+        if (!this.canWrite(key)) {
+            throw new Error("Trying to write a locked transform state.");
+        }
+        this.state = TransformState.mergeState<T>(this.state, state);
+        return this;
+    }
+
+    public lock(): symbol {
+        if (this.locked) {
+            throw new Error("Transform state is already locked.");
+        }
+        this.locked = Symbol();
+        return this.locked;
+    }
+
+    public isLocked(): boolean {
+        return !!this.locked;
+    }
+
+    public canWrite(key: symbol): boolean {
+        return this.locked === null || this.locked === key;
+    }
+
+    public unlock(key: symbol) {
+        if (this.locked === key) {
+            this.locked = null;
+        }
+        return this;
+    }
+
+    public toFramesDefinition(gameState: GameState, overwrites?: OverwriteDefinition): DOMKeyframesDefinition {
+        return onlyValidFields(Transform.constructStyle(gameState, this.state, overwrites));
+    }
+
+    public toStyle(gameState: GameState, overwrites?: OverwriteDefinition): CSSProps {
+        return onlyValidFields(Transform.constructStyle(gameState, this.state, overwrites)) as CSSProps;
+    }
+
+    public serialize(): Record<string, any> {
+        return TransformState.TransformStateSerializer.serialize(this.state);
+    }
+
+    public clone(): TransformState<T> {
+        return new TransformState<T>(TransformState.mergeState<T>({}, this.state));
+    }
+
+    public overwrite(key: symbol, state: Partial<T>): this {
+        if (this.frozen) {
+            throw new Error("Trying to write a frozen transform state.");
+        }
+        if (!this.canWrite(key)) {
+            throw new Error("Trying to write a locked transform state.");
+        }
+        this.state = Object.assign({}, this.state, state);
+        return this;
+    }
+}
+
+export class Transform<T extends TransformDefinitions.Types = any> {
     /**@internal */
-    static defaultSequenceOptions: Partial<TransformDefinitions.CommonSequenceProps> = {
+    static defaultConfig: TransformDefinitions.TransformConfig = {
         sync: true,
-        repeat: 1,
     };
     /**@internal */
     static defaultOptions: TransformDefinitions.SequenceProps<any> = {
@@ -67,7 +212,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
      * Apply transform immediately
      */
     public static immediate<T extends TransformDefinitions.Types>(
-        props: SequenceProps<T>,
+        props: TransformDefinitions.SequenceProps<T>,
     ): Transform<T> {
         return new Transform<T>(props, {
             duration: 0,
@@ -131,25 +276,6 @@ export class Transform<T extends TransformDefinitions.Types = object> {
     }
 
     /**@internal */
-    public static backgroundToCSS(background: Background["background"]): {
-        backgroundImage?: string,
-        backgroundColor?: string
-    } {
-        if (background === null || background === undefined) return {};
-        if (Utils.isStaticImageData(background)) {
-            return {backgroundImage: `url(${background.src})`};
-        }
-        if (typeof background === "string") {
-            return {backgroundColor: background};
-        }
-        if (["r", "g", "b"].every(key => key in background)) {
-            return {backgroundColor: toHex(background as color)};
-        }
-        const url = (background as { url: string }).url;
-        return {backgroundImage: "url(" + url + ")"};
-    }
-
-    /**@internal */
     static mergePosition(a: RawPosition | undefined, b: RawPosition | undefined): Coord2D {
         if (!a && !b) {
             throw new Error("No position found.");
@@ -189,7 +315,7 @@ export class Transform<T extends TransformDefinitions.Types = object> {
 
         const propScale = (prop["scale"] !== undefined) ? prop["scale"] : 1;
 
-        const {invertY, invertX} = state.getLastScene()?.config || {};
+        const {invertY, invertX} = state.getStory().getInversionConfig();
         const Transforms = [
             `translate(${translate[0] || ((invertX ? "" : "-") + "50%")}, ${translate[1] || ((invertY ? "" : "-") + "50%")})`,
             (prop["rotation"] !== undefined) && `rotate(${prop["rotation"]}deg)`,
@@ -199,13 +325,23 @@ export class Transform<T extends TransformDefinitions.Types = object> {
     }
 
     /**@internal */
-    private readonly sequenceOptions: TransformDefinitions.CommonSequenceProps;
+    static constructStyle<T extends TransformDefinitions.Types>(state: GameState, props: Partial<T>, overwrites?: OverwriteDefinition): DOMKeyframesDefinition {
+        const {invertY, invertX} = state.getStory().getInversionConfig();
+        const {transform, scale, overwrite} = overwrites || {};
+        return {
+            ...Transform.positionToCSS(props.position, invertY, invertX),
+            opacity: props.opacity,
+            color: ("fontColor" in props && props.fontColor) ? toHex((props as TransformDefinitions.TextTransformProps).fontColor!) : undefined,
+            transform: transform ? transform(props) : Transform.propToCSSTransform(state, props),
+            scale: scale ? scale(props) : undefined,
+            ...(overwrite ? overwrite(props) : {}),
+        } satisfies DOMKeyframesDefinition;
+    }
+
+    /**@internal */
+    private readonly config: TransformDefinitions.TransformConfig;
     /**@internal */
     private sequences: TransformDefinitions.Sequence<T>[] = [];
-    /**@internal */
-    private control: AnimationPlaybackControls | null = null;
-    /**@internal */
-    private transformers: { [K in Transformers]?: TransformHandler<any> } = {};
 
     /**
      * @example
@@ -219,96 +355,84 @@ export class Transform<T extends TransformDefinitions.Types = object> {
      * });
      * ```
      */
-    constructor(sequences: Sequence<T>[], transformConfig?: Partial<TransformDefinitions.TransformConfig>);
+    constructor(sequences: TransformDefinitions.Sequence<T>[], transformConfig?: Partial<TransformDefinitions.TransformConfig>);
 
-    constructor(props: SequenceProps<T>, options?: Partial<TransformDefinitions.CommonTransformProps>);
+    constructor(props: TransformDefinitions.SequenceProps<T>, options?: Partial<TransformDefinitions.CommonTransformProps>);
 
-    constructor(arg0: Sequence<T>[] | SequenceProps<T>, arg1?: Partial<TransformDefinitions.TransformConfig> | Partial<TransformDefinitions.CommonTransformProps>) {
+    constructor(arg0: TransformDefinitions.Sequence<T>[] | TransformDefinitions.SequenceProps<T>, arg1?: Partial<TransformDefinitions.TransformConfig> | Partial<TransformDefinitions.CommonTransformProps>) {
         if (Array.isArray(arg0)) {
             this.sequences.push(...arg0);
-            this.sequenceOptions =
-                Object.assign({}, Transform.defaultSequenceOptions, arg1 || {}) as TransformDefinitions.CommonSequenceProps;
+            this.config =
+                Object.assign({}, Transform.defaultConfig, arg1 || {}) as TransformDefinitions.TransformConfig;
         } else {
             const [props, options] =
-                [(arg0 as SequenceProps<T>), (arg1 || Transform.defaultOptions as Partial<TransformDefinitions.CommonTransformProps>)];
+                [(arg0 as TransformDefinitions.SequenceProps<T>), (arg1 || Transform.defaultOptions as Partial<TransformDefinitions.CommonTransformProps>)];
             this.sequences.push({props, options: options || {}});
-            this.sequenceOptions =
-                Object.assign({}, Transform.defaultSequenceOptions) as TransformDefinitions.CommonSequenceProps;
+            this.config =
+                Object.assign({}, Transform.defaultConfig) as TransformDefinitions.TransformConfig;
         }
     }
 
-    /**
-     * @internal
-     * @example
-     * ```ts
-     * const [scope, animate] = useAnimation();
-     * transform.animate(scope, animate);
-     * return <div ref={scope} />
-     * ```
-     */
-    public async animate(
-        {scope, overwrites, target}: {
-            scope: React.MutableRefObject<HTMLDivElement | null>;
-            overwrites?: Partial<{ [K in keyof TransformersMap]?: TransformHandler<TransformersMap[K]> }>;
-            target: { state: CommonDisplayable }
+    /**@internal*/
+    public animate(
+        transformState: TransformState<T>,
+        {
+            gameState,
+            ref,
+            overwrites,
+        }: {
+            gameState: GameState,
+            ref: React.RefObject<HTMLDivElement | null>,
+            overwrites?: OverwriteDefinition,
         },
-        gameState: GameState,
-        after?: (state: DeepPartial<T>) => void
-    ) {
+    ): Awaitable<void> {
+        if (!ref.current) {
+            throw new Error("No ref found when animating.");
+        }
 
-        return new Promise<void>((resolve) => {
-            (async () => {
-                if (!this.sequenceOptions.sync) {
-                    resolve();
-                }
-                for (let i = 0; i < this.sequenceOptions.repeat; i++) {
-                    for (const {props, options} of this.sequences) {
-                        const initState = deepMerge({}, this.propToCSS(gameState, target.state as any));
-
-                        if (!scope.current) {
-                            throw new Error("No scope found when animating.");
-                        }
-                        const current = scope.current as any;
-                        Object.assign(current["style"], initState);
-
-                        target.state = Transform.mergeState(target.state, props) as ImageConfig;
-
-                        // Initiate animation
-                        const animation = animate(
-                            current,
-                            this.propToCSS(gameState, target.state as any, overwrites),
-                            this.optionsToFramerMotionOptions(options) || {}
-                        );
-                        this.setControl(animation);
-
-                        gameState.logger.debug("Animating", this.propToCSS(gameState, target.state as any, overwrites));
-
-                        // Wait for animation to finish
-                        if (options?.sync === false) {
-                            animation.then(() => {
-                                Object.assign(current["style"], this.propToCSS(gameState, target.state as any, overwrites));
-                                this.setControl(null);
-                            });
-                        } else {
-                            await new Promise<void>(r => animation.then(() => r()));
-                            Object.assign(current["style"], this.propToCSS(gameState, target.state as any, overwrites));
-                            this.setControl(null);
-                        }
-                    }
-                }
-
-                await sleep(2);
-                this.setControl(null);
-
-                resolve();
-                if (after) {
-                    after(target.state as any);
-                }
-            })();
+        const {
+            finalState,
+            sequences,
+            options,
+        } = this.constructAnimation({
+            gameState,
+            transformState,
+            overwrites,
+            current: ref.current,
         });
+
+        const lock = transformState.lock();
+        const token = animate(sequences, options);
+        const skip = () => {
+            token.complete();
+        };
+        const awaitable = new Awaitable<void>()
+            .registerSkipController(new SkipController(skip));
+        const onComplete = () => {
+            transformState
+                .overwrite(lock, finalState.get())
+                .unlock(lock);
+
+            gameState.logger.debug("Transform", "Transform Completed", transformState.toStyle(gameState, overwrites));
+            awaitable.resolve();
+        };
+
+        token.then(onComplete, ((arg0: unknown) => {
+            gameState.logger.error("Failed to animate transform. " + (arg0?.toString?.() || ""));
+        }) as any);
+        token.play();
+
+        gameState.logger.debug("Transform", "Ready to animate transform.", {
+            finalState,
+            sequences,
+            options,
+        }, this);
+
+        return awaitable;
     }
 
     /**
+     * Create a new transform that repeats {@link n} x current repeat count times.
      * @example
      * ```ts
      * transform
@@ -317,95 +441,124 @@ export class Transform<T extends TransformDefinitions.Types = object> {
      * // repeat 6 times
      * ```
      */
-    public repeat(n: number) {
-        this.sequenceOptions.repeat *= n;
-        return this;
+    public repeat(n: number): Transform<T> {
+        const newTransform = this.copy();
+        if (!newTransform.config.repeat) {
+            newTransform.config.repeat = 1;
+        }
+        newTransform.config.repeat *= n;
+        return newTransform;
+    }
+
+    /**@internal */
+    public getOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions & At {
+        if (!options) {
+            return {};
+        }
+        const {duration, ease, delay, at} = options;
+        return {
+            duration: this.toSeconds(duration, undefined),
+            ease,
+            delay: this.toSeconds(delay, undefined),
+            at: this.atToSeconds(at),
+        } satisfies DynamicAnimationOptions & At;
     }
 
     /**
-     * overwrite a transformer
-     *
-     * **we don't recommend using this method**
-     * @example
-     * ```ts
-     * transform.overwrite("position", (value) => {
-     *   return {left: value.x, top: value.y};
-     * });
-     * ```
+     * @internal
+     * **CAUTION**: don't lock this transformState before calling this method.
      */
-    public overwrite<T extends keyof TransformersMap = any>(key: T, transformer: TransformHandler<TransformersMap[T]>) {
-        this.transformers[key] = transformer;
-        return this;
-    }
-
-    /**@internal */
-    propToCSS(state: GameState, prop: DeepPartial<T>, overwrites?: Partial<{ [K in Transformers]?: TransformHandler<any> }>): DOMKeyframesDefinition {
-        const {invertY, invertX} = state.getLastScene()?.config || {};
-        const FieldHandlers: Omit<{ [K in keyof TransformersMap]: (value: TransformersMap[K]) => CSSProps }, "transform"> = {
-            "position": (value: RawPosition | IPosition | undefined) => Transform.positionToCSS(value, invertY, invertX),
-            "backgroundColor": (value: Background["background"]) => Transform.backgroundToCSS(value),
-            "backgroundOpacity": (value: number) => ({opacity: value}),
-            "opacity": (value: number) => ({opacity: value}),
-            "scale": () => ({}),
-            "rotation": () => ({}),
-            "display": () => ({}),
-            "src": () => ({}),
-            "fontColor": (value: color) => {
-                if (typeof value === "string") {
-                    return {color: value};
-                }
-                return {color: toHex(value)};
-            },
-        };
-
-        const props = {} as DOMKeyframesDefinition;
-        props.transform = Transform.propToCSSTransform(state, prop);
-        if (this.transformers["transform"]) {
-            Object.assign(props, this.transformers["transform"](prop));
+    public constructAnimation(
+        {
+            gameState,
+            transformState,
+            overwrites = {},
+            current,
+        }: {
+            gameState: GameState;
+            transformState: TransformState<any>;
+            overwrites?: OverwriteDefinition;
+            current: Element;
         }
-        if (overwrites && overwrites["transform"]) {
-            Object.assign(props, overwrites["transform"](prop));
-        }
-
-        // @todo: refactor this
-        for (const key in prop) {
-            if (!Object.prototype.hasOwnProperty.call(prop, key)) continue;
-            if (overwrites && overwrites[key as keyof TransformersMap]) {
-                Object.assign(props, overwrites[key as keyof TransformersMap]!(prop[key]));
-            } else if (this.transformers[key as keyof TransformersMap]) {
-                Object.assign(props, this.transformers[key as keyof TransformersMap]!(prop[key]));
-            } else if (FieldHandlers[key as keyof Omit<TransformersMap, "transform">]) {
-                Object.assign(props, (FieldHandlers[key as keyof Omit<TransformersMap, "transform">] as any)!(prop[key]));
-            }
-        }
-        return props;
-    }
-
-    /**@internal */
-    optionsToFramerMotionOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions | void {
-        if (!options) {
-            return options;
-        }
-        const {duration, ease} = options;
+    ): {
+        finalState: TransformState<any>;
+        sequences: DOMSegmentWithTransition[];
+        options: SequenceOptions;
+    } {
+        const state = transformState.clone();
+        const lock = state.lock();
+        const sequences = this.sequences.map(({props, options}) => {
+            const segDefinition = state.assign(lock, props).toFramesDefinition(
+                gameState,
+                overwrites
+            );
+            return [
+                current,
+                segDefinition,
+                this.getOptions(options),
+            ] satisfies DOMSegmentWithTransition;
+        }) satisfies DOMSegmentWithTransition[];
         return {
-            duration: duration ? (duration / 1000) : 0,
-            ease,
-        } satisfies DynamicAnimationOptions;
+            finalState: state.unlock(lock).freeze(),
+            sequences: sequences,
+            options: this.getSequenceOptions(),
+        };
     }
 
     /**@internal */
-    setControl(control: AnimationPlaybackControls | null) {
-        this.control = control;
-        return this;
-    }
-
-    /**@internal */
-    getControl() {
-        return this.control;
+    public getSequenceOptions(): SequenceOptions {
+        const {repeat, repeatDelay} = this.config;
+        return {
+            repeat: this.toSeconds(repeat, undefined),
+            repeatDelay: this.toSeconds(repeatDelay, undefined),
+        };
     }
 
     public copy(): Transform<T> {
-        return new Transform<T>(this.sequences, this.sequenceOptions);
+        return new Transform<T>(this.sequences, this.config);
+    }
+
+    /**@internal */
+    public toSeconds<T>(ms: number | undefined, defaultValue: T): number | T {
+        if (typeof ms === "undefined") {
+            return defaultValue;
+        }
+        return ms / 1000;
+    }
+
+    /**@internal */
+    public atToSeconds(atDefinition: TransformDefinitions.SequenceAtDefinition | undefined): TransformDefinitions.SequenceAtDefinition | undefined {
+        if (typeof atDefinition === "undefined") {
+            return atDefinition;
+        }
+        if (typeof atDefinition === "number") {
+            return atDefinition / 1000;
+        }
+
+        /**
+         * Regex:
+         * - `(?<sign>[+-])`: match a sign of `+` or `-`.
+         * - `(?<number>\d+)`: match a number.
+         * Matches:
+         * - `+n`: positive number.
+         * - `-n`: negative number.
+         */
+        const regex = /^(?<sign>[+-])(?<number>\d+)$/;
+        const match = regex.exec(atDefinition);
+
+        if (!match) {
+            throw new RuntimeScriptError("Invalid at definition. At definition must be a number or a string in the format of `+n` or `-n`.");
+        }
+
+        const [_$0, sign, numStr] = match;
+        const num = Number(numStr);
+
+        if (isNaN(num)) {
+            throw new RuntimeScriptError("Invalid number in at definition.");
+        }
+
+        const result = num / 1000;
+        return sign === "+" ? `+${result}` : `-${result}`;
     }
 }
 

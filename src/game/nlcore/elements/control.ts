@@ -8,6 +8,11 @@ import {ControlAction} from "@core/action/actions/controlAction";
 
 /**@internal */
 type ChainedControl = Proxied<Control, Chained<LogicAction.Actions>>;
+/**@internal */
+type ControlConfig = {
+    allowFutureScene: boolean;
+};
+
 
 export class Control extends Actionable {
     /**
@@ -66,7 +71,7 @@ export class Control extends Actionable {
         return new Control().sleep(duration);
     }
 
-    constructor() {
+    constructor(/**@internal */public config: Partial<ControlConfig> = {}) {
         super();
     }
 

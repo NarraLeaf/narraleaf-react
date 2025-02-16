@@ -1,11 +1,9 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher, moveElementInArray, sleep} from "@lib/util/data";
+import {EventDispatcher, Values} from "@lib/util/data";
 import {Choice, MenuData} from "@core/elements/menu";
-import {Image, ImageEventTypes} from "@core/elements/displayable/image";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
-import {HowlOptions} from "howler";
 import {SrcManager} from "@core/action/srcManager";
 import {LogicAction} from "@core/action/logicAction";
 import {Storable} from "@core/elements/persistent/storable";
@@ -13,16 +11,20 @@ import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 import {Sentence} from "@core/elements/character/sentence";
 import {SceneAction} from "@core/action/actions/sceneAction";
-import {Text, TextEventTypes} from "@core/elements/displayable/text";
 import {Logger} from "@lib/util/logger";
-import {RuntimeGameError} from "@core/common/Utils";
+import {RuntimeGameError, RuntimeInternalError} from "@core/common/Utils";
 import {Story} from "@core/elements/story";
 import {Script} from "@core/elements/script";
 import {LiveGame} from "@core/game/liveGame";
 import {Word} from "@core/elements/character/word";
-import {Chosen} from "@player/type";
+import {Chosen, ExposedKeys, ExposedState, ExposedStateType} from "@player/type";
+import {AudioManager, AudioManagerDataRaw} from "@player/lib/AudioManager";
+import {Layer} from "@core/elements/layer";
+import {GameStateGuard, GuardWarningType} from "@player/guard";
+import {LiveGameEventToken} from "@core/types";
+import * as htmlToImage from "html-to-image";
 
-type PlayerStateElement = {
+type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Chosen>[];
     displayable: LogicAction.DisplayableElements[];
@@ -30,15 +32,29 @@ type PlayerStateElement = {
 export type PlayerState = {
     sounds: Sound[];
     srcManagers: SrcManager[];
-    elements: { scene: Scene, ele: PlayerStateElement }[];
+    elements: PlayerStateElement[];
+};
+export type PlayerStateElement = {
+    scene: Scene,
+    /**@deprecated */
+    ele?: Legacy_PlayerStateElement;
+    layers: Map<Layer, LogicAction.DisplayableElements[]>;
+    texts: Clickable<TextElement>[];
+    menus: Clickable<MenuElement, Chosen>[];
 };
 export type PlayerStateData = {
     scenes: {
         sceneId: string;
         elements: {
-            displayable: string[];
+            /**@deprecated */
+            displayable?: string[];
+            /**
+             * { [layerName]: [displayableId][] }
+             */
+            layers: Record<string, string[]>;
         };
-    }[]
+    }[],
+    audio: AudioManagerDataRaw;
 };
 /**@internal */
 export type PlayerAction = CalledActionResult;
@@ -52,22 +68,18 @@ interface StageUtils {
 
 
 type GameStateEvents = {
-    "event:state.ready": [];
     "event:state.end": [];
     "event:state.player.skip": [];
-    "event:state.preload.unmount": [];
-    "event:state.preload.loaded": [];
-    "event:state.player.flush": [];
+    "event:state.player.requestFlush": [];
+    "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
 };
 
 export class GameState {
     static EventTypes: { [K in keyof GameStateEvents]: K } = {
-        "event:state.ready": "event:state.ready",
         "event:state.end": "event:state.end",
         "event:state.player.skip": "event:state.player.skip",
-        "event:state.preload.unmount": "event:state.preload.unmount",
-        "event:state.preload.loaded": "event:state.preload.loaded",
-        "event:state.player.flush": "event:state.player.flush",
+        "event:state.player.requestFlush": "event:state.player.requestFlush",
+        "event.state.onExpose": "event.state.onExpose",
     };
     state: PlayerState = {
         sounds: [],
@@ -77,33 +89,55 @@ export class GameState {
     currentHandling: CalledActionResult | null = null;
     stage: StageUtils;
     game: Game;
+    playerCurrent: HTMLDivElement | null = null;
+    mainContentNode: HTMLDivElement | null = null;
+    exposedState: Map<Values<ExposedKeys>, object> = new Map();
+    guard: GameStateGuard;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
+    public readonly audioManager: AudioManager;
+    public readonly htmlToImage = htmlToImage;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
         this.game = game;
         this.events = new EventDispatcher();
         this.logger = new Logger(game, "NarraLeaf-React");
+        this.audioManager = new AudioManager(this);
+        this.guard = new GameStateGuard(this.game.config.app.guard).observe(this);
     }
 
-    public findElementByScene(scene: Scene): { scene: Scene, ele: PlayerStateElement } | null {
+    public findElementByScene(scene: Scene): PlayerStateElement | null {
         return this.state.elements.find(e => e.scene === scene) || null;
     }
 
-    public findElementByDisplayable(displayable: LogicAction.DisplayableElements): {
-        scene: Scene,
-        ele: PlayerStateElement
-    } | null {
-        return this.state.elements.find(e => e.ele.displayable.includes(displayable)) || null;
+    public findElementByDisplayable(displayable: LogicAction.DisplayableElements, layer: Layer | null = null): PlayerStateElement | null {
+        return this.state.elements.find(e => {
+            if (layer) {
+                return e.layers.get(layer)?.includes(displayable) || false;
+            }
+            for (const elements of e.layers.values()) {
+                if (elements.includes(displayable)) return true;
+            }
+            return false;
+        }) || null;
     }
 
     public addScene(scene: Scene): this {
         if (this.sceneExists(scene)) return this;
-        this.state.elements.push({
+        this.state.elements.unshift({
             scene,
-            ele: this.getElementMap()
+            texts: [],
+            menus: [],
+            layers: new Map(
+                scene.config.layers.map(layer => [layer, [] as LogicAction.DisplayableElements[]])
+            ),
         });
+        return this;
+    }
+
+    public flush(): this {
+        this.stage.update();
         return this;
     }
 
@@ -139,52 +173,13 @@ export class GameState {
         return false;
     }
 
-    public moveUpElement(scene: Scene, element: LogicAction.DisplayableElements): this {
-        const targetElement = this.findElementByScene(scene);
-        if (!targetElement) return this;
-
-        targetElement.ele.displayable = moveElementInArray(
-            targetElement.ele.displayable,
-            element,
-            Math.min(targetElement.ele.displayable.indexOf(element) + 1, targetElement.ele.displayable.length - 1)
-        );
-        return this;
+    public wait(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    public moveDownElement(scene: Scene, element: LogicAction.DisplayableElements): this {
-        const targetElement = this.findElementByScene(scene);
-        if (!targetElement) return this;
-
-        targetElement.ele.displayable = moveElementInArray(
-            targetElement.ele.displayable,
-            element,
-            Math.max(targetElement.ele.displayable.indexOf(element) - 1, 0)
-        );
-        return this;
-    }
-
-    public moveTopElement(scene: Scene, element: LogicAction.DisplayableElements): this {
-        const targetElement = this.findElementByScene(scene);
-        if (!targetElement) return this;
-
-        targetElement.ele.displayable = moveElementInArray(
-            targetElement.ele.displayable,
-            element,
-            targetElement.ele.displayable.length - 1
-        );
-        return this;
-    }
-
-    public moveBottomElement(scene: Scene, element: LogicAction.DisplayableElements): this {
-        const targetElement = this.findElementByScene(scene);
-        if (!targetElement) return this;
-
-        targetElement.ele.displayable = moveElementInArray(
-            targetElement.ele.displayable,
-            element,
-            0
-        );
-        return this;
+    public schedule(callback: () => void, ms: number): () => void {
+        const timeout = setTimeout(callback, ms);
+        return () => clearTimeout(timeout);
     }
 
     handle(action: PlayerAction): this {
@@ -198,10 +193,10 @@ export class GameState {
         return this;
     }
 
-    public createText(id: string, sentence: Sentence, afterClick?: () => void, scene?: Scene) {
-        const texts = this.findElementByScene(this.getLastSceneIfNot(scene))?.ele.texts;
+    public createDialog(id: string, sentence: Sentence, afterClick?: () => void, scene?: Scene) {
+        const texts = this.findElementByScene(this.getLastSceneIfNot(scene))?.texts;
         if (!texts) {
-            throw new Error("Scene not found");
+            throw this.sceneNotFound();
         }
 
         const words = sentence.evaluate(Script.getCtx({gameState: this}));
@@ -227,9 +222,9 @@ export class GameState {
         if (!menu.choices.length) {
             throw new Error("Menu must have at least one choice");
         }
-        const menus = this.findElementByScene(this.getLastSceneIfNot(scene))?.ele.menus;
+        const menus = this.findElementByScene(this.getLastSceneIfNot(scene))?.menus;
         if (!menus) {
-            throw new Error("Scene not found");
+            throw this.sceneNotFound();
         }
 
         const words = menu.prompt.evaluate(Script.getCtx({gameState: this}));
@@ -248,58 +243,46 @@ export class GameState {
         menus.push(action);
     }
 
-    public createImage(image: Image, scene?: Scene) {
+    public createDisplayable(
+        displayable: LogicAction.DisplayableElements,
+        scene: Scene | null = null,
+        layer: Layer | null = null
+    ) {
         const targetScene = this.getLastSceneIfNot(scene);
+
         const targetElement = this.findElementByScene(targetScene);
-        if (!targetElement) return this;
-        targetElement.ele.displayable.push(image);
+        if (!targetElement) {
+            throw this.sceneNotFound();
+        }
+
+        const targetLayer = targetElement.layers.get(layer || targetScene.config.defaultDisplayableLayer);
+        if (!targetLayer) {
+            throw this.layerNotFound();
+        }
+        targetLayer.push(displayable);
         return this;
     }
 
-    public createWearable(parent: Image, image: Image): Promise<any> {
-        return parent.events.any(Image.EventTypes["event:wearable.create"], image);
-    }
-
-    public disposeImage(image: Image, scene?: Scene) {
+    public disposeDisplayable(
+        displayable: LogicAction.DisplayableElements,
+        scene: Scene | null = null,
+        layer: Layer | null = null
+    ) {
         const targetScene = this.getLastSceneIfNot(scene);
-        const images = this.findElementByScene(targetScene)?.ele.displayable;
-        if (!images) {
-            throw new Error("Scene not found");
+        const targetLayer = this.findElementByScene(targetScene)?.layers.get(layer || targetScene.config.defaultDisplayableLayer);
+        if (!targetLayer) {
+            throw this.layerNotFound();
         }
 
-        const index = images.indexOf(image);
+        const index = targetLayer.indexOf(displayable);
         if (index === -1) {
-            throw new Error("Image not found");
+            throw new RuntimeGameError(`Displayables not found when disposing. (disposing: ${displayable.getId()})`);
         }
-        images.splice(index, 1);
-        return this;
-    }
-
-    public createDisplayable(displayable: LogicAction.DisplayableElements, scene?: Scene) {
-        const targetScene = this.getLastSceneIfNot(scene);
-        const targetElement = this.findElementByScene(targetScene);
-        if (!targetElement) return this;
-        targetElement.ele.displayable.push(displayable);
-        return this;
-    }
-
-    public disposeDisplayable(displayable: LogicAction.DisplayableElements, scene?: Scene) {
-        const targetScene = this.getLastSceneIfNot(scene);
-        const displayables = this.findElementByScene(targetScene)?.ele.displayable;
-        if (!displayables) {
-            throw new Error("Scene not found");
-        }
-
-        const index = displayables.indexOf(displayable);
-        if (index === -1) {
-            throw new Error("Displayables not found");
-        }
-        displayables.splice(index, 1);
+        targetLayer.splice(index, 1);
         return this;
     }
 
     public forceReset() {
-        this.state.sounds.forEach(s => s.getPlaying()?.stop());
         this.state.elements.forEach(({scene}) => {
             this.offSrcManager(scene.srcManager);
             this.removeScene(scene);
@@ -307,85 +290,11 @@ export class GameState {
         });
         this.state.elements = [];
         this.state.srcManagers = [];
-    }
-
-    initSound(sound: Sound, options?: Partial<HowlOptions>): Sound {
-        if (!sound.getPlaying()) {
-            sound.setPlaying(new (this.getHowl())(sound.getHowlOptions(options)));
-        }
-        return sound;
-    }
-
-    playSound(sound: Sound, onEnd?: () => void, options?: Partial<HowlOptions>): any {
-        this.initSound(sound, options);
-
-        const token = sound.getPlaying()!.play();
-        const events = [
-            sound.getPlaying()!.once("end", end.bind(this)),
-            sound.getPlaying()!.once("stop", end.bind(this))
-        ];
-
-        this.state.sounds.push(sound);
-        sound.state.token = token;
-
-        function end(this: GameState) {
-            if (onEnd) {
-                onEnd();
-            }
-            events.forEach(e => e.off());
-            this.state.sounds = this.state.sounds.filter(s => s !== sound);
-            this.stage.next();
-        }
-
-        return token;
-    }
-
-    stopSound(sound: Sound): typeof sound {
-        if (sound.state.playing?.playing(sound.getToken())) {
-            sound.state.playing?.stop(sound.getToken());
-        }
-        sound
-            .setPlaying(null)
-            .setToken(null);
-        return sound;
-    }
-
-    async transitionSound(prev: Sound | undefined | null, cur: Sound | undefined | null, duration: number | undefined | null): Promise<void> {
-        if (prev) {
-            if (duration) await this.fadeSound(prev, 0, duration);
-            this.stopSound(prev);
-        }
-
-        if (cur) {
-            const volume = cur.config.volume;
-            this.playSound(cur, undefined, {
-                volume: 0
-            });
-
-            if (duration) await this.fadeSound(cur, volume, duration);
-            cur.getPlaying()!.volume(volume, cur.getToken());
-        }
-    }
-
-    async fadeSound(sound: Sound, target: number, duration: number): Promise<void> {
-        const originalVolume = sound.getPlaying()?.volume(sound.getToken()) as number;
-
-        sound.getPlaying()?.fade(originalVolume, target, duration, sound.getToken());
-        await sleep(duration);
-
-        return void 0;
+        this.audioManager.reset();
     }
 
     getHowl(): typeof Howler.Howl {
         return Howler.Howl;
-    }
-
-    animateImage<T extends keyof ImageEventTypes>(type: T, target: Image, args: ImageEventTypes[T], onEnd: () => void) {
-        return this.anyEvent(type, target, onEnd, ...args);
-    }
-
-    animateText<T extends keyof TextEventTypes>(type: T, target: Text, args: TextEventTypes[T], onEnd: () => void) {
-        return this.anyEvent(type, target, onEnd, ...args);
     }
 
     public registerSrcManager(srcManager: SrcManager) {
@@ -413,6 +322,85 @@ export class GameState {
         return this.game.getLiveGame().story!;
     }
 
+    public setInterval(callback: () => void, delay: number): NodeJS.Timeout {
+        return setInterval(callback, delay);
+    }
+
+    public clearInterval(interval: NodeJS.Timeout): void {
+        clearInterval(interval);
+    }
+
+    public setTimeout(callback: () => void, delay: number): NodeJS.Timeout {
+        return setTimeout(callback, delay);
+    }
+
+    public clearTimeout(timeout: NodeJS.Timeout): void {
+        clearTimeout(timeout);
+    }
+
+    public mountState<T extends ExposedStateType>(key: ExposedKeys[T], state: ExposedState[T]): {
+        unMount: () => void;
+    } {
+        if (this.exposedState.has(key)) {
+            throw new RuntimeInternalError("State already mounted");
+        }
+        if (!key) {
+            throw new RuntimeInternalError("Invalid state key");
+        }
+
+        this.exposedState.set(key, state);
+        this.events.emit(GameState.EventTypes["event.state.onExpose"], key, state);
+        return {
+            unMount: () => {
+                this.unMountState(key);
+            }
+        };
+    }
+
+    public unMountState(key: Values<ExposedKeys>): this {
+        if (!this.exposedState.has(key)) {
+            this.guard.warn(GuardWarningType.invalidExposedStateUnmounting, "State not found when unmounting");
+        }
+        this.exposedState.delete(key);
+        return this;
+    }
+
+    public isStateMounted(key: Values<ExposedKeys>): boolean {
+        return this.exposedState.has(key);
+    }
+
+    public getExposedState<T extends ExposedStateType>(key: ExposedKeys[T]): ExposedState[T] | null {
+        return this.exposedState.get(key) as ExposedState[T] || null;
+    }
+
+    public getExposedStateForce<T extends ExposedStateType>(key: ExposedKeys[T]): ExposedState[T] {
+        const state = this.getExposedState(key);
+        if (!state) {
+            throw new RuntimeGameError("State not found, key: " + key);
+        }
+        return state;
+    }
+
+    public getExposedStateAsync<T extends ExposedStateType>(key: ExposedKeys[T], onExpose: (state: ExposedState[T]) => void): LiveGameEventToken {
+        const state = this.getExposedState(key);
+        if (state) {
+            const cancel = this.schedule(() => {
+                onExpose(state);
+            }, 0);
+            return {
+                cancel,
+            };
+        } else {
+            const token = this.events.on(GameState.EventTypes["event.state.onExpose"], (k, s) => {
+                if (k === key) {
+                    onExpose(s as ExposedState[T]);
+                    token.cancel();
+                }
+            });
+            return token;
+        }
+    }
+
     /**
      * Dispose of the game state
      *
@@ -430,10 +418,14 @@ export class GameState {
                 return {
                     sceneId: e.scene.getId(),
                     elements: {
-                        displayable: e.ele.displayable.map(d => d.getId())
+                        layers: Object.fromEntries(
+                            Array.from(e.layers.entries())
+                                .map(([layer, elements]) => [layer.getId(), elements.map(d => d.getId())])
+                        )
                     }
                 };
-            })
+            }),
+            audio: this.audioManager.toData(),
         };
     }
 
@@ -445,7 +437,7 @@ export class GameState {
             throw new Error("No story loaded");
         }
 
-        const {scenes} = data;
+        const {scenes, audio} = data;
         scenes.forEach(({sceneId, elements}) => {
             this.logger.debug("Loading scene: " + sceneId);
 
@@ -454,26 +446,20 @@ export class GameState {
                 throw new RuntimeGameError("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");
             }
 
-            const displayable = elements.displayable.map(d => {
-                if (!elementMap.has(d)) {
-                    throw new RuntimeGameError("Displayable not found, id: " + d + "\nNarraLeaf cannot find the element with the id from the saved game" +
-                        "\nThis may be caused by the damage of the saved game file or the change of the story file");
-                }
-                return elementMap.get(d) as LogicAction.DisplayableElements;
-            });
-            const element: { scene: Scene; ele: PlayerStateElement; } = {
+            const ele: PlayerStateElement = {
                 scene,
-                ele: {
-                    menus: [],
-                    texts: [],
-                    displayable,
-                }
+                layers: this.constructLayerMap(elements.layers, elementMap),
+                menus: [],
+                texts: [],
             };
 
-            this.state.elements.push(element);
+            this.state.elements.push(ele);
             this.registerSrcManager(scene.srcManager);
-            SceneAction.registerEventListeners(scene, this);
+            this.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
+                SceneAction.initBackgroundMusic(scene, exposed);
+            });
         });
+        this.audioManager.fromData(audio, elementMap);
     }
 
     public getLastSceneIfNot(scene: Scene | null | void) {
@@ -484,29 +470,24 @@ export class GameState {
         return targetScene;
     }
 
-    private getElementMap(): PlayerStateElement {
-        return {
-            texts: [],
-            menus: [],
-            displayable: [],
-        };
-    }
-
     private removeElements(scene: Scene): this {
         const index = this.state.elements.findIndex(s => s.scene === scene);
-        if (index === -1) return this;
+        if (index === -1) {
+            this.logger.weakWarn("Scene not found when removing elements", scene.getId());
+            return this;
+        }
+
+        this.resetLayers(this.state.elements[index].layers);
         this.state.elements.splice(index, 1);
         return this;
     }
 
-    private anyEvent(type: any, target: any, onEnd: () => void, ...args: any[]) {
-        (target.events as EventDispatcher<any>).any(
-            type,
-            ...args
-        ).then(onEnd).then(() => {
-            this.stage.next();
+    private resetLayers(layers: Map<Layer, LogicAction.DisplayableElements[]>) {
+        layers.forEach((elements) => {
+            elements.forEach(element => {
+                element.reset();
+            });
         });
-        return void 0;
     }
 
     private createWaitableAction<A extends Record<any, any>, T = undefined>(action: A, after?: (arg0: T) => void) {
@@ -517,5 +498,31 @@ export class GameState {
             }) as T extends undefined ? () => void : (arg0: T) => void
         };
         return item;
+    }
+
+    private sceneNotFound() {
+        return new RuntimeGameError("Scene not found, target scene may not be activated. This is an internal error, please report this to the developer.");
+    }
+
+    private layerNotFound() {
+        return new RuntimeGameError("Layer not found, target layer may not be activated. You may forget to add the layer to the scene config");
+    }
+
+    private constructLayerMap(layers: Record<string, string[]>, elementMap: Map<string, LogicAction.GameElement>): Map<Layer, LogicAction.DisplayableElements[]> {
+        return new Map(
+            Object.entries(layers).map(([layerName, displayables]) => {
+                const layer = elementMap.get(layerName) as Layer | undefined;
+                if (!layer) {
+                    throw new RuntimeGameError("Layer not found, id: " + layerName + "\nNarraLeaf cannot find the element with the id from the saved game");
+                }
+                return [layer, displayables.map(d => {
+                    if (!elementMap.has(d)) {
+                        throw new RuntimeGameError("Displayable not found, id: " + d + "\nNarraLeaf cannot find the element with the id from the saved game" +
+                            "\nThis may be caused by the damage of the saved game file or the change of the story file");
+                    }
+                    return elementMap.get(d) as LogicAction.DisplayableElements;
+                })];
+            })
+        );
     }
 }

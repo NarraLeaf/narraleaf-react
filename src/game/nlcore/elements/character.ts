@@ -7,7 +7,9 @@ import {Chained, Proxied} from "@core/action/chain";
 import {Sentence, SentencePrompt, SentenceUserConfig, SingleWord} from "@core/elements/character/sentence";
 import {CharacterAction} from "@core/action/actions/characterAction";
 
-export type CharacterConfig = {} & Color;
+export type CharacterConfig = {
+    color: Color;
+};
 /**@internal */
 export type CharacterStateData = {
     name: string;

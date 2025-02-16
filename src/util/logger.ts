@@ -1,5 +1,6 @@
 import type {Game} from "@core/game";
 import React from "react";
+import {GameConfig} from "@core/gameTypes";
 
 export class Logger {
     private game: Game;
@@ -11,50 +12,62 @@ export class Logger {
     }
 
     log(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.log) {
+        if (this.isEnabled("log")) {
             console.log(...this.colorLog("gray", tag, ...args));
         }
     }
 
     info(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.info) {
+        if (this.isEnabled("info")) {
             console.info(...this._log(tag, ...args));
         }
     }
 
     warn(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.warn) {
+        if (this.isEnabled("warn")) {
             console.warn(...this._log(tag, ...args));
         }
     }
 
     error(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.error) {
+        if (this.isEnabled("error")) {
             console.error(...this._log(tag, ...args));
         }
     }
 
     debug(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.debug) {
+        if (this.isEnabled("debug")) {
             console.debug(...this.colorLog("gray", tag, ...args));
         }
     }
 
     trace(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.trace) {
+        if (this.isEnabled("trace")) {
             console.trace(this._log(tag, ...args));
         }
     }
 
     weakWarn(tag: string, ...args: any[]) {
-        if (this.game.config.app.logger.warn) {
+        if (this.isEnabled("warn")) {
             console.log(...this.colorLog("yellow", tag, ...args));
+        }
+    }
+
+    weakError(tag: string, ...args: any[]) {
+        if (this.isEnabled("error")) {
+            console.log(...this.colorLog("red", tag, ...args));
+        }
+    }
+
+    verbose(tag: string, ...args: any[]) {
+        if (this.isEnabled("verbose")) {
+            console.log(...this.colorLog("gray", tag, ...args));
         }
     }
 
     group(tag: string, collapsed = false) {
         const groupTag = this._log(tag).join(" ");
-        if (this.game.config.app.logger.info) {
+        if (this.isEnabled("info")) {
             if (collapsed) {
                 console.groupCollapsed(groupTag);
             } else {
@@ -63,11 +76,17 @@ export class Logger {
         }
         return {
             end: () => {
-                if (this.game.config.app.logger.info) {
+                if (this.isEnabled("info")) {
                     console.groupEnd();
                 }
             }
         };
+    }
+
+    private isEnabled(type: keyof Extract<GameConfig["app"]["logger"], object>) {
+        return typeof this.game.config.app.logger === "boolean"
+            ? this.game.config.app.logger
+            : this.game.config.app.logger[type];
     }
 
     private _log(tag: string, ...args: any[]) {
