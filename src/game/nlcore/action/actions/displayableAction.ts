@@ -1,41 +1,101 @@
 import {DisplayableActionContentType, DisplayableActionTypes} from "@core/action/actionTypes";
 import {GameState} from "@player/gameState";
 import {TypedAction} from "@core/action/actions";
-import {Values} from "@lib/util/data";
+import {Awaitable, SkipController, Values} from "@lib/util/data";
 import {Displayable} from "@core/elements/displayable/displayable";
+import {ContentNode} from "@core/action/tree/actionTree";
+import type {CalledActionResult} from "@core/gameTypes";
+import {Scene} from "@core/elements/scene";
+import {Transform} from "@core/elements/transform/transform";
+import {Transition} from "@core/elements/transition/transition";
+import {Layer} from "@core/elements/layer";
+import {LogicAction} from "@core/action/logicAction";
 
 
 export class DisplayableAction<
     T extends Values<typeof DisplayableActionTypes> = Values<typeof DisplayableActionTypes>,
-    Self extends Displayable<any, any> = Displayable<any, any>
+    Self extends Displayable<any, any, any> = Displayable<any, any>,
+    TransitionType extends Transition = Transition,
 >
-    extends TypedAction<DisplayableActionContentType, T, Self> {
+    extends TypedAction<DisplayableActionContentType<TransitionType>, T, Self> {
     static ActionTypes = DisplayableActionTypes;
 
     public executeAction(gameState: GameState) {
-        const scene = gameState.getLastSceneIfNot();
-        if (this.type === DisplayableActionTypes.layerMoveUp) {
-            gameState.moveUpElement(scene, this.callee);
-            gameState.stage.update();
+        if (this.type === DisplayableActionTypes.applyTransform) {
+            const [transform] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:applyTransform"]>).getContent();
+            const element = this.callee;
 
-            return super.executeAction(gameState);
-        } else if (this.type === DisplayableActionTypes.layerMoveDown) {
-            gameState.moveDownElement(scene, this.callee);
-            gameState.stage.update();
+            return this.applyTransform(gameState, element, transform);
+        } else if (this.type === DisplayableActionTypes.applyTransition) {
+            const [trans, handler] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:applyTransition"]>).getContent();
+            const element = this.callee;
 
-            return super.executeAction(gameState);
-        } else if (this.type === DisplayableActionTypes.layerMoveTop) {
-            gameState.moveTopElement(scene, this.callee);
-            gameState.stage.update();
+            const transition: TransitionType = handler ? handler(trans) : trans;
 
-            return super.executeAction(gameState);
-        } else if (this.type === DisplayableActionTypes.layerMoveBottom) {
-            gameState.moveBottomElement(scene, this.callee);
-            gameState.stage.update();
+            return this.applyTransition(gameState, element, transition);
+        } else if (this.type === DisplayableActionTypes.init) {
+            const [scene, layer, isElement] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:init"]>).getContent();
+            const element = this.callee;
 
-            return super.executeAction(gameState);
+            return this.initDisplayable(gameState, scene, element, layer || null, isElement);
         }
 
         throw this.unknownTypeError();
+    }
+
+    public applyTransform(state: GameState, element: Displayable<any, any>, transform: Transform, onFinished?: () => void) {
+        const awaitable = new Awaitable<CalledActionResult>()
+            .registerSkipController(new SkipController(() => {
+                state.logger.info("Displayable Transition", "Skipped");
+                return super.executeAction(state) as CalledActionResult;
+            }));
+        const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
+        exposed.applyTransform(transform, () => {
+            onFinished?.();
+            awaitable.resolve(super.executeAction(state) as CalledActionResult);
+            state.stage.next();
+        });
+
+        return awaitable;
+    }
+
+    public applyTransition(state: GameState, element: Displayable<any, any>, transition: TransitionType, onFinished?: () => void) {
+        const awaitable = new Awaitable<CalledActionResult>()
+            .registerSkipController(new SkipController(() => {
+                state.logger.info("Displayable Transition", "Skipped");
+                return super.executeAction(state) as CalledActionResult;
+            }));
+        const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
+        exposed.applyTransition(transition, () => {
+            onFinished?.();
+            awaitable.resolve(super.executeAction(state) as CalledActionResult);
+            state.stage.next();
+        });
+
+        return awaitable;
+    }
+
+    public initDisplayable(state: GameState, scene: Scene | null, element: Displayable<any, any>, layer: Layer | null, isElement: boolean | undefined = true): Awaitable<CalledActionResult> {
+        if (isElement !== false) {
+            const lastScene = state.findElementByDisplayable(this.callee, layer);
+            if (lastScene) {
+                state.disposeDisplayable(element, lastScene.scene, layer);
+            }
+
+            state.createDisplayable(element, scene, layer);
+        }
+        state.flush();
+
+        const awaitable = new Awaitable<CalledActionResult>()
+            .registerSkipController(new SkipController(() =>
+                super.executeAction(state) as CalledActionResult));
+        state.getExposedStateAsync<LogicAction.DisplayableExposed>(element, (exposed) => {
+            exposed.initDisplayable(() => {
+                awaitable.resolve(super.executeAction(state) as CalledActionResult);
+                state.stage.next();
+            });
+        });
+
+        return awaitable;
     }
 }

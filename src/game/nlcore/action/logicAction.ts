@@ -5,7 +5,7 @@ import type {Image} from "@core/elements/displayable/image";
 import type {Condition} from "@core/elements/condition";
 import type {Script} from "@core/elements/script";
 import type {Menu} from "@core/elements/menu";
-import {Values} from "@lib/util/data";
+import {StringKeyOf, Values} from "@lib/util/data";
 import {TypedAction} from "@core/action/actions";
 import {Sound} from "@core/elements/sound";
 import {Control} from "@core/elements/control";
@@ -18,7 +18,7 @@ import {
     DisplayableActionContentType,
     DisplayableActionTypes,
     ImageActionContentType,
-    ImageActionTypes,
+    ImageActionTypes, LayerActionContentType, LayerActionTypes,
     MenuActionContentType,
     MenuActionTypes, PersistentActionContentType, PersistentActionTypes,
     SceneActionContentType,
@@ -45,9 +45,15 @@ import {Displayable as AbstractDisplayable} from "@core/elements/displayable/dis
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {Persistent} from "@core/elements/persistent";
 import {PersistentAction} from "@core/action/actions/persistentAction";
+import {ServiceSkeleton} from "@core/elements/service";
+import {ServiceAction, ServiceActionContentType} from "@core/action/serviceAction";
+import {Layer} from "@core/elements/layer";
+import {LayerAction} from "@core/action/actions/layerAction";
+import {ExposedStateType} from "@player/type";
 
 export namespace LogicAction {
-    export type DisplayableElements = Text | Image | AbstractDisplayable<any, any>;
+    export type DisplayableElements = Text | Image | Layer | AbstractDisplayable<any, any>;
+    export type DisplayableExposed = ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text;
     export type GameElement =
         Character
         | Scene
@@ -60,7 +66,8 @@ export namespace LogicAction {
         | Control
         | Text
         | AbstractDisplayable<any, any>
-        | Persistent<any>;
+        | Persistent<any>
+        | ServiceSkeleton;
     export type Actions =
         TypedAction
         | CharacterAction
@@ -74,7 +81,9 @@ export namespace LogicAction {
         | ControlAction
         | TextAction
         | DisplayableAction
-        | PersistentAction;
+        | PersistentAction
+        | ServiceAction
+        | LayerAction;
     export type ActionTypes =
         Values<typeof CharacterActionTypes>
         | Values<typeof ConditionActionTypes>
@@ -87,7 +96,9 @@ export namespace LogicAction {
         | Values<typeof ControlAction.ActionTypes>
         | Values<typeof TextAction.ActionTypes>
         | Values<typeof DisplayableActionTypes>
-        | Values<typeof PersistentActionTypes>;
+        | Values<typeof PersistentActionTypes>
+        | StringKeyOf<ServiceActionContentType>
+        | Values<typeof LayerActionTypes>;
     export type ActionContents =
         CharacterActionContentType
         & ConditionActionContentType
@@ -100,5 +111,7 @@ export namespace LogicAction {
         & ControlActionContentType
         & TextActionContentType
         & DisplayableActionContentType
-        & PersistentActionContentType;
+        & PersistentActionContentType
+        & ServiceActionContentType
+        & LayerActionContentType;
 }

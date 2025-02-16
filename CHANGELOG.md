@@ -1,6 +1,91 @@
 # Changelog
 
-## [0.2.3]
+## [0.3.0]
+
+### _Incompatible Changes_
+
+- NarraLeaf-React now **requires** [React 19](https://react.dev/blog/2024/12/05/react-19) or later
+- Image Config has changed:
+    - the type of `config.src` should be a tag definition or a string
+    - In tag-based image config, `config.src` as a resolver function is moved to `config.src.resolve`
+    - Image can't be marked as wearable anymore, use `image.wear` or `image.asWearableOf` instead
+- These methods of `Image` has been changed:
+    - `setAppearance`, `setTags`, `setSrc` -> `char`
+    - `applyTransform` -> `transform`
+    - `wear` is a new alias for `addWearable`
+    - `asWearableOf` is a new alias for `bindWearable`
+    - `init`, `setPosition`, `dispose`, `copy` are removed
+    - `IImageTransition` is removed, use `ImageTransition` instead
+- These methods of `Text` has been changed:
+    - `applyTransform` -> `transform`
+    - `applyTransition` is removed, applying transitions are still in planning
+    - `ITextTransition` is removed, use `TextTransition` instead
+- These methods of `Transform` has been changed:
+    - `overwrite` is removed
+    - Transformer API is completely deprecated
+- These methods/properties of `Scene` has been changed:
+    - `activate`, `deactivate` are removed, the game will manage the scene's lifecycle automatically
+    - `applyTransform` is removed, use `scene.background.transform` instead
+    - `inherit` is removed
+    - `requestImagePreload` -> `preloadImage`
+- These methods of `Sound` has been changed:
+    - use `copy` to create a new sound instance
+    - `play`, `stop` and `setVolume` method can receive a `duration` parameter
+    - `fade` is removed, use `setVolume` instead
+- In displayable elements, the transform states are separated from the element states
+- These changes are made to `Sound` config
+    - `sync` and `type` are removed
+    - use `preload` to use [Howler.js](https://howlerjs.com/)'s preload feature
+    - use `seek` property to set the initial seek position
+- Scene's config now can't specify the `invertY` and `invertX` properties, use story config `origin` instead
+- `Top`, `Center`, `Bottom`, `HBox`, and `VBox` are deprecated, use `PageRouter` API instead
+- `ITransition`s are all deprecated, use `Transition` API instead
+    - `FontSizeTransition` -> `FontSize`
+    - `BaseImageTransition` -> `ImageTransition`
+    - `BaseTextTransition` -> `TextTransition`
+
+### _Feature_
+
+- `Service` API: a new way to create custom actions
+- Use `liveGame.requestFullScreen` and `liveGame.exitFullScreen` to request full screen on the player element
+- Use `liveGame.onPlayerEvent` to listen to the dom events of the player element
+- `PageRouter` API: a new way to manage page layers
+- `Layer` API: manage layers for displayable elements
+- Use `liveGame.capturePng`, `liveGame.captureJpeg`, `liveGame.captureSvg`, and `liveGame.capturePngBlob` to capture the game screen  
+The screenshot behavior is provided by [html-to-image](https://github.com/bubkoo/html-to-image)
+
+### Added
+
+- use `Transform.immediate` to apply transformations immediately
+- `Text`, `Word`, `Character`, `Scene` background, and `Image`'s color now supports named colors,
+  see [MDN: <named-color>](https://developer.mozilla.org/en-US/docs/Web/CSS/named-color) for a list of supported colors.
+- use `game.configure` to configure the game instead of constructing a new game instance
+- use `ImageConfig.autoFit` to automatically fit the image to the player width
+- These methods are added to displayable elements (text, image):
+  - `pos`, `scale`, `rotate`, `opacity`
+  - `useLayer`
+- These methods are added to `Text`:
+  - `setFontColor`
+
+### Fixed
+
+- some errors being thrown when initializing the game
+- Components reach the React flush limit when applying transitions
+- The game stops working when entering scenes that reference each other
+- Short black screen between scene transitions
+- Color-based background image behaves incorrectly
+- Incorrect element states when jumping to the current scene
+
+### Updated
+
+- A better way to serialize/deserialize the element states
+- Refactored displayable components
+- Refactored the way to play sounds
+- Transform now doesn't store its controllers and states, transform states are now stored in the element states
+- The game no longer stores the events in the game element, this undermines the abstraction of the game element.  
+Use `useExposeState` to expose the component state to the game element. 
+
+## [0.2.3] - 2024/12/27
 
 ### _Feature_
 
@@ -62,7 +147,7 @@
 
 - Voice map generator
 - Image tag src management
-- Displayable actions
+- Legacy_Displayable actions
 - Layer actions
 - Disable image auto initialize using image.config
 - Quick image preloading only preloads images when needed
@@ -184,8 +269,9 @@
 - changed signature of the constructor of `Sentence`, now it does not require a `Character` instance. If you want to
   specify it, use sentence config instead
 - Rename `CommonImage` to `CommonDisplayable`
-- Refactor `Image.tsx`, `BackgroundTransition.tsx` and `Text.tsx`.
+- Refactor `Image.tsx` and `Text.tsx`.
 - Use `IImageTransition` instead of `ITransition`
+- `BackgroundTransition.tsx` and `Background` is deprecated
 
 ### Added
 

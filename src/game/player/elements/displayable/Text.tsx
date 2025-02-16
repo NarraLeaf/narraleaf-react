@@ -1,85 +1,69 @@
 import {GameState} from "@player/gameState";
 import {Text as GameText} from "@core/elements/displayable/text";
 import React from "react";
-import {Transform, TransformersMap, TransformHandler} from "@core/elements/transform/transform";
-import {SpanElementProp} from "@core/elements/transition/type";
-import {deepMerge} from "@lib/util/data";
-import {DisplayableChildProps} from "@player/elements/displayable/type";
-import Displayable from "@player/elements/displayable/Displayable";
-import clsx from "clsx";
-import {TransformDefinitions} from "@core/elements/transform/type";
+import {Transform} from "@core/elements/transform/transform";
 import Inspect from "@player/lib/Inspect";
 import {useRatio} from "@player/provider/ratio";
+import {useDisplayable} from "@player/elements/displayable/Displayable";
+import {TextTransition} from "@core/elements/transition/transitions/text/textTransition";
+import {useExposeState} from "@player/lib/useExposeState";
+import {ExposedStateType} from "@player/type";
+import {useFlush} from "@player/lib/flush";
 
 /**@internal */
 export default function Text({state, text}: Readonly<{
     state: GameState;
     text: GameText;
 }>) {
-    const transformOverwrites: {
-        [K in keyof TransformersMap]?: TransformHandler<TransformersMap[K]>
-    } = {
-        "scale": (_) => {
-            return {
-                width: "fit-content",
-            };
-        },
-        "transform": (props: TransformDefinitions.Types) => {
-            return {
-                transform: Transform.propToCSSTransform(state, props, {
-                    translate: [
-                        text.config.alignX === "left" ? "0%"
-                            : (text.config.alignX === "right" ? "-100%" : void 0),
-                        text.config.alignY === "top" ? "100%"
-                            : (text.config.alignY === "bottom" ? "0%" : void 0),
-                    ],
-                }),
-            };
-        }
-    };
-
-    return (
-        <Displayable
-            displayable={{
-                element: text,
-                skipTransform: state.game.config.elements.text.allowSkipTransform,
-                skipTransition: state.game.config.elements.text.allowSkipTransition,
-                transformOverwrites,
-            }}
-            child={(props) => (
-                <DisplayableText
-                    {...props}
-                    text={text}
-                />
-            )}
-            state={state}
-        />
-    );
-}
-
-function DisplayableText(
-    {
-        transformRef,
-        transformProps,
-        transition,
-        text,
-    }: Readonly<DisplayableChildProps & {
-        text: GameText;
-    }>
-) {
     const {ratio} = useRatio();
-    const defaultProps: SpanElementProp = {
-        style: {
-            width: "fit-content",
-            whiteSpace: "nowrap",
-            fontSize: text.state.fontSize,
+    const [flush] = useFlush();
+    const {
+        transformRef,
+        transitionRefs,
+        initDisplayable,
+        applyTransform,
+        applyTransition,
+        deps,
+        isTransforming,
+    } = useDisplayable<TextTransition, HTMLSpanElement>({
+        element: text,
+        state: text.transformState,
+        skipTransform: state.game.config.elements.text.allowSkipTransform,
+        skipTransition: state.game.config.elements.text.allowSkipTransition,
+        overwriteDefinition: {
+            overwrite: (props) => {
+                return {
+                    width: "fit-content",
+                    transform: Transform.propToCSSTransform(state, props, {
+                        translate: [
+                            text.config.alignX === "left" ? "0%"
+                                : (text.config.alignX === "right" ? "-100%" : void 0),
+                            text.config.alignY === "top" ? "100%"
+                                : (text.config.alignY === "bottom" ? "0%" : void 0),
+                        ],
+                    }),
+                };
+            },
         },
-    };
-    const transitionProps: SpanElementProp[] = [
-        {}
-    ];
+        transitionsProps: [
+            {
+                style: {
+                    width: "fit-content",
+                    whiteSpace: "nowrap",
+                    transform: `scale(${ratio.state.scale})`,
+                    transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
+                    fontSize: `${text.state.fontSize}px`,
+                },
+            },
+        ],
+    });
 
-    const spanClassName = clsx(text.config.className);
+    useExposeState<ExposedStateType.text>(text, {
+        initDisplayable,
+        applyTransform,
+        applyTransition,
+        flush,
+    }, [...deps]);
 
     return (
         <Inspect.Div>
@@ -87,58 +71,19 @@ function DisplayableText(
                 tag={"text.container"}
                 color={"green"}
                 border={"dashed"}
-                layout
-                Ref={transformRef}
+                layout={isTransforming}
+                ref={transformRef}
                 className={"absolute"}
-                {...(deepMerge<any>({
-                    style: {
-                        opacity: 0,
-                    }
-                }, transformProps, {
-                    style: {
-                        width: "fit-content",
-                    }
-                }))}
             >
-                {transition ? (function (): React.JSX.Element[] {
-                    return transition.toElementProps().map((elementProps, index) => {
-                        const mergedProps =
-                            deepMerge<SpanElementProp>(defaultProps, elementProps, ({
-                                style: {
-                                    transform: `scale(${ratio.state.scale})`,
-                                    transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
-                                }
-                            } satisfies SpanElementProp), transitionProps[index] || {}) as any;
-                        return (
-                            <Inspect.Span
-                                tag={"text.transition." + index}
-                                key={index}
-                                {...mergedProps}
-                                className={spanClassName}
-                            >
-                                <span>{text.state.text}</span>
-                            </Inspect.Span>
-                        );
-                    });
-                })() : (
-                    <Inspect.Div
-                        tag={"text.transition.last"}
-                        color={"green"}
-                        border={"dashed"}
-                        key={"last"}
-                        {...deepMerge<any>(defaultProps, {
-                            style: {
-                                width: "fit-content",
-                                transform: `scale(${ratio.state.scale})`,
-                                transformOrigin: `${text.config.alignX} ${text.config.alignY}`,
-                            }
-                        })}
+                {transitionRefs.map(([ref, key]) => (
+                    <span
+                        key={key}
+                        ref={ref}
+                        className={text.config.className}
                     >
-                        <Inspect.Span
-                            className={spanClassName}
-                        >{text.state.text}</Inspect.Span>
-                    </Inspect.Div>
-                )}
+                        <span>{text.state.text}</span>
+                    </span>
+                ))}
             </Inspect.mDiv>
         </Inspect.Div>
     );

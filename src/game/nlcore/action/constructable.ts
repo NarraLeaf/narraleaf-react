@@ -3,6 +3,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {Chainable, Chained, Proxied} from "@core/action/chain";
 import type {Story} from "@core/elements/story";
 import GameElement = LogicAction.GameElement;
+import {ActionSearchOptions} from "@core/types";
 
 export class Constructable<
     TAction extends LogicAction.Actions = LogicAction.Actions,
@@ -19,7 +20,12 @@ export class Constructable<
     }
 
     /**@internal */
-    forEachChild(story: Story, actionOrActions: LogicAction.Actions | LogicAction.Actions[], cb: ((action: LogicAction.Actions) => void)): void {
+    forEachChild(
+        story: Story,
+        actionOrActions: LogicAction.Actions | LogicAction.Actions[],
+        cb: ((action: LogicAction.Actions) => void),
+        searchOptions: ActionSearchOptions = {}
+    ): void {
         const seen = new Set<LogicAction.Actions>();
         const queue: LogicAction.Actions[] = [];
 
@@ -38,16 +44,15 @@ export class Constructable<
 
             cb(action);
 
-            const children = action.getFutureActions(story)
-                .filter(action => !seen.has(action));
+            const children = action.getFutureActions(story, searchOptions).filter(action => !seen.has(action));
             queue.push(...children);
         }
     }
 
     /**@internal */
-    getAllChildren(story: Story, action: LogicAction.Actions | LogicAction.Actions[]): LogicAction.Actions[] {
+    getAllChildren(story: Story, action: LogicAction.Actions | LogicAction.Actions[], searchOptions: ActionSearchOptions = {}): LogicAction.Actions[] {
         const children: LogicAction.Actions[] = [];
-        this.forEachChild(story, action, action => children.push(action));
+        this.forEachChild(story, action, action => children.push(action), searchOptions);
         return children;
     }
 
@@ -59,15 +64,15 @@ export class Constructable<
     }
 
     /**@internal */
-    getAllElementMap(story: Story, action: LogicAction.Actions | LogicAction.Actions[]): Map<string, LogicAction.GameElement> {
+    getAllElementMap(story: Story, action: LogicAction.Actions | LogicAction.Actions[], searchOptions: ActionSearchOptions = {}): Map<string, LogicAction.GameElement> {
         const map = new Map<string, LogicAction.GameElement>();
-        this.forEachChild(story, action, action => map.set(action.callee.getId(), action.callee));
+        this.forEachChild(story, action, action => map.set(action.callee.getId(), action.callee), searchOptions);
         return map;
     }
 
     /**@internal */
-    getAllChildrenElements(story: Story, action: LogicAction.Actions | LogicAction.Actions[]): LogicAction.GameElement[] {
-        return Array.from(new Set(this.getAllChildren(story, action).map(action => action.callee)));
+    getAllChildrenElements(story: Story, action: LogicAction.Actions | LogicAction.Actions[], searchOptions: ActionSearchOptions = {}): LogicAction.GameElement[] {
+        return Array.from(new Set(this.getAllChildren(story, action, searchOptions).map(action => action.callee)));
     }
 
     /**@internal */

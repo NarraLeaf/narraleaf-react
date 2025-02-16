@@ -1,12 +1,14 @@
 import {getImageDataUrl} from "@lib/util/data";
+import {GameState} from "@player/gameState";
 
 type ImageCacheTask = {
-    promise: Promise<string>;
+    promise: Promise<void>;
     controller: AbortController;
 };
 export type PreloadedToken = {
     abort: () => void;
-    onFinished: (callback: () => void) => void;
+    onFinished: (callback: () => void) => PreloadedToken;
+    onErrored: (callback: (reason: any) => void) => PreloadedToken;
 };
 
 export class ImageCacheManager {
@@ -50,38 +52,57 @@ export class ImageCacheManager {
         return this.preloadTasks.has(src);
     }
 
-    public preload(url: string): PreloadedToken {
-        if (this.src.has(url) || this.preloadTasks.has(url)) return {
-            abort: () => {
-            },
-            onFinished: () => {
-            }
-        };
+    public preload(gameState: GameState, url: string): PreloadedToken {
+        if (this.src.has(url) || this.preloadTasks.has(url)) {
+            const token: PreloadedToken = {
+                abort: () => {
+                },
+                onFinished: () => {
+                    return token;
+                },
+                onErrored: () => {
+                    return token;
+                }
+            };
+            return token;
+        }
 
         const controller = new AbortController();
         const signal = controller.signal;
+        const errorHandlers: ((reason: any) => void)[] = [];
 
-        const task: ImageCacheTask = {
-            promise: ImageCacheManager.getImage(url, signal),
-            controller,
-        };
-        this.preloadTasks.set(url, task);
-        task.promise.then((dataUrl) => {
+        const promise = ImageCacheManager.getImage(url, signal).then((dataUrl) => {
             this.preloadTasks.delete(url);
             if (dataUrl) {
                 this.add(url, dataUrl);
             }
-        });
+        })
+            .catch((reason) => {
+                gameState.logger.error("ImageCacheManager", `Failed to preload image: ${url}`, reason);
+                errorHandlers.forEach(handler => handler(reason));
+            });
 
-        return {
+        const task: ImageCacheTask = {
+            promise,
+            controller,
+        };
+        this.preloadTasks.set(url, task);
+
+        const token: PreloadedToken = {
             abort: () => {
                 controller.abort();
                 this.preloadTasks.delete(url);
             },
             onFinished: (callback: () => void) => {
                 task.promise.then(callback);
+                return token;
+            },
+            onErrored: (callback: (reason: any) => void) => {
+                errorHandlers.push(callback);
+                return token;
             }
         };
+        return token;
     }
 
     public abortAll(): void {

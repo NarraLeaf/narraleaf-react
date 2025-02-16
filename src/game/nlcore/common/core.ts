@@ -1,4 +1,4 @@
-import {Utils} from "./Utils";
+import {i, c, b} from "./Utils";
 
 export * from "./elements";
 export * from "./game";
@@ -7,5 +7,7 @@ export * from "./types";
 export * from "./position";
 export * from "./transition";
 export {
-    Utils
+    i,
+    c,
+    b,
 };

@@ -1,6 +1,6 @@
 {
   "name": "narraleaf-react",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "A React visual novel player framework",
   "main": "./dist/main.js",
   "types": "./dist/index.d.ts",
@@ -12,7 +12,7 @@
     "postbuild": "tsc-alias -p tsconfig.json",
     "lint": "eslint \"./src/**/*.{ts,tsx,js,jsx}\"",
     "lint:fix": "eslint --fix \"./src/**/*.{ts,tsx,js,jsx}\"",
-    "publish": "npm run lint && rimraf dist && webpack --config webpack.config.js && tsc-alias -p tsconfig.json && npm publish",
+    "publish": "npm run lint && rimraf dist && webpack --config webpack.config.js && tsc-alias -p tsconfig.json",
     "typedoc": "typedoc src/index.ts --out doc",
     "prepare": "husky"
   },
@@ -25,8 +25,8 @@
     "@eslint/js": "^9.10.0",
     "@types/howler": "^2.2.11",
     "@types/lodash": "^4.17.7",
-    "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": ">=19",
+    "@types/react-dom": ">=19",
     "@typescript-eslint/eslint-plugin": "^8.5.0",
     "@typescript-eslint/parser": "^8.5.0",
     "autoprefixer": "^10.4.20",
@@ -37,6 +37,7 @@
     "globals": "^15.9.0",
     "husky": "^9.1.6",
     "jest": "^27.0.6",
+    "motion": "^11.15.0",
     "postcss-loader": "^8.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -57,8 +58,17 @@
   },
   "peerDependencies": {
     "@emotion/is-prop-valid": "*",
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0"
+    "motion": "^11.15.0",
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": false
+    },
+    "react-dom": {
+      "optional": false
+    }
   },
   "files": [
     "dist"
@@ -76,8 +86,8 @@
   "dependencies": {
     "client-only": "^0.0.1",
     "clsx": "^2.1.1",
-    "framer-motion": "^11.11.9",
     "howler": "^2.2.4",
+    "html-to-image": "^1.11.11",
     "prop-types": "^15.8.1"
   },
   "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447"

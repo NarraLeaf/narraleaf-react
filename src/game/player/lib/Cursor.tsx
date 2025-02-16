@@ -37,7 +37,7 @@ export default function Cursor(
     }, [visible]);
 
     return (
-        <Isolated $ref={containerRef} className={"overflow-hidden relative"}>
+        <Isolated ref={containerRef} className={"overflow-hidden absolute"}>
             <img
                 src={src}
                 style={{

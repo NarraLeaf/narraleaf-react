@@ -1,95 +1,103 @@
-import {Scene as GameScene, SceneEventTypes} from "@core/elements/scene";
-import {useRatio} from "@player/provider/ratio";
-import React, {useEffect, useState} from "react";
-import BackgroundTransition from "./BackgroundTransition";
-import {GameState} from "@player/gameState";
+import {Scene as GameScene} from "@core/elements/scene";
+import React, {useEffect} from "react";
+import {GameState, PlayerStateElement} from "@player/gameState";
+import clsx from "clsx";
+import {Layer} from "@player/elements/player/Layer";
+import Displayables from "@player/elements/displayable/Displayables";
+import {useGame} from "@player/provider/game-state";
+import {useExposeState} from "@player/lib/useExposeState";
+import {ExposedStateType} from "@player/type";
 import {Sound} from "@core/elements/sound";
-import {Utils} from "@core/common/Utils";
 
 /**@internal */
 export default function Scene(
     {
-        scene,
         state,
-        children,
-        className
+        className,
+        elements,
     }: Readonly<{
-        scene: GameScene;
         state: GameState;
-        children?: React.ReactNode;
         className?: string;
+        elements: PlayerStateElement;
     }>) {
-    const {ratio} = useRatio();
-    const [backgroundMusic, setBackgroundMusic] =
-        useState<Sound | null>(() => scene.state.backgroundMusic);
-
-    async function stopWithFade(music: Sound, fade: number) {
-        await state.fadeSound(music, 0, fade);
-        state.stopSound(music);
-    }
-
-    async function fadeTo(music: Sound | null, fade?: number) {
-        const lastMusic = backgroundMusic;
-        const nextMusic = music;
-
-        await state.transitionSound(lastMusic, nextMusic, fade);
-
-        if (!nextMusic) {
-            return;
-        }
-
-        setBackgroundMusic(nextMusic);
-    }
+    const {game} = useGame();
+    const {scene, layers, texts, menus} = elements;
+    const Say = game.config.elements.say.use;
+    const Menu = game.config.elements.menu.use;
 
     useEffect(() => {
-        const listeners: {
-            type: keyof SceneEventTypes;
-            listener: (...args: any[]) => void;
-        }[] = [
-            {
-                type: "event:scene.setBackgroundMusic",
-                listener: scene.events.on(GameScene.EventTypes["event:scene.setBackgroundMusic"], (music, fade) => {
-                    fadeTo(music, fade).then();
-                })
-            },
-            {
-                type: "event:scene.preUnmount",
-                listener: scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
-                    if (backgroundMusic) {
-                        stopWithFade(backgroundMusic, scene.state.backgroundMusicFade).then();
-                    }
-                })
-            }
-        ];
-
-        return () => {
-            listeners.forEach(({type, listener}) => {
-                scene.events.off(type, listener);
-            });
-        };
+        return scene.events.depends([
+            scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
+                if (scene.state.backgroundMusic) {
+                    return state.audioManager.stop(scene.state.backgroundMusic).then(() => {
+                        scene.state.backgroundMusic = null;
+                    });
+                }
+            }),
+        ]).cancel;
     }, []);
 
     useEffect(() => {
         scene.events.emit(GameScene.EventTypes["event:scene.mount"]);
+        state.logger.debug("Scene", "Scene mounted", scene.getId());
 
         return () => {
             scene.events.emit(GameScene.EventTypes["event:scene.unmount"]);
+            state.logger.debug("Scene", "Scene unmounted", scene.getId());
         };
     }, []);
 
-    return (
-        <div className={className}>
-            <BackgroundTransition scene={scene} props={{
-                width: ratio.state.width,
-                height: ratio.state.height,
-                src: Utils.isImageSrc(scene.state.background) ?
-                    Utils.srcToString(scene.state.background) : void 0,
-                style: {
-                    backgroundColor: Utils.isImageColor(scene.state.background) ?
-                        Utils.toHex(scene.state.background) : void 0,
+    useExposeState<ExposedStateType.scene>(scene, {
+        setBackgroundMusic(music: Sound | null, fade: number) {
+            return new Promise<void>((resolve) => {
+                if (!scene.state.backgroundMusic) {
+                    return;
                 }
-            }} state={state}/>
-            {children}
+                state.audioManager.stop(scene.state.backgroundMusic, fade).then(() => {
+                    scene.state.backgroundMusic = null;
+                    if (music) state.audioManager.play(music, {
+                        end: music.state.volume,
+                        duration: fade,
+                    }).then(resolve);
+                });
+            });
+        }
+    });
+
+    return (
+        <div className={clsx(className, "w-full h-full absolute")}>
+            {([...layers.entries()].sort(([layerA], [layerB]) => {
+                return layerA.config.zIndex - layerB.config.zIndex;
+            }).map(([layer, ele]) => (
+                <Layer state={state} layer={layer} key={layer.getId()}>
+                    <Displayables state={state} displayable={ele}/>
+                </Layer>
+            )))}
+            {texts.map(({action, onClick}) => (
+                <Say
+                    state={state}
+                    key={"say-" + action.id}
+                    action={action}
+                    onClick={() => {
+                        onClick();
+                        state.stage.next();
+                    }}
+                />
+            ))}
+            {menus.map(({action, onClick}, i) => (
+                <div key={"menu-" + i}>
+                    <Menu
+                        state={state}
+                        prompt={action.prompt}
+                        choices={action.choices}
+                        afterChoose={(choice) => {
+                            onClick(choice);
+                            state.stage.next();
+                        }}
+                        words={action.words}
+                    />
+                </div>
+            ))}
         </div>
     );
 };

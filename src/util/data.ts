@@ -1,4 +1,4 @@
-import {HexColor} from "@core/types";
+import {HexColor, NamedColor} from "@core/types";
 
 interface ITypeOf {
     DataTypes: typeof DataTypes;
@@ -136,11 +136,34 @@ export class Awaitable<T, U = T> {
 
     static nothing: ((value: any) => any) = (value) => value as any;
 
+    static resolve<T>(value: T): Awaitable<T> {
+        const awaitable = new Awaitable<T>();
+        awaitable.resolve(value);
+        return awaitable;
+    }
+
+    static forward<T>(awaitable: Awaitable<any>, result: T, skipController?: SkipController<T, []>) {
+        const newAwaitable = new Awaitable<T>()
+            .registerSkipController(skipController || new SkipController(() => result));
+        awaitable.then(() => newAwaitable.resolve(result));
+        const skipControllerToken = awaitable.skipController?.onAbort(() => {
+            newAwaitable.skipController?.abort();
+            skipControllerToken?.cancel();
+            newSkipControllerToken?.cancel();
+        });
+        const newSkipControllerToken = newAwaitable.skipController?.onAbort(() => {
+            awaitable.skipController?.abort();
+            skipControllerToken?.cancel();
+            newSkipControllerToken?.cancel();
+        });
+        return newAwaitable;
+    }
+
     receiver: (value: U) => T;
     result: T | undefined;
     solved = false;
+    protected skipController: SkipController<T, []> | undefined;
     private readonly listeners: ((value: T) => void)[] = [];
-    private skipController: SkipController<T, []> | undefined;
 
     constructor(
         receiver: (value: U) => T = ((value) => value as any),
@@ -170,12 +193,25 @@ export class Awaitable<T, U = T> {
         }
     }
 
-    then(callback: (value: T) => void) {
-        if (this.result) {
-            callback(this.result);
+    then(callback: (value: T) => void): this {
+        if (this.solved) {
+            callback(this.result!);
         } else {
             this.listeners.push(callback);
         }
+        return this;
+    }
+
+    onSettled(callback: () => void): this {
+        if (this.solved) {
+            callback();
+        } else {
+            this.listeners.push(callback);
+            this.skipController?.onAbort(() => {
+                callback();
+            });
+        }
+        return this;
     }
 
     abort() {
@@ -183,6 +219,10 @@ export class Awaitable<T, U = T> {
             return this.skipController.abort();
         }
         return this.result;
+    }
+
+    isSolved() {
+        return this.solved;
     }
 }
 
@@ -232,10 +272,10 @@ export function toHex(hex: { r: number; g: number; b: number; a?: number } | str
 export type EventTypes = {
     [key: string]: any[];
 }
-export type EventListener<T extends any[]> = (...args: T) => void | Promise<any>;
-export type EventToken = {
-    type: keyof EventTypes;
-    listener: EventListener<any>;
+export type EventListener<T extends any[]> = (...args: T) => void | Thenable<any>;
+export type EventToken<T extends EventTypes = EventTypes> = {
+    type?: keyof T;
+    listener?: EventListener<any>;
     cancel: () => void;
 };
 
@@ -245,36 +285,31 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
     "event:EventDispatcher.register": [keyof EventTypes, EventListener<any>];
 }> {
     private events: { [K in keyof Type]: Array<EventListener<Type[K]>> } = {} as any;
+    private maxListeners = 10;
 
-    public on<K extends keyof Type>(event: K, listener: EventListener<Type[K]>): EventListener<Type[K]> {
+    public on<K extends StringKeyOf<Type>>(event: K, listener: EventListener<Type[K]>): EventToken {
         if (!this.events[event]) {
             this.events[event] = [];
         }
         this.events[event].push(listener);
+        if (this.events[event].length > this.maxListeners) {
+            console.warn(`NarraLeaf-React: Event ${event} has more than ${this.maxListeners} listeners (total: ${this.events[event].length}), this may cause performance issues.`);
+        }
+
         this.emit("event:EventDispatcher.register", event as any, listener as any);
-        return listener;
+        return {
+            type: event,
+            listener,
+            cancel: () => {
+                this.off(event, listener);
+            }
+        };
     }
 
-    public onEvents(events: {
-        type: keyof Type;
-        listener: EventListener<any>;
-    }[]): {
-        tokens: EventToken[];
-        cancel: () => void;
-    } {
-        const tokens = events.map(({type, listener}) => {
-            return {
-                type,
-                listener,
-                cancel: () => {
-                    this.off(type, listener);
-                }
-            };
-        }) as EventToken[];
+    public depends(events: EventToken<T>[]): EventToken {
         return {
-            tokens,
             cancel: () => {
-                tokens.forEach(token => token.cancel());
+                events.forEach(token => token.cancel());
             }
         };
     }
@@ -293,7 +328,7 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         });
     }
 
-    public once<K extends keyof Type>(event: K, listener: EventListener<Type[K]>): EventListener<Type[K]> {
+    public once<K extends StringKeyOf<Type>>(event: K, listener: EventListener<Type[K]>): EventToken {
         const onceListener: EventListener<Type[K]> = (...args) => {
             listener(...args);
             this.off(event, onceListener);
@@ -301,45 +336,42 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         return this.on(event, onceListener);
     }
 
+    /**
+     * Emit an event and wait for all listeners to resolve.
+     * If there's no listener, wait until a listener is registered and solved
+     */
     public async any<K extends keyof T>(event: K, ...args: Type[K]): Promise<any> {
         if (!this.events[event]) {
             this.events[event] = [];
         }
 
-        const promises: any[] = [];
-        let solved = false;
-        for (const listener of this.events[event]) {
-            const result = listener(...args) as any;
-            if (result && (typeof result === "object" && typeof result["then"] === "function")) {
-                promises.push(result);
-            } else {
-                solved = true;
-            }
+        // If there is any registered listener
+        if (this.events[event].length > 0) {
+            await Promise.all(this.events[event].map(listener => listener(...args)));
+            return;
         }
-        if (solved) {
-            return void 0;
-        }
-        this.events[event] = this.events[event].filter(l => !promises.includes(l));
 
-        if (promises.length === 0) {
-            return new Promise<void>((resolve) => {
-                const type = "event:EventDispatcher.register";
-                const listener = this.on(type, (type, fc) => {
-                    if (type === event) {
-                        this.off((type as "event:EventDispatcher.register"), listener);
+        // If there's no registered listener
+        return new Promise<void>((resolve) => {
+            const registerType = "event:EventDispatcher.register" as any;
+            const listener = this.on(registerType, (type, fc) => {
+                if (type === event) {
+                    this.off(registerType, listener);
 
-                        const res = fc?.(...args);
-                        if (res && res["then"]) {
-                            res["then"](resolve);
-                        } else {
-                            resolve(res);
-                        }
+                    const res = fc?.(...args);
+                    if (res !== null && typeof res === "object" && res["then"]) {
+                        res["then"](resolve);
+                    } else {
+                        resolve(res);
                     }
-                });
-            });
-        }
-        await Promise.all(promises);
-        return void 0;
+                }
+            }).listener!;
+        });
+    }
+
+    public setMaxListeners(maxListeners: number): this {
+        this.maxListeners = maxListeners;
+        return this;
     }
 
     clear() {
@@ -401,6 +433,7 @@ export class SkipController<T = any, U extends Array<any> = any[]> {
         }
         this.aborted = true;
         this.result = this.abortHandler(...args);
+        this.events.emit(SkipController.EventTypes["event:skipController.abort"]);
         return this.result;
     }
 
@@ -410,6 +443,10 @@ export class SkipController<T = any, U extends Array<any> = any[]> {
 
     public cancel() {
         this.aborted = true;
+    }
+
+    public onAbort(listener: () => void) {
+        return this.events.on("event:skipController.abort", listener);
     }
 }
 
@@ -436,7 +473,7 @@ export class Lock {
     private listeners: (() => void)[] = [];
     private unlockListeners: (() => void)[] = [];
 
-    public lock() {
+    public lock(): this {
         this.locked = true;
         return this;
     }
@@ -510,6 +547,10 @@ export function onlyIf<T>(condition: boolean, value: T, fallback: object = {}): 
 }
 
 export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): T {
+    if (delay <= 0) {
+        return fn;
+    }
+
     let timer: NodeJS.Timeout | null = null;
     return function (...args: T extends ((...args: infer P) => any) ? P : never[]) {
         if (timer) {
@@ -656,21 +697,25 @@ export function moveElementInArray<T>(arr: T[], element: T, newIndex: number): T
 }
 
 export async function getImageDataUrl(src: string, options?: RequestInit): Promise<string> {
-    const response = await fetch(src, options);
-    const blob = await response.blob();
-    return new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            resolve(reader.result as string);
-        };
-        reader.readAsDataURL(blob);
+    return new Promise<string>((resolve, reject) => {
+        fetch(src, options)
+            .then(response => response.blob())
+            .then(blob => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    resolve(reader.result as string);
+                };
+                reader.readAsDataURL(blob);
+            })
+            .catch(reject);
     });
 }
 
 export class TaskPool {
     private tasks: (() => Promise<void>)[] = [];
 
-    constructor(private readonly concurrency: number, private readonly delay: number) {}
+    constructor(private readonly concurrency: number, private readonly delay: number) {
+    }
 
     addTask(task: () => Promise<void>) {
         this.tasks.push(task);
@@ -713,4 +758,391 @@ export function createMicroTask(t: () => (() => void) | void): () => void {
             });
         }
     };
+}
+
+export function keyExcept<T extends Record<string, any>, Filtered extends Extract<keyof T, string>>(
+    obj: T,
+    keys: Filtered[]
+): Omit<T, Filtered> {
+    const result: Record<string, any> = {};
+    for (const key in obj) {
+        if (keys.includes(key as Filtered)) {
+            continue;
+        }
+        result[key] = obj[key];
+    }
+    return result as Omit<T, Filtered>;
+}
+
+type SerializeHandlers<T> = {
+    [K in keyof T]?: (value: Exclude<T[K], undefined>) => any;
+};
+type DeserializeHandlers<T, SerializeHandler extends SerializeHandlers<T>> = {
+    [K in keyof T]?: SerializeHandler[K] extends ((...args: any) => any)
+        ? (value: Exclude<ReturnType<SerializeHandler[K]>, undefined>) => T[K]
+        : never;
+}
+
+export class Serializer<
+    T extends Record<string, any>,
+    SerializeHandler extends SerializeHandlers<T> = SerializeHandlers<T>,
+    DeserializeHandler extends DeserializeHandlers<T, SerializeHandler> = DeserializeHandlers<T, SerializeHandler>
+> {
+    constructor(
+        private readonly serializer: SerializeHandler = {} as SerializeHandler,
+        private readonly deserializer: DeserializeHandler = {} as DeserializeHandler,
+    ) {
+    }
+
+    serialize(obj: T): Record<string, any> {
+        const result: Record<keyof T, any> = {} as any;
+        for (const key of Object.keys(obj) as Array<keyof T>) {
+            if (key in this.serializer && obj[key] !== undefined) {
+                result[key] = this.serializer[key]?.(obj[key]);
+            } else {
+                result[key] = obj[key];
+            }
+        }
+        return result;
+    }
+
+    deserialize(obj: Record<string, any>): T {
+        const result = {} as T;
+        for (const key of Object.keys(obj) as Array<Extract<keyof T, string>>) {
+            if (typeof this.deserializer[key] === "function" && obj[key] !== undefined) {
+                result[key as keyof T] = this.deserializer[key]!(obj[key]);
+            } else {
+                result[key] = obj[key];
+            }
+        }
+        return result;
+    }
+
+    extend<
+        NewFields extends Record<string, any>,
+        NewSerializeHandler extends SerializeHandlers<T & NewFields>,
+        NewDeserializeHandler extends DeserializeHandlers<T & NewFields, NewSerializeHandler>
+    >(
+        newSerializer: NewSerializeHandler,
+        newDeserializer: NewDeserializeHandler
+    ): Serializer<T & NewFields, SerializeHandler & NewSerializeHandler, DeserializeHandler & NewDeserializeHandler> {
+        const extendedSerializer = {...this.serializer, ...newSerializer} as SerializeHandler & NewSerializeHandler;
+        const extendedDeserializer = {...this.deserializer, ...newDeserializer} as DeserializeHandler & NewDeserializeHandler;
+
+        return new Serializer(extendedSerializer, extendedDeserializer);
+    }
+}
+
+export function isNamedColor(color: string): color is NamedColor {
+    return [
+        "aliceblue"
+        , "antiquewhite"
+        , "aqua"
+        , "aquamarine"
+        , "azure"
+        , "beige"
+        , "bisque"
+        , "black"
+        , "blanchedalmond"
+        , "blue"
+        , "blueviolet"
+        , "brown"
+        , "burlywood"
+        , "cadetblue"
+        , "chartreuse"
+        , "chocolate"
+        , "coral"
+        , "cornflowerblue"
+        , "cornsilk"
+        , "crimson"
+        , "cyan"
+        , "darkblue"
+        , "darkcyan"
+        , "darkgoldenrod"
+        , "darkgray"
+        , "darkgreen"
+        , "darkgrey"
+        , "darkkhaki"
+        , "darkmagenta"
+        , "darkolivegreen"
+        , "darkorange"
+        , "darkorchid"
+        , "darkred"
+        , "darksalmon"
+        , "darkseagreen"
+        , "darkslateblue"
+        , "darkslategray"
+        , "darkslategrey"
+        , "darkturquoise"
+        , "darkviolet"
+        , "deeppink"
+        , "deepskyblue"
+        , "dimgray"
+        , "dimgrey"
+        , "dodgerblue"
+        , "firebrick"
+        , "floralwhite"
+        , "forestgreen"
+        , "fuchsia"
+        , "gainsboro"
+        , "ghostwhite"
+        , "gold"
+        , "goldenrod"
+        , "gray"
+        , "green"
+        , "greenyellow"
+        , "grey"
+        , "honeydew"
+        , "hotpink"
+        , "indianred"
+        , "indigo"
+        , "ivory"
+        , "khaki"
+        , "lavender"
+        , "lavenderblush"
+        , "lawngreen"
+        , "lemonchiffon"
+        , "lightblue"
+        , "lightcoral"
+        , "lightcyan"
+        , "lightgoldenrodyellow"
+        , "lightgray"
+        , "lightgreen"
+        , "lightgrey"
+        , "lightpink"
+        , "lightsalmon"
+        , "lightseagreen"
+        , "lightskyblue"
+        , "lightslategray"
+        , "lightslategrey"
+        , "lightsteelblue"
+        , "lightyellow"
+        , "lime"
+        , "limegreen"
+        , "linen"
+        , "magenta"
+        , "maroon"
+        , "mediumaquamarine"
+        , "mediumblue"
+        , "mediumorchid"
+        , "mediumpurple"
+        , "mediumseagreen"
+        , "mediumslateblue"
+        , "mediumspringgreen"
+        , "mediumturquoise"
+        , "mediumvioletred"
+        , "midnightblue"
+        , "mintcream"
+        , "mistyrose"
+        , "moccasin"
+        , "navajowhite"
+        , "navy"
+        , "oldlace"
+        , "olive"
+        , "olivedrab"
+        , "orange"
+        , "orangered"
+        , "orchid"
+        , "palegoldenrod"
+        , "palegreen"
+        , "paleturquoise"
+        , "palevioletred"
+        , "papayawhip"
+        , "peachpuff"
+        , "peru"
+        , "pink"
+        , "plum"
+        , "powderblue"
+        , "purple"
+        , "rebeccapurple"
+        , "red"
+        , "rosybrown"
+        , "royalblue"
+        , "saddlebrown"
+        , "salmon"
+        , "sandybrown"
+        , "seagreen"
+        , "seashell"
+        , "sienna"
+        , "silver"
+        , "skyblue"
+        , "slateblue"
+        , "slategray"
+        , "slategrey"
+        , "snow"
+        , "springgreen"
+        , "steelblue"
+        , "tan"
+        , "teal"
+        , "thistle"
+        , "tomato"
+        , "transparent"
+        , "turquoise"
+        , "violet"
+        , "wheat"
+        , "white"
+        , "whitesmoke"
+        , "yellow"
+        , "yellowgreen"
+    ].includes(color);
+}
+
+type ChainedAwaitableTaskHandler = (awaitable: Awaitable<void>) => void;
+export type ChainedAwaitableTask = [ChainedAwaitableTaskHandler, SkipController<void, []>?];
+
+export class ChainedAwaitable extends Awaitable<void, void> {
+    private current: Awaitable<void> | undefined;
+    private tasks: ChainedAwaitableTask[] = [];
+
+    constructor(skipController?: SkipController<void, []>) {
+        super();
+        if (skipController) this.registerSkipController(skipController);
+    }
+
+    addTask(task?: [handler: ChainedAwaitableTaskHandler, skipController?: SkipController<void, []>]): this {
+        if (!task) {
+            return this;
+        }
+        this.tasks.push(task);
+        return this;
+    }
+
+    override abort(): void {
+        if (this.current) this.current.abort();
+        this.tasks.forEach(([_, skipController]) => {
+            if (skipController) skipController.abort();
+        });
+        super.abort();
+        return void 0;
+    }
+
+    override resolve(): void {
+        return void 0;
+    }
+
+    public run(): this {
+        if (this.current) {
+            return this;
+        }
+        this.onTaskComplete();
+        return this;
+    }
+
+    private onTaskComplete(): void {
+        if (this.tasks.length === 0) {
+            super.resolve();
+            return;
+        }
+        const [handler, skipController] = this.tasks.shift()!;
+        const awaitable = new Awaitable<void, void>(Awaitable.nothing, skipController);
+        this.current = awaitable;
+        this.current.then(() => this.onTaskComplete());
+
+        handler(awaitable);
+    }
+}
+
+export function isAsyncFunction<T extends Array<any>, U = void>(fn: (...args: T) => U | Promise<U>): fn is (...args: T) => Promise<U> {
+    return fn.constructor.name === "AsyncFunction" || Object.prototype.toString.call(fn) === "[object AsyncFunction]";
+}
+
+export type SerializableDataType = number | string | boolean | null | undefined | SerializableDataType[];
+export type SerializableData = Record<string, SerializableDataType> | SerializableDataType;
+export type Thenable<T> = T | Promise<T> | Awaitable<T>;
+
+export function ThenableAll(thenables: Thenable<any>[]): Promise<any[]> {
+    return Promise.all(thenables.map(thenable => {
+        if (thenable instanceof Awaitable) {
+            return new Promise(resolve => {
+                thenable.then(resolve);
+            });
+        }
+        return thenable;
+    }));
+}
+
+export function onlyValidFields<T extends Record<string, any>>(obj: T): T {
+    const result: T = {} as T;
+    for (const key in obj) {
+        if (obj[key] !== undefined) {
+            result[key] = obj[key];
+        }
+    }
+    return result;
+}
+
+/**
+ * Check if the object is a pure object
+ *
+ * A pure object should:
+ * - be an object (prototype is Object)
+ * - not be an array
+ * - no circular reference
+ * - sub objects should also be pure objects or serializable data
+ */
+export function isPureObject(obj: any, seen: WeakSet<any> = new WeakSet()): boolean {
+    // Check if obj is null or not an object
+    if (obj === null || typeof obj !== "object") {
+        return false;
+    }
+
+    // Ensure obj isn't an array, Date, or RegExp
+    if (Array.isArray(obj) || obj instanceof Date || obj instanceof RegExp) {
+        return false;
+    }
+
+    // Ensure the prototype is Object.prototype
+    if (Object.getPrototypeOf(obj) !== Object.prototype) {
+        return false;
+    }
+
+    // Check for circular references
+    if (seen.has(obj)) {
+        return false; // Circular reference detected
+    }
+    seen.add(obj);
+
+    // Recursively check all properties of the object
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const value = obj[key];
+            // Ensure all sub-objects are pure or serializable
+            if (
+                value !== null &&
+                typeof value === "object" &&
+                !isPureObject(value, seen)
+            ) {
+                return false;
+            }
+            // Ensure non-serializable types are not present
+            if (typeof value === "function" || typeof value === "symbol") {
+                return false;
+            }
+        }
+    }
+
+    // Passed all checks
+    return true;
+}
+
+export class KeyGen {
+    private counter = 0;
+
+    constructor(private prefix: string = "") {
+    }
+
+    next() {
+        return `${this.prefix ? this.prefix + "-" : ""}${this.counter++}`;
+    }
+}
+
+export function once<T extends (...args: any[]) => any>(fn: T): T {
+    let called = false;
+    return function (...args: T extends ((...args: infer P) => any) ? P : never[]) {
+        if (called) {
+            return;
+        }
+        called = true;
+        return fn(...args);
+    } as T;
 }

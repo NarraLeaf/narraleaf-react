@@ -9,27 +9,28 @@ type PreloadedContextType = {
     cacheManager: ImageCacheManager;
 };
 
-const Context = createContext<null | PreloadedContextType>(null);
+const PreloadedContext = createContext<null | PreloadedContextType>(null);
 
 /**@internal */
 export function PreloadedProvider({children}: {
     children: React.ReactNode
 }) {
-    const [preloaded] = useState(new Preloaded());
-    const [cacheManager] = useState(new ImageCacheManager());
+    "use client";
+    const [preloaded] = useState(() => new Preloaded());
+    const [cacheManager] = useState(() => new ImageCacheManager());
 
     return (
         <>
-            <Context.Provider value={{preloaded, cacheManager}}>
+            <PreloadedContext value={{preloaded, cacheManager}}>
                 {children}
-            </Context.Provider>
+            </PreloadedContext>
         </>
     );
 }
 
 /**@internal */
 export function usePreloaded(): PreloadedContextType {
-    if (!Context) throw new Error("usePreloaded must be used within a PreloadedProvider");
-    return useContext(Context) as PreloadedContextType;
+    if (!PreloadedContext) throw new Error("usePreloaded must be used within a PreloadedProvider");
+    return useContext(PreloadedContext) as PreloadedContextType;
 }
 
