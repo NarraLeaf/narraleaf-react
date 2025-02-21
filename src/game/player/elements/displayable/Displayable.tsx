@@ -144,7 +144,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }, []);
 
     function handleOnTransform(transform: Transform) {
-        console.debug("Displayable", "Transform applied", state.toStyle(gameState, overwriteDefinition), ref.current);
+        gameState.logger.debug("Displayable", "Transform applied", state.toStyle(gameState, overwriteDefinition), ref.current);
 
         flush();
         onTransform?.(transform);
