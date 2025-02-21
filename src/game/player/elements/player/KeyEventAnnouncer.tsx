@@ -3,14 +3,14 @@ import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 import {throttle} from "@lib/util/data";
 import {Game} from "@core/common/game";
-import {Router} from "@player/lib/PageRouter/router";
+import {useRouter} from "@player/lib/PageRouter/router";
 
 /**@internal */
-export function KeyEventAnnouncer({state, router}: Readonly<{
+export function KeyEventAnnouncer({state}: Readonly<{
     state: GameState;
-    router?: Router;
 }>) {
     const {game} = useGame();
+    const router = useRouter();
 
     useEffect(() => {
         const playerElement = game.getLiveGame().gameState!.playerCurrent;

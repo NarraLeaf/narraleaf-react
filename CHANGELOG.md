@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.3.0]
+## [0.3.1]
+
+### Updated
+
+- `Player` now doesn't require a `router` prop, the router will be shard across the game
+
+## [0.3.0] - 2025/2/16
 
 ### _Incompatible Changes_
 

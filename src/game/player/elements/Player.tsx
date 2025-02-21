@@ -35,7 +35,6 @@ export default function Player(
         onReady,
         onEnd,
         children,
-        router,
     }: Readonly<PlayerProps>) {
     const [, update] = useReducer((x) => x + 1, 0);
     const {game} = useGame();
@@ -179,13 +178,13 @@ export default function Player(
                             />
                         )}
                         <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
-                            <KeyEventAnnouncer state={state} router={router}/>
+                            <KeyEventAnnouncer state={state}/>
                             {state.getSceneElements().map((elements) => (
                                 <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements}/>
                             ))}
                         </OnlyPreloaded>
                         <Preload state={state}/>
-                        <PageRouter router={router}>
+                        <PageRouter>
                             {children}
                         </PageRouter>
                     </Isolated>
