@@ -1,10 +1,11 @@
-![](docs/nlr-logo-banner.png)
+<p align="center"><img src="docs/nlr-logo-banner.png"></p>
 
-# NarraLeaf-React
+<h1 align="center">NarraLeaf-React</h1>
 
-English | [简体中文](docs/README.zh-CN.md)
+<h4 align="center">A React visual novel player framework</h3>
 
-A React visual novel player framework
+<p align="center">English | <a href="docs/README.zh-CN.md">简体中文</a></p>
+
 
 ## What is NarraLeaf-React?
 

@@ -1,10 +1,11 @@
-![](nlr-logo-banner.png)
+<p align="center"><img src="nlr-logo-banner.png"></p>
 
-# NarraLeaf-React
+<h1 align="center">NarraLeaf-React</h1>
 
-[English](../README.md) | 简体中文
+<h4 align="center">一个基于 React 的视觉小说播放器框架</h3>
 
-一个基于React的视觉小说播放器框架
+<p align="center"><a href="../README.md">English</a> | 简体中文</p>
+
 
 ## 什么是 NarraLeaf-React?
 
