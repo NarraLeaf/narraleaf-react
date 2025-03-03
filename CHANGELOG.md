@@ -2,6 +2,10 @@
 
 ## [0.3.1]
 
+### _Feature_
+
+- Shorten the way to use `character.say`
+
 ### Updated
 
 - `Player` now doesn't require a `router` prop, the router will be shard across the game
