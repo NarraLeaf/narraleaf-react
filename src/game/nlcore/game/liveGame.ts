@@ -1,4 +1,4 @@
-import {Awaitable, EventDispatcher, Lock, MultiLock} from "@lib/util/data";
+import {Awaitable, EventDispatcher, generateId, Lock, MultiLock} from "@lib/util/data";
 import type {CalledActionResult, SavedGame} from "@core/gameTypes";
 import {Story} from "@core/elements/story";
 import {GameState} from "@player/gameState";
@@ -124,6 +124,10 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
+        if (!this.currentSavedGame) {
+            throw new Error("Failed when trying to serialize the game: The game has not started");
+        }
+
         // get all element states
         const store = this.storable.toData();
         const stage = gameState.toData();
@@ -131,10 +135,11 @@ export class LiveGame {
         const elementStates = story.getAllElementStates();
 
         return {
-            name: this.currentSavedGame?.name || "",
+            name: this.currentSavedGame.name,
             meta: {
-                created: this.currentSavedGame?.meta.created || Date.now(),
+                created: this.currentSavedGame.meta.created,
                 updated: Date.now(),
+                id: this.currentSavedGame.meta.id,
             },
             game: {
                 store,
@@ -553,6 +558,7 @@ export class LiveGame {
             meta: {
                 created: Date.now(),
                 updated: Date.now(),
+                id: generateId(),
             },
             game: {
                 store: {},

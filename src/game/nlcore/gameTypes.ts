@@ -14,6 +14,7 @@ export interface SavedGame {
     meta: {
         created: number;
         updated: number;
+        id: string;
     };
     game: {
         store: { [key: string]: StorableData; };

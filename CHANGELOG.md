@@ -10,6 +10,10 @@
 
 - `Player` now doesn't require a `router` prop, the router will be shard across the game
 
+### Fixed
+
+- `event:menu.choose` is never triggered
+
 ## [0.3.0] - 2025/2/16
 
 ### _Incompatible Changes_

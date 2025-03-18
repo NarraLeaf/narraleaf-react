@@ -1146,3 +1146,12 @@ export function once<T extends (...args: any[]) => any>(fn: T): T {
         return fn(...args);
     } as T;
 }
+
+export function generateId(length: number = 16): string {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return result;
+}
