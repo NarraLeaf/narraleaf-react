@@ -234,8 +234,7 @@ export class GameState {
         }, (choice) => {
             menus.splice(menus.indexOf(action as any), 1);
             if (afterChoose) afterChoose(choice);
-            this.game.getLiveGame().events.emit(LiveGame.EventTypes["event:character.prompt"], {
-                character: choice.prompt.config.character,
+            this.game.getLiveGame().events.emit(LiveGame.EventTypes["event:menu.choose"], {
                 sentence: choice.prompt,
                 text: choice.evaluated,
             });

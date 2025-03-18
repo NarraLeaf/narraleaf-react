@@ -6,7 +6,7 @@ import type {
     At,
     DOMKeyframesDefinition,
     DOMSegmentWithTransition,
-    DynamicAnimationOptions,
+    AnimationOptions,
     SequenceOptions
 } from "motion";
 import {Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, toHex} from "@lib/util/data";
@@ -451,7 +451,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     }
 
     /**@internal */
-    public getOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions & At {
+    public getOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): AnimationOptions & At {
         if (!options) {
             return {};
         }
@@ -461,7 +461,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
             ease,
             delay: this.toSeconds(delay, undefined),
             at: this.atToSeconds(at),
-        } satisfies DynamicAnimationOptions & At;
+        } satisfies AnimationOptions & At;
     }
 
     /**

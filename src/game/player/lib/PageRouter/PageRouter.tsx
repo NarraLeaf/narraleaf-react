@@ -68,12 +68,13 @@ export function PageRouter(
         }
     );
 
+    const AnimatePresence_ = AnimatePresence as any;
     return (
         <>
             {stageChild}
-            <AnimatePresence>
+            <AnimatePresence_>
                 {currentPage}
-            </AnimatePresence>
+            </AnimatePresence_>
         </>
     );
 }
