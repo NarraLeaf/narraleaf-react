@@ -195,3 +195,21 @@ export type LayerActionContentType = {
     K extends "layer:action" ? any :
         any;
 }
+/* Video */
+export const VideoActionTypes = {
+    action: "video:action",
+    show: "video:show",
+    hide: "video:hide",
+    play: "video:play",
+    pause: "video:pause",
+    resume: "video:resume",
+    stop: "video:stop",
+    seek: "video:seek",
+} as const;
+export type VideoActionContentType = {
+    [K in typeof VideoActionTypes[keyof typeof VideoActionTypes]]:
+    K extends "video:action" ? any :
+        K extends "video:show" | "video:hide" | "video:play" | "video:pause" | "video:stop" ? [] :
+            K extends "video:seek" ? [number] :
+                any;
+}

@@ -23,6 +23,7 @@ import {Layer} from "@core/elements/layer";
 import {GameStateGuard, GuardWarningType} from "@player/guard";
 import {LiveGameEventToken} from "@core/types";
 import * as htmlToImage from "html-to-image";
+import {Video} from "@core/elements/video";
 
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -31,6 +32,7 @@ type Legacy_PlayerStateElement = {
 };
 export type PlayerState = {
     sounds: Sound[];
+    videos: Video[];
     srcManagers: SrcManager[];
     elements: PlayerStateElement[];
 };
@@ -83,6 +85,7 @@ export class GameState {
     };
     state: PlayerState = {
         sounds: [],
+        videos: [],
         srcManagers: [],
         elements: [],
     };
@@ -361,6 +364,11 @@ export class GameState {
             this.guard.warn(GuardWarningType.invalidExposedStateUnmounting, "State not found when unmounting");
         }
         this.exposedState.delete(key);
+        return this;
+    }
+
+    public initVideo(video: Video): this {
+        this.state.videos.push(video);
         return this;
     }
 

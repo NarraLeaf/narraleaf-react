@@ -110,6 +110,10 @@ export class Persistent<T extends PersistentContent>
      * @example
      * ```typescript
      * character.say(["You have ", persis.toWord("gold"), " gold"]);
+     *
+     * // or
+     *
+     * character.say`You have ${persis.toWord("gold")} gold`;
      * ```
      */
     public toWord<K extends StringKeyOf<T>>(key: K): Word<DynamicWord> {

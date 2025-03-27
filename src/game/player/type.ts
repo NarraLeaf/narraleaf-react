@@ -9,6 +9,7 @@ import {Text} from "@core/elements/displayable/text";
 import {Displayable} from "@core/elements/displayable/displayable";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
+import {Video} from "@core/elements/video";
 
 export * from "@player/elements/type";
 export type Chosen = Choice & {
@@ -20,6 +21,7 @@ export enum ExposedStateType {
     text = "narraleaf:text",
     layer = "narraleaf:layer",
     scene = "narraleaf:scene",
+    video = "narraleaf:video",
 }
 
 export type ExposedState = {
@@ -44,6 +46,15 @@ export type ExposedState = {
     [ExposedStateType.scene]: {
         setBackgroundMusic: (music: Sound | null, fade: number) => Promise<void>;
     };
+    [ExposedStateType.video]: {
+        show: () => void;
+        hide: () => void;
+        play: () => void;
+        pause: () => void;
+        resume: () => void;
+        stop: () => void;
+        seek: (time: number) => void;
+    };
 };
 
 export type ExposedKeys = {
@@ -51,4 +62,5 @@ export type ExposedKeys = {
     [ExposedStateType.text]: Text | Displayable<any, any>;
     [ExposedStateType.layer]: Layer | Displayable<any, any>;
     [ExposedStateType.scene]: Scene;
+    [ExposedStateType.video]: Video;
 };

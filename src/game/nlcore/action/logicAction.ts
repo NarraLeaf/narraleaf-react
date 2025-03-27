@@ -28,7 +28,7 @@ import {
     SoundActionContentType,
     StoryActionContentType,
     StoryActionTypes,
-    TextActionContentType
+    TextActionContentType, VideoActionContentType, VideoActionTypes
 } from "@core/action/actionTypes";
 import {CharacterAction} from "@core/action/actions/characterAction";
 import {SceneAction} from "@core/action/actions/sceneAction";
@@ -50,6 +50,8 @@ import {ServiceAction, ServiceActionContentType} from "@core/action/serviceActio
 import {Layer} from "@core/elements/layer";
 import {LayerAction} from "@core/action/actions/layerAction";
 import {ExposedStateType} from "@player/type";
+import {Video} from "@core/elements/video";
+import {VideoAction} from "@core/action/actions/videoAction";
 
 export namespace LogicAction {
     export type DisplayableElements = Text | Image | Layer | AbstractDisplayable<any, any>;
@@ -67,7 +69,8 @@ export namespace LogicAction {
         | Text
         | AbstractDisplayable<any, any>
         | Persistent<any>
-        | ServiceSkeleton;
+        | ServiceSkeleton
+        | Video;
     export type Actions =
         TypedAction
         | CharacterAction
@@ -83,7 +86,8 @@ export namespace LogicAction {
         | DisplayableAction
         | PersistentAction
         | ServiceAction
-        | LayerAction;
+        | LayerAction
+        | VideoAction;
     export type ActionTypes =
         Values<typeof CharacterActionTypes>
         | Values<typeof ConditionActionTypes>
@@ -98,7 +102,8 @@ export namespace LogicAction {
         | Values<typeof DisplayableActionTypes>
         | Values<typeof PersistentActionTypes>
         | StringKeyOf<ServiceActionContentType>
-        | Values<typeof LayerActionTypes>;
+        | Values<typeof LayerActionTypes>
+        | Values<typeof VideoActionTypes>;
     export type ActionContents =
         CharacterActionContentType
         & ConditionActionContentType
@@ -113,5 +118,6 @@ export namespace LogicAction {
         & DisplayableActionContentType
         & PersistentActionContentType
         & ServiceActionContentType
-        & LayerActionContentType;
+        & LayerActionContentType
+        & VideoActionContentType;
 }

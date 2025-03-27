@@ -133,6 +133,7 @@ export default function Player(
         return createMicroTask(() => {
             if (ready && onReady && !readyHandlerExecuted.current) {
                 readyHandlerExecuted.current = true;
+                state.stage.forceUpdate();
                 onReady({
                     game,
                     gameState: state,
