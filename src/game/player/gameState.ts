@@ -110,6 +110,29 @@ export class GameState {
         this.guard = new GameStateGuard(this.game.config.app.guard).observe(this);
     }
 
+    public addVideo(video: Video): this {
+        this.state.videos.push(video);
+        return this;
+    }
+
+    public removeVideo(video: Video): this {
+        const index = this.state.videos.indexOf(video);
+        if (index === -1) {
+            this.logger.weakWarn("Video not found when removing", video.getId());
+            return this;
+        }
+        this.state.videos.splice(index, 1);
+        return this;
+    }
+
+    public isVideoAdded(video: Video): boolean {
+        return this.state.videos.includes(video);
+    }
+
+    public getVideos(): Video[] {
+        return this.state.videos;
+    }
+
     public findElementByScene(scene: Scene): PlayerStateElement | null {
         return this.state.elements.find(e => e.scene === scene) || null;
     }

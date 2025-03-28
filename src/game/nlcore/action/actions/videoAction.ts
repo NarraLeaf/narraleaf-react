@@ -5,6 +5,7 @@ import {GameState} from "@player/gameState";
 import {Awaitable, Values} from "@lib/util/data";
 import type {CalledActionResult} from "@core/gameTypes";
 import {ExposedState, ExposedStateType} from "@player/type";
+import {RuntimeGameError} from "@core/common/Utils";
 
 
 export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<typeof VideoActionTypes>>
@@ -13,8 +14,9 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
 
     executeAction(gameState: GameState): Awaitable<CalledActionResult> {
         const action = this;
+        const video: Video = this.callee;
         if (action.is<VideoAction<"video:play">>(VideoAction, "video:play")) {
-            return this.changeState(gameState, (state) => state.play());
+            return this.changeStateAsync(gameState, (state) => state.play());
         } else if (action.is<VideoAction<"video:pause">>(VideoAction, "video:pause")) {
             return this.changeState(gameState, (state) => state.pause());
         } else if (action.is<VideoAction<"video:stop">>(VideoAction, "video:stop")) {
@@ -22,9 +24,17 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
         } else if (action.is<VideoAction<"video:seek">>(VideoAction, "video:seek")) {
             return this.changeState(gameState, (state) => state.seek(action.contentNode.getContent()[0]));
         } else if (action.is<VideoAction<"video:show">>(VideoAction, "video:show")) {
+            if (!gameState.isVideoAdded(video)) {
+                gameState.addVideo(video);
+                gameState.stage.update();
+            }
             return this.changeState(gameState, (state) => state.show());
         } else if (action.is<VideoAction<"video:hide">>(VideoAction, "video:hide")) {
-            return this.changeState(gameState, (state) => state.hide());
+            return this.changeState(gameState, (state) => {
+                state.hide();
+                gameState.removeVideo(video);
+                gameState.stage.update();
+            });
         } else if (action.is<VideoAction<"video:resume">>(VideoAction, "video:resume")) {
             return this.changeState(gameState, (state) => state.resume());
         }
@@ -32,14 +42,31 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
         throw this.unknownTypeError();
     }
 
-    private changeState(gameState: GameState, handler: (state: ExposedState[ExposedStateType.video]) => void) {
+    private changeStateBase(
+        gameState: GameState,
+        handler: (state: ExposedState[ExposedStateType.video]) => void | Promise<void>
+    ): Awaitable<CalledActionResult> {
+        if (!gameState.isVideoAdded(this.callee)) {
+            throw new RuntimeGameError("Video is being used before it is added to the game\nUse video.show() to add the video to the game");
+        }
+
         const video: Video = this.callee;
         const awaitable = new Awaitable<CalledActionResult>();
-        gameState.getExposedStateAsync<ExposedStateType.video>(video, (state) => {
-            handler(state);
+
+        gameState.getExposedStateAsync<ExposedStateType.video>(video, async (state) => {
+            await handler(state);
             awaitable.resolve(super.executeAction(gameState) as CalledActionResult);
+            gameState.stage.next();
         });
 
         return awaitable;
+    }
+
+    private changeState(gameState: GameState, handler: (state: ExposedState[ExposedStateType.video]) => void) {
+        return this.changeStateBase(gameState, handler);
+    }
+
+    private changeStateAsync(gameState: GameState, handler: (state: ExposedState[ExposedStateType.video]) => Promise<void>) {
+        return this.changeStateBase(gameState, handler);
     }
 }

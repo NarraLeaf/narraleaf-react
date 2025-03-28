@@ -49,9 +49,9 @@ export type ExposedState = {
     [ExposedStateType.video]: {
         show: () => void;
         hide: () => void;
-        play: () => void;
+        play: () => Promise<void>;
         pause: () => void;
-        resume: () => void;
+        resume: () => Promise<void>;
         stop: () => void;
         seek: (time: number) => void;
     };

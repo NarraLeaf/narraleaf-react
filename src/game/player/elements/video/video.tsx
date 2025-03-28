@@ -1,12 +1,129 @@
+import React from "react";
 import {GameState} from "@player/gameState";
 import {Video as GameVideo} from "@core/elements/video";
+import {useEffect, useRef} from "react";
+import {ExposedStateType} from "@player/type";
+import {RuntimeGameError} from "@core/common/Utils";
+import {useElementVisibility} from "@player/lib/useElementVisibility";
 
 /**@internal */
 export default function Video(
-    _: {
+    {gameState, video}: {
         gameState: GameState;
         video: GameVideo;
     }
 ) {
-    return null;
+    const ref = useRef<HTMLVideoElement>(null);
+    const {show, hide} = useElementVisibility<HTMLVideoElement>(ref);
+
+    useEffect(() => {
+        hide();
+    }, [hide]);
+
+    useEffect(() => {
+        if (!ref.current) return;
+
+        const videoElement = ref.current;
+        let isMounted = false;
+
+        const invalidRef = () => new RuntimeGameError("Failed to add event listener, ref is not available\nat Video.tsx: useEffect");
+
+        const onCanPlay = () => {
+            if (isMounted || !videoElement) return;
+            isMounted = true;
+
+            gameState.mountState<ExposedStateType.video>(video, {
+                show: () => {
+                    if (!ref.current) throw invalidRef();
+                    show();
+                },
+                hide: () => {
+                    if (!ref.current) throw invalidRef();
+                    hide();
+                },
+                play: () => {
+                    if (!ref.current) throw invalidRef();
+                    const audio = ref.current;
+                    return new Promise<void>((resolve) => {
+                        const onEnded = () => {
+                            cleanup();
+                            resolve();
+                        };
+
+                        const onStop = () => {
+                            cleanup();
+                            resolve();
+                        };
+
+                        const cleanup = () => {
+                            audio.removeEventListener("ended", onEnded);
+                            audio.removeEventListener("stopped", onStop);
+                        };
+
+                        audio.addEventListener("ended", onEnded);
+                        audio.addEventListener("stopped", onStop);
+                        cleanups.push(cleanup);
+
+                        audio.play().catch((err) => {
+                            gameState.logger.error("Failed to play video: " + err);
+                            cleanup();
+                            resolve();
+                        });
+                    });
+                },
+                pause: () => {
+                    if (!ref.current) throw invalidRef();
+                    ref.current.pause();
+                },
+                resume: () => {
+                    if (!ref.current) throw invalidRef();
+                    return ref.current.play();
+                },
+                stop: () => {
+                    if (!ref.current) throw invalidRef();
+                    ref.current.pause();
+                    ref.current.currentTime = 0;
+                    ref.current.dispatchEvent(new Event("stopped"));
+                },
+                seek: (time) => {
+                    if (!ref.current) throw invalidRef();
+                    ref.current.currentTime = time;
+                },
+            });
+        };
+
+        const cleanups: (() => void)[] = [];
+        videoElement.addEventListener("canplay", onCanPlay);
+
+        return () => {
+            videoElement.removeEventListener("canplay", onCanPlay);
+            cleanups.forEach((cleanup) => cleanup());
+
+            if (videoElement.src.startsWith("blob:") && URL.revokeObjectURL) {
+                URL.revokeObjectURL(videoElement.src);
+            }
+
+            if (videoElement.currentTime > 0) {
+                videoElement.pause();
+                videoElement.currentTime = 0;
+            }
+
+            if (gameState.isStateMounted(video)) {
+                gameState.unMountState(video);
+            }
+        };
+    }, [gameState, video]);
+
+    return (
+        <video
+            ref={ref}
+            src={video.config.src}
+            preload={"auto"}
+            muted={video.config.muted}
+            playsInline
+            width={"100%"}
+            height={"100%"}
+            onContextMenu={(e) => e.preventDefault()}
+        />
+    );
 }

@@ -29,7 +29,7 @@ export default function App() {
             menu: {
                 // make sure you have tailwindcss installed to use these classes
                 // for customizing the menu element
-                choiceButton: "bg-[url(/static/images/choice.png)] bg-no-repeat bg-cover"
+                choiceButton: "bg-[src(/static/images/choice.png)] bg-no-repeat bg-cover"
             }
         }
     }));

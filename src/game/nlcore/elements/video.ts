@@ -10,7 +10,7 @@ import { ContentNode } from "../action/tree/actionTree";
 
 
 export type VideoConfig = {
-    url: string;
+    src: string;
     muted: boolean;
 };
 
@@ -20,7 +20,7 @@ type ChainedVideo = Proxied<Video, Chained<LogicAction.Actions>>;
 export class Video extends Actionable<null> {
     /**@internal */
     static DefaultVideoConfig = new ConfigConstructor<VideoConfig>({
-        url: "",
+        src: "",
         muted: false,
     });
 
@@ -33,14 +33,83 @@ export class Video extends Actionable<null> {
 
         this.config = videoConfig.get();
 
-        if (!this.config.url) {
-            throw new RuntimeScriptError("Video must have a url");
+        if (!this.config.src) {
+            throw new RuntimeScriptError("Video must have a src");
         }
     }
 
+    /**
+     * @chainable
+     */
     show(): ChainedVideo {
         return this.chain(this.createAction(
             VideoActionTypes.show,
+            []
+        ));
+    }
+
+    /**
+     * @chainable
+     */
+    hide(): ChainedVideo {
+        return this.chain(this.createAction(
+            VideoActionTypes.hide,
+            []
+        ));
+    }
+
+    /**
+     * Play the video
+     *
+     * The action will be resolved when the video ends
+     * @chainable
+     */
+    play(): ChainedVideo {
+        return this.chain(this.createAction(
+            VideoActionTypes.play,
+            []
+        ));
+    }
+
+    /**
+     * @chainable
+     */
+    pause(): ChainedVideo {
+        return this.chain(this.createAction(
+            VideoActionTypes.pause,
+            []
+        ));
+    }
+
+    /**
+     * @chainable
+     */
+    stop(): ChainedVideo {
+        return this.chain(this.createAction(
+            VideoActionTypes.stop,
+            []
+        ));
+    }
+
+    /**
+     * Seek to a specific time in the video
+     *
+     * @param time - The time to seek to in seconds
+     * @chainable
+     */
+    seek(time: number): ChainedVideo {
+        return this.chain(this.createAction(
+            VideoActionTypes.seek,
+            [time]
+        ));
+    }
+
+    /**
+     * @chainable
+     */
+    resume(): ChainedVideo {
+        return this.chain(this.createAction(
+            VideoActionTypes.resume,
             []
         ));
     }

@@ -21,6 +21,7 @@ import {default as StageScene} from "@player/elements/scene/Scene";
 import {Awaitable, createMicroTask, MultiLock} from "@lib/util/data";
 import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
+import Video from "@player/elements/video/video";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -182,6 +183,11 @@ export default function Player(
                             <KeyEventAnnouncer state={state}/>
                             {state.getSceneElements().map((elements) => (
                                 <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements}/>
+                            ))}
+                            {state.getVideos().map((video, index) => (
+                                <div className={"w-full h-full absolute"} key={"video-" + index}>
+                                    <Video gameState={state} video={video}/>
+                                </div>
                             ))}
                         </OnlyPreloaded>
                         <Preload state={state}/>

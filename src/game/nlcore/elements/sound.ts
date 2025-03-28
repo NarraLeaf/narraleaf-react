@@ -127,6 +127,9 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**
+     * Start playing the sound
+     *
+     * This action will be resolved when the sound reaches the end
      * @chainable
      */
     public play(duration?: number): ChainedSound {

@@ -5,10 +5,12 @@
 ### _Feature_
 
 - Shorten the way to use `character.say`
+- `Video` player
 
 ### Updated
 
 - `Player` now doesn't require a `router` prop, the router will be shard across the game
+- Added some interfaces for NarraLeaf
 
 ### Fixed
 
