@@ -92,6 +92,9 @@ export class Game {
             layers: {
                 allowSkipTransform: true,
             },
+            video: {
+                allowSkip: false,
+            },
         },
         elementStyles: {
             say: {

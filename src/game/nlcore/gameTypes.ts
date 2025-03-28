@@ -252,6 +252,16 @@ export type GameConfig = {
              */
             allowSkipTransform: boolean;
         },
+        video: {
+            /**
+             * If true, when you press [GameConfig.player.skipKey], the game will skip the video transform
+             *
+             * This will only skip the "play" action
+             *
+             * @default false
+             */
+            allowSkip: boolean;
+        },
     },
     elementStyles: {
         say: {

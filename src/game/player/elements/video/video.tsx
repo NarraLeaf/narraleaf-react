@@ -17,6 +17,17 @@ export default function Video(
     const {show, hide} = useElementVisibility<HTMLVideoElement>(ref);
 
     useEffect(() => {
+        return gameState.events.depends([
+            gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+                if (gameState.game.config.elements.video.allowSkip) {
+                    skip();
+                    gameState.logger.log("NarraLeaf-React: Video", "Skipped");
+                }
+            }),
+        ]).cancel;
+    }, []);
+
+    useEffect(() => {
         hide();
     }, [hide]);
 
@@ -113,6 +124,14 @@ export default function Video(
             }
         };
     }, [gameState, video]);
+
+    function skip() {
+        if (ref.current) {
+            ref.current.pause();
+            ref.current.currentTime = 0;
+            ref.current.dispatchEvent(new Event("stopped"));
+        }
+    }
 
     return (
         <video

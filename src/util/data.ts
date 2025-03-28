@@ -214,6 +214,9 @@ export class Awaitable<T, U = T> {
         return this;
     }
 
+    /**
+     * **Note**: Calling this method won't trigger the `then` or `onSettled` callbacks.
+     */
     abort() {
         if (this.skipController) {
             return this.skipController.abort();
