@@ -96,6 +96,7 @@ export type TransitionTask<T extends HTMLElement, U extends TransitionAnimationT
 export type AnimationController<T extends TransitionAnimationType[]> = {
     onUpdate: (handler: (values: AnimationDataTypeArray<T>) => void) => EventToken;
     onComplete: (handler: () => void) => EventToken;
+    onCanceled: (handler: () => void) => EventToken;
     complete: () => void;
     start: () => void;
     cancel: () => void;

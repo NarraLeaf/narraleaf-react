@@ -1,5 +1,5 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {Awaitable, EventDispatcher, Values} from "@lib/util/data";
+import {EventDispatcher, Values} from "@lib/util/data";
 import {Choice, MenuData} from "@core/elements/menu";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
@@ -98,10 +98,6 @@ export class GameState {
     mainContentNode: HTMLDivElement | null = null;
     exposedState: Map<Values<ExposedKeys>, object> = new Map();
     guard: GameStateGuard;
-    /**
-     * @deprecated use {@link GameState.timelines} instead
-     */
-    silentAsyncAwaitables: Awaitable<any>[] = [];
     timelines: Timelines;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
@@ -115,34 +111,7 @@ export class GameState {
         this.logger = new Logger(game, "NarraLeaf-React");
         this.audioManager = new AudioManager(this);
         this.guard = new GameStateGuard(this.game.config.app.guard).observe(this);
-        this.timelines = new Timelines();
-    }
-
-    /**
-     * @deprecated use {@link GameState.timelines} instead
-     */
-    public silentAsync(awaitable: Awaitable<any>) {
-        const remove = () => {
-            const index = this.silentAsyncAwaitables.indexOf(awaitable);
-            if (index === -1) {
-                return;
-            }
-            this.silentAsyncAwaitables.splice(index, 1);
-        };
-        awaitable.then(remove);
-        awaitable.onSkipControllerRegister((skipController) => {
-            skipController.onAbort(remove);
-        });
-        this.silentAsyncAwaitables.push(awaitable);
-    }
-
-    /**
-     * @deprecated use {@link GameState.timelines} instead
-     */
-    public createSilentTask<T>(): Awaitable<T> {
-        const awaitable = new Awaitable<T>();
-        this.silentAsync(awaitable);
-        return awaitable;
+        this.timelines = new Timelines(this.guard);
     }
 
     public addVideo(video: Video): this {

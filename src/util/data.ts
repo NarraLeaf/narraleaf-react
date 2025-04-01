@@ -149,6 +149,12 @@ export class Awaitable<T = any, U = T> {
         return awaitable;
     }
 
+    static delay(ms: number): Awaitable<void> {
+        const awaitable = new Awaitable<void>();
+        setTimeout(() => awaitable.resolve(), ms);
+        return awaitable;
+    }
+
     /**
      * Creates a new `Awaitable<T>` that forwards resolution and cancellation from/to a source awaitable.
      *

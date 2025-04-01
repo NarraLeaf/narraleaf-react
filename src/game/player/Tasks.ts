@@ -145,7 +145,7 @@ export class Timeline {
         if (!currentAwaitable) {
             awaitable.resolve(currentValue);
         } else {
-            iterate();
+            createMicroTask(() => iterate());
         }
 
         return awaitable;
@@ -195,6 +195,8 @@ export class Timeline {
 
     public onSettled(callback: () => void) {
         if (this.isSettled()) {
+            // for consistent behavior, we should create a microtask for the callback
+            // so the callback won't be executed immediately
             createMicroTask(callback);
         } else {
             this.onResolved(callback);
@@ -221,6 +223,10 @@ export class Timeline {
         }
         const timeline = Awaitable.isAwaitable(arg0) ? new Timeline(arg0, this.guard) : arg0;
         this.children.push(timeline);
+
+        if (this.guard) {
+            timeline.setGuard(this.guard);
+        }
 
         timeline.onSettled(() => {
             this.resolveStatus();
@@ -284,9 +290,11 @@ export class Timeline {
             return;
         }
         if (status !== this._status && onChange) {
+            this._status = status;
             onChange();
+        } else {
+            this._status = status;
         }
-        this._status = status;
     }
 
     private preventAttach() {
@@ -298,7 +306,7 @@ export class Timeline {
 export class Timelines {
     private timelines: Timeline[] = [];
 
-    constructor() {
+    constructor(private guard?: GameStateGuard) {
     }
 
     /**
@@ -314,6 +322,10 @@ export class Timelines {
 
         const timeline = input instanceof Timeline ? input : new Timeline(input);
         this.timelines.push(timeline);
+
+        if (this.guard) {
+            timeline.setGuard(this.guard);
+        }
 
         return timeline;
     }

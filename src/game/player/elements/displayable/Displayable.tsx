@@ -14,6 +14,7 @@ import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 import {Transition} from "@core/elements/transition/transition";
 import {RuntimeGameError} from "@core/common/Utils";
+import {Timeline} from "@player/Tasks";
 
 /**@internal */
 export type DisplayableHookConfig<TransitionType extends Transition<U>, U extends HTMLElement> = {
@@ -195,6 +196,15 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
                 overwrites: overwriteDefinition,
             }
         );
+        const timeline = new Timeline(awaitable);
+
+        gameState.timelines.attachTimeline(timeline);
+        awaitable.onSkipControllerRegister((controller) => {
+            controller.onAbort(() => {
+                timeline.abort();
+            });
+        });
+
         setTransformToken(awaitable);
         awaitable.then(() => {
             setTransformToken(null);
@@ -210,8 +220,17 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
         const task = newTransition.createTask(gameState);
         const controller = newTransition.requestAnimations(task.animations);
-        const awaitable = gameState.createSilentTask<void>()
+        const awaitable = new Awaitable<void>()
             .registerSkipController(new SkipController(controller.cancel));
+        const timeline = new Timeline(awaitable);
+
+        awaitable.skipController!.onAbort(() => {
+            controller.cancel();
+        });
+        controller.onCanceled(() => {
+            timeline.abort();
+        });
+        gameState.timelines.attachTimeline(timeline);
         setTransitionTask({
             task,
             controller,

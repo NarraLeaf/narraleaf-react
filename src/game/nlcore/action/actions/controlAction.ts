@@ -15,54 +15,16 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
     static ActionTypes = ControlActionTypes;
 
     /**
-     * @deprecated use attachTasks instead
-     *
-     * Execute all actions in the content node
-     * will wait for awaitable actions to resolve
-     */
-    public async executeAllActions_(state: GameState, action: LogicAction.Actions, awaitable: Awaitable<any>) {
-        let exited = false, current: LogicAction.Actions | null = action;
-        let currentAwaiting: Awaitable<any> | null = null;
-
-        const abort = () => {
-            exited = true;
-            currentAwaiting?.abort();
-        };
-        awaitable.registerSkipController(new SkipController(abort));
-
-        while (!exited && current) {
-            const next = state.game.getLiveGame().executeAction(state, current);
-            currentAwaiting = null;
-
-            state.logger.debug("Control - Next Action", next);
-
-            if (!next) {
-                break;
-            }
-            if (Awaitable.isAwaitable(next)) {
-                currentAwaiting = next;
-                const result = await new Promise<CalledActionResult | null>((r) => {
-                    next.then((_) => r(next.result as any));
-                    next.skipController?.onAbort(() => {
-                        r(null);
-                    });
-                });
-                if (result && result.node) {
-                    current = result.node.action;
-                } else {
-                    break;
-                }
-            } else {
-                current = next as LogicAction.Actions;
-            }
-        }
-    }
-
-    /**
      * Perform an action and all its children. Due to bidirectional bubbling, the Awaitable interrupt returned by the function affects the children who're executing.
      *
      * At the same time, the child interrupt will bubble up to the Awaitable returned by this function and interrupt the execution of the Timeline.
      * This is because all later results of this function depend on the previous result, so it isn't possible to silently ignore interrupted sub operations.
+     *
+     * @template T The type of the result returned by the onResolved callback.
+     * @param {GameState} gameState - The current game state.
+     * @param {LogicAction.Actions} action - The action to be executed.
+     * @param {function(CalledActionResult): T} onResolved - A callback function that processes the result of the action. The awaitable will be resolved to the value returned by this callback.
+     * @returns {[Awaitable<T>, Timeline]} A tuple containing the Awaitable and the Timeline.
      */
     public executeActionSeries<T>(
         gameState: GameState,
@@ -86,6 +48,8 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         const timeline = new Timeline(execProxy);
         const awaitable = new Awaitable<T>();
 
+        gameState.logger.debug("ControlAction", "executeActionSeries", action.type, action.contentNode);
+
         execProxy.then((value) => {
             const result = onResolved(value);
             awaitable.resolve(result);
@@ -103,45 +67,15 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         return [awaitable, timeline];
     }
 
-    /**
-     * @deprecated use executeSingleAction instead
-     */
-    public executeSingleAction_(state: GameState, action: LogicAction.Actions): Promise<ContentNode | null> {
-        const next = state.game.getLiveGame().executeAction(state, action);
-        if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(next)) {
-            return new Promise<ContentNode | null>((r) => {
-                next.then((_) => {
-                    state.logger.debug("Control - Next Action (single)", next);
-                    r(next.result?.node || null);
-                });
-            });
-        } else {
-            return Promise.resolve(next?.contentNode || null);
-        }
-    }
+    public executeSingleAction(gameState: GameState, action: LogicAction.Actions): Awaitable<CalledActionResult> | LogicAction.Actions | null {
+        const next = gameState.game.getLiveGame().executeAction(gameState, action);
 
-    public executeSingleAction(state: GameState, action: LogicAction.Actions): Awaitable<CalledActionResult> | LogicAction.Actions | null {
-        const next = state.game.getLiveGame().executeAction(state, action);
+        gameState.logger.debug("ControlAction", "executeSingleAction", action.type, next);
+
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(next)) {
             return next;
         } else {
             return next;
-        }
-    }
-
-    public execute(state: GameState, awaitable: Awaitable<any, any>, content: LogicAction.Actions[]) {
-        if (content.length > 0) {
-            this.executeAllActions_(state, content[0], awaitable)
-                .then(() => {
-                    awaitable.resolve({
-                        type: this.type,
-                        node: this.contentNode.getChild()
-                    });
-                    state.stage.next();
-                });
-            return awaitable;
-        } else {
-            return super.executeAction(state);
         }
     }
 
@@ -149,8 +83,10 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         const contentNode = this.contentNode as ContentNode<ControlActionContentType[T]>;
         const [content] = contentNode.getContent() as [LogicAction.Actions[]];
         if (this.type === ControlActionTypes.do) {
-            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
-            return this.execute(gameState, awaitable, content);
+            const [awaitable, timeline] = this.executeActionSeries(gameState, content[0], (result) => result);
+            gameState.timelines.attachTimeline(timeline);
+
+            return awaitable;
         } else if (this.type === ControlActionTypes.doAsync) {
             if (content.length > 0) {
                 const [, timeline] = this.executeActionSeries(gameState, content[0], (result) => result);
@@ -171,7 +107,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                     .map(action => this.executeSingleAction(gameState, action))
                     .filter((v): v is Awaitable<CalledActionResult> => Awaitable.isAwaitable<CalledActionResult>(v))
             );
-            gameState.timelines.attachTimeline(timeline.setGuard(gameState.guard));
+            gameState.timelines.attachTimeline(timeline);
 
             return Awaitable.forward(awaitable, {
                 type: this.type,
@@ -191,7 +127,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                     timeline.attachChild(result);
                 }
             }
-            gameState.timelines.attachTimeline(timeline.setGuard(gameState.guard));
+            gameState.timelines.attachTimeline(timeline);
 
             return awaitable;
         } else if (this.type === ControlActionTypes.allAsync) {
@@ -203,47 +139,58 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                     timeline.attachChild(result);
                 }
             }
-            gameState.timelines.attachTimeline(timeline.setGuard(gameState.guard));
+            gameState.timelines.attachTimeline(timeline);
 
             return super.executeAction(gameState);
         } else if (this.type === ControlActionTypes.repeat) {
-            const [actions, times] =
-                (this.contentNode as ContentNode<ControlActionContentType["control:repeat"]>).getContent();
-            const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
-            (async () => {
-                for (let i = 0; i < times; i++) {
-                    if (actions.length > 0) {
-                        await this.executeAllActions_(gameState, actions[0], awaitable);
-                    }
+            const [actions, times] = (this.contentNode as ContentNode<ControlActionContentType["control:repeat"]>).getContent();
+            const awaitable = Timeline.sequence<number>((index) => {
+                if (index >= times) {
+                    return null;
                 }
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                });
-                gameState.stage.next();
-            })();
-            return awaitable;
+
+                const [awaitable, tl] = this.executeActionSeries(gameState, actions[0], () => index + 1);
+                timeline.attachChild(tl);
+
+                return awaitable;
+            }, 0);
+            const timeline = new Timeline(awaitable);
+
+            gameState.timelines.attachTimeline(timeline);
+            return Awaitable.forward<CalledActionResult>(awaitable, {
+                type: this.type,
+                node: this.contentNode.getChild(),
+            });
         } else if (this.type === ControlActionTypes.sleep) {
-            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
-            const [, content] = (this.contentNode as ContentNode<[never[], number | Awaitable<any> | Promise<any>]>).getContent();
-            const wait = new Promise<void>(resolve => {
-                if (typeof content === "number") {
-                    setTimeout(() => {
-                        resolve();
-                    }, content);
-                } else if (Awaitable.isAwaitable<any, any>(content)) {
-                    content.then(resolve);
-                } else {
-                    content?.then(resolve);
-                }
-            });
-            wait.then(() => {
+            const [, content] = (this.contentNode as ContentNode<ControlActionContentType["control:sleep"]>).getContent();
+            let sleepAwaitable: Awaitable<void>;
+
+            if (typeof content === "number") {
+                sleepAwaitable = Awaitable.delay(content);
+            } else if (Awaitable.isAwaitable<void>(content)) {
+                sleepAwaitable = content;
+            } else {
+                sleepAwaitable = Awaitable.fromPromise(content as Promise<any>);
+            }
+
+            const awaitable = new Awaitable<CalledActionResult>();
+            const timeline = new Timeline(sleepAwaitable);
+            gameState.timelines.attachTimeline(timeline);
+
+            sleepAwaitable.then(() => {
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
                 });
                 gameState.stage.next();
             });
+
+            awaitable.onSkipControllerRegister(controller => {
+                controller.onAbort(() => {
+                    timeline.abort();
+                });
+            });
+
             return awaitable;
         }
 

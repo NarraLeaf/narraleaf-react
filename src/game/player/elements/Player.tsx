@@ -63,6 +63,9 @@ export default function Player(
     const [ready, setReady] = useState(false);
     const readyHandlerExecuted = React.useRef(false);
 
+    const {preloaded} = usePreloaded();
+    const [preloadedReady, setPreloadedReady] = useState(false);
+
     function next() {
         let exited = false;
         while (!exited) {
@@ -153,12 +156,17 @@ export default function Player(
         });
     }, [ready]);
 
-    function handlePreloadLoaded() {
-        state.stage.update();
-        if (story) {
-            next();
-        }
-    }
+    useEffect(() => {
+        return preloaded.events.depends([
+            preloaded.events.on(Preloaded.EventTypes["event:preloaded.ready"], () => {
+                setPreloadedReady(true);
+                state.stage.update();
+                if (story) {
+                    next();
+                }
+            }),
+        ]).cancel;
+    }, []);
 
     const playerWidth = width || game.config.player.width;
     const playerHeight = height || game.config.player.height;
@@ -187,7 +195,7 @@ export default function Player(
                                 height={game.config.player.cursorHeight}
                             />
                         )}
-                        <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state} key={key}>
+                        <OnlyPreloaded show={preloadedReady} key={key}>
                             <KeyEventAnnouncer state={state}/>
                             {state.getSceneElements().map((elements) => (
                                 <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements}/>
@@ -209,26 +217,13 @@ export default function Player(
     );
 }
 
-function OnlyPreloaded({children, onLoaded}: Readonly<{
+function OnlyPreloaded({children, show}: Readonly<{
     children: React.ReactNode,
-    onLoaded: () => void,
-    state: GameState
+    show: boolean
 }>) {
-    const {preloaded} = usePreloaded();
-    const [preloadedReady, setPreloadedReady] = useState(false);
-
-    useEffect(() => {
-        return preloaded.events.depends([
-            preloaded.events.on(Preloaded.EventTypes["event:preloaded.ready"], () => {
-                setPreloadedReady(true);
-                onLoaded();
-            }),
-        ]).cancel;
-    }, []);
-
     return (
         <>
-            {preloadedReady ? children : null}
+            {show ? children : null}
         </>
     );
 }

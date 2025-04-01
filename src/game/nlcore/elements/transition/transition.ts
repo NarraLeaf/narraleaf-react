@@ -35,6 +35,7 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
 
         const onUpdateListeners: ((values: AnimationDataTypeArray<U>) => void)[] = [];
         const onCompleteListeners: (() => void)[] = [];
+        const onCancelListeners: (() => void)[] = [];
         const complete = () => {
             if (completed === tasks.length) {
                 return;
@@ -65,6 +66,7 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
         };
         const cancel = () => {
             controllers.forEach(controller => controller.cancel());
+            onCancelListeners.forEach(v => v());
         };
 
         return {
@@ -86,6 +88,17 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
                         const index = onCompleteListeners.indexOf(handler);
                         if (index !== -1) {
                             onCompleteListeners.splice(index, 1);
+                        }
+                    }
+                };
+            },
+            onCanceled: (handler: () => void) => {
+                onCancelListeners.push(handler);
+                return {
+                    cancel: () => {
+                        const index = onCancelListeners.indexOf(handler);
+                        if (index !== -1) {
+                            onCancelListeners.splice(index, 1);
                         }
                     }
                 };
