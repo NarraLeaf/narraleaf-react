@@ -63,6 +63,9 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
                 }));
             });
         };
+        const cancel = () => {
+            controllers.forEach(controller => controller.cancel());
+        };
 
         return {
             onUpdate: (handler: (values: AnimationDataTypeArray<U>) => void) => {
@@ -89,6 +92,7 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
             },
             complete,
             start,
+            cancel,
         } satisfies AnimationController<U>;
     }
 

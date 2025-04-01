@@ -125,6 +125,7 @@ export class Game {
             inspector: false,
             guard: {
                 [GuardWarningType.invalidExposedStateUnmounting]: true,
+                [GuardWarningType.unexpectedTimelineStatusChange]: true,
             },
             screenshotQuality: 1,
         }

@@ -98,5 +98,6 @@ export type AnimationController<T extends TransitionAnimationType[]> = {
     onComplete: (handler: () => void) => EventToken;
     complete: () => void;
     start: () => void;
+    cancel: () => void;
 };
 

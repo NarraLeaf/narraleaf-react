@@ -1,12 +1,14 @@
 import {Actionable} from "@core/action/actionable";
-import {ConfigConstructor} from "@lib/util/config";
+import {ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {RuntimeScriptError} from "@core/common/Utils";
 import {Chained, Proxied} from "@core/action/chain";
 import {LogicAction} from "@core/game";
 import {VideoActionContentType, VideoActionTypes} from "@core/action/actionTypes";
 import {Values} from "@lib/util/data";
 import {VideoAction} from "@core/action/actions/videoAction";
-import { ContentNode } from "../action/tree/actionTree";
+import {ContentNode} from "../action/tree/actionTree";
+import {EmptyObject} from "@core/elements/transition/type";
+import {ElementStateRaw} from "@core/elements/story";
 
 
 export type VideoConfig = {
@@ -15,23 +17,39 @@ export type VideoConfig = {
 };
 
 /**@internal */
+type VideoState = {
+    display: boolean;
+};
+/**@internal */
+type VideoStateRaw = {
+    state: VideoState;
+};
+
+/**@internal */
 type ChainedVideo = Proxied<Video, Chained<LogicAction.Actions>>;
 
-export class Video extends Actionable<null> {
+export class Video extends Actionable<VideoStateRaw> {
     /**@internal */
-    static DefaultVideoConfig = new ConfigConstructor<VideoConfig>({
+    static DefaultVideoConfig = new ConfigConstructor<VideoConfig, EmptyObject>({
         src: "",
         muted: false,
+    });
+    /**@internal */
+    static DefaultVideoState = new ConfigConstructor<VideoState, EmptyObject>({
+        display: false,
     });
 
     /**@internal */
     public readonly config: Readonly<VideoConfig>;
+    /**@internal */
+    public state: VideoState;
 
     constructor(config: Partial<VideoConfig>) {
         super();
         const videoConfig = Video.DefaultVideoConfig.create(config);
 
         this.config = videoConfig.get();
+        this.state = this.getInitialState();
 
         if (!this.config.src) {
             throw new RuntimeScriptError("Video must have a src");
@@ -112,6 +130,35 @@ export class Video extends Actionable<null> {
             VideoActionTypes.resume,
             []
         ));
+    }
+
+    /**@internal */
+    toData(): VideoStateRaw {
+        return {
+            state: {
+                display: false,
+            }
+        };
+    }
+
+    /**@internal */
+    fromData(raw: ElementStateRaw): this {
+        const {state} = raw;
+        this.state = {
+            display: state.display,
+        };
+        return this;
+    }
+
+    /**@internal */
+    reset() {
+        this.state = this.getInitialState();
+        return this;
+    }
+
+    /**@internal */
+    private getInitialState(): MergeConfig<VideoState> {
+        return Video.DefaultVideoState.create().get();
     }
 
     /**@internal */

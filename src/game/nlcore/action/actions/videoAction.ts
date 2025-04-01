@@ -28,9 +28,12 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
                 gameState.addVideo(video);
                 gameState.stage.update();
             }
+            video.state.display = true;
             return this.changeState(gameState, (state) => state.show());
         } else if (action.is<VideoAction<"video:hide">>(VideoAction, "video:hide")) {
             return this.changeState(gameState, (state) => {
+                video.state.display = false;
+
                 state.hide();
                 gameState.removeVideo(video);
                 gameState.stage.update();

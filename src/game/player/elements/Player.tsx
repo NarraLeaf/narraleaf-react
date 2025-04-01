@@ -38,12 +38,20 @@ export default function Player(
         children,
     }: Readonly<PlayerProps>) {
     const [, update] = useReducer((x) => x + 1, 0);
+    const [key, setKey] = useState(0);
     const {game} = useGame();
     const [state, dispatch] = useReducer(handleAction, new GameState(game, {
         update,
         forceUpdate: () => {
             (state as GameState).logger.weakWarn("Player", "force update");
             flushSync(() => {
+                update();
+            });
+        },
+        forceRemount: () => {
+            (state as GameState).logger.weakWarn("Player", "force remount");
+            flushSync(() => {
+                setKey(k => k + 1);
                 update();
             });
         },
@@ -179,7 +187,7 @@ export default function Player(
                                 height={game.config.player.cursorHeight}
                             />
                         )}
-                        <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
+                        <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state} key={key}>
                             <KeyEventAnnouncer state={state}/>
                             {state.getSceneElements().map((elements) => (
                                 <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements}/>

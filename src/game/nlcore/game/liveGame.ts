@@ -168,7 +168,7 @@ export class LiveGame {
         }
 
         this.reset({gameState});
-        gameState.stage.forceUpdate();
+        gameState.stage.forceRemount();
 
         const actionMaps = new Map<string, LogicAction.Actions>();
         const elementMaps = new Map<string, LogicAction.GameElement>();
@@ -491,6 +491,11 @@ export class LiveGame {
             return nextAction;
         }
         return nextAction?.node?.action || null;
+    }
+
+    /**@internal */
+    executeActionRaw(state: GameState, action: LogicAction.Actions): CalledActionResult | Awaitable<CalledActionResult, any> | null {
+        return action.executeAction(state);
     }
 
     /**@internal */

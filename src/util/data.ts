@@ -129,9 +129,16 @@ export type DeepPartial<T> = T extends object ? {
     [P in keyof T]?: DeepPartial<T[P]>;
 } : T;
 
-export class Awaitable<T, U = T> {
+export class Awaitable<T = any, U = T> {
     static isAwaitable<T, U = T>(obj: any): obj is Awaitable<T, U> {
         return obj instanceof Awaitable;
+    }
+
+    static fromPromise<T>(promise: Promise<T>): Awaitable<T> {
+        const awaitable = new Awaitable<T>();
+        promise.then(value => awaitable.resolve(value));
+
+        return awaitable;
     }
 
     static nothing: ((value: any) => any) = (value) => value as any;
@@ -142,10 +149,36 @@ export class Awaitable<T, U = T> {
         return awaitable;
     }
 
+    /**
+     * Creates a new `Awaitable<T>` that forwards resolution and cancellation from/to a source awaitable.
+     *
+     * This is useful when:
+     * - You want to attach additional result transformation (e.g., `then → mapped result`)
+     * - You want to expose a new awaitable while preserving skip/cancel propagation from both sides
+     *
+     * Behavior:
+     * - When the source `awaitable` resolves, the new awaitable resolves with the provided `result`.
+     * - If either the source or the new awaitable is aborted, the other is also aborted.
+     *
+     * @template T The result type of the new awaitable.
+     *
+     * @param {Awaitable<any>} awaitable
+     *        The source awaitable whose completion or cancellation is being tracked.
+     *
+     * @param {T} result
+     *        The result to resolve the new awaitable with, once the source awaitable completes.
+     *
+     * @param {SkipController<T>} [skipController]
+     *        Optional custom skip controller for the new awaitable.
+     *        If not provided, a default controller that returns `result` will be created.
+     *
+     * @returns {Awaitable<T>} A new awaitable that resolves with `result` and mirrors skip behavior.
+     */
     static forward<T>(awaitable: Awaitable<any>, result: T, skipController?: SkipController<T, []>) {
         const newAwaitable = new Awaitable<T>()
             .registerSkipController(skipController || new SkipController(() => result));
         awaitable.then(() => newAwaitable.resolve(result));
+
         const skipControllerToken = awaitable.skipController?.onAbort(() => {
             newAwaitable.skipController?.abort();
             skipControllerToken?.cancel();
@@ -156,14 +189,16 @@ export class Awaitable<T, U = T> {
             skipControllerToken?.cancel();
             newSkipControllerToken?.cancel();
         });
+
         return newAwaitable;
     }
 
     receiver: (value: U) => T;
     result: T | undefined;
     solved = false;
-    protected skipController: SkipController<T, []> | undefined;
+    skipController: SkipController<T, []> | undefined;
     private readonly listeners: ((value: T) => void)[] = [];
+    private readonly onRegisterSkipController: ((skipController: SkipController<T, []>) => void)[] = [];
 
     constructor(
         receiver: (value: U) => T = ((value) => value as any),
@@ -175,6 +210,10 @@ export class Awaitable<T, U = T> {
 
     registerSkipController(skipController: SkipController<T, []>) {
         this.skipController = skipController;
+        for (const listener of this.onRegisterSkipController) {
+            listener(skipController);
+        }
+
         return this;
     }
 
@@ -207,9 +246,20 @@ export class Awaitable<T, U = T> {
             callback();
         } else {
             this.listeners.push(callback);
-            this.skipController?.onAbort(() => {
-                callback();
+            this.onSkipControllerRegister((controller) => {
+                controller.onAbort(() => {
+                    callback();
+                });
             });
+        }
+        return this;
+    }
+
+    onSkipControllerRegister(callback: (skipController: SkipController<T, []>) => void) {
+        if (this.skipController) {
+            callback(this.skipController);
+        } else {
+            this.onRegisterSkipController.push(callback);
         }
         return this;
     }
@@ -419,25 +469,23 @@ type SkipControllerEvents = {
     "event:skipController.abort": [];
 }
 
-export class SkipController<T = any, U extends Array<any> = any[]> {
+export class SkipController<_T = any, U extends Array<any> = any[]> {
     static EventTypes: { [K in keyof SkipControllerEvents]: K } = {
         "event:skipController.abort": "event:skipController.abort",
     };
     public readonly events: EventDispatcher<SkipControllerEvents> = new EventDispatcher();
     private aborted = false;
-    private result: T | undefined;
 
-    constructor(private readonly abortHandler: (...args: U) => T) {
+    constructor(private readonly abortHandler: (...args: U) => void) {
     };
 
-    public abort(...args: U) {
+    public abort(...args: U): void {
         if (this.aborted) {
-            return this.result;
+            return;
         }
         this.aborted = true;
-        this.result = this.abortHandler(...args);
+        this.abortHandler(...args);
         this.events.emit(SkipController.EventTypes["event:skipController.abort"]);
-        return this.result;
     }
 
     public isAborted() {
@@ -747,19 +795,18 @@ export type BooleanValueKeyOf<T> = Extract<{
 }[keyof T], string>;
 
 export function createMicroTask(t: () => (() => void) | void): () => void {
-    let executed = false;
+    let cleanupFn: (() => void) | void;
+
     const task = Promise.resolve().then(() => {
-        executed = true;
-        return t();
+        cleanupFn = t();
     });
+
     return () => {
-        if (executed) {
-            task.then(fn => {
-                if (fn) {
-                    fn();
-                }
-            });
-        }
+        task.then(() => {
+            if (cleanupFn) {
+                cleanupFn();
+            }
+        });
     };
 }
 
@@ -1168,3 +1215,7 @@ export function generateId(length: number = 16): string {
     }
     return result;
 }
+
+export const voidFunction: () => VoidFunction = () => {
+    return () => {};
+};

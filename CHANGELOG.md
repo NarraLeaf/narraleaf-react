@@ -11,6 +11,8 @@
 
 - `Player` now doesn't require a `router` prop, the router will be shard across the game
 - Added some interfaces for NarraLeaf
+- Use Timeline Model instead of Promise All
+  - **Interruptible Task Graph Model**: Structured, Cancel-aware, Stateful Async Task Graph
 
 ### Fixed
 

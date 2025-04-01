@@ -9,7 +9,7 @@ import {
 } from "@core/elements/transition/type";
 import {useFlush} from "@player/lib/flush";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
-import {Awaitable, deepMerge, KeyGen} from "@lib/util/data";
+import {Awaitable, deepMerge, KeyGen, SkipController} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 import {Transition} from "@core/elements/transition/transition";
@@ -210,6 +210,8 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
         const task = newTransition.createTask(gameState);
         const controller = newTransition.requestAnimations(task.animations);
+        const awaitable = gameState.createSilentTask<void>()
+            .registerSkipController(new SkipController(controller.cancel));
         setTransitionTask({
             task,
             controller,
@@ -245,6 +247,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
             setTransitionTask(null);
             resolve();
+            awaitable.resolve();
         });
     }
 
