@@ -23,7 +23,7 @@ import {Layer} from "@core/elements/layer";
 import {GameStateGuard, GuardWarningType} from "@player/guard";
 import {LiveGameEventToken} from "@core/types";
 import * as htmlToImage from "html-to-image";
-import {Video} from "@core/elements/video";
+import {Video, VideoStateRaw} from "@core/elements/video";
 import {Timelines} from "@player/Tasks";
 
 type Legacy_PlayerStateElement = {
@@ -58,6 +58,7 @@ export type PlayerStateData = {
         };
     }[],
     audio: AudioManagerDataRaw;
+    videos: [videoId: string, videoState: VideoStateRaw][];
 };
 /**@internal */
 export type PlayerAction = CalledActionResult;
@@ -462,6 +463,10 @@ export class GameState {
                 };
             }),
             audio: this.audioManager.toData(),
+            videos: this.state.videos.map(v => [
+                v.getId(),
+                v.toData(),
+            ]),
         };
     }
 
@@ -473,7 +478,7 @@ export class GameState {
             throw new Error("No story loaded");
         }
 
-        const {scenes, audio} = data;
+        const {scenes, audio, videos} = data;
         scenes.forEach(({sceneId, elements}) => {
             this.logger.debug("Loading scene: " + sceneId);
 
@@ -496,6 +501,14 @@ export class GameState {
             });
         });
         this.audioManager.fromData(audio, elementMap);
+        this.state.videos = videos.map(([id, state]) => {
+            const video = elementMap.get(id) as Video;
+            if (!video) {
+                throw new RuntimeGameError("Video not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
+            }
+            video.fromData(state);
+            return video;
+        });
     }
 
     public getLastSceneIfNot(scene: Scene | null | void) {

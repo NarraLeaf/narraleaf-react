@@ -205,6 +205,7 @@ export class Awaitable<T = any, U = T> {
     skipController: SkipController<T, []> | undefined;
     private readonly listeners: ((value: T) => void)[] = [];
     private readonly onRegisterSkipController: ((skipController: SkipController<T, []>) => void)[] = [];
+    private readonly __stack?: string;
 
     constructor(
         receiver: (value: U) => T = ((value) => value as any),
@@ -212,6 +213,7 @@ export class Awaitable<T = any, U = T> {
     ) {
         this.receiver = receiver;
         this.skipController = skipController;
+        this.__stack = getCallStack();
     }
 
     registerSkipController(skipController: SkipController<T, []>) {
@@ -441,14 +443,13 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
 /**
  * Get the call stack
  * @param n The number of stack frames to skip
- * @param s The number of stack frames cut off from the end
  */
-export function getCallStack(n: number = 1, s: number = 0): string {
+export function getCallStack(n: number = 1): string {
     const stack = new Error().stack;
     if (!stack) {
         return "";
     }
-    return stack.split("\n").slice(n + 1, -s).join("\n").trim();
+    return stack.split("\n").slice(n + 1).join("\n").trim();
 }
 
 export function sleep(ms: number): Promise<void> {

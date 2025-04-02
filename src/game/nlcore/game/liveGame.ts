@@ -1,4 +1,4 @@
-import {Awaitable, EventDispatcher, generateId, Lock, MultiLock} from "@lib/util/data";
+import {Awaitable, EventDispatcher, generateId, MultiLock} from "@lib/util/data";
 import type {CalledActionResult, SavedGame} from "@core/gameTypes";
 import {Story} from "@core/elements/story";
 import {GameState} from "@player/gameState";
@@ -73,8 +73,6 @@ export class LiveGame {
     private _lockedCount = 0;
     /**@internal */
     private currentAction: LogicAction.Actions | null = null;
-    /**@internal */
-    private _nextLock = new Lock();
 
     /**@internal */
     constructor(game: Game) {
@@ -411,11 +409,6 @@ export class LiveGame {
             return this.gameLock;
         }
 
-        if (this._nextLock.isLocked()) {
-            return null;
-        }
-        this._nextLock.lock();
-
         if (!this.story) {
             throw new Error("No story loaded");
         }
@@ -430,7 +423,6 @@ export class LiveGame {
                     throw new Error("LiveGame locked: dead cycle detected\nPlease refresh the page");
                 }
 
-                this._nextLock.unlock();
                 return this.lockedAwaiting;
             }
             const next = this.lockedAwaiting.result;
@@ -442,14 +434,12 @@ export class LiveGame {
 
             state.logger.debug("next action (lockedAwaiting)", next);
 
-            this._nextLock.unlock();
             return next || null;
         }
 
         if (!this.currentAction) {
             state.logger.weakWarn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
 
-            this._nextLock.unlock();
             return null;
         }
 
@@ -457,7 +447,6 @@ export class LiveGame {
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             this.lockedAwaiting = nextAction;
 
-            this._nextLock.unlock();
             return nextAction;
         }
 
@@ -466,7 +455,6 @@ export class LiveGame {
         this._lockedCount = 0;
         this.currentAction = nextAction.node?.action || null;
 
-        this._nextLock.unlock();
         return nextAction;
     }
 
@@ -572,6 +560,7 @@ export class LiveGame {
                     audio: {
                         sounds: [],
                     },
+                    videos: [],
                 },
                 elementStates: [],
                 currentAction: this.story?.entryScene?.getSceneRoot().getId() || null,
@@ -594,7 +583,7 @@ export class LiveGame {
      * @internal
      * @throws {RuntimeGameError} - If the player element isn't mounted
      */
-    private assertPlayerElement(): asserts this is { gameState: GameState & {playerCurrent: HTMLDivElement } } {
+    private assertPlayerElement(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {
         this.assertGameState();
         if (!this.gameState.playerCurrent) {
             throw new RuntimeGameError("Player Element Not Mounted");

@@ -21,7 +21,7 @@ type VideoState = {
     display: boolean;
 };
 /**@internal */
-type VideoStateRaw = {
+export type VideoStateRaw = {
     state: VideoState;
 };
 
@@ -136,7 +136,7 @@ export class Video extends Actionable<VideoStateRaw> {
     toData(): VideoStateRaw {
         return {
             state: {
-                display: false,
+                display: this.state.display,
             }
         };
     }

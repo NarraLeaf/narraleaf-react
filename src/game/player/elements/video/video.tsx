@@ -29,7 +29,11 @@ export default function Video(
 
     useEffect(() => {
         hide();
-    }, [hide]);
+
+        if (video.state.display) {
+            show();
+        }
+    }, []);
 
     useEffect(() => {
         if (!ref.current) return;
@@ -54,7 +58,7 @@ export default function Video(
                 },
                 play: () => {
                     if (!ref.current) throw invalidRef();
-                    const audio = ref.current;
+                    const videoElement = ref.current;
                     return new Promise<void>((resolve) => {
                         const onEnded = () => {
                             cleanup();
@@ -67,15 +71,16 @@ export default function Video(
                         };
 
                         const cleanup = () => {
-                            audio.removeEventListener("ended", onEnded);
-                            audio.removeEventListener("stopped", onStop);
+                            videoElement.removeEventListener("ended", onEnded);
+                            videoElement.removeEventListener("stopped", onStop);
                         };
 
-                        audio.addEventListener("ended", onEnded);
-                        audio.addEventListener("stopped", onStop);
+                        videoElement.addEventListener("ended", onEnded);
+                        videoElement.addEventListener("stopped", onStop);
                         cleanups.push(cleanup);
 
-                        audio.play().catch((err) => {
+                        videoElement.currentTime = 0;
+                        videoElement.play().catch((err) => {
                             gameState.logger.error("Failed to play video: " + err);
                             cleanup();
                             resolve();

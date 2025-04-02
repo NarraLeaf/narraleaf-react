@@ -2,7 +2,7 @@ import {VideoActionContentType, VideoActionTypes} from "@core/action/actionTypes
 import {TypedAction} from "@core/action/actions";
 import {Video} from "@core/elements/video";
 import {GameState} from "@player/gameState";
-import {Awaitable, Values} from "@lib/util/data";
+import {Awaitable, SkipController, Values} from "@lib/util/data";
 import type {CalledActionResult} from "@core/gameTypes";
 import {ExposedState, ExposedStateType} from "@player/type";
 import {RuntimeGameError} from "@core/common/Utils";
@@ -55,12 +55,14 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
 
         const video: Video = this.callee;
         const awaitable = new Awaitable<CalledActionResult>();
+        const token = gameState.getExposedStateAsync<ExposedStateType.video>(video, async (state) => {
+            gameState.logger.debug("Video Component state exposed", state);
 
-        gameState.getExposedStateAsync<ExposedStateType.video>(video, async (state) => {
             await handler(state);
             awaitable.resolve(super.executeAction(gameState) as CalledActionResult);
             gameState.stage.next();
         });
+        awaitable.registerSkipController(new SkipController(token.cancel));
 
         return awaitable;
     }
