@@ -148,6 +148,8 @@ export type GameConfig = {
     };
     /**
      * Config for the game elements
+     * 
+     * **Note**: This feature may be removed in the future
      */
     elements: {
         /**
@@ -162,11 +164,10 @@ export type GameConfig = {
              */
             nextKey: React.KeyboardEvent["key"][];
             /**
-             * The speed of the text effects in milliseconds.
-             * higher value means slower text effect.
-             * @default 50
+             * The speed of the text effects in characters per second.
+             * @default 10
              */
-            textInterval: number;
+            cps: number;
             use: SayComponent;
             /**
              * If true, the game will scale the dialog to fit the screen
@@ -263,6 +264,9 @@ export type GameConfig = {
             allowSkip: boolean;
         },
     },
+    /**
+     * @deprecated This feature is going to be removed, use custom component instead
+     */
     elementStyles: {
         say: {
             /**

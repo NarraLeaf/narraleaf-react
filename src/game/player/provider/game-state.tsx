@@ -4,6 +4,9 @@ import "client-only";
 import React, {ReactNode, useContext, useState} from "react";
 import {Game} from "@core/game";
 
+/**
+ * Context type definition for game state management
+ */
 type GameContextType = {
     game: Game;
     setGame: (update: (prevGame: Game) => Game) => void;
@@ -12,7 +15,10 @@ type GameContextType = {
 const GameContext = React.createContext<GameContextType | null>(null);
 
 /**
- * @internal
+ * Game state provider component
+ * Provides game state context to all child components
+ * @param children - React children components
+ * @param game - Optional initial game instance
  */
 export function GameProvider({children, game}: { children?: ReactNode, game?: Game }) {
     "use client";
@@ -27,8 +33,9 @@ export function GameProvider({children, game}: { children?: ReactNode, game?: Ga
 }
 
 /**
- * use {@link Game} context
- * @returns {GameContextType}
+ * Custom hook to access game state context
+ * @returns GameContextType object containing game instance and setter
+ * @throws Error if used outside of GameProvider
  */
 export function useGame(): GameContextType {
     const context = useContext(GameContext);

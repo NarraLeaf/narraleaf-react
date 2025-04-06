@@ -1,13 +1,13 @@
-import {Scene as GameScene} from "@core/elements/scene";
-import React, {useEffect} from "react";
-import {GameState, PlayerStateElement} from "@player/gameState";
+import { Scene as GameScene } from "@core/elements/scene";
+import React, { useEffect, useRef } from "react";
+import { GameState, PlayerStateElement } from "@player/gameState";
 import clsx from "clsx";
-import {Layer} from "@player/elements/player/Layer";
+import { Layer } from "@player/elements/player/Layer";
 import Displayables from "@player/elements/displayable/Displayables";
-import {useGame} from "@player/provider/game-state";
-import {useExposeState} from "@player/lib/useExposeState";
-import {ExposedStateType} from "@player/type";
-import {Sound} from "@core/elements/sound";
+import { useGame } from "@player/provider/game-state";
+import { useExposeState } from "@player/lib/useExposeState";
+import { ExposedStateType } from "@player/type";
+import { Sound } from "@core/elements/sound";
 
 /**@internal */
 export default function Scene(
@@ -20,8 +20,9 @@ export default function Scene(
         className?: string;
         elements: PlayerStateElement;
     }>) {
-    const {game} = useGame();
-    const {scene, layers, texts, menus} = elements;
+    const { game } = useGame();
+    const { scene, layers, texts, menus } = elements;
+    const usingSkipRef = useRef(false);
     const Say = game.config.elements.say.use;
     const Menu = game.config.elements.menu.use;
 
@@ -70,21 +71,28 @@ export default function Scene(
                 return layerA.config.zIndex - layerB.config.zIndex;
             }).map(([layer, ele]) => (
                 <Layer state={state} layer={layer} key={layer.getId()}>
-                    <Displayables state={state} displayable={ele}/>
+                    <Displayables state={state} displayable={ele} />
                 </Layer>
             )))}
-            {texts.map(({action, onClick}) => (
+            {texts.map(({ action, onClick }) => (
                 <Say
                     state={state}
                     key={"say-" + action.id}
                     action={action}
-                    onClick={() => {
+                    onClick={(skiped) => {
+                        if (skiped) {
+                            usingSkipRef.current = true;
+                        }
                         onClick();
                         state.stage.next();
+                        setTimeout(() => {
+                            usingSkipRef.current = false;
+                        }, 0);
                     }}
+                    useTypeEffect={!usingSkipRef.current}
                 />
             ))}
-            {menus.map(({action, onClick}, i) => (
+            {menus.map(({ action, onClick }, i) => (
                 <div key={"menu-" + i}>
                     <Menu
                         state={state}

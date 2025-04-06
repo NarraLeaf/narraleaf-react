@@ -65,7 +65,7 @@ export default function Say(
         return state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
             state.logger.log("NarraLeaf-React: Say", "Skipped");
             if (isFinished) {
-                if (onClick) onClick();
+                if (onClick) onClick(true);
             } else {
                 setIsFinished(true);
             }

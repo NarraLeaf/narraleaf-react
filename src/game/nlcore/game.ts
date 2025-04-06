@@ -67,7 +67,7 @@ export class Game {
         elements: {
             say: {
                 nextKey: [" "],
-                textInterval: 50,
+                cps: 10,
                 use: DefaultElements.say,
                 useAspectScale: true,
                 autoForwardDelay: 3 * 1000,

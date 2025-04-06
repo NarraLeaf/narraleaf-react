@@ -79,6 +79,10 @@ type GameStateEvents = {
     "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
 };
 
+/**
+ * Core game state management class
+ * Manages all game-related states including sounds, videos, elements and their lifecycle
+ */
 export class GameState {
     static EventTypes: { [K in keyof GameStateEvents]: K } = {
         "event:state.end": "event:state.end",
@@ -370,6 +374,12 @@ export class GameState {
         clearTimeout(timeout);
     }
 
+    /**
+     * Mounts a new state to the game state manager
+     * @param key - Unique identifier for the state
+     * @param state - State object to be mounted
+     * @returns Object containing unmount function
+     */
     public mountState<T extends ExposedStateType>(key: ExposedKeys[T], state: ExposedState[T]): {
         unMount: () => void;
     } {
@@ -449,6 +459,10 @@ export class GameState {
         this.forceReset();
     }
 
+    /**
+     * Converts current game state to serializable data format
+     * @returns PlayerStateData object containing all state information
+     */
     toData(): PlayerStateData {
         return {
             scenes: this.state.elements.map(e => {

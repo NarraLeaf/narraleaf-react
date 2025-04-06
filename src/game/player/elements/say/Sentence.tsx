@@ -14,6 +14,7 @@ type SplitWord = {
     config: Partial<WordConfig>;
     tag: any;
     tag2?: any;
+    cps?: number;
 } | "\n" | Pausing;
 
 /**@internal */
@@ -51,6 +52,14 @@ export default function Sentence(
     const [seen, setSeen] = useState(new Set<SplitWord>());
     const [isPaused, setIsPaused] = useState(false);
 
+    /**
+     * Primary effect for handling text animation and typewriter effect.
+     * Manages the sequential display of words, pauses, and completion states.
+     * Dependencies:
+     * - trigger: Controls the timing of word display
+     * - finished: External completion signal
+     * - isPaused: Internal pause state
+     */
     useEffect(() => {
         if (!useTypeEffect) {
             skipToNext(true);
@@ -87,12 +96,22 @@ export default function Sentence(
             addWord(value);
             forceUpdate();
 
+            const interval = (typeof value === "object" && "cps" in value && value.cps !== undefined)
+                ? Math.round(1000 / value.cps)
+                : Math.round(1000 / game.config.elements.say.cps);
             intervalRef.current = setTimeout(() => {
                 setTrigger((prev) => prev + 1);
-            }, game.config.elements.say.textInterval);
+            }, interval);
         }
     }, [trigger, finished, isPaused]);
 
+    /**
+     * Secondary effect for handling count-based text progression.
+     * Manages the advancement of text based on external count changes
+     * and pause state transitions.
+     * Dependencies:
+     * - count: External counter for text progression
+     */
     useEffect(() => {
         if (!count || pauseTimerRef.current) return;
 
@@ -105,6 +124,37 @@ export default function Sentence(
         skipToNext();
         setTrigger((prev) => prev + 1);
     }, [count]);
+
+    const displayedWords: Exclude<SplitWord, Pausing>[] = useTypeEffect ? currentWords : (() => {
+        const result: Exclude<SplitWord, Pausing>[] = [];
+        const updater = textUpdater(words);
+        let exited = false;
+        const processedWords = new Set<SplitWord>();
+        
+        while (!exited) {
+            const {done, value} = updater.next();
+            if (done) {
+                exited = true;
+            } else if (!Pause.isPause(value)) {
+                if (value !== "\n" && processedWords.has(value)) {
+                    continue;
+                }
+                processedWords.add(value);
+                const last = result[result.length - 1];
+                if (last && last !== "\n" && value !== "\n" && last.tag === value.tag) {
+                    result[result.length - 1] = {
+                        text: last.text + value.text,
+                        config: value.config,
+                        tag: value.tag,
+                        tag2: value.tag2,
+                    };
+                } else {
+                    result.push(value);
+                }
+            }
+        }
+        return result;
+    })();
 
     function skipToNext(tilEnd = false) {
         if (intervalRef.current) {
@@ -185,6 +235,7 @@ export default function Sentence(
                         config: word.config,
                         tag: i,
                         tag2: j,
+                        cps: word.config.cps,
                     } satisfies SplitWord;
                 }
             }
@@ -209,7 +260,7 @@ export default function Sentence(
                 fontSize: sentence.config.fontSize || game.config.elementStyles.say.fontSize,
             }}
         >
-            {currentWords.map((word, index) => {
+            {displayedWords.map((word, index) => {
                 if (word === "\n") {
                     return <br key={index}/>;
                 }

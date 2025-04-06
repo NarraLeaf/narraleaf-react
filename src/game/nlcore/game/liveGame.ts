@@ -219,14 +219,18 @@ export class LiveGame {
         gameState.stage.next();
     }
 
+    private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {
+        this.assertGameState();
+        this.assertPlayerElement();
+    }
+
     /**
      * Capture the game screenshot, will only include the player element
      *
      * Returns a PNG image base64-encoded data URL
      */
     capturePng(): Promise<string> {
-        this.assertGameState();
-        this.assertPlayerElement();
+        this.assertScreenshot();
         return this.gameState.htmlToImage.toPng(this.gameState.mainContentNode!);
     }
 
@@ -236,8 +240,7 @@ export class LiveGame {
      * Returns compressed JPEG image data URL
      */
     captureJpeg(): Promise<string> {
-        this.assertGameState();
-        this.assertPlayerElement();
+        this.assertScreenshot();
         return this.gameState.htmlToImage.toJpeg(this.gameState.mainContentNode!);
     }
 
@@ -247,8 +250,7 @@ export class LiveGame {
      * Returns an SVG data URL
      */
     captureSvg(): Promise<string> {
-        this.assertGameState();
-        this.assertPlayerElement();
+        this.assertScreenshot();
         return this.gameState.htmlToImage.toSvg(this.gameState.mainContentNode!);
     }
 
@@ -258,6 +260,7 @@ export class LiveGame {
      * Returns a PNG image blob
      */
     capturePngBlob(): Promise<Blob | null> {
+        this.assertScreenshot();
         this.assertGameState();
         this.assertPlayerElement();
         return this.gameState.htmlToImage.toBlob(this.gameState.mainContentNode!);

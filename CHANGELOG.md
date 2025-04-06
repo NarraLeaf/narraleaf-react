@@ -2,6 +2,10 @@
 
 ## [0.3.1]
 
+### _Incompatible Changes_
+
+- `game.config.elements.say.textInterval` is deprecated, use `game.config.elements.say.cps` instead
+
 ### _Feature_
 
 - Shorten the way to use `character.say`
@@ -13,6 +17,8 @@
 - Added some interfaces for NarraLeaf
 - Use Timeline Model instead of Promise All
   - **Interruptible Task Graph Model**: Structured, Cancel-aware, Stateful Async Task Graph
+- Added `cps` to `Word` config
+- Better text skipping
 
 ### Fixed
 

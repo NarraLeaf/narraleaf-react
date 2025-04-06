@@ -13,7 +13,7 @@ export interface SayElementProps {
     /**
      * Callback function to be called when the player triggers the next action
      */
-    onClick?: () => void;
+    onClick?: (skiped?: boolean) => void;
     useTypeEffect?: boolean;
     className?: string;
     state: GameState;
