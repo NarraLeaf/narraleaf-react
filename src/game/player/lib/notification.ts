@@ -15,11 +15,11 @@ export class NotificationArray {
 
         return new Proxy(instance, {
             get(target, prop, receiver) {
-                if (prop === 'length') {
+                if (prop === "length") {
                     return target.notifications.length;
                 }
 
-                if (typeof prop === 'string' && /^[0-9]+$/.test(prop)) {
+                if (typeof prop === "string" && /^[0-9]+$/.test(prop)) {
                     return target.notifications[Number(prop)].message;
                 }
 

@@ -1,7 +1,6 @@
 import type { GameConfig, GameSettings } from "./gameTypes";
 import { deepMerge, DeepPartial } from "@lib/util/data";
 import { LogicAction } from "@core/action/logicAction";
-import { ComponentsTypes } from "@player/elements/type";
 import { LiveGame } from "@core/game/liveGame";
 import { Preference } from "@core/game/preference";
 import { GameState } from "@player/gameState";

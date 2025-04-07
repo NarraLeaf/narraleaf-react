@@ -1,6 +1,6 @@
+import React, { useEffect } from "react";
 import { useFlush } from "../../lib/flush";
 import { PlayerNotificationProps, INotificationsProps } from "./type";
-import { useEffect } from "react";
 import Notifications from "./Notifications";
 
 export default function PlayerNotification({ gameState }: PlayerNotificationProps) {

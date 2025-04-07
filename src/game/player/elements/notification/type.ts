@@ -1,6 +1,5 @@
-import { GameState } from "@player/gameState";
+import { GameState } from "@lib/game/nlcore/common/game";
 import React from "react";
-import { NotificationArray } from "../../lib/notification";
 export type Notification = {
     message: string;
     duration: number;
@@ -12,10 +11,11 @@ export type PlayerNotificationProps = {
 };
 
 export type NotificationsProps = {
-} & React.PropsWithChildren<{}> & React.HTMLAttributes<HTMLDivElement>;
-export type NotificationProps = {
+    children: React.ReactNode;
+} & React.HTMLAttributes<HTMLDivElement>;
+export type NotificationProps = React.PropsWithChildren<{
     notification: Notification;
-} & React.PropsWithChildren<{}> & React.HTMLAttributes<HTMLDivElement>;
+}> & React.HTMLAttributes<HTMLDivElement>;
 export interface INotificationsProps {
     notifications: Notification[];
 }

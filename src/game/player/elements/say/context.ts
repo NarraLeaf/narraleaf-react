@@ -2,12 +2,10 @@ import { GameState } from "@lib/game/nlcore/common/game";
 import { SayElementProps } from "./type";
 import React from "react";
 import { Sentence } from "@core/elements/character/sentence";
-import { Character } from "@core/elements/character";
 import { Word } from "@core/elements/character/word";
 import { Pausing } from "@core/elements/character/pause";
 
-interface SayContext extends SayElementProps {
-}
+type SayContext = SayElementProps;
 
 export const SayContext = React.createContext<SayContext | null>(null);
 

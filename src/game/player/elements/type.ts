@@ -1,5 +1,5 @@
 import React from "react";
-import { SayElementProps } from "@player/elements/say/type";
+import { IDialogProps, SayElementProps } from "@player/elements/say/type";
 import { IUserMenuProps, MenuElementProps } from "@player/elements/menu/type";
 import { Story } from "@core/elements/story";
 import clsx from "clsx";
@@ -10,7 +10,7 @@ import { LiveGame } from "@core/game/liveGame";
 import { INotificationsProps, NotificationsProps } from "./notification/type";
 
 export type Components<T extends Record<string, any>> = (props: Readonly<T>) => React.JSX.Element;
-export type SayComponent = Components<SayElementProps>;
+export type SayComponent = Components<IDialogProps>;
 export type MenuComponent = Components<IUserMenuProps>;
 export type NotificationComponent = Components<INotificationsProps>;
 export type ComponentsTypes = {

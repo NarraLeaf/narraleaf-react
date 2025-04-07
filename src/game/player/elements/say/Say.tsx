@@ -1,8 +1,7 @@
 import clsx from "clsx";
 import React, {useEffect, useState} from "react";
-import {IDialogProps, SayElementProps} from "@player/elements/say/type";
+import {IDialogProps} from "@player/elements/say/type";
 import {GameState} from "@core/common/game";
-import Texts from "@player/elements/say/Sentence";
 import {onlyIf, Scheduler} from "@lib/util/data";
 import {useRatio} from "@player/provider/ratio";
 import Inspect from "@player/lib/Inspect";
@@ -110,6 +109,7 @@ export default function Dialog(
         useTypeEffect,
         count,
         words,
+        onCompleted: handleComplete,
     };
 
     return (
@@ -168,4 +168,11 @@ export default function Dialog(
     );
 };
 
+export function DefaultDialog({children, ...props}: IDialogProps) {
+    return (
+        <Dialog {...props}>
+            {children}
+        </Dialog>
+    );
+}
 
