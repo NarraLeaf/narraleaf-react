@@ -47,7 +47,7 @@ export default function Say(
         }
 
         const handleKeyUp = (e: KeyboardEvent) => {
-            if (game.config.elements.say.nextKey.includes(e.key)) {
+            if (game.config.nextKey.includes(e.key)) {
                 if (isFinished) {
                     if (onClick) onClick();
                 } else {
@@ -97,7 +97,7 @@ export default function Say(
             .cancelTask()
             .scheduleTask(() => {
                 if (onClick) onClick();
-            }, game.config.elements.say.autoForwardDelay);
+            }, game.config.autoForwardDelay);
     }
 
     return (
@@ -116,9 +116,9 @@ export default function Say(
                         }
                         onClick={onElementClick}
                         style={{
-                            ...onlyIf<React.CSSProperties>(game.config.elements.say.useAspectScale, {
-                                width: game.config.elements.text.width,
-                                height: game.config.elements.text.height,
+                            ...onlyIf<React.CSSProperties>(game.config.useAspectScale, {
+                                width: game.config.dialogWidth,
+                                height: game.config.dialogHeight,
                             }),
                         }}
                     >
@@ -128,7 +128,7 @@ export default function Say(
                                 game.config.elementStyles.say.containerClassName
                             )}
                             style={{
-                                ...onlyIf<React.CSSProperties>(game.config.elements.say.useAspectScale, {
+                                ...onlyIf<React.CSSProperties>(game.config.useAspectScale, {
                                     transform: `scale(${ratio.state.scale})`,
                                     transformOrigin: "bottom left",
                                     width: "100%",

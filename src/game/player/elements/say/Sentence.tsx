@@ -98,7 +98,7 @@ export default function Sentence(
 
             const interval = (typeof value === "object" && "cps" in value && value.cps !== undefined)
                 ? Math.round(1000 / value.cps)
-                : Math.round(1000 / game.config.elements.say.cps);
+                : Math.round(1000 / game.config.cps);
             intervalRef.current = setTimeout(() => {
                 setTrigger((prev) => prev + 1);
             }, interval);

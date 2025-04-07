@@ -23,8 +23,8 @@ function Full({children, className, style}: ForwardChildren & ForwardStyle) {
         )} style={{
             transform: `scale(${ratio.state.scale})`,
             transformOrigin: "left top",
-            width: game.config.player.width,
-            height: game.config.player.height,
+            width: game.config.width,
+            height: game.config.height,
             pointerEvents: "none",
         }}>
             <div className={"absolute w-full h-full"}>

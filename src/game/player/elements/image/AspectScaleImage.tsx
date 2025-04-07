@@ -64,7 +64,7 @@ export default function AspectScaleImage(
                     onSizeChanged(newWidth, newHeight);
                 }
             } else {
-                const autoFitFactorWidth = autoFit ? (game.config.player.width / currentRef.current.naturalWidth) : 1;
+                const autoFitFactorWidth = autoFit ? (game.config.width / currentRef.current.naturalWidth) : 1;
                 const newWidth = currentRef.current.naturalWidth * ratio.state.scale * autoFitFactorWidth;
                 const newHeight = currentRef.current.naturalHeight * ratio.state.scale * autoFitFactorWidth;
 

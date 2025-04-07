@@ -41,8 +41,8 @@ export default function Image(
     } = useDisplayable<ImageTransition, HTMLImageElement>({
         element: image,
         state: image.transformState,
-        skipTransform: state.game.config.elements.img.allowSkipTransform,
-        skipTransition: state.game.config.elements.img.allowSkipTransition,
+        skipTransform: state.game.config.allowSkipImageTransform,
+        skipTransition: state.game.config.allowSkipImageTransition,
         transitionsProps: (task) => {
             const currentSrc = task ? task.transition._getCurrentSrc() : image.state.currentSrc;
             return [

@@ -4,10 +4,11 @@ import { GameState, PlayerStateElement } from "@player/gameState";
 import clsx from "clsx";
 import { Layer } from "@player/elements/player/Layer";
 import Displayables from "@player/elements/displayable/Displayables";
-import { useGame } from "@player/provider/game-state";
 import { useExposeState } from "@player/lib/useExposeState";
 import { ExposedStateType } from "@player/type";
 import { Sound } from "@core/elements/sound";
+import Say from "@player/elements/say/Say";
+import Menu from "@player/elements/menu/Menu";
 
 /**@internal */
 export default function Scene(
@@ -20,11 +21,8 @@ export default function Scene(
         className?: string;
         elements: PlayerStateElement;
     }>) {
-    const { game } = useGame();
     const { scene, layers, texts, menus } = elements;
     const usingSkipRef = useRef(false);
-    const Say = game.config.elements.say.use;
-    const Menu = game.config.elements.menu.use;
 
     useEffect(() => {
         return scene.events.depends([

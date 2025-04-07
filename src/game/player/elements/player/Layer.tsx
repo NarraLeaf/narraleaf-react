@@ -22,7 +22,7 @@ export function Layer(
     } = useDisplayable<any, HTMLDivElement>({
         element: layer,
         state: layer.transformState,
-        skipTransform: state.game.config.elements.layers.allowSkipTransform,
+        skipTransform: state.game.config.allowSkipLayersTransform,
         skipTransition: false,
         transitionsProps: [{
             style: {

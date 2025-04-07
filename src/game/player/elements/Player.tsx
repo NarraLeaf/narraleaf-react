@@ -168,8 +168,8 @@ export default function Player(
         ]).cancel;
     }, []);
 
-    const playerWidth = width || game.config.player.width;
-    const playerHeight = height || game.config.player.height;
+    const playerWidth = width || game.config.width;
+    const playerHeight = height || game.config.height;
 
     return (
         <ErrorBoundary>
@@ -185,14 +185,14 @@ export default function Player(
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
                     <SizeUpdateAnnouncer ref={containerRef}/>
                     <Isolated className={"absolute"} ref={mainContentRef} style={{
-                        cursor: state.game.config.player.cursor ? "none" : "auto",
-                        overflow: state.game.config.player.showOverflow ? "visible" : "hidden",
+                        cursor: state.game.config.cursor ? "none" : "auto",
+                        overflow: state.game.config.showOverflow ? "visible" : "hidden",
                     }}>
-                        {game.config.player.cursor && (
+                        {game.config.cursor && (
                             <Cursor
-                                src={game.config.player.cursor}
-                                width={game.config.player.cursorWidth}
-                                height={game.config.player.cursorHeight}
+                                src={game.config.cursor}
+                                width={game.config.cursorWidth}
+                                height={game.config.cursorHeight}
                             />
                         )}
                         <OnlyPreloaded show={preloadedReady} key={key}>

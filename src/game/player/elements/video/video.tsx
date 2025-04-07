@@ -19,7 +19,7 @@ export default function Video(
     useEffect(() => {
         return gameState.events.depends([
             gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
-                if (gameState.game.config.elements.video.allowSkip) {
+                if (gameState.game.config.allowSkipVideo) {
                     skip();
                     gameState.logger.log("NarraLeaf-React: Video", "Skipped");
                 }

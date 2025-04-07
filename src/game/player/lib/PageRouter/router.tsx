@@ -42,7 +42,7 @@ export class Router {
         }
         this.history.push(id);
 
-        if (this.history.length > this.game.config.player.maxRouterHistory) {
+        if (this.history.length > this.game.config.maxRouterHistory) {
             this.history.shift();
             this.historyIndex--;
         }

@@ -11,6 +11,7 @@ import {Choice} from "@core/elements/menu";
 import {Word} from "@core/elements/character/word";
 import {Pausing} from "@core/elements/character/pause";
 import {Script} from "@core/elements/script";
+import Say from "@player/elements/say/Say";
 
 /**@internal */
 export default function Menu(
@@ -24,7 +25,6 @@ export default function Menu(
     const {game} = useGame();
     const {ratio} = useRatio();
 
-    const Say = game.config.elements.say.use;
     const evaluated: (Choice & { words: Word<Pausing | string>[] })[] =
         useMemo(
             () =>
@@ -54,8 +54,8 @@ export default function Menu(
                 border={"dashed"}
                 className={clsx("absolute")}
                 style={{
-                    width: `${game.config.player.width}px`,
-                    height: `${game.config.player.height}px`,
+                    width: `${game.config.width}px`,
+                    height: `${game.config.height}px`,
                 }}
             >
                 <Inspect.Div

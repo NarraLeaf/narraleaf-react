@@ -1,12 +1,11 @@
-import type {GameConfig, GameSettings} from "./gameTypes";
-import {deepMerge, DeepPartial} from "@lib/util/data";
-import {LogicAction} from "@core/action/logicAction";
-import {DefaultElements} from "@player/elements/elements";
-import {ComponentsTypes} from "@player/elements/type";
-import {LiveGame} from "@core/game/liveGame";
-import {Preference} from "@core/game/preference";
-import {GameState} from "@player/gameState";
-import {GuardWarningType} from "@player/guard";
+import type { GameConfig, GameSettings } from "./gameTypes";
+import { deepMerge, DeepPartial } from "@lib/util/data";
+import { LogicAction } from "@core/action/logicAction";
+import { ComponentsTypes } from "@player/elements/type";
+import { LiveGame } from "@core/game/liveGame";
+import { Preference } from "@core/game/preference";
+import { GameState } from "@player/gameState";
+import { GuardWarningType } from "@player/guard";
 
 enum GameSettingsNamespace {
     game = "game",
@@ -26,9 +25,9 @@ export class Game {
     public static ComponentTypes: {
         readonly [K in keyof ComponentsTypes]: K;
     } = {
-        say: "say",
-        menu: "menu",
-    };
+            say: "say",
+            menu: "menu",
+        };
     /**@internal */
     static DefaultPreference: GamePreference = {
         autoForward: false,
@@ -39,66 +38,12 @@ export class Game {
     static Preferences: {
         readonly [K in keyof GamePreference]: K;
     } = {
-        autoForward: "autoForward",
-        skip: "skip",
-        showDialog: "showDialog",
-    };
+            autoForward: "autoForward",
+            skip: "skip",
+            showDialog: "showDialog",
+        };
     /**@internal */
     static DefaultConfig: GameConfig = {
-        player: {
-            contentContainerId: "__narraleaf_content",
-            aspectRatio: 16 / 9,
-            minWidth: 800,
-            minHeight: 450,
-            width: 1920,
-            height: 1080,
-            skipKey: ["Control"],
-            skipInterval: 100,
-            ratioUpdateInterval: 50,
-            preloadDelay: 100,
-            preloadConcurrency: 5,
-            waitForPreload: true,
-            preloadAllImages: true,
-            forceClearCache: false,
-            maxPreloadActions: 10,
-            cursor: null,
-            cursorHeight: 30,
-            cursorWidth: 30,
-            showOverflow: false,
-            maxRouterHistory: 10,
-        },
-        elements: {
-            say: {
-                nextKey: [" "],
-                cps: 10,
-                use: DefaultElements.say,
-                useAspectScale: true,
-                autoForwardDelay: 3 * 1000,
-            },
-            img: {
-                allowSkipTransform: true,
-                allowSkipTransition: true,
-            },
-            menu: {
-                use: DefaultElements.menu,
-            },
-            background: {
-                allowSkipTransform: true,
-                allowSkipTransition: false,
-            },
-            text: {
-                allowSkipTransform: true,
-                allowSkipTransition: true,
-                width: 1920,
-                height: 1080 * 0.2,
-            },
-            layers: {
-                allowSkipTransform: true,
-            },
-            video: {
-                allowSkip: false,
-            },
-        },
         elementStyles: {
             say: {
                 contentContainerClassName: "",
@@ -193,20 +138,6 @@ export class Game {
     public configure(config: DeepPartial<GameConfig>): this {
         this.config = deepMerge<GameConfig>(this.config, config);
         this.getLiveGame().getGameState()?.events.emit(GameState.EventTypes["event:state.player.requestFlush"]);
-        return this;
-    }
-
-    /**
-     * Override the default component
-     */
-    public useComponent<T extends keyof ComponentsTypes>(key: T, components: ComponentsTypes[T]): this {
-        if (!Object.keys(DefaultElements).includes(key)) {
-            throw new Error(`Invalid key ${key}`);
-        }
-        if (typeof components !== "function") {
-            throw new Error(`Invalid component for key ${key}`);
-        }
-        this.config.elements[key].use = components;
         return this;
     }
 
