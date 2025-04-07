@@ -6,6 +6,7 @@ import { LiveGame } from "@core/game/liveGame";
 import { Preference } from "@core/game/preference";
 import { GameState } from "@player/gameState";
 import { GuardWarningType } from "@player/guard";
+import { DefaultElements } from "../player/elements/elements";
 
 enum GameSettingsNamespace {
     game = "game",
@@ -119,6 +120,12 @@ export class Game {
     config: GameConfig;
     /**@internal */
     liveGame: LiveGame | null = null;
+    /**@internal */
+    elements: ComponentsTypes = {
+        ...DefaultElements,
+        say: DefaultElements.say,
+        menu: DefaultElements.menu,
+    };
     /**
      * Game settings
      */
@@ -138,6 +145,20 @@ export class Game {
     public configure(config: DeepPartial<GameConfig>): this {
         this.config = deepMerge<GameConfig>(this.config, config);
         this.getLiveGame().getGameState()?.events.emit(GameState.EventTypes["event:state.player.requestFlush"]);
+        return this;
+    }
+
+    /**
+     * Override the default component
+     */
+    public useComponent<T extends keyof ComponentsTypes>(key: T, components: ComponentsTypes[T]): this {
+        if (!Object.keys(DefaultElements).includes(key)) {
+            throw new Error(`Invalid key ${key}`);
+        }
+        if (typeof components !== "function") {
+            throw new Error(`Invalid component for key ${key}`);
+        }
+        this.elements[key] = components;
         return this;
     }
 

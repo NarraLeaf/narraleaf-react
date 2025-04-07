@@ -8,7 +8,7 @@ import { useExposeState } from "@player/lib/useExposeState";
 import { ExposedStateType } from "@player/type";
 import { Sound } from "@core/elements/sound";
 import Say from "@player/elements/say/Say";
-import Menu from "@player/elements/menu/Menu";
+import PlayerMenu from "@lib/game/player/elements/menu/PlayerMenu";
 
 /**@internal */
 export default function Scene(
@@ -96,7 +96,7 @@ export default function Scene(
             ))}
             {menus.map(({ action, onClick }, i) => (
                 <div key={"menu-" + i}>
-                    <Menu
+                    <PlayerMenu
                         state={state}
                         prompt={action.prompt}
                         choices={action.choices}

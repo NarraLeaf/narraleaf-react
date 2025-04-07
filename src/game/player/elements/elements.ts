@@ -1,8 +1,8 @@
 import {default as StageSay} from "@player/elements/say/Say";
-import {default as StageMenu} from "@player/elements/menu/Menu";
+import {DefaultMenu} from "@lib/game/player/elements/menu/PlayerMenu";
 
 export const DefaultElements = {
     say: StageSay,
-    menu: StageMenu,
+    menu: DefaultMenu,
 } as const;
 

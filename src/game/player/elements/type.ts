@@ -1,6 +1,6 @@
 import React from "react";
 import {SayElementProps} from "@player/elements/say/type";
-import {MenuElementProps} from "@player/elements/menu/type";
+import {IUserMenuProps, MenuElementProps} from "@player/elements/menu/type";
 import {Story} from "@core/elements/story";
 import clsx from "clsx";
 import {Game} from "@core/game";
@@ -10,7 +10,7 @@ import {LiveGame} from "@core/game/liveGame";
 
 export type Components<T extends Record<string, any>> = (props: Readonly<T>) => React.JSX.Element;
 export type SayComponent = Components<SayElementProps>;
-export type MenuComponent = Components<MenuElementProps>;
+export type MenuComponent = Components<IUserMenuProps>;
 export type ComponentsTypes = {
     say: SayComponent;
     menu: MenuComponent;
