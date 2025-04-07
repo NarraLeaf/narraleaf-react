@@ -6,6 +6,7 @@ import { StringKeyOf } from "@lib/util/data";
 import { PlayerStateData } from "@player/gameState";
 import { GuardConfig } from "@player/guard";
 import React from "react";
+import { MenuComponent, NotificationComponent, SayComponent } from "./common/player";
 
 
 export interface SavedGame {
@@ -294,6 +295,21 @@ export type GameConfig = {
      * @default false
      */
     allowSkipVideo: boolean;
+    /**
+     * The component to use for the notification
+     * @default DefaultNotification
+     */
+    notification: NotificationComponent;
+    /**
+     * The component to use for the menu
+     * @default DefaultMenu
+     */
+    menu: MenuComponent;
+    /**
+     * The component to use for the say
+     * @default DefaultSay
+     */
+    say: SayComponent;
 };
 export type GameSettings = {
     volume: number;

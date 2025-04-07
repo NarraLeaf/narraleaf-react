@@ -1,26 +1,29 @@
 import clsx from "clsx";
 import React, {useEffect, useState} from "react";
-import {SayElementProps} from "@player/elements/say/type";
+import {IDialogProps, SayElementProps} from "@player/elements/say/type";
 import {GameState} from "@core/common/game";
-import Sentence from "@player/elements/say/Sentence";
+import Texts from "@player/elements/say/Sentence";
 import {onlyIf, Scheduler} from "@lib/util/data";
 import {useRatio} from "@player/provider/ratio";
 import Inspect from "@player/lib/Inspect";
 import {Game} from "@core/game";
 import { usePreference } from "@player/libElements";
+import { SentenceContext, useSayContext } from "./context";
 
-/**@internal */
-export default function Say(
+export default function Dialog(
     {
+        children,
+        ...props
+    }: Readonly<IDialogProps>) {
+    const {
         action,
         onClick,
         useTypeEffect = true,
-        className,
-        state,
-    }: Readonly<SayElementProps>) {
+        gameState,
+    } = useSayContext();
     const {sentence, words} = action;
     const [isFinished, setIsFinished] = useState(false);
-    const {game} = state;
+    const {game} = gameState;
     const [count, setCount] = useState(0);
     const {ratio} = useRatio();
     const [scheduler] = useState(new Scheduler());
@@ -64,8 +67,8 @@ export default function Say(
     }, [isFinished]);
 
     useEffect(() => {
-        return state.events.on(GameState.EventTypes["event:state.player.skip"], () => {
-            state.logger.log("NarraLeaf-React: Say", "Skipped");
+        return gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+            gameState.logger.log("NarraLeaf-React: Say", "Skipped");
             if (isFinished) {
                 if (onClick) onClick(true);
             } else {
@@ -100,10 +103,20 @@ export default function Say(
             }, game.config.autoForwardDelay);
     }
 
+    const sentenceContext: SentenceContext = {
+        sentence,
+        gameState: gameState,
+        finished: isFinished,
+        useTypeEffect,
+        count,
+        words,
+    };
+
     return (
-        <div>
-            {sentence.state.display && showDialog &&
-                (
+        <SentenceContext value={sentenceContext}>
+            <div>
+                {sentence.state.display && showDialog &&
+                    (
                     <Inspect.Div
                         tag={"say.aspectScaleContainer"}
                         color={"blue"}
@@ -111,7 +124,6 @@ export default function Say(
                         className={
                             clsx(
                                 "absolute bottom-0 w-[calc(100%-40px)]",
-                                className,
                             )
                         }
                         onClick={onElementClick}
@@ -137,26 +149,14 @@ export default function Say(
                             }}
                         >
                             <div
-                                className={clsx(
-                                    "bg-white flex flex-col items-start justify-between",
-                                    game.config.elementStyles.say.contentContainerClassName,
-                                    "w-full h-full"
-                                )}
+                                {...props} /* "bg-white flex flex-col items-start justify-between w-full h-full" */
                             >
                                 <Inspect.Div
                                     tag={"say.nameTextClassName"}
                                     className={clsx("rounded-br-md text-black", game.config.elementStyles.say.nameTextClassName)}>
                                     {sentence.config.character?.state.name}
                                 </Inspect.Div>
-                                <Sentence
-                                    sentence={sentence}
-                                    gameState={state}
-                                    finished={isFinished}
-                                    useTypeEffect={useTypeEffect}
-                                    onCompleted={handleComplete}
-                                    count={count}
-                                    words={words}
-                                />
+                                {children}
                                 <div></div>
                             </div>
                         </Inspect.Div>
@@ -164,5 +164,8 @@ export default function Say(
                 )
             }
         </div>
+        </SentenceContext>
     );
 };
+
+

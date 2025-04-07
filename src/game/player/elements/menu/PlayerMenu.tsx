@@ -9,7 +9,7 @@ import { Choice } from "@core/elements/menu";
 import { Word } from "@core/elements/character/word";
 import { Pausing } from "@core/elements/character/pause";
 import { Script } from "@core/elements/script";
-import Say from "@player/elements/say/Say";
+import Dialog from "@player/elements/say/Say";
 import { UIMenuContext } from "./UIMenu/context";
 import Menu from "./UIMenu/Menu";
 import Item from "./UIMenu/Item";
@@ -25,7 +25,7 @@ export default function PlayerMenu(
     }: Readonly<MenuElementProps>) {
     const { game } = useGame();
 
-    const MenuConstructor = game.elements.menu;
+    const MenuConstructor = game.config.menu;
     const evaluated: (Choice & { words: Word<Pausing | string>[] })[] =
         useMemo(
             () =>
@@ -44,8 +44,8 @@ export default function PlayerMenu(
         <>
             <UIMenuContext value={{ evaluated, choose, gameState: state }}>
                 <Isolated className={"absolute"}>
-                    {prompt && <Say
-                        state={state}
+                    {prompt && <Dialog
+                        gameState={state}
                         action={{ sentence: prompt, character: null, words }}
                         useTypeEffect={false}
                         className="z-10"

@@ -4,7 +4,7 @@ import clsx from "clsx";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { useUIListContext, useUIMenuContext } from "./context";
 import { Pausing } from "@lib/game/nlcore/elements/character/pause";
-import Sentence from "@player/elements/say/Sentence";
+import Texts from "@player/elements/say/Sentence";
 
 export interface ItemProps {
     className?: string;
@@ -50,7 +50,7 @@ export default function Item({ className, style }: ItemProps) {
                 onClick={handleClick}
             >
                 {choice && (
-                    <Sentence
+                    <Texts
                         sentence={choice.prompt}
                         gameState={gameState}
                         useTypeEffect={false}

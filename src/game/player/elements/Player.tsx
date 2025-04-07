@@ -36,6 +36,7 @@ export default function Player(
         onReady,
         onEnd,
         children,
+        active = true,
     }: Readonly<PlayerProps>) {
     const [, update] = useReducer((x) => x + 1, 0);
     const [key, setKey] = useState(0);
@@ -195,7 +196,7 @@ export default function Player(
                                 height={game.config.cursorHeight}
                             />
                         )}
-                        <OnlyPreloaded show={preloadedReady} key={key}>
+                        <OnlyPreloaded show={preloadedReady && active} key={key}>
                             <KeyEventAnnouncer state={state}/>
                             {state.getSceneElements().map((elements) => (
                                 <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements}/>

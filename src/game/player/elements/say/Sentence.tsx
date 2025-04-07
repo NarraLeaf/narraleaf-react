@@ -1,12 +1,12 @@
 import React, {useEffect, useMemo, useReducer, useRef, useState} from "react";
-import {GameState} from "@player/gameState";
-import {Sentence as GameSentence} from "@core/elements/character/sentence";
 import {Word, WordConfig} from "@core/elements/character/word";
 import {toHex} from "@lib/util/data";
 import clsx from "clsx";
 import {Pause, Pausing} from "@core/elements/character/pause";
 import Inspect from "@player/lib/Inspect";
 import {Script} from "@core/elements/script";
+import { useSentenceContext } from "./context";
+import { IDialogProps } from "./type";
 
 /**@internal */
 type SplitWord = {
@@ -17,27 +17,16 @@ type SplitWord = {
     cps?: number;
 } | "\n" | Pausing;
 
-/**@internal */
-export default function Sentence(
-    {
+export default function Texts({className, ...props}: IDialogProps) {
+    const {
         sentence,
         gameState,
         useTypeEffect = true,
         onCompleted,
         finished,
         count,
-        className,
         words: w,
-    }: Readonly<{
-        sentence: GameSentence;
-        gameState: GameState;
-        useTypeEffect?: boolean;
-        onCompleted?: () => void;
-        finished?: boolean;
-        count?: number;
-        className?: string;
-        words?: Word<string | Pausing>[];
-    }>) {
+    } = useSentenceContext();
     const [isFinished, setIsFinished] = useState(false);
     const {game} = gameState;
     const words = useMemo(() => w || sentence.evaluate(Script.getCtx({
@@ -246,9 +235,9 @@ export default function Sentence(
 
     return (
         <div
+            {...props}
             className={clsx(
                 "whitespace-pre-wrap",
-                game.config.elementStyles.say.textContainerClassName,
                 {
                     "font-bold": sentence.config.bold,
                     "italic": sentence.config.italic,
@@ -258,6 +247,7 @@ export default function Sentence(
             style={{
                 fontFamily: sentence.config.fontFamily || game.config.elementStyles.say.fontFamily,
                 fontSize: sentence.config.fontSize || game.config.elementStyles.say.fontSize,
+                ...props.style,
             }}
         >
             {displayedWords.map((word, index) => {
@@ -277,7 +267,6 @@ export default function Sentence(
                             } : {}),
                         }}
                         className={clsx(
-                            game.config.elementStyles.say.textSpanClassName,
                             "whitespace-pre inline-block",
                             {
                                 "font-bold": word.config.bold,

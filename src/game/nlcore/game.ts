@@ -23,12 +23,6 @@ export class Game {
     static defaultSettings: GameSettings = {
         volume: 1,
     };
-    public static ComponentTypes: {
-        readonly [K in keyof ComponentsTypes]: K;
-    } = {
-            say: "say",
-            menu: "menu",
-        };
     /**@internal */
     static DefaultPreference: GamePreference = {
         autoForward: false,
@@ -113,6 +107,9 @@ export class Game {
         allowSkipVideo: false,
         dialogWidth: 1920,
         dialogHeight: 1080 * 0.2,
+        notification: DefaultElements.notification,
+        menu: DefaultElements.menu,
+        say: DefaultElements.say,
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 
@@ -120,12 +117,6 @@ export class Game {
     config: GameConfig;
     /**@internal */
     liveGame: LiveGame | null = null;
-    /**@internal */
-    elements: ComponentsTypes = {
-        ...DefaultElements,
-        say: DefaultElements.say,
-        menu: DefaultElements.menu,
-    };
     /**
      * Game settings
      */
@@ -145,20 +136,6 @@ export class Game {
     public configure(config: DeepPartial<GameConfig>): this {
         this.config = deepMerge<GameConfig>(this.config, config);
         this.getLiveGame().getGameState()?.events.emit(GameState.EventTypes["event:state.player.requestFlush"]);
-        return this;
-    }
-
-    /**
-     * Override the default component
-     */
-    public useComponent<T extends keyof ComponentsTypes>(key: T, components: ComponentsTypes[T]): this {
-        if (!Object.keys(DefaultElements).includes(key)) {
-            throw new Error(`Invalid key ${key}`);
-        }
-        if (typeof components !== "function") {
-            throw new Error(`Invalid component for key ${key}`);
-        }
-        this.elements[key] = components;
         return this;
     }
 

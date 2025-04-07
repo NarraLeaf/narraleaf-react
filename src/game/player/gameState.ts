@@ -25,7 +25,7 @@ import {LiveGameEventToken} from "@core/types";
 import * as htmlToImage from "html-to-image";
 import {Video, VideoStateRaw} from "@core/elements/video";
 import {Timelines} from "@player/Tasks";
-
+import {Notification, NotificationManager} from "@player/lib/notification";
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Chosen>[];
@@ -109,6 +109,7 @@ export class GameState {
     exposedState: Map<Values<ExposedKeys>, object> = new Map();
     guard: GameStateGuard;
     timelines: Timelines;
+    public readonly notificationMgr: NotificationManager;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
     public readonly audioManager: AudioManager;
@@ -120,8 +121,9 @@ export class GameState {
         this.events = new EventDispatcher();
         this.logger = new Logger(game, "NarraLeaf-React");
         this.audioManager = new AudioManager(this);
-        this.guard = new GameStateGuard(this.game.config.app.guard).observe(this);
+        this.guard = new GameStateGuard(game.config.app.guard).observe(this);
         this.timelines = new Timelines(this.guard);
+        this.notificationMgr = new NotificationManager(this, []);
     }
 
     public addVideo(video: Video): this {
@@ -226,6 +228,10 @@ export class GameState {
             });
         }, ms);
         return () => clearTimeout(timeout);
+    }
+
+    public notify(notification: Notification) {
+        this.notificationMgr.addNotification(notification);
     }
 
     handle(action: PlayerAction): this {

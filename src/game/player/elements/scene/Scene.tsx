@@ -7,8 +7,8 @@ import Displayables from "@player/elements/displayable/Displayables";
 import { useExposeState } from "@player/lib/useExposeState";
 import { ExposedStateType } from "@player/type";
 import { Sound } from "@core/elements/sound";
-import Say from "@player/elements/say/Say";
 import PlayerMenu from "@lib/game/player/elements/menu/PlayerMenu";
+import UIDialog from "../say/UIDialog";
 
 /**@internal */
 export default function Scene(
@@ -77,8 +77,8 @@ export default function Scene(
                 </Layer>
             )))}
             {texts.map(({ action, onClick }) => (
-                <Say
-                    state={state}
+                <UIDialog
+                    gameState={state}
                     key={"say-" + action.id}
                     action={action}
                     onClick={(skiped) => {

@@ -3,6 +3,7 @@ import type {GameState} from "@player/gameState";
 import {Sentence} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
 import {Pausing} from "@core/elements/character/pause";
+import React from "react";
 
 export interface SayElementProps {
     action: {
@@ -15,7 +16,14 @@ export interface SayElementProps {
      */
     onClick?: (skiped?: boolean) => void;
     useTypeEffect?: boolean;
-    className?: string;
-    state: GameState;
+    gameState: GameState;
+}
+
+export interface IDialogProps extends React.HTMLAttributes<HTMLDivElement> {
+    children: React.ReactNode;
+}
+
+export interface IDialogElementProps extends React.HTMLAttributes<HTMLDivElement> {
+    children?: never;
 }
 

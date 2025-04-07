@@ -223,6 +223,17 @@ export class LiveGame {
         });
     }
 
+    /**
+     * Notify the player with a message
+     * 
+     * @param message - The message to notify the player with
+     * @param duration - The duration of the notification in milliseconds, default is 3000ms
+     */
+    public notify(message: string, duration: number = 3000) {
+        this.assertGameState();
+        this.gameState.notificationMgr.addNotification({message, duration});
+    }
+
     private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {
         this.assertGameState();
         this.assertPlayerElement();
