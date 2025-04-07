@@ -216,7 +216,11 @@ export class LiveGame {
         story.deserializeServices(services);
 
         gameState.stage.forceUpdate();
-        gameState.stage.next();
+        gameState.events.once(GameState.EventTypes["event:state.onRender"], () => {
+            gameState.schedule(() => {
+                gameState.stage.next();
+            }, 0);
+        });
     }
 
     private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {

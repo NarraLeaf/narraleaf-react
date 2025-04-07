@@ -15,6 +15,7 @@ enum GameSettingsNamespace {
 export type GamePreference = {
     autoForward: boolean;
     skip: boolean;
+    showDialog: boolean;
 };
 
 export class Game {
@@ -32,6 +33,7 @@ export class Game {
     static DefaultPreference: GamePreference = {
         autoForward: false,
         skip: true,
+        showDialog: true,
     };
     /**@internal */
     static Preferences: {
@@ -39,6 +41,7 @@ export class Game {
     } = {
         autoForward: "autoForward",
         skip: "skip",
+        showDialog: "showDialog",
     };
     /**@internal */
     static DefaultConfig: GameConfig = {
@@ -128,7 +131,42 @@ export class Game {
                 [GuardWarningType.unexpectedTimelineStatusChange]: true,
             },
             screenshotQuality: 1,
-        }
+        },
+        contentContainerId: "__narraleaf_content",
+        aspectRatio: 16 / 9,
+        minWidth: 800,
+        minHeight: 450,
+        width: 1920,
+        height: 1080,
+        skipKey: ["Control"],
+        skipInterval: 100,
+        ratioUpdateInterval: 50,
+        preloadDelay: 100,
+        preloadConcurrency: 5,
+        waitForPreload: true,
+        preloadAllImages: true,
+        forceClearCache: false,
+        maxPreloadActions: 10,
+        cursor: null,
+        cursorHeight: 30,
+        cursorWidth: 30,
+        showOverflow: false,
+        maxRouterHistory: 10,
+        screenshotQuality: 1,
+        nextKey: [" "],
+        cps: 10,
+        useAspectScale: true,
+        autoForwardDelay: 3 * 1000,
+        allowSkipImageTransform: true,
+        allowSkipImageTransition: true,
+        allowSkipBackgroundTransform: true,
+        allowSkipBackgroundTransition: false,
+        allowSkipTextTransform: true,
+        allowSkipTextTransition: true,
+        allowSkipLayersTransform: true,
+        allowSkipVideo: false,
+        dialogWidth: 1920,
+        dialogHeight: 1080 * 0.2,
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 

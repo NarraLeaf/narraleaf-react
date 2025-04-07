@@ -7,6 +7,7 @@ import {onlyIf, Scheduler} from "@lib/util/data";
 import {useRatio} from "@player/provider/ratio";
 import Inspect from "@player/lib/Inspect";
 import {Game} from "@core/game";
+import { usePreference } from "@player/libElements";
 
 /**@internal */
 export default function Say(
@@ -23,6 +24,7 @@ export default function Say(
     const [count, setCount] = useState(0);
     const {ratio} = useRatio();
     const [scheduler] = useState(new Scheduler());
+    const [showDialog] = usePreference(Game.Preferences.showDialog);
 
     const handleComplete = () => {
         setIsFinished(true);
@@ -100,7 +102,7 @@ export default function Say(
 
     return (
         <div>
-            {sentence.state.display &&
+            {sentence.state.display && showDialog &&
                 (
                     <Inspect.Div
                         tag={"say.aspectScaleContainer"}

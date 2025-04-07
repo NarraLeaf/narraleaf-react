@@ -90,26 +90,6 @@ export class Video extends Actionable<VideoStateRaw> {
     }
 
     /**
-     * @chainable
-     */
-    pause(): ChainedVideo {
-        return this.chain(this.createAction(
-            VideoActionTypes.pause,
-            []
-        ));
-    }
-
-    /**
-     * @chainable
-     */
-    stop(): ChainedVideo {
-        return this.chain(this.createAction(
-            VideoActionTypes.stop,
-            []
-        ));
-    }
-
-    /**
      * Seek to a specific time in the video
      *
      * @param time - The time to seek to in seconds
@@ -119,16 +99,6 @@ export class Video extends Actionable<VideoStateRaw> {
         return this.chain(this.createAction(
             VideoActionTypes.seek,
             [time]
-        ));
-    }
-
-    /**
-     * @chainable
-     */
-    resume(): ChainedVideo {
-        return this.chain(this.createAction(
-            VideoActionTypes.resume,
-            []
         ));
     }
 

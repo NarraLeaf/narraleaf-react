@@ -31,6 +31,9 @@ type Legacy_PlayerStateElement = {
     menus: Clickable<MenuElement, Chosen>[];
     displayable: LogicAction.DisplayableElements[];
 };
+type ScheduleHandle = {
+    retry: () => void;
+};
 export type PlayerState = {
     sounds: Sound[];
     videos: Video[];
@@ -77,6 +80,7 @@ type GameStateEvents = {
     "event:state.player.skip": [];
     "event:state.player.requestFlush": [];
     "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
+    "event:state.onRender": [];
 };
 
 /**
@@ -89,6 +93,7 @@ export class GameState {
         "event:state.player.skip": "event:state.player.skip",
         "event:state.player.requestFlush": "event:state.player.requestFlush",
         "event.state.onExpose": "event.state.onExpose",
+        "event:state.onRender": "event:state.onRender",
     };
     state: PlayerState = {
         sounds: [],
@@ -212,8 +217,14 @@ export class GameState {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    public schedule(callback: () => void, ms: number): () => void {
-        const timeout = setTimeout(callback, ms);
+    public schedule(callback: (scheduleHandle: ScheduleHandle) => void, ms: number): () => void {
+        const timeout = setTimeout(() => {
+            callback({
+                retry: () => {
+                    this.schedule(callback, 0);
+                }
+            });
+        }, ms);
         return () => clearTimeout(timeout);
     }
 

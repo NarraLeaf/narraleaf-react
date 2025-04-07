@@ -1,10 +1,14 @@
 # Changelog
 
-## [0.3.1]
+## [0.4.0]
 
 ### _Incompatible Changes_
 
 - `game.config.elements.say.textInterval` is deprecated, use `game.config.elements.say.cps` instead
+- `game.config` has been refactored, see [GameConfig](src/game/nlcore/gameTypes.ts#GameConfig) for more details
+  - `game.config.player` is deprecated, use `game.config` instead
+  - `game.config.elements` is deprecated, use `game.config` instead
+  - `game.config.elementStyles` is deprecated, use `game.config` instead
 
 ### _Feature_
 

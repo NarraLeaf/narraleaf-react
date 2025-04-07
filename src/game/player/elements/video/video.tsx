@@ -58,33 +58,45 @@ export default function Video(
                 },
                 play: () => {
                     if (!ref.current) throw invalidRef();
+
                     const videoElement = ref.current;
+                    videoElement.currentTime = 0;
                     return new Promise<void>((resolve) => {
-                        const onEnded = () => {
-                            cleanup();
-                            resolve();
-                        };
+                        gameState.schedule(({retry}) => {
+                            if (videoElement.readyState < 3) {
+                                const onLoadedData = () => {
+                                    videoElement.removeEventListener("loadeddata", onLoadedData);
+                                    retry();
+                                };
+                                videoElement.addEventListener("loadeddata", onLoadedData);
+                                return;
+                            }
 
-                        const onStop = () => {
-                            cleanup();
-                            resolve();
-                        };
-
-                        const cleanup = () => {
-                            videoElement.removeEventListener("ended", onEnded);
-                            videoElement.removeEventListener("stopped", onStop);
-                        };
-
-                        videoElement.addEventListener("ended", onEnded);
-                        videoElement.addEventListener("stopped", onStop);
-                        cleanups.push(cleanup);
-
-                        videoElement.currentTime = 0;
-                        videoElement.play().catch((err) => {
-                            gameState.logger.error("Failed to play video: " + err);
-                            cleanup();
-                            resolve();
-                        });
+                            const onEnded = () => {
+                                cleanup();
+                                resolve();
+                            };
+    
+                            const onStop = () => {
+                                cleanup();
+                                resolve();
+                            };
+    
+                            const cleanup = () => {
+                                videoElement.removeEventListener("ended", onEnded);
+                                videoElement.removeEventListener("stopped", onStop);
+                            };
+    
+                            videoElement.addEventListener("ended", onEnded);
+                            videoElement.addEventListener("stopped", onStop);
+                            cleanups.push(cleanup);
+    
+                            videoElement.play().catch((err) => {
+                                gameState.logger.error("Failed to play video: " + err);
+                                cleanup();
+                                resolve();
+                            });
+                        }, 10);
                     });
                 },
                 pause: () => {
@@ -98,7 +110,6 @@ export default function Video(
                 stop: () => {
                     if (!ref.current) throw invalidRef();
                     ref.current.pause();
-                    ref.current.currentTime = 0;
                     ref.current.dispatchEvent(new Event("stopped"));
                 },
                 seek: (time) => {
@@ -112,16 +123,12 @@ export default function Video(
         videoElement.addEventListener("canplay", onCanPlay);
 
         return () => {
+            isMounted = false;
             videoElement.removeEventListener("canplay", onCanPlay);
             cleanups.forEach((cleanup) => cleanup());
 
-            if (videoElement.src.startsWith("blob:") && URL.revokeObjectURL) {
-                URL.revokeObjectURL(videoElement.src);
-            }
-
             if (videoElement.currentTime > 0) {
                 videoElement.pause();
-                videoElement.currentTime = 0;
             }
 
             if (gameState.isStateMounted(video)) {

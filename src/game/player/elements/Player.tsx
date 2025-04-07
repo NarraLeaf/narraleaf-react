@@ -219,7 +219,7 @@ export default function Player(
 
 function OnlyPreloaded({children, show}: Readonly<{
     children: React.ReactNode,
-    show: boolean
+    show: boolean,
 }>) {
     return (
         <>

@@ -501,25 +501,21 @@ export class Scene extends Constructable<
         });
     }
 
-    /**
-     * @internal STILL IN DEVELOPMENT
-     */
+    /**@internal */
     assignActionId(story: Story) {
         const actions = this.getAllChildren(story, this.sceneRoot || [], {allowFutureScene: true});
 
         actions.forEach((action, i) => {
-            action.setId(`action-${i}`);
+            action.setId(`a-${i}`);
         });
     }
 
-    /**
-     * @internal STILL IN DEVELOPMENT
-     */
+    /**@internal */
     assignElementId(story: Story) {
         const elements = this.getAllChildrenElements(story, this.sceneRoot || []);
 
         elements.forEach((element, i) => {
-            element.setId(`element-${i}`);
+            element.setId(`e-${i}`);
         });
     }
 
