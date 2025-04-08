@@ -19,9 +19,14 @@ export interface SayElementProps {
     gameState: GameState;
 }
 
-export interface IDialogProps extends React.HTMLAttributes<HTMLDivElement> {
+export type IDialogProps = Record<string, never>;
+
+export type DialogProps = {
     children: React.ReactNode;
-}
+} & React.HTMLAttributes<HTMLDivElement>;
+export type DialogElementProps = {
+    children?: never;
+} & React.HTMLAttributes<HTMLDivElement>;
 
 export interface IDialogElementProps extends React.HTMLAttributes<HTMLDivElement> {
     children?: never;

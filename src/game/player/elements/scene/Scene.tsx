@@ -8,7 +8,8 @@ import { useExposeState } from "@player/lib/useExposeState";
 import { ExposedStateType } from "@player/type";
 import { Sound } from "@core/elements/sound";
 import PlayerMenu from "@lib/game/player/elements/menu/PlayerMenu";
-import UIDialog from "../say/UIDialog";
+import PlayerDialog from "../say/UIDialog";
+import PlayerNotification from "../notification/PlayerNotification";
 
 /**@internal */
 export default function Scene(
@@ -77,7 +78,7 @@ export default function Scene(
                 </Layer>
             )))}
             {texts.map(({ action, onClick }) => (
-                <UIDialog
+                <PlayerDialog
                     gameState={state}
                     key={"say-" + action.id}
                     action={action}
@@ -108,6 +109,7 @@ export default function Scene(
                     />
                 </div>
             ))}
+            <PlayerNotification gameState={state} />
         </div>
     );
 };

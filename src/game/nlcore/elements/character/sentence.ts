@@ -11,7 +11,7 @@ export type SentenceConfig = {
     voice: Sound | null;
     character: Character | null;
     voiceId: string | number | null;
-    color: Color;
+    color?: Color;
 } & Font;
 
 /**@internal */
@@ -42,7 +42,6 @@ export type SentencePrompt = SingleWord[] | SingleWord;
 export class Sentence {
     /**@internal */
     static defaultConfig: SentenceConfig = {
-        color: "#000",
         pause: true,
         voice: null,
         character: null,

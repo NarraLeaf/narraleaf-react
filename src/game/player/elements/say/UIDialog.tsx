@@ -1,14 +1,15 @@
 import React from "react";
 import { SayContext } from "./context";
-import { SayElementProps } from "./type";
+import { SayElementProps, SayComponent } from "@player/type";
 
-export default function UIDialog({
+export default function PlayerDialog({
     action,
     onClick,
     useTypeEffect = true,
     gameState,
-    children,
-}: Readonly<React.PropsWithChildren<SayElementProps>>) {
+}: Readonly<SayElementProps>) {
+    const DialogConstructor: SayComponent = gameState.game.config.dialog;
+
     return (
         <SayContext value={{
             action,
@@ -16,7 +17,7 @@ export default function UIDialog({
             useTypeEffect,
             gameState,
         }}>
-            {children}
+            <DialogConstructor/>
         </SayContext>
     );
 }

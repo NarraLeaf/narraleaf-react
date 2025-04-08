@@ -9,10 +9,11 @@ import { Choice } from "@core/elements/menu";
 import { Word } from "@core/elements/character/word";
 import { Pausing } from "@core/elements/character/pause";
 import { Script } from "@core/elements/script";
-import Dialog from "@player/elements/say/Say";
+import { RawDialog } from "@lib/game/player/elements/say/Dialog";
 import { UIMenuContext } from "./UIMenu/context";
-import Menu from "./UIMenu/Menu";
+import GameMenu from "./UIMenu/Menu";
 import Item from "./UIMenu/Item";
+import { RawTexts } from "../say/Sentence";
 
 /**@internal */
 export default function PlayerMenu(
@@ -44,12 +45,20 @@ export default function PlayerMenu(
         <>
             <UIMenuContext value={{ evaluated, choose, gameState: state }}>
                 <Isolated className={"absolute"}>
-                    {prompt && <Dialog
+                    {prompt && <RawDialog
                         gameState={state}
-                        action={{ sentence: prompt, character: null, words }}
+                        sentence={prompt}
+                        words={words}
                         useTypeEffect={false}
                         className="z-10"
-                    />}
+                    >
+                        <RawTexts
+                            gameState={state}
+                            sentence={prompt}
+                            words={words}
+                            useTypeEffect={false}
+                        />
+                    </RawDialog>}
                 </Isolated>
                 <Inspect.Div
                     color={"green"}
@@ -69,7 +78,7 @@ export default function PlayerMenu(
 
 export function DefaultMenu({items}: IUserMenuProps) {
     return (
-        <Menu
+        <GameMenu
             className="absolute flex flex-col items-center justify-center min-w-full w-full h-full"
         >
             {items.map((index) => (
@@ -78,6 +87,6 @@ export function DefaultMenu({items}: IUserMenuProps) {
                     className="bg-white text-black p-2 mt-2 w-1/2"
                 />
             ))}
-        </Menu>
+        </GameMenu>
     );
 }

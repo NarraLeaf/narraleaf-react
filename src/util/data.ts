@@ -1226,3 +1226,15 @@ export function generateId(length: number = 16): string {
 export const voidFunction: () => VoidFunction = () => {
     return () => {};
 };
+
+export class IdManager {
+    private counter = 0;
+
+    constructor(private prefix: string = "") {}
+
+    generateId(): string {
+        const id = `${this.prefix ? this.prefix + "-" : ""}${this.counter++}`;
+        return id;
+    }
+}
+

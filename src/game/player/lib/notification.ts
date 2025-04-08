@@ -86,14 +86,17 @@ export class NotificationManager {
     
     public addNotification(notification: Notification) {
         this.notifications.push(notification);
+        this.flush();
     }
     
     public removeNotification(notification: Notification) {
         this.notifications = this.notifications.filter(n => n !== notification);
+        this.flush();
     }
 
     public clearNotifications() {
         this.notifications = [];
+        this.flush();
     }
 
     /**
@@ -109,6 +112,7 @@ export class NotificationManager {
         awaitable.registerSkipController(new SkipController(() => {
             this.removeNotification(notification);
         }));
+        this.addNotification(notification);
         this.gameState.schedule(() => {
             awaitable.resolve();
             this.removeNotification(notification);

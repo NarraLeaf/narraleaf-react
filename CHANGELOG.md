@@ -14,6 +14,8 @@
 
 - Shorten the way to use `character.say`
 - `Video` player
+- Customizable components
+- Game notification
 
 ### Updated
 

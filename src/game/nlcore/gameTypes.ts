@@ -7,6 +7,7 @@ import { PlayerStateData } from "@player/gameState";
 import { GuardConfig } from "@player/guard";
 import React from "react";
 import { MenuComponent, NotificationComponent, SayComponent } from "./common/player";
+import { Color } from "./types";
 
 
 export interface SavedGame {
@@ -26,41 +27,6 @@ export interface SavedGame {
 }
 
 export type GameConfig = {
-    /**
-     * @deprecated This feature is going to be removed, use custom component instead
-     */
-    elementStyles: {
-        say: {
-            /**
-             * Custom class for the say container
-             * Ex: "rounded-md shadow-md" for rounded and shadowed container
-             */
-            contentContainerClassName: string;
-            containerClassName: string;
-            nameTextClassName: string;
-            textContainerClassName: string;
-            textSpanClassName: string;
-            /**
-             * The default font family for the text
-             * Ex: "Arial, sans-serif"
-             *
-             * See [Font family](https://developer.mozilla.org/en-US/docs/Web/CSS/font-family)
-             */
-            fontFamily?: React.CSSProperties["fontFamily"];
-            /**
-             * Font size for the text
-             *
-             * See [Font size](https://developer.mozilla.org/en-US/docs/Web/CSS/font-size)
-             */
-            fontSize?: React.CSSProperties["fontSize"];
-            rubyClassName: string;
-        },
-        menu: {
-            containerClassName: string;
-            choiceButtonClassName: string;
-            choiceButtonTextClassName: string;
-        }
-    };
     app: {
         debug: boolean;
         /**
@@ -296,6 +262,11 @@ export type GameConfig = {
      */
     allowSkipVideo: boolean;
     /**
+     * The default text color for the dialog
+     * @default "#000"
+     */
+    defaultTextColor: Color;
+    /**
      * The component to use for the notification
      * @default DefaultNotification
      */
@@ -309,7 +280,12 @@ export type GameConfig = {
      * The component to use for the say
      * @default DefaultSay
      */
-    say: SayComponent;
+    dialog: SayComponent;
+    /**
+     * The function to call when an error occurs
+     * @default () => {}
+     */
+    onError: (error: Error) => void;
 };
 export type GameSettings = {
     volume: number;

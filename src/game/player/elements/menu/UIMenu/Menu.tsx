@@ -3,13 +3,12 @@ import clsx from "clsx";
 import React, { useCallback, useRef } from "react";
 import { UIListContext } from "./context";
 
-export interface MenuProps {
+export type MenuProps = {
     className?: string;
     children: React.ReactNode;
-    style?: React.CSSProperties;
-}
+} & React.HTMLAttributes<HTMLDivElement>;
 
-export default function Menu({className, children, style}: MenuProps) {
+export default function GameMenu({className, children, ...props}: MenuProps) {
     const {ratio} = useRatio();
     const itemRefs = useRef<React.RefObject<HTMLElement>[]>([]);
 
@@ -44,7 +43,7 @@ export default function Menu({className, children, style}: MenuProps) {
                             "z-20",
                             className
                         )}
-                        style={style}
+                        {...props}
                     >
                         {children}
                     </div>

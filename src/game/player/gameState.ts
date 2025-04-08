@@ -1,5 +1,5 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher, Values} from "@lib/util/data";
+import {EventDispatcher, IdManager, Values} from "@lib/util/data";
 import {Choice, MenuData} from "@core/elements/menu";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
@@ -114,6 +114,7 @@ export class GameState {
     public readonly logger: Logger;
     public readonly audioManager: AudioManager;
     public readonly htmlToImage = htmlToImage;
+    public readonly idManager: IdManager;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
@@ -124,6 +125,7 @@ export class GameState {
         this.guard = new GameStateGuard(game.config.app.guard).observe(this);
         this.timelines = new Timelines(this.guard);
         this.notificationMgr = new NotificationManager(this, []);
+        this.idManager = new IdManager();
     }
 
     public addVideo(video: Video): this {

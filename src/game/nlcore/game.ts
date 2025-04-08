@@ -38,21 +38,6 @@ export class Game {
         };
     /**@internal */
     static DefaultConfig: GameConfig = {
-        elementStyles: {
-            say: {
-                contentContainerClassName: "",
-                containerClassName: "",
-                nameTextClassName: "",
-                textContainerClassName: "",
-                textSpanClassName: "",
-                rubyClassName: "",
-            },
-            menu: {
-                containerClassName: "",
-                choiceButtonClassName: "",
-                choiceButtonTextClassName: "",
-            }
-        },
         app: {
             debug: false,
             logger: {
@@ -106,9 +91,13 @@ export class Game {
         allowSkipVideo: false,
         dialogWidth: 1920,
         dialogHeight: 1080 * 0.2,
+        defaultTextColor: "#000",
         notification: DefaultElements.notification,
         menu: DefaultElements.menu,
-        say: DefaultElements.say,
+        dialog: DefaultElements.say,
+        onError: (error: Error) => {
+            console.error(error);
+        },
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 

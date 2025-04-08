@@ -6,7 +6,9 @@ import {Pause, Pausing} from "@core/elements/character/pause";
 import Inspect from "@player/lib/Inspect";
 import {Script} from "@core/elements/script";
 import { useSentenceContext } from "./context";
-import { IDialogProps } from "./type";
+import { DialogElementProps } from "./type";
+import { GameState } from "@lib/game/nlcore/common/game";
+import { Sentence } from "@core/elements/character/sentence";
 
 /**@internal */
 type SplitWord = {
@@ -17,21 +19,39 @@ type SplitWord = {
     cps?: number;
 } | "\n" | Pausing;
 
-export default function Texts({className, ...props}: IDialogProps) {
-    const {
-        sentence,
-        gameState,
-        useTypeEffect = true,
-        onCompleted,
-        finished,
-        count,
-        words: w,
-    } = useSentenceContext();
+/**
+ * Base component that handles the core text rendering logic
+ * This component is not meant to be used directly
+ */
+interface BaseTextsProps {
+    sentence: Sentence;
+    gameState: GameState;
+    useTypeEffect?: boolean;
+    onCompleted?: () => void;
+    finished?: boolean;
+    count?: number;
+    words?: Word<Pausing | string>[];
+    className?: string;
+    style?: React.CSSProperties;
+}
+
+function BaseTexts({
+    sentence,
+    gameState,
+    useTypeEffect = true,
+    onCompleted,
+    finished,
+    count,
+    words: w,
+    className,
+    style,
+    ...props
+}: BaseTextsProps) {
     const [isFinished, setIsFinished] = useState(false);
     const {game} = gameState;
     const words = useMemo(() => w || sentence.evaluate(Script.getCtx({
         gameState,
-    })), []);
+    })), [w, sentence, gameState]);
     const [currentWords, setCurrentWords] = useState<Exclude<SplitWord, Pausing>[]>([]);
     const updaterRef = useRef(textUpdater(words));
     const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -245,9 +265,7 @@ export default function Texts({className, ...props}: IDialogProps) {
                 className,
             )}
             style={{
-                fontFamily: sentence.config.fontFamily || game.config.elementStyles.say.fontFamily,
-                fontSize: sentence.config.fontSize || game.config.elementStyles.say.fontSize,
-                ...props.style,
+                ...style,
             }}
         >
             {displayedWords.map((word, index) => {
@@ -259,7 +277,7 @@ export default function Texts({className, ...props}: IDialogProps) {
                         tag={`say.word.${index}`}
                         key={index}
                         style={{
-                            color: toHex(word.config.color || sentence.config.color || Word.defaultColor),
+                            color: toHex(word.config.color || sentence.config.color || game.config.defaultTextColor),
                             fontFamily: word.config.fontFamily,
                             fontSize: word.config.fontSize,
                             ...(game.config.app.debug ? {
@@ -289,3 +307,43 @@ export default function Texts({className, ...props}: IDialogProps) {
         </div>
     );
 }
+
+/**
+ * Props-based wrapper component
+ * Provides a clean interface for direct prop usage
+ */
+export interface TextsProps extends DialogElementProps {
+    sentence: Sentence;
+    gameState: GameState;
+    useTypeEffect?: boolean;
+    onCompleted?: () => void;
+    finished?: boolean;
+    count?: number;
+    words?: Word<Pausing | string>[];
+}
+
+export function RawTexts(props: TextsProps) {
+    return <BaseTexts {...props} />;
+}
+
+/**
+ * Context-based wrapper component
+ * Provides integration with the sentence context
+ */
+export function Texts(props: DialogElementProps) {
+    const context = useSentenceContext();
+    return (
+        <BaseTexts
+            {...props}
+            sentence={context.sentence}
+            gameState={context.gameState}
+            useTypeEffect={context.useTypeEffect}
+            onCompleted={context.onCompleted}
+            finished={context.finished}
+            count={context.count}
+            words={context.words}
+        />
+    );
+}
+
+export default Texts;

@@ -231,7 +231,9 @@ export class LiveGame {
      */
     public notify(message: string, duration: number = 3000) {
         this.assertGameState();
-        this.gameState.notificationMgr.addNotification({message, duration});
+
+        const id = this.gameState.idManager.generateId();
+        this.gameState.notificationMgr.consume({id, message, duration});
     }
 
     private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {
