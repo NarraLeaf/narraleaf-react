@@ -47,6 +47,11 @@ export class Persistent<T extends PersistentContent>
         }
     }
 
+    /**@internal */
+    getNamespace(storable: Storable) {
+        return storable.getNamespace<T>(this.namespace);
+    }
+
     /**
      * @chainable
      */

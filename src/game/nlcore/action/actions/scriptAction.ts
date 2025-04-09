@@ -8,9 +8,14 @@ export class ScriptAction<T extends typeof ScriptActionTypes[keyof typeof Script
     static ActionTypes = ScriptActionTypes;
 
     public executeAction(gameState: GameState) {
-        this.contentNode.getContent().execute({
+        const cleaner = this.contentNode.getContent().execute({
             gameState,
         });
+        if (cleaner) {
+            gameState.actionHistory.push(this, () => {
+                cleaner();
+            }, []);
+        }
         return super.executeAction(gameState);
     }
 }

@@ -15,6 +15,7 @@ export class PersistentAction<T extends Values<typeof PersistentActionTypes> = V
             const namespace = gameState.getStorable().getNamespace(
                 action.callee.getNamespaceName()
             );
+            const prevValue = namespace.get(key);
 
             if (typeof value === "function") {
                 const prevValue = namespace.get(key);
@@ -22,6 +23,10 @@ export class PersistentAction<T extends Values<typeof PersistentActionTypes> = V
             } else {
                 namespace.set(key, value);
             }
+            
+            gameState.actionHistory.push<[any]>(this, (prevValue) => {
+                namespace.set(key, prevValue);
+            }, [prevValue]);
 
             return super.executeAction(gameState);
         }

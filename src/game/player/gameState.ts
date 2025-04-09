@@ -1,6 +1,6 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher, IdManager, Values} from "@lib/util/data";
-import {Choice, MenuData} from "@core/elements/menu";
+import {Awaitable, EventDispatcher, IdManager, Values} from "@lib/util/data";
+import {MenuData} from "@core/elements/menu";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
@@ -24,10 +24,12 @@ import {GameStateGuard, GuardWarningType} from "@player/guard";
 import {LiveGameEventToken} from "@core/types";
 import * as htmlToImage from "html-to-image";
 import {Video, VideoStateRaw} from "@core/elements/video";
-import {Timelines} from "@player/Tasks";
+import {Timeline, Timelines} from "@player/Tasks";
 import {Notification, NotificationManager} from "@player/lib/notification";
 import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
 import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
+import { Displayable } from "../nlcore/elements/displayable/displayable";
+import { Transform } from "../nlcore/common/elements";
 
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -254,7 +256,9 @@ export class GameState {
         return this;
     }
 
-    public createDialog(id: string, sentence: Sentence, afterClick?: () => void, scene?: Scene) {
+    public createDialog(id: string, sentence: Sentence, afterClick?: () => void, scene?: Scene): LiveGameEventToken & {
+        text: string;
+    } {
         const texts = this.findElementByScene(this.getLastSceneIfNot(scene))?.texts;
         if (!texts) {
             throw this.sceneNotFound();
@@ -277,9 +281,20 @@ export class GameState {
             if (afterClick) afterClick();
         });
         texts.push(action);
+
+        return {
+            cancel: () => {
+                const index = texts.indexOf(action as any);
+                if (index === -1) return;
+                texts.splice(index, 1);
+            },
+            text: Word.getText(words),
+        };
     }
 
-    public createMenu(menu: MenuData, afterChoose?: (choice: Choice) => void, scene?: Scene) {
+    public createMenu(menu: MenuData, afterChoose?: (choice: Chosen) => void, scene?: Scene): LiveGameEventToken & {
+        prompt: string;
+    } {
         if (!menu.choices.length) {
             throw new Error("Menu must have at least one choice");
         }
@@ -301,6 +316,15 @@ export class GameState {
             });
         });
         menus.push(action);
+
+        return {
+            cancel: () => {
+                const index = menus.indexOf(action as any);
+                if (index === -1) return;
+                menus.splice(index, 1);
+            },
+            prompt: Word.getText(words),
+        };
     }
 
     public createDisplayable(
@@ -398,6 +422,24 @@ export class GameState {
 
     public clearTimeout(timeout: NodeJS.Timeout): void {
         clearTimeout(timeout);
+    }
+
+    public forceAnimation(): Awaitable {
+        const [awaitable, timeline] = Timeline.proxy(Awaitable.nothing);
+        const elements: Displayable<any, any>[] = [];
+        this.exposedState.forEach((state) => {
+            if (state instanceof Displayable) {
+                elements.push(state);
+            }
+        });
+        elements.forEach(element => {
+            const state = this.getExposedStateForce<ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text>(element);
+            const task = state.applyTransform(Transform.immediate({}), () => {});
+            timeline.attachChild(task);
+        });
+        this.timelines.attachTimeline(timeline);
+
+        return awaitable;
     }
 
     /**

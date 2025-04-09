@@ -24,15 +24,26 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
         } else if (action.is<VideoAction<"video:seek">>(VideoAction, "video:seek")) {
             return this.changeState(gameState, (state) => state.seek(action.contentNode.getContent()[0]));
         } else if (action.is<VideoAction<"video:show">>(VideoAction, "video:show")) {
+            const originalVisible = video.state.display;
             if (!gameState.isVideoAdded(video)) {
                 gameState.addVideo(video);
                 gameState.stage.update();
             }
             video.state.display = true;
+
+            gameState.actionHistory.push<[boolean]>(action, (prevVisible) => {
+                video.state.display = prevVisible;
+            }, [originalVisible]);
+
             return this.changeState(gameState, (state) => state.show());
         } else if (action.is<VideoAction<"video:hide">>(VideoAction, "video:hide")) {
+            const originalVisible = video.state.display;
             return this.changeState(gameState, (state) => {
                 video.state.display = false;
+
+                gameState.actionHistory.push<[boolean]>(action, (prevVisible) => {
+                    video.state.display = prevVisible;
+                }, [originalVisible]);
 
                 state.hide();
                 gameState.removeVideo(video);

@@ -44,9 +44,9 @@ export type DisplayableHookResult<TransitionType extends Transition<U>, U extend
     transitionRefs: RefGroupDefinition<U>[];
     isTransforming: boolean;
     transitionTask: TransitionTaskWithController<TransitionType, U> | null;
-    initDisplayable: (resolve: () => void) => void;
-    applyTransform: (transform: Transform, resolve: () => void) => void;
-    applyTransition: (transition: Transition, resolve: () => void) => void;
+    initDisplayable: (resolve: () => void) => Timeline;
+    applyTransform: (transform: Transform, resolve: () => void) => Timeline;
+    applyTransition: (transition: Transition, resolve: () => void) => Timeline;
     deps: React.DependencyList;
 };
 
@@ -182,7 +182,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         }
     }
 
-    function applyTransform(transform: Transform, resolve: () => void): void {
+    function applyTransform(transform: Transform, resolve: () => void): Timeline {
         if (transformToken) {
             transformToken.abort();
             setTransformToken(null);
@@ -211,9 +211,11 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             handleOnTransform(transform);
             resolve();
         });
+
+        return timeline;
     }
 
-    function applyTransition(newTransition: TransitionType, resolve: () => void): void {
+    function applyTransition(newTransition: TransitionType, resolve: () => void): Timeline {
         if (transitionTask) {
             transitionTask.controller.complete();
         }
@@ -268,12 +270,14 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             resolve();
             awaitable.resolve();
         });
+
+        return timeline;
     }
 
-    function initDisplayable(resolve: () => void): void {
+    function initDisplayable(resolve: () => void): Timeline {
         gameState.logger.debug("initDisplayable", element);
 
-        applyTransform(Transform.immediate(state.get()), resolve);
+        return applyTransform(Transform.immediate(state.get()), resolve);
     }
 
     function skip() {
@@ -308,7 +312,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         transitionTask,
         initDisplayable,
         applyTransform,
-        applyTransition: applyTransition as (transition: Transition, resolve: () => void) => void,
+        applyTransition: applyTransition as (transition: Transition, resolve: () => void) => Timeline,
         deps: [transformToken, transitionTask, refs],
     };
 }

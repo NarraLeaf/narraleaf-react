@@ -6,7 +6,7 @@ import {Awaitable, SkipController} from "@lib/util/data";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {TypedAction} from "@core/action/actions";
 import {RuntimeScriptError, Utils} from "@core/common/Utils";
-import {Color} from "@core/types";
+import {Color, RGBAColor, StaticImageData} from "@core/types";
 import {ExposedStateType} from "@player/type";
 
 export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageActionTypes] = typeof ImageActionTypes[keyof typeof ImageActionTypes]>
@@ -51,6 +51,9 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     state.stage.next();
                 });
             });
+            state.actionHistory.push<[Image]>(this, (wearable) => {
+                exposed.disposeWearable(wearable);
+            }, [wearable]);
 
             return awaitable;
         } else if (this.type === ImageActionTypes.setSrc) {
@@ -59,8 +62,13 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 throw new RuntimeScriptError("Color src is not allowed for non-background image");
             }
 
+            const oldSrc: string | [] | StaticImageData | RGBAColor = this.callee.state.currentSrc;
             this.callee.state.currentSrc = src;
             state.logger.debug("Image Set Src", src);
+
+            state.actionHistory.push<[string | [] | StaticImageData | RGBAColor]>(this, (oldSrc) => {
+                this.callee.state.currentSrc = oldSrc;
+            }, [oldSrc]);
 
             state.stage.update();
             return super.executeAction(state);
@@ -75,7 +83,11 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
 
             const oldTags = this.callee.state.currentSrc as string[];
             const newTags = this.callee.resolveTags(oldTags, tags);
+            const oldSrc = [...oldTags];
             const newSrc = Image.getSrcFromTags(newTags, this.callee.config.src.resolve);
+            const handleUndo = () => {
+                this.callee.state.currentSrc = oldSrc as [];
+            };
 
             state.logger.debug("Image - Set Appearance", newTags, newSrc);
 
@@ -92,11 +104,14 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     awaitable.resolve(super.executeAction(state) as CalledActionResult);
                     state.stage.next();
                 });
-                state.timelines.attachTimeline(awaitable);
+                const timeline = state.timelines.attachTimeline(awaitable);
+                state.actionHistory.push(this, handleUndo, [], timeline);
 
                 return awaitable;
             }
             this.callee.state.currentSrc = newTags as [];
+            state.actionHistory.push(this, handleUndo);
+
             return super.executeAction(state);
         }
 

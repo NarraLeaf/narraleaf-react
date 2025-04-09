@@ -1,15 +1,15 @@
-import {DisplayableActionContentType, DisplayableActionTypes} from "@core/action/actionTypes";
-import {GameState} from "@player/gameState";
-import {TypedAction} from "@core/action/actions";
-import {Awaitable, SkipController, Values} from "@lib/util/data";
-import {Displayable} from "@core/elements/displayable/displayable";
-import {ContentNode} from "@core/action/tree/actionTree";
-import type {CalledActionResult} from "@core/gameTypes";
-import {Scene} from "@core/elements/scene";
-import {Transform} from "@core/elements/transform/transform";
-import {Transition} from "@core/elements/transition/transition";
-import {Layer} from "@core/elements/layer";
-import {LogicAction} from "@core/action/logicAction";
+import { DisplayableActionContentType, DisplayableActionTypes } from "@core/action/actionTypes";
+import { GameState } from "@player/gameState";
+import { TypedAction } from "@core/action/actions";
+import { Awaitable, SkipController, Values } from "@lib/util/data";
+import { Displayable } from "@core/elements/displayable/displayable";
+import { ContentNode } from "@core/action/tree/actionTree";
+import type { CalledActionResult } from "@core/gameTypes";
+import { Scene } from "@core/elements/scene";
+import { Transform, TransformState } from "@core/elements/transform/transform";
+import { Transition } from "@core/elements/transition/transition";
+import { Layer } from "@core/elements/layer";
+import { LogicAction } from "@core/action/logicAction";
 
 
 export class DisplayableAction<
@@ -50,12 +50,24 @@ export class DisplayableAction<
                 return super.executeAction(state) as CalledActionResult;
             }));
         const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
-        exposed.applyTransform(transform, () => {
+        const task = exposed.applyTransform(transform, () => {
             onFinished?.();
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
             state.stage.next();
         });
-        state.timelines.attachTimeline(awaitable);
+        const timeline = state.timelines
+            .attachTimeline(awaitable)
+            .attachChild(task);
+
+        state.actionHistory.push<[TransformState<any>]>(this, (originalTransform) => {
+            if (!awaitable.isSettled()) {
+                awaitable.abort();
+            }
+            const lock = element.transformState.lock();
+            element.transformState
+                .overwrite(lock, originalTransform.state)
+                .unlock(lock);
+        }, [element.transformState.clone()], timeline);
 
         return awaitable;
     }
@@ -67,12 +79,15 @@ export class DisplayableAction<
                 return super.executeAction(state) as CalledActionResult;
             }));
         const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
-        exposed.applyTransition(transition, () => {
+        const task = exposed.applyTransition(transition, () => {
             onFinished?.();
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
             state.stage.next();
         });
-        state.timelines.attachTimeline(awaitable);
+        const timeline = state.timelines
+            .attachTimeline(awaitable)
+            .attachChild(task);
+        state.actionHistory.push<[]>(this, undefined, [], timeline);
 
         return awaitable;
     }
@@ -97,7 +112,11 @@ export class DisplayableAction<
                 state.stage.next();
             });
         });
-        state.timelines.attachTimeline(awaitable);
+        const timeline = state.timelines.attachTimeline(awaitable);
+        state.actionHistory.push(this, () => {
+            state.disposeDisplayable(element, scene, layer);
+        }, [], timeline);
+
         return awaitable;
     }
 }

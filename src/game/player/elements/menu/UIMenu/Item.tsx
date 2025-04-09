@@ -48,6 +48,7 @@ export default function Item({ className, style }: ItemProps) {
                 )}
                 style={style}
                 onClick={handleClick}
+                ref={ref}
             >
                 {choice && (
                     <RawTexts

@@ -404,6 +404,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         const lock = transformState.lock();
         const token = animate(sequences, options);
         const skip = () => {
+            transformState.unlock(lock);
             token.complete();
         };
         const awaitable = new Awaitable<void>()
@@ -537,13 +538,13 @@ export class Transform<T extends TransformDefinitions.Types = any> {
 
         /**
          * Regex:
-         * - `(?<sign>[+-])`: match a sign of `+` or `-`.
-         * - `(?<number>\d+)`: match a number.
+         * - `([+-])`: match a sign of `+` or `-`.
+         * - `(\d+)`: match a number.
          * Matches:
          * - `+n`: positive number.
          * - `-n`: negative number.
          */
-        const regex = /^(?<sign>[+-])(?<number>\d+)$/;
+        const regex = /^([+-])(\d+)$/;
         const match = regex.exec(atDefinition);
 
         if (!match) {

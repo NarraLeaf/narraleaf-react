@@ -27,25 +27,31 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
     }
 
     public executeAction(gameState: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+        /**
+         * {@link Character.say}
+         * Create a game dialog and play voice if available
+         */
         if (this.type === CharacterActionTypes.say) {
             const awaitable =
                 new Awaitable<CalledActionResult, CalledActionResult>(v => v)
-                    .registerSkipController(new SkipController(() => ({
-                        type: this.type as any,
-                        node: this.contentNode.getChild()
-                    })));
+                    .registerSkipController(new SkipController(() => {
+                        dialog.cancel();
+                    }));
             const timeline = new Timeline(awaitable);
-
             const sentence = (this.contentNode as ContentNode<Sentence>).getContent();
-            const voice = CharacterAction.getVoice(gameState, sentence);
 
+            // Play voice if available
+            const voice = CharacterAction.getVoice(gameState, sentence);
             if (voice) {
-                gameState.audioManager.play(voice);
+                const task = gameState.audioManager.play(voice);
+                timeline.attachChild(task);
             }
 
-            gameState.createDialog(this.getId(), sentence, () => {
+            // Create dialog
+            const dialog = gameState.createDialog(this.getId(), sentence, () => {
                 if (voice) {
-                    gameState.audioManager.stop(voice);
+                    const task = gameState.audioManager.stop(voice);
+                    timeline.attachChild(task);
                 }
 
                 awaitable.resolve({
@@ -53,7 +59,26 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     node: this.contentNode.getChild()
                 });
             });
+
+            // Attach timeline
             gameState.timelines.attachTimeline(timeline);
+
+            // Push action to action history
+            const { id } = gameState.actionHistory.push(this, () => {
+                if (voice && gameState.audioManager.isPlaying(voice)) {
+                    const task = gameState.audioManager.stop(voice);
+                    timeline.attachChild(task);
+                }
+            });
+            gameState.gameHistory.push({
+                token: id,
+                action: this,
+                element: {
+                    type: "say",
+                    text: dialog.text,
+                    voice: voice ? voice.getSrc() : null,
+                }
+            });
 
             return awaitable;
         } else if (this.type === CharacterActionTypes.setName) {

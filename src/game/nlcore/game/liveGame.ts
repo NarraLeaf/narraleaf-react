@@ -228,9 +228,11 @@ export class LiveGame {
      * Get the history of the game
      * 
      * The history is a list of element actions that have been executed  
-     * For example, when a character says something, the history will record the character, sentence and voice
+     * For example, when a character says something, the history will record the sentence and voice
      * 
      * You can use the id to undo the action by using `liveGame.undo(id)`
+     * 
+     * This method is an utility method for creating a backlog
      */
     public getHistory(): GameHistory[] {
         this.assertGameState();
@@ -246,11 +248,22 @@ export class LiveGame {
     public undo(id?: string) {
         this.assertGameState();
 
-        if (id) {
-            this.gameState.actionHistory.undoUntil(id);
-        } else {
-            this.gameState.actionHistory.undo();
+        if (this.lockedAwaiting) {
+            this.lockedAwaiting.abort();
         }
+
+        let action = this.currentAction;
+        if (id) {
+            action = this.gameState.actionHistory.undoUntil(id);
+        } else {
+            action = this.gameState.actionHistory.undo();
+        }
+        if (action) {
+            this.currentAction = action;
+        }
+        
+        this.gameState.forceAnimation();
+        this.gameState.stage.forceUpdate();
     }
 
     /**

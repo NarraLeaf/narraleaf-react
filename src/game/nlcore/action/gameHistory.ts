@@ -4,21 +4,19 @@ import { ActionHistory, ActionHistoryManager } from "./actionHistory";
 type GameHistoryAction = {
     token: string;
     action: Action;
-}
+};
 
 type GameElementHistory =
     | {
         type: "say";
         text: string;
-        voice: string;
+        voice: string | null;
     }
     | {
         type: "menu";
         text: string;
-        options: string[];
         selected: string;
-        selectedIndex: number;
-    }
+    };
 
 export type GameHistory = GameHistoryAction & {
     element: GameElementHistory;
@@ -34,6 +32,10 @@ export class GameHistoryManager {
         this.actionHistoryMgr.onUndo((affected) => {
             this.crossFilter(affected);
         });
+
+        this.actionHistoryMgr.onHistoryLimit((removed) => {
+            this.crossFilter(removed);
+        });
     }
 
     push(action: GameHistory): this {
@@ -47,7 +49,6 @@ export class GameHistoryManager {
     
     private crossFilter(affected: ActionHistory[]) {
         const affectedSet = new Set(affected.map(a => a.id));
-
-        this.history = this.history.filter(h => affectedSet.has(h.token));
+        this.history = this.history.filter(h => !affectedSet.has(h.token));
     }
 }

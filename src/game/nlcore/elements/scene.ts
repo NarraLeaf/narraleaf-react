@@ -269,22 +269,6 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Wait for a period of time, the parameter can be the number of milliseconds or a Promise
-     * @chainable
-     */
-    public sleep(ms: number): ChainedScene;
-
-    public sleep(promise: Promise<any>): ChainedScene;
-
-    public sleep(content: number | Promise<any>): ChainedScene {
-        return this.chain(new SceneAction(
-            this.chain(),
-            "scene:sleep",
-            new ContentNode().setContent(content)
-        ));
-    }
-
-    /**
      * Set background music
      * @param sound Target music
      * @param fade If set, the fade-out effect will be applied to the previous music, and the fade-in effect will be applied to the current music, with a duration of {@link fade} milliseconds

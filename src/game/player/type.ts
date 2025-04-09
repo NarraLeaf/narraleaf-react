@@ -10,6 +10,7 @@ import {Displayable} from "@core/elements/displayable/displayable";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import {Video} from "@core/elements/video";
+import { Timeline } from "./Tasks";
 
 export * from "@player/elements/type";
 export type Chosen = Choice & {
@@ -27,21 +28,22 @@ export enum ExposedStateType {
 export type ExposedState = {
     [ExposedStateType.image]: {
         createWearable: (wearable: Image) => void;
+        disposeWearable: (wearable: Image) => void;
         events: EventDispatcher<ImageEvents>;
-        initDisplayable: (onResolve: () => void) => void;
-        applyTransform: (transform: Transform, onResolve: () => void) => void;
-        applyTransition: (transition: Transition<any>, onResolve: () => void) => void;
+        initDisplayable: (onResolve: () => void) => Timeline;
+        applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
     };
     [ExposedStateType.text]: {
-        initDisplayable: (onResolve: () => void) => void;
-        applyTransform: (transform: Transform, onResolve: () => void) => void;
-        applyTransition: (transition: Transition<any>, onResolve: () => void) => void;
+        initDisplayable: (onResolve: () => void) => Timeline;
+        applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
         flush: () => void;
     };
     [ExposedStateType.layer]: {
-        initDisplayable: (onResolve: () => void) => void;
-        applyTransform: (transform: Transform, onResolve: () => void) => void;
-        applyTransition: (transition: Transition<any>, onResolve: () => void) => void;
+        initDisplayable: (onResolve: () => void) => Timeline;
+        applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
     };
     [ExposedStateType.scene]: {
         setBackgroundMusic: (music: Sound | null, fade: number) => Promise<void>;

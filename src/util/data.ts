@@ -202,6 +202,7 @@ export class Awaitable<T = any, U = T> {
     receiver: (value: U) => T;
     result: T | undefined;
     solved = false;
+    aborted = false;
     skipController: SkipController<T, []> | undefined;
     private readonly listeners: ((value: T) => void)[] = [];
     private readonly onRegisterSkipController: ((skipController: SkipController<T, []>) => void)[] = [];
@@ -276,6 +277,7 @@ export class Awaitable<T = any, U = T> {
      * **Note**: Calling this method won't trigger the `then` or `onSettled` callbacks.
      */
     abort() {
+        this.aborted = true;
         if (this.skipController) {
             return this.skipController.abort();
         }
@@ -283,7 +285,15 @@ export class Awaitable<T = any, U = T> {
     }
 
     isSolved() {
-        return this.solved;
+        return this.solved && !this.aborted;
+    }
+
+    isAborted() {
+        return this.aborted;
+    }
+    
+    isSettled() {
+        return this.solved || this.aborted;
     }
 }
 

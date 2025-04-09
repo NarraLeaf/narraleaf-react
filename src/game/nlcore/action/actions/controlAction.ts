@@ -86,7 +86,10 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             const [awaitable, timeline] = this.executeActionSeries(gameState, content[0], (result) => result);
             gameState.timelines.attachTimeline(timeline);
 
-            return awaitable;
+            return Awaitable.forward(awaitable, {
+                type: this.type,
+                node: this.contentNode.getChild(),
+            });
         } else if (this.type === ControlActionTypes.doAsync) {
             if (content.length > 0) {
                 const [, timeline] = this.executeActionSeries(gameState, content[0], (result) => result);

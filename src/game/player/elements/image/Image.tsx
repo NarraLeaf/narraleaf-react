@@ -100,6 +100,9 @@ export default function Image(
         createWearable: (wearable: GameImage) => {
             setWearables((prev) => [...prev, wearable]);
         },
+        disposeWearable: (wearable: GameImage) => {
+            setWearables((prev) => prev.filter((w) => w.getId() !== wearable.getId()));
+        },
         initDisplayable,
         applyTransform,
         applyTransition,
