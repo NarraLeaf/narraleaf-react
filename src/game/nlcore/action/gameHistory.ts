@@ -1,4 +1,3 @@
-import { GameState } from "../common/game";
 import { Action } from "./action";
 import { ActionHistory, ActionHistoryManager } from "./actionHistory";
 
