@@ -25,10 +25,12 @@
   - **Interruptible Task Graph Model**: Structured, Cancel-aware, Stateful Async Task Graph
 - Added `cps` to `Word` config
 - Better text skipping
+- Use `game.config.defaultTextColor` to set the default text color
 
 ### Fixed
 
 - `event:menu.choose` is never triggered
+- Element states are incorrect when deserializing
 
 ## [0.3.0] - 2025/2/16
 

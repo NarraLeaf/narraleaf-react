@@ -92,6 +92,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     awaitable.resolve(super.executeAction(state) as CalledActionResult);
                     state.stage.next();
                 });
+                state.timelines.attachTimeline(awaitable);
 
                 return awaitable;
             }

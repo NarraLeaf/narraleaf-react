@@ -55,6 +55,7 @@ export class DisplayableAction<
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
             state.stage.next();
         });
+        state.timelines.attachTimeline(awaitable);
 
         return awaitable;
     }
@@ -71,6 +72,7 @@ export class DisplayableAction<
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
             state.stage.next();
         });
+        state.timelines.attachTimeline(awaitable);
 
         return awaitable;
     }
@@ -95,7 +97,7 @@ export class DisplayableAction<
                 state.stage.next();
             });
         });
-
+        state.timelines.attachTimeline(awaitable);
         return awaitable;
     }
 }
