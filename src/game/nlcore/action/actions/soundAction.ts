@@ -10,7 +10,6 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
     extends TypedAction<SoundActionContentType, T, Sound> {
     static ActionTypes = SoundActionTypes;
 
-
     public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === SoundActionTypes.play) {
             const [options] = (this.contentNode as ContentNode<SoundActionContentType["sound:play"]>).getContent();

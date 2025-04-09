@@ -7,6 +7,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {Sentence} from "@core/elements/character/sentence";
 import {TypedAction} from "@core/action/actions";
 import {Sound} from "@core/elements/sound";
+import { Timeline } from "@lib/game/player/Tasks";
 
 export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof CharacterActionTypes] = typeof CharacterActionTypes[keyof typeof CharacterActionTypes]>
     extends TypedAction<CharacterActionContentType, T, Character> {
@@ -25,7 +26,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
         return Sound.toSound(scene.getVoice(voiceId) || voice);
     }
 
-    public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(gameState: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === CharacterActionTypes.say) {
             const awaitable =
                 new Awaitable<CalledActionResult, CalledActionResult>(v => v)
@@ -33,17 +34,18 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                         type: this.type as any,
                         node: this.contentNode.getChild()
                     })));
+            const timeline = new Timeline(awaitable);
 
             const sentence = (this.contentNode as ContentNode<Sentence>).getContent();
-            const voice = CharacterAction.getVoice(state, sentence);
+            const voice = CharacterAction.getVoice(gameState, sentence);
 
             if (voice) {
-                state.audioManager.play(voice);
+                gameState.audioManager.play(voice);
             }
 
-            state.createDialog(this.getId(), sentence, () => {
+            gameState.createDialog(this.getId(), sentence, () => {
                 if (voice) {
-                    state.audioManager.stop(voice);
+                    gameState.audioManager.stop(voice);
                 }
 
                 awaitable.resolve({
@@ -51,11 +53,18 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     node: this.contentNode.getChild()
                 });
             });
+            gameState.timelines.attachTimeline(timeline);
 
             return awaitable;
         } else if (this.type === CharacterActionTypes.setName) {
+            const oldName = this.callee.state.name;
             this.callee.state.name = (this.contentNode as ContentNode<CharacterActionContentType["character:setName"]>).getContent()[0];
-            return super.executeAction(state);
+
+            gameState.actionHistory.push<[oldName: string]>(this, (oldName) => {
+                this.callee.state.name = oldName;
+            }, [oldName]);
+
+            return super.executeAction(gameState);
         }
 
         throw super.unknownTypeError();
