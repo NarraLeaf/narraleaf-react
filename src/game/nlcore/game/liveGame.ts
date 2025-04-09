@@ -16,6 +16,7 @@ import {LiveGameEventHandler, LiveGameEventToken} from "@core/types";
 import {Character} from "@core/elements/character";
 import {Sentence} from "@core/elements/character/sentence";
 import {RuntimeGameError} from "@core/common/Utils";
+import { GameHistory } from "../action/gameHistory";
 
 /**@internal */
 type LiveGameEvent = {
@@ -221,6 +222,35 @@ export class LiveGame {
                 gameState.stage.next();
             }, 0);
         });
+    }
+
+    /**
+     * Get the history of the game
+     * 
+     * The history is a list of element actions that have been executed  
+     * For example, when a character says something, the history will record the character, sentence and voice
+     * 
+     * You can use the id to undo the action by using `liveGame.undo(id)`
+     */
+    public getHistory(): GameHistory[] {
+        this.assertGameState();
+        return this.gameState.gameHistory.getHistory();
+    }
+
+    /**
+     * Undo the action
+     * 
+     * - If the id is provided, it will undo the action **by id**  
+     * - If the id is not provided, it will undo **the last action**
+     */
+    public undo(id?: string) {
+        this.assertGameState();
+
+        if (id) {
+            this.gameState.actionHistory.undoUntil(id);
+        } else {
+            this.gameState.actionHistory.undo();
+        }
     }
 
     /**

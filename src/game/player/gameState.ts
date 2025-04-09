@@ -26,6 +26,9 @@ import * as htmlToImage from "html-to-image";
 import {Video, VideoStateRaw} from "@core/elements/video";
 import {Timelines} from "@player/Tasks";
 import {Notification, NotificationManager} from "@player/lib/notification";
+import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
+import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
+
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Chosen>[];
@@ -115,6 +118,8 @@ export class GameState {
     public readonly audioManager: AudioManager;
     public readonly htmlToImage = htmlToImage;
     public readonly idManager: IdManager;
+    public readonly actionHistory: ActionHistoryManager;
+    public readonly gameHistory: GameHistoryManager;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
@@ -126,6 +131,8 @@ export class GameState {
         this.timelines = new Timelines(this.guard);
         this.notificationMgr = new NotificationManager(this, []);
         this.idManager = new IdManager();
+        this.actionHistory = new ActionHistoryManager();
+        this.gameHistory = new GameHistoryManager(this.actionHistory);
     }
 
     public addVideo(video: Video): this {
