@@ -1,7 +1,7 @@
 import React from "react";
-import type {CommonDisplayableConfig, CommonImagePosition} from "@core/types";
-import {ImagePosition} from "@core/types";
-import {animate} from "motion/react";
+import type { CommonDisplayableConfig, CommonImagePosition } from "@core/types";
+import { ImagePosition } from "@core/types";
+import { animate } from "motion/react";
 import type {
     At,
     DOMKeyframesDefinition,
@@ -9,9 +9,9 @@ import type {
     AnimationOptions,
     SequenceOptions
 } from "motion";
-import {Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, toHex} from "@lib/util/data";
-import {GameState} from "@player/gameState";
-import {TransformDefinitions} from "./type";
+import { Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, toHex } from "@lib/util/data";
+import { GameState } from "@player/gameState";
+import { TransformDefinitions } from "./type";
 import {
     Align,
     CommonPosition,
@@ -22,9 +22,9 @@ import {
     PositionUtils,
     RawPosition
 } from "./position";
-import {CSSProps} from "@core/elements/transition/type";
-import {ConfigConstructor} from "@lib/util/config";
-import {RuntimeScriptError} from "@core/common/Utils";
+import { CSSProps } from "@core/elements/transition/type";
+import { ConfigConstructor } from "@lib/util/config";
+import { RuntimeScriptError } from "@core/common/Utils";
 
 export type Transformers =
     "position"
@@ -229,7 +229,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     ): Transform<TransformDefinitions.ImageTransformProps> {
         return new Transform<TransformDefinitions.ImageTransformProps>({
             position: CommonPosition.Positions.Left
-        }, {duration, ease: easing});
+        }, { duration, ease: easing });
     }
 
     /**
@@ -241,7 +241,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     ): Transform<TransformDefinitions.ImageTransformProps> {
         return new Transform<TransformDefinitions.ImageTransformProps>({
             position: CommonPosition.Positions.Right
-        }, {duration, ease: easing});
+        }, { duration, ease: easing });
     }
 
     /**
@@ -253,7 +253,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     ): Transform<TransformDefinitions.ImageTransformProps> {
         return new Transform<TransformDefinitions.ImageTransformProps>({
             position: CommonPosition.Positions.Center
-        }, {duration, ease: easing});
+        }, { duration, ease: easing });
     }
 
     /**@internal */
@@ -315,7 +315,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
 
         const propScale = (prop["scale"] !== undefined) ? prop["scale"] : 1;
 
-        const {invertY, invertX} = state.getStory().getInversionConfig();
+        const { invertY, invertX } = state.getStory().getInversionConfig();
         const Transforms = [
             `translate(${translate[0] || ((invertX ? "" : "-") + "50%")}, ${translate[1] || ((invertY ? "" : "-") + "50%")})`,
             (prop["rotation"] !== undefined) && `rotate(${prop["rotation"]}deg)`,
@@ -326,8 +326,8 @@ export class Transform<T extends TransformDefinitions.Types = any> {
 
     /**@internal */
     static constructStyle<T extends TransformDefinitions.Types>(state: GameState, props: Partial<T>, overwrites?: OverwriteDefinition): DOMKeyframesDefinition {
-        const {invertY, invertX} = state.getStory().getInversionConfig();
-        const {transform, scale, overwrite} = overwrites || {};
+        const { invertY, invertX } = state.getStory().getInversionConfig();
+        const { transform, scale, overwrite } = overwrites || {};
         return {
             ...Transform.positionToCSS(props.position, invertY, invertX),
             opacity: props.opacity,
@@ -367,7 +367,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         } else {
             const [props, options] =
                 [(arg0 as TransformDefinitions.SequenceProps<T>), (arg1 || Transform.defaultOptions as Partial<TransformDefinitions.CommonTransformProps>)];
-            this.sequences.push({props, options: options || {}});
+            this.sequences.push({ props, options: options || Transform.defaultOptions });
             this.config =
                 Object.assign({}, Transform.defaultConfig) as TransformDefinitions.TransformConfig;
         }
@@ -454,9 +454,9 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     /**@internal */
     public getOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): AnimationOptions & At {
         if (!options) {
-            return {};
+            return { ...Transform.defaultOptions };
         }
-        const {duration, ease, delay, at} = options;
+        const { duration, ease, delay, at } = options;
         return {
             duration: this.toSeconds(duration, undefined),
             ease,
@@ -488,7 +488,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     } {
         const state = transformState.clone();
         const lock = state.lock();
-        const sequences = this.sequences.map(({props, options}) => {
+        const sequences = this.sequences.map(({ props, options }) => {
             const segDefinition = state.assign(lock, props).toFramesDefinition(
                 gameState,
                 overwrites
@@ -508,7 +508,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
 
     /**@internal */
     public getSequenceOptions(): SequenceOptions {
-        const {repeat, repeatDelay} = this.config;
+        const { repeat, repeatDelay } = this.config;
         return {
             repeat: this.toSeconds(repeat, undefined),
             repeatDelay: this.toSeconds(repeatDelay, undefined),

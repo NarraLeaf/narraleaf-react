@@ -32,6 +32,8 @@
 
 - `event:menu.choose` is never triggered
 - Element states are incorrect when deserializing
+- Transition incorrect when passing a `Transition` instance directly into `scene.jumpTo`
+- Showing a displayable with incorrect default duration
 
 ## [0.3.0] - 2025/2/16
 
