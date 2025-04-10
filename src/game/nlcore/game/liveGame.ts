@@ -250,6 +250,7 @@ export class LiveGame {
 
         if (this.lockedAwaiting) {
             this.lockedAwaiting.abort();
+            this.lockedAwaiting = null;
         }
 
         let action = this.currentAction;
@@ -260,10 +261,14 @@ export class LiveGame {
         }
         if (action) {
             this.currentAction = action;
+        } else {
+            this.gameState.logger.warn("LiveGame.undo", "No action found");
         }
+        this.gameState.logger.info("LiveGame.undo", "Undo until", id, "currentAction", this.currentAction, "action", action);
         
         this.gameState.forceAnimation();
         this.gameState.stage.forceUpdate();
+        this.gameState.stage.next();
     }
 
     /**

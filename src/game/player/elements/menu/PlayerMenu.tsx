@@ -9,11 +9,10 @@ import { Choice } from "@core/elements/menu";
 import { Word } from "@core/elements/character/word";
 import { Pausing } from "@core/elements/character/pause";
 import { Script } from "@core/elements/script";
-import { RawDialog } from "@lib/game/player/elements/say/Dialog";
 import { UIMenuContext } from "./UIMenu/context";
 import GameMenu from "./UIMenu/Menu";
 import Item from "./UIMenu/Item";
-import { RawTexts } from "../say/Sentence";
+import PlayerDialog from "../say/UIDialog";
 
 /**@internal */
 export default function PlayerMenu(
@@ -45,20 +44,15 @@ export default function PlayerMenu(
         <>
             <UIMenuContext value={{ evaluated, choose, gameState: state }}>
                 <Isolated className={"absolute"}>
-                    {prompt && <RawDialog
+                    {prompt && <PlayerDialog
                         gameState={state}
-                        sentence={prompt}
-                        words={words}
+                        action={{
+                            sentence: prompt,
+                            words,
+                            character: null,
+                        }}
                         useTypeEffect={false}
-                        className="z-10"
-                    >
-                        <RawTexts
-                            gameState={state}
-                            sentence={prompt}
-                            words={words}
-                            useTypeEffect={false}
-                        />
-                    </RawDialog>}
+                    />}
                 </Isolated>
                 <Inspect.Div
                     color={"green"}

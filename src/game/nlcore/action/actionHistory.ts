@@ -72,7 +72,7 @@ export class ActionHistoryManager {
 
         this.history.splice(index);
         this.hooks.onUndo.forEach(cb => cb(affected));
-        return null;
+        return (affected[affected.length - 1]?.action || null) as LogicAction.Actions | null;
     }
 
     public undo(): LogicAction.Actions | null {
@@ -112,5 +112,9 @@ export class ActionHistoryManager {
 
     public offHistoryLimit(callback: (removed: ActionHistory<any>[]) => void): void {
         this.hooks.onHistoryLimit = this.hooks.onHistoryLimit.filter(cb => cb !== callback);
+    }
+
+    public reset() {
+        this.history = [];
     }
 }

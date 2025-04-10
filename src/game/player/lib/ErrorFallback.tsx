@@ -21,7 +21,7 @@ export default function ErrorFallback({error, errorInfo}: { error: Error, errorI
     }
 
     return (
-        <div>
+        <div className="bg-white w-full h-full">
             <h1>NarraLeaf-React crashed due to an unknown error.</h1>
             <p>Please contact the game developer for further assistance.</p>
         </div>

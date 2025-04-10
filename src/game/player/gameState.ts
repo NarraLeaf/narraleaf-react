@@ -377,6 +377,8 @@ export class GameState {
         this.state.videos = [];
         this.audioManager.reset();
         this.timelines.abortAll();
+        this.gameHistory.reset();
+        this.actionHistory.reset();
     }
 
     getHowl(): typeof Howler.Howl {
@@ -427,7 +429,7 @@ export class GameState {
     public forceAnimation(): Awaitable {
         const [awaitable, timeline] = Timeline.proxy(Awaitable.nothing);
         const elements: Displayable<any, any>[] = [];
-        this.exposedState.forEach((state) => {
+        this.exposedState.keys().forEach((state) => {
             if (state instanceof Displayable) {
                 elements.push(state);
             }

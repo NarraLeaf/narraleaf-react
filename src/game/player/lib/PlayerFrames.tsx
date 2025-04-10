@@ -27,10 +27,8 @@ function Full({children, className, style}: ForwardChildren & ForwardStyle) {
             height: game.config.height,
             pointerEvents: "none",
         }}>
-            <div className={"absolute w-full h-full"}>
-                <div className={"h-full w-full"} style={{
-                    pointerEvents: "all",
-                }}>
+            <div className={"absolute w-full h-full pointer-disabled"}>
+                <div className={"h-full w-full pointer-disabled"}>
                     <div className={clsx(className)} style={style}>
                         {children}
                     </div>

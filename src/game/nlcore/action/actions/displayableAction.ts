@@ -50,6 +50,7 @@ export class DisplayableAction<
                 return super.executeAction(state) as CalledActionResult;
             }));
         const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
+        const originalTransform = element.transformState.clone();
         const task = exposed.applyTransform(transform, () => {
             onFinished?.();
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
@@ -63,11 +64,9 @@ export class DisplayableAction<
             if (!awaitable.isSettled()) {
                 awaitable.abort();
             }
-            const lock = element.transformState.lock();
             element.transformState
-                .overwrite(lock, originalTransform.state)
-                .unlock(lock);
-        }, [element.transformState.clone()], timeline);
+                .forceOverwrite(originalTransform.state);
+        }, [originalTransform], timeline);
 
         return awaitable;
     }
@@ -114,7 +113,9 @@ export class DisplayableAction<
         });
         const timeline = state.timelines.attachTimeline(awaitable);
         state.actionHistory.push(this, () => {
-            state.disposeDisplayable(element, scene, layer);
+            if (isElement !== false && state.findElementByDisplayable(element, layer)) {
+                state.disposeDisplayable(element, scene, layer);
+            }
         }, [], timeline);
 
         return awaitable;

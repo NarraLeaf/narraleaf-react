@@ -61,6 +61,9 @@ export class Router {
             this.historyIndex--;
             this.current = this.history[this.historyIndex];
             this.emitOnChange();
+        } else {
+            this.current = null;
+            this.emitOnChange();
         }
         return this;
     }
@@ -131,7 +134,7 @@ export function RouterProvider({children}: {
 }
 
 export function useRouter(): Router {
-    if (!RouterContext) throw new Error("usePreloaded must be used within a PreloadedProvider");
+    if (!useContext(RouterContext)) throw new Error("usePreloaded must be used within a PreloadedProvider");
     return (useContext(RouterContext) as RouterContextType).router;
 }
 

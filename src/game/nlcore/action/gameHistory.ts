@@ -46,6 +46,10 @@ export class GameHistoryManager {
     getHistory(): GameHistory[] {
         return this.history;
     }
+
+    reset() {
+        this.history = [];
+    }
     
     private crossFilter(affected: ActionHistory[]) {
         const affectedSet = new Set(affected.map(a => a.id));

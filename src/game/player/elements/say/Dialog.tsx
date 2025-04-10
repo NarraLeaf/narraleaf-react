@@ -23,6 +23,7 @@ interface BaseDialogProps extends Omit<DialogProps, "onClick"> {
     gameState: GameState;
     useTypeEffect?: boolean;
     onClick?: (skiped?: boolean) => void;
+    onFinished?: () => void;
 }
 
 function BaseDialog({
@@ -32,6 +33,7 @@ function BaseDialog({
     gameState,
     useTypeEffect = true,
     onClick,
+    onFinished,
     ...props
 }: BaseDialogProps) {
     const [isFinished, setIsFinished] = useState(false);
@@ -43,6 +45,7 @@ function BaseDialog({
 
     const handleComplete = () => {
         setIsFinished(true);
+        onFinished?.();
         scheduleAutoForward();
     };
 
@@ -85,6 +88,7 @@ function BaseDialog({
                 if (onClick) onClick(true);
             } else {
                 setIsFinished(true);
+                onFinished?.();
             }
         }).cancel;
     }, [isFinished]);
@@ -176,6 +180,7 @@ export interface RawDialogProps extends Omit<DialogProps, "onClick"> {
     gameState: GameState;
     useTypeEffect?: boolean;
     onClick?: (skiped?: boolean) => void;
+    onFinished?: () => void;
 }
 
 export function RawDialog(props: RawDialogProps) {
@@ -196,6 +201,7 @@ export function Dialog({children, ...props}: DialogProps) {
             gameState={context.gameState}
             useTypeEffect={context.useTypeEffect}
             onClick={context.onClick}
+            onFinished={context.onFinished}
         >
             {children}
         </BaseDialog>

@@ -185,7 +185,12 @@ export class TransformState<T extends TransformDefinitions.Types> {
         if (!this.canWrite(key)) {
             throw new Error("Trying to write a locked transform state.");
         }
-        this.state = Object.assign({}, this.state, state);
+        this.state = TransformState.mergeState<T>(this.state, state);
+        return this;
+    }
+
+    public forceOverwrite(state: Partial<T>): this {
+        this.state = state;
         return this;
     }
 }
