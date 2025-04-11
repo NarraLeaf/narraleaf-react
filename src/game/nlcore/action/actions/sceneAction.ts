@@ -18,13 +18,9 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
     extends TypedAction<SceneActionContentType, T, Scene> {
     static ActionTypes = SceneActionTypes;
 
-    static handleSceneInit(sceneAction: SceneAction<typeof SceneActionTypes["init"]>, state: GameState, awaitable: Awaitable<CalledActionResult, any>) {
-        const [scene] = sceneAction.contentNode.getContent();
+    static handleSceneInit(scene: Scene, next: CalledActionResult, state: GameState, awaitable: Awaitable<CalledActionResult, any>) {
         if (state.isSceneActive(scene)) {
-            return {
-                type: sceneAction.type,
-                node: sceneAction.contentNode.getChild()
-            };
+            return next;
         }
 
         state
@@ -35,10 +31,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
 
         state.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
             SceneAction.initBackgroundMusic(scene, exposed);
-            awaitable.resolve({
-                type: sceneAction.type,
-                node: sceneAction.contentNode.getChild()
-            });
+            awaitable.resolve(next);
             state.stage.next();
 
             state.logger.debug("Scene Action", "Scene init");
@@ -87,10 +80,19 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 this.exit(gameState);
             }, [], timeline);
 
-            return SceneAction.handleSceneInit(this, gameState, awaitable);
+            return SceneAction.handleSceneInit(this.callee, {
+                type: this.type,
+                node: this.contentNode.getChild()
+            }, gameState, awaitable);
         } else if (this.type === SceneActionTypes.exit) {
             const originalState = this.callee.toData();
             gameState.actionHistory.push<[SceneDataRaw | null]>(this, (prevState) => {
+                const awaitable = new Awaitable<CalledActionResult, any>(v => v);
+                gameState.timelines.attachTimeline(awaitable);
+                SceneAction.handleSceneInit(this.callee, {
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                }, gameState, awaitable);
                 if (prevState) this.callee.fromData(prevState);
             }, [originalState]);
 

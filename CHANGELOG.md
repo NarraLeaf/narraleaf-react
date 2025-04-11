@@ -16,6 +16,7 @@
 - `Video` player
 - Customizable components
 - Game notification
+- Commit-style transform construction
 
 ### Updated
 

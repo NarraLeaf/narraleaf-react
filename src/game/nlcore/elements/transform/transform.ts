@@ -9,7 +9,7 @@ import type {
     AnimationOptions,
     SequenceOptions
 } from "motion";
-import { Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, toHex } from "@lib/util/data";
+import { Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, StringKeyOf, toHex } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { TransformDefinitions } from "./type";
 import {
@@ -40,6 +40,11 @@ export type Transformers =
 export type TransformHandler<T> = (value: T) => DOMKeyframesDefinition;
 /**@internal */
 export type TransformStateProps = TransformDefinitions.Types;
+
+type Change<K extends StringKeyOf<TransformDefinitions.Types>> = {
+    key: K;
+    props: TransformDefinitions.Types[K];
+};
 
 const CommonImagePositionMap = {
     [ImagePosition.left]: "25.33%",
@@ -195,7 +200,7 @@ export class TransformState<T extends TransformDefinitions.Types> {
     }
 }
 
-export class Transform<T extends TransformDefinitions.Types = any> {
+export class Transform<T extends TransformDefinitions.Types = CommonDisplayableConfig> {
     /**@internal */
     static defaultConfig: TransformDefinitions.TransformConfig = {
         sync: true,
@@ -347,6 +352,8 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     private readonly config: TransformDefinitions.TransformConfig;
     /**@internal */
     private sequences: TransformDefinitions.Sequence<T>[] = [];
+    /**@internal */
+    private stagedChanges: Change<StringKeyOf<TransformDefinitions.Types>>[] = [];
 
     /**
      * @example
@@ -394,6 +401,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         if (!ref.current) {
             throw new Error("No ref found when animating.");
         }
+        this.commit();
 
         const {
             finalState,
@@ -520,8 +528,125 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         };
     }
 
+    /**
+     * Copy the current transform.
+     * @returns {Transform<T>} A new transform with the same sequences and config.
+     */
     public copy(): Transform<T> {
         return new Transform<T>(this.sequences, this.config);
+    }
+
+    /**
+     * Commits all staged changes to the transform sequence.
+     * This method will create a new sequence from all pending changes that have been staged via chained methods.
+     * If there are no staged changes, this method will return the current instance without modification.
+     * After committing, the staged changes array will be cleared.
+     * @returns {this} The current Transform i  nstance for method chaining
+     * @example
+     * ```ts
+     * transform
+     *   .position({ x: 100, y: 100 })
+     *   .opacity(1).commit() // will create a new sequence with opacity 1 and position x: 100, y: 100
+     *   .position({ x: 200, y: 200 })
+     *   .opacity(0).commit({ duration: 1000 }) // will create a new sequence with opacity 0 and position x: 200, y: 200 with a duration of 1 second
+     * ```
+     * 
+     * **Note**: The staged changes will be committed before animation starts to ensure the latest changes are applied.
+     */
+    public commit(options?: Partial<TransformDefinitions.SequenceOptions>): this {
+        if (!this.stagedChanges.length) {
+            return this;
+        }
+
+        const sequence = this.constructCommit(this.stagedChanges, this.getSequenceOptions());
+        this.sequences.push({
+            props: sequence.props as Partial<T>,
+            options: {
+                ...this.getSequenceOptions(),
+                ...options,
+            },
+        } satisfies TransformDefinitions.Sequence<T>);
+        this.stagedChanges = [];
+
+        return this;
+    }
+
+    /**
+     * Scale the current staging sequence.
+     * @param {number} scale - The scale of the transform.
+     * @returns {this} The current Transform instance for method chaining.
+     */
+    public scale(scale: TransformDefinitions.Types["scale"]): this {
+        return this.pushChange({
+            key: "scale",
+            props: scale,
+        });
+    }
+
+    /**
+     * Rotate the current staging sequence.
+     * @param {number} rotation - The rotation of the transform.
+     * @returns {this} The current Transform instance for method chaining.
+     */
+    public rotation(rotation: TransformDefinitions.Types["rotation"]): this {
+        return this.pushChange({
+            key: "rotation",
+            props: rotation,
+        });
+    }
+
+    /**
+     * Set the position of the current staging sequence.
+     * @param {number} position - The position of the transform.
+     * @returns {this} The current Transform instance for method chaining.
+     */
+    public position(position: TransformDefinitions.Types["position"]): this {
+        return this.pushChange({
+            key: "position",
+            props: position,
+        });
+    }
+
+    /**
+     * Set the opacity of the current staging sequence.
+     * @param {number} opacity - The opacity of the transform.
+     * @returns {this} The current Transform instance for method chaining.
+     */
+    public opacity(opacity: TransformDefinitions.Types["opacity"]): this {
+        return this.pushChange({
+            key: "opacity",
+            props: opacity,
+        });
+    }
+
+    /**
+     * Set the font color of the current staging sequence.
+     * @param {string} fontColor - The font color of the transform.
+     * @returns {this} The current Transform instance for method chaining.
+     */
+    public fontColor(fontColor: TransformDefinitions.Types["fontColor"]): this {
+        return this.pushChange({
+            key: "fontColor",
+            props: fontColor,
+        });
+    }
+
+    /**@internal */
+    private constructCommit(stagedChanges: Change<StringKeyOf<TransformDefinitions.Types>>[], options: TransformDefinitions.SequenceOptions): TransformDefinitions.Sequence<TransformDefinitions.Types> {
+        const sequence: TransformDefinitions.Sequence<TransformDefinitions.Types> = {
+            props: {},
+            options,
+        };
+        for (const change of stagedChanges) {
+            sequence.props[change.key] = change.props as any;
+        }
+        return sequence;
+    }
+
+    /**@internal */
+    pushChange<K extends StringKeyOf<TransformDefinitions.Types>>(change: Change<K>): this {
+        this.stagedChanges.push(change);
+        return this;
     }
 
     /**@internal */

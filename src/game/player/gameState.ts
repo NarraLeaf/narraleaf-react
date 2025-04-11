@@ -429,7 +429,7 @@ export class GameState {
     public forceAnimation(): Awaitable {
         const [awaitable, timeline] = Timeline.proxy(Awaitable.nothing);
         const elements: Displayable<any, any>[] = [];
-        this.exposedState.keys().forEach((state) => {
+        Array.from(this.exposedState.keys()).forEach((state: Values<ExposedKeys>) => {
             if (state instanceof Displayable) {
                 elements.push(state);
             }
