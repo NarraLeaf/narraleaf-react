@@ -1,6 +1,6 @@
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import type {Scene, SceneDataRaw} from "@core/elements/scene";
-import {GameState} from "@player/gameState";
+import {GameState, PlayerStateElementSnapshot} from "@player/gameState";
 import {Awaitable, SkipController} from "@lib/util/data";
 import type {CalledActionResult} from "@core/gameTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
@@ -13,6 +13,14 @@ import {ImageAction} from "@core/action/actions/imageAction";
 import {ActionSearchOptions} from "@core/types";
 import {ExposedState, ExposedStateType} from "@player/type";
 import { Sound } from "../../elements/sound";
+import { ImageDataRaw } from "../../elements/displayable/image";
+
+type SceneSnapshot = {
+    state: SceneDataRaw | null;
+    local: Record<string, any>;
+    element: PlayerStateElementSnapshot;
+    background: ImageDataRaw | null;
+};
 
 export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneActionTypes] = typeof SceneActionTypes[keyof typeof SceneActionTypes]>
     extends TypedAction<SceneActionContentType, T, Scene> {
@@ -43,6 +51,44 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
     static initBackgroundMusic(scene: Scene, exposed: ExposedState[ExposedStateType.scene]) {
         if (scene.state.backgroundMusic) {
             exposed.setBackgroundMusic(scene.state.backgroundMusic, scene.config.backgroundMusicFade);
+        }
+    }
+
+    static createSceneSnapshot(scene: Scene, state: GameState): SceneSnapshot {
+        const element = state.findElementByScene(scene);
+        if (!element) {
+            throw new RuntimeScriptError("Scene not found when creating snapshot (scene: " + scene.getId() + ")");
+        }
+        return {
+            state: scene.toData(),
+            local: scene.local.getNamespace(state.getStorable()).toData(),
+            element: state.createElementSnapshot(element),
+            background: scene.background.toData(),
+        };
+    }
+
+    static restoreSceneSnapshot(snapshot: SceneSnapshot, state: GameState) {
+        const scene = snapshot.element.scene;
+        const element = state.findElementByScene(scene);
+        if (element) {
+            state.removeElement(element);
+        }
+
+        // Restore the element
+        const restoredElement = state.fromElementSnapshot(snapshot.element);
+        state.addElement(restoredElement);
+
+        // Restore the local persistent
+        scene.local.getNamespace(state.getStorable()).load(snapshot.local);
+
+        // Restore the scene
+        if (snapshot.state) {
+            scene.fromData(snapshot.state);
+        }
+
+        // Restore the background
+        if (snapshot.background) {
+            scene.background.fromData(snapshot.background);
         }
     }
 
@@ -85,16 +131,20 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 node: this.contentNode.getChild()
             }, gameState, awaitable);
         } else if (this.type === SceneActionTypes.exit) {
-            const originalState = this.callee.toData();
-            gameState.actionHistory.push<[SceneDataRaw | null]>(this, (prevState) => {
+            const originalSnapshot = SceneAction.createSceneSnapshot(this.callee, gameState);
+            gameState.actionHistory.push<[SceneSnapshot]>(this, (prevSnapshot) => {
                 const awaitable = new Awaitable<CalledActionResult, any>(v => v);
                 gameState.timelines.attachTimeline(awaitable);
+
                 SceneAction.handleSceneInit(this.callee, {
                     type: this.type,
                     node: this.contentNode.getChild()
                 }, gameState, awaitable);
-                if (prevState) this.callee.fromData(prevState);
-            }, [originalState]);
+                SceneAction.restoreSceneSnapshot(prevSnapshot, gameState);
+            }, [originalSnapshot]);
+
+            gameState.getStorable()
+                .removeNamespace(this.callee.local.getNamespaceName());
 
             this.exit(gameState);
             return super.executeAction(gameState);
@@ -128,12 +178,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             return super.executeAction(gameState);
         } else if (this.type === SceneActionTypes.preUnmount) {
             this.callee.events.emit("event:scene.preUnmount");
-            gameState.getStorable()
-                .removeNamespace(this.callee.local.getNamespaceName());
-
-            gameState.actionHistory.push(this, () => {
-                this.callee.local.init(gameState.getStorable());
-            }, []);
 
             return super.executeAction(gameState);
         } else if (this.type === SceneActionTypes.transitionToScene) {

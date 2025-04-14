@@ -266,9 +266,11 @@ export class LiveGame {
         }
         this.gameState.logger.info("LiveGame.undo", "Undo until", id, "currentAction", this.currentAction, "action", action);
         
-        this.gameState.forceAnimation();
         this.gameState.stage.forceUpdate();
         this.gameState.stage.next();
+        this.gameState.schedule(() => {
+            if (this.gameState) this.gameState.forceAnimation();
+        }, 0);
     }
 
     /**

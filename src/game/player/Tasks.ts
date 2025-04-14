@@ -209,6 +209,7 @@ export class Timeline {
             return;
         }
         this.awaitable.abort();
+        this.setStatus("cancelled", this.emitEvents.bind(this));
 
         this.children.forEach(v => v.abort());
     }

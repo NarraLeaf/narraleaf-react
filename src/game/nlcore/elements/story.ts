@@ -5,7 +5,7 @@ import {RuntimeScriptError, StaticChecker, StaticScriptWarning} from "@core/comm
 import {RawData} from "@core/action/tree/actionTree";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {LogicAction} from "@core/action/logicAction";
-import {Persistent} from "@core/elements/persistent";
+import {Persistent, PersistentContent} from "@core/elements/persistent";
 import {Storable} from "@core/elements/persistent/storable";
 import {Service} from "@core/elements/service";
 
@@ -109,6 +109,28 @@ export class Story extends Constructable<
     public registerPersistent(persistent: Persistent<any>): this {
         this.persistent.push(persistent);
         return this;
+    }
+
+    /**
+     * Create a Persistent and register it to the story
+     * @example
+     * ```typescript
+     * const persistent = story.createPersistent("playerData", {
+     *   name: "persistent",
+     * });
+     * 
+     * // is equivalent to
+     * const persistent = new Persistent("playerData", {
+     *   name: "persistent",
+     * });
+     * story.registerPersistent(persistent);
+     * ```
+     */
+    public createPersistent<T extends PersistentContent>(namespace: string, defaultContent: T): Persistent<T> {
+        const persistent = new Persistent(namespace, defaultContent);
+        this.registerPersistent(persistent);
+        
+        return persistent;
     }
 
     /**

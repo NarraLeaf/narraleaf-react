@@ -13,7 +13,7 @@ import {LambdaHandler} from "@core/elements/type";
 import {Namespace, Storable} from "@core/elements/persistent/storable";
 
 /**@internal */
-type PersistentContent = {
+export type PersistentContent = {
     [K in string]: StorableType;
 };
 /**@internal */
@@ -53,7 +53,11 @@ export class Persistent<T extends PersistentContent>
     }
 
     /**
+     * Create an action to set a value in the persistent storage for the given key
      * @chainable
+     * @param key - The key to set the value for
+     * @param value - The value to set
+     * @returns A chainable persistent action
      */
     public set<K extends StringKeyOf<T>>(key: K, value: T[K]): ChainedPersistent<T>;
     public set<K extends StringKeyOf<T>>(key: K, handler: (value: T[K]) => T[K]): ChainedPersistent<T>;
@@ -63,6 +67,20 @@ export class Persistent<T extends PersistentContent>
             [key, $arg1]
         ));
     }
+
+    /**
+     * Create an action to assign a value to the persistent storage
+     * @chainable
+     * @param value - The value to assign
+     * @returns A chainable persistent action
+     */
+    public assign(value: Partial<T>): ChainedPersistent<T> {
+        return this.chain(this.createAction(
+            PersistentActionTypes.assign,
+            [value]
+        ));
+    }
+
 
     /**
      * Determine whether the values are equal, can be used in {@link Condition}

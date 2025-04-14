@@ -17,6 +17,7 @@
 - Customizable components
 - Game notification
 - Commit-style transform construction
+- Game history
 
 ### Updated
 
@@ -28,6 +29,7 @@
 - Better text skipping
 - Added static method `Menu.prompt` as an alias of `new Menu`
 - Use `game.config.defaultTextColor` to set the default text color
+- Added `createPersistent` as a shortcut for initializing a persistent
 
 ### Fixed
 

@@ -177,11 +177,13 @@ export type TextActionContentType = {
 export const PersistentActionTypes = {
     action: "persistent:action",
     set: "persistent:set",
+    assign: "persistent:assign",
 } as const;
 export type PersistentActionContentType = {
     [K in typeof PersistentActionTypes[keyof typeof PersistentActionTypes]]:
     K extends "persistent:action" ? any :
     K extends "persistent:set" ? [string, unknown | ((value: unknown) => unknown)] :
+    K extends "persistent:assign" ? [Partial<unknown>] :
     any;
 }
 /* Layer */

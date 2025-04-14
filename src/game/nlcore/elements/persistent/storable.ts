@@ -35,11 +35,14 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
     key: string;
     /**@internal */
     content: NameSpaceContent<keyof T>;
+    /**@internal */
+    defaultContent: T;
 
     constructor(name: string, initContent: T, key?: string) {
         this.name = name;
         this.key = key || name;
         this.content = deepMerge({}, initContent);
+        this.defaultContent = initContent;
     }
 
     public set<Key extends keyof T>(key: Key, value: T[Key]): this {
@@ -64,6 +67,11 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         Object.entries(values).forEach(([key, value]) => {
             this.set(key as keyof T, value as any);
         });
+        return this;
+    }
+
+    public reset(): this {
+        this.content = deepMerge({}, this.defaultContent);
         return this;
     }
 
@@ -169,7 +177,6 @@ export class Storable {
     public removeNamespace(key: string) {
         delete this.namespaces[key];
         return this;
-
     }
 
     public getNamespaces() {

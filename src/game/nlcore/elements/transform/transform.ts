@@ -266,6 +266,15 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
         }, { duration, ease: easing });
     }
 
+    /**
+     * Create a new transform with the given config. The sequences will be empty.
+     * @param config - The config for the transform.
+     * @returns A new transform with the given config.
+     */
+    public static create<T extends TransformDefinitions.Types = CommonDisplayableConfig>(config?: Partial<TransformDefinitions.TransformConfig>): Transform<T> {
+        return new Transform<T>([], config);
+    }
+
     /**@internal */
     public static positionToCSS(
         position: RawPosition | IPosition | undefined,
@@ -413,6 +422,9 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
             overwrites,
             current: ref.current,
         });
+        if (!sequences.length) {
+            gameState.logger.warn("Transform", "No sequences to animate.");
+        }
 
         const lock = transformState.lock();
         const token = animate(sequences, options);

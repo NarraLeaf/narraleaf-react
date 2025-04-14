@@ -69,6 +69,11 @@ export type PlayerStateData = {
     videos: [videoId: string, videoState: VideoStateRaw][];
 };
 /**@internal */
+export type PlayerStateElementSnapshot = {
+    scene: Scene,
+    layers: Map<Layer, [LogicAction.DisplayableElements, Record<string, any>][]>;
+};
+/**@internal */
 export type PlayerAction = CalledActionResult;
 
 interface StageUtils {
@@ -174,6 +179,21 @@ export class GameState {
             }
             return false;
         }) || null;
+    }
+
+    public removeElement(element: PlayerStateElement): this {
+        const index = this.state.elements.indexOf(element);
+        if (index === -1) {
+            this.logger.weakWarn("Element not found when removing", element.scene.getId());
+            return this;
+        }
+        this.state.elements.splice(index, 1);
+        return this;
+    }
+
+    public addElement(element: PlayerStateElement): this {
+        this.state.elements.push(element);
+        return this;
     }
 
     public addScene(scene: Scene): this {
@@ -601,6 +621,31 @@ export class GameState {
             throw new RuntimeGameError("Scene not found, please call \"scene.activate()\" first.");
         }
         return targetScene;
+    }
+
+    public createElementSnapshot(element: PlayerStateElement): PlayerStateElementSnapshot {
+        return {
+            scene: element.scene,
+            layers: new Map(Array.from(element.layers.entries()).map(([layer, elements]: [Layer, LogicAction.DisplayableElements[]]) => {
+                return [layer, elements.map((element: LogicAction.DisplayableElements) => {
+                    return [element, element.toData()];
+                })];
+            })),
+        };
+    }
+
+    public fromElementSnapshot(snapshot: PlayerStateElementSnapshot): PlayerStateElement {
+        return {
+            scene: snapshot.scene,
+            layers: new Map(Array.from(snapshot.layers.entries()).map(([layer, elements]) => {
+                return [layer, elements.map(([element, data]: [LogicAction.DisplayableElements, any]) => {
+                    element.fromData(data);
+                    return element;
+                })];
+            })),
+            texts: [],
+            menus: [],
+        };
     }
 
     private removeElements(scene: Scene): this {
