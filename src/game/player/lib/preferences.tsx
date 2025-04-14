@@ -11,7 +11,7 @@ import {useGame} from "@player/provider/game-state";
 export function usePreference<K extends StringKeyOf<GamePreference>>(
     key: K
 ): [GamePreference[K], (value: GamePreference[K]) => void] {
-    const {game} = useGame();
+    const game = useGame();
     const [currentValue, setCurrentValue] = React.useState(game.preference.getPreference(key));
 
     const setPreference = (value: GamePreference[K]) => {

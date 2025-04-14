@@ -2,7 +2,7 @@ import React, {ErrorInfo} from "react";
 import {useGame} from "@player/provider/game-state";
 
 export default function ErrorFallback({error, errorInfo}: { error: Error, errorInfo: ErrorInfo }) {
-    const {game} = useGame();
+    const game = useGame();
 
     if (game.config.onError) {
         game.config.onError(error);

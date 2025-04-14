@@ -72,7 +72,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     const [keyGen] = useState(() => new KeyGen("displayable.refGroup"));
     const currentKey = useRef<string>(keyGen.next());
     const refs = useRef<RefGroupDefinition<U>[]>(initRefs()) satisfies RefGroup<U>;
-    const {game} = useGame();
+    const game = useGame();
     const gameState = game.getLiveGame().getGameState()!;
     const evaluatedTransProps = typeof transitionsProps === "function"
         ? transitionsProps(transitionTask)

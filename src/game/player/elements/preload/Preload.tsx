@@ -14,7 +14,7 @@ export function Preload(
         state: GameState;
     }>) {
     const {preloaded, cacheManager} = usePreloaded();
-    const {game} = useGame();
+    const game = useGame();
     const cachedSrc = useRef<Set<ActiveSrc>>(new Set());
 
     const LogTag = "Preload";

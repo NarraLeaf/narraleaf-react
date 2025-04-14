@@ -15,7 +15,7 @@ export function useExposeState<T extends ExposedStateType>(
     value: ExposedState[T] | (() => ExposedState[T]),
     deps: React.DependencyList = []
 ): [] {
-    const {game} = useGame();
+    const game = useGame();
     const gameState: GameState = game.getLiveGame().getGameState()!;
 
     useEffect(() => {

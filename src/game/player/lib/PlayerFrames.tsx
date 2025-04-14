@@ -15,7 +15,7 @@ type ForwardStyle = {
 
 function Full({children, className, style}: ForwardChildren & ForwardStyle) {
     const {ratio} = useRatio();
-    const {game} = useGame();
+    const game = useGame();
 
     return (
         <Isolated className={clsx(

@@ -121,7 +121,7 @@ export function RouterProvider({children}: {
     children: React.ReactNode
 }) {
     "use client";
-    const {game} = useGame();
+    const game = useGame();
     const [router] = useState(() => new Router(game));
 
     return (

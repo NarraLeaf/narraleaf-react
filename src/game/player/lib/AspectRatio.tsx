@@ -18,7 +18,7 @@ export default function AspectRatio(
     }) {
     const [style, setStyle] = useState({});
     const {ratio} = useRatio();
-    const {game} = useGame();
+    const game = useGame();
     const [flush] = useFlush();
 
     const MIN_WIDTH = game.config.minWidth;

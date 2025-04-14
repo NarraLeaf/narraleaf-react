@@ -23,7 +23,7 @@ export default function PlayerMenu(
         state,
         words,
     }: Readonly<MenuElementProps>) {
-    const { game } = useGame();
+    const game = useGame();
 
     const MenuConstructor = game.config.menu;
     const evaluated: (Choice & { words: Word<Pausing | string>[] })[] =

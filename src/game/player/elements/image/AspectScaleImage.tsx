@@ -20,7 +20,7 @@ export default function AspectScaleImage(
     const {ratio} = useRatio();
     const [width, setWidth] = React.useState<number>(() => ratio.state.width);
     const [height, setHeight] = React.useState<number>(() => ratio.state.height);
-    const {game} = useGame();
+    const game = useGame();
 
     useEffect(() => {
         updateWidth();

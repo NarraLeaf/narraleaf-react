@@ -7,10 +7,7 @@ import {Game} from "@core/game";
 /**
  * Context type definition for game state management
  */
-type GameContextType = {
-    game: Game;
-    setGame: (update: (prevGame: Game) => Game) => void;
-};
+type GameContextType = Game;
 
 const GameContext = React.createContext<GameContextType | null>(null);
 
@@ -23,10 +20,10 @@ const GameContext = React.createContext<GameContextType | null>(null);
 export function GameProvider({children, game}: { children?: ReactNode, game?: Game }) {
     "use client";
     const DefaultValue = new Game({});
-    const [_game, setGame] = useState<Game>(game || DefaultValue);
+    const [_game] = useState<Game>(game || DefaultValue);
 
     return (
-        <GameContext value={{game: _game, setGame}}>
+        <GameContext value={_game}>
             {children}
         </GameContext>
     );

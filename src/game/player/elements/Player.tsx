@@ -40,7 +40,7 @@ export default function Player(
     }: Readonly<PlayerProps>) {
     const [, update] = useReducer((x) => x + 1, 0);
     const [key, setKey] = useState(0);
-    const {game} = useGame();
+    const game = useGame();
     const [state, dispatch] = useReducer(handleAction, new GameState(game, {
         update,
         forceUpdate: () => {

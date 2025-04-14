@@ -9,7 +9,7 @@ import {useRouter} from "@player/lib/PageRouter/router";
 export function KeyEventAnnouncer({state}: Readonly<{
     state: GameState;
 }>) {
-    const {game} = useGame();
+    const game = useGame();
     const router = useRouter();
 
     useEffect(() => {
