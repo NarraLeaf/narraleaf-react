@@ -128,8 +128,9 @@ export default function Image(
             layout={isTransforming}
             ref={transformRef}
             className={"absolute w-max h-max"}
+            data-element-type={"image"}
         >
-            <div className={"relative h-full w-full"} ref={containerRef}>
+            <div className={"relative h-full w-full"} ref={containerRef} data-image-id={image.getId()}>
                 {transitionRefs.map(([ref, key], i) => (
                     <AspectScaleImage
                         key={key}

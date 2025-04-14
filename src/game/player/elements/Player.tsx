@@ -169,6 +169,10 @@ export default function Player(
         ]).cancel;
     }, []);
 
+    useEffect(() => {
+        game.hooks.trigger("init", []);
+    }, []);
+
     const playerWidth = width || game.config.width;
     const playerHeight = height || game.config.height;
 
@@ -202,7 +206,7 @@ export default function Player(
                                 <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements}/>
                             ))}
                             {state.getVideos().map((video, index) => (
-                                <div className={"w-full h-full absolute"} key={"video-" + index}>
+                                <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
                                     <Video gameState={state} video={video}/>
                                 </div>
                             ))}

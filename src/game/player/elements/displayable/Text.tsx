@@ -66,7 +66,7 @@ export default function Text({state, text}: Readonly<{
     }, [...deps]);
 
     return (
-        <Inspect.Div>
+        <Inspect.Div data-element-type={"text"}>
             <Inspect.mDiv
                 tag={"text.container"}
                 color={"green"}

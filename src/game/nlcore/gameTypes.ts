@@ -267,6 +267,11 @@ export type GameConfig = {
      */
     defaultTextColor: Color;
     /**
+     * The default text color for the character nametag
+     * @default "#000"
+     */
+    defaultNametagColor: Color;
+    /**
      * The component to use for the notification
      * @default DefaultNotification
      */

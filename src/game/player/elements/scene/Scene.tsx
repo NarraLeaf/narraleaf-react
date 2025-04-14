@@ -96,7 +96,7 @@ export default function Scene(
                 />
             ))}
             {menus.map(({ action, onClick }, i) => (
-                <div key={"menu-" + i}>
+                <div key={"menu-" + i} data-element-type={"menu"}>
                     <PlayerMenu
                         state={state}
                         prompt={action.prompt}

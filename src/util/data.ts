@@ -1,4 +1,4 @@
-import {HexColor, NamedColor} from "@core/types";
+import {HexColor, LiveGameEventToken, NamedColor} from "@core/types";
 
 interface ITypeOf {
     DataTypes: typeof DataTypes;
@@ -1245,6 +1245,33 @@ export class IdManager {
     generateId(): string {
         const id = `${this.prefix ? this.prefix + "-" : ""}${this.counter++}`;
         return id;
+    }
+}
+
+export class Hooks<T extends Record<string, Array<any>>> {
+    private hooks: Record<keyof T, ((...value: T[keyof T]) => VoidFunction | void)[]> = {} as Record<keyof T, ((...value: T[keyof T]) => VoidFunction | void)[]>;
+
+    hook(key: keyof T, hook: (...value: T[keyof T]) => VoidFunction | void): LiveGameEventToken {
+        this.hooks[key] = this.hooks[key] || [];
+        this.hooks[key].push(hook);
+        return {
+            cancel: () => this.unhook(key, hook),
+        };
+    }
+
+    unhook(key: keyof T, hook: (...value: T[keyof T]) => VoidFunction | void) {
+        this.hooks[key] = this.hooks[key]?.filter(h => h !== hook) || [];
+    }
+
+    trigger(key: keyof T, value: T[keyof T]): VoidFunction {
+        const hooks = this.hooks[key];
+        if (!hooks) {
+            return () => {};
+        }
+        const cleanup = hooks.map(h => h(...value));
+        return () => {
+            cleanup.forEach(c => c && c());
+        };
     }
 }
 

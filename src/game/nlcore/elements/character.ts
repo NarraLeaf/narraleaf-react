@@ -8,7 +8,7 @@ import {Sentence, SentencePrompt, SentenceUserConfig, SingleWord} from "@core/el
 import {CharacterAction} from "@core/action/actions/characterAction";
 
 export type CharacterConfig = {
-    color: Color;
+    color?: Color;
 };
 /**@internal */
 export type CharacterStateData = {
@@ -34,8 +34,9 @@ export class Character extends Actionable<
     Character
 > {
     /**@internal */
+    static defaultCharacterColor: Color = "#000";
+    /**@internal */
     static defaultConfig: CharacterConfig = {
-        color: "#000",
     };
     /**@internal */
     readonly config: CharacterConfig;

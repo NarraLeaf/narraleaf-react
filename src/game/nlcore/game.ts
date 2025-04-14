@@ -1,5 +1,5 @@
 import type { GameConfig, GameSettings } from "./gameTypes";
-import { deepMerge, DeepPartial } from "@lib/util/data";
+import { deepMerge, DeepPartial, Hooks } from "@lib/util/data";
 import { LogicAction } from "@core/action/logicAction";
 import { LiveGame } from "@core/game/liveGame";
 import { Preference } from "@core/game/preference";
@@ -15,6 +15,20 @@ export type GamePreference = {
     autoForward: boolean;
     skip: boolean;
     showDialog: boolean;
+};
+
+export type GameHooks = {
+    /**
+     * Hook when the game is initialized
+     * 
+     * This hook's behavior is similar to the `useEffect` hook in React. It will be called twice when the strict mode is enabled.  
+     * It is used to configure the game.
+     */
+    "init": [];
+    /**
+     * Hook when the plugins are initialized
+     */
+    "pluginsInit": [];
 };
 
 export class Game {
@@ -92,6 +106,7 @@ export class Game {
         dialogWidth: 1920,
         dialogHeight: 1080 * 0.2,
         defaultTextColor: "#000",
+        defaultNametagColor: "#000",
         notification: DefaultElements.notification,
         menu: DefaultElements.menu,
         dialog: DefaultElements.say,
@@ -101,6 +116,8 @@ export class Game {
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 
+    /**@internal */
+    hooks: Hooks<GameHooks> = new Hooks<GameHooks>();
     /**@internal */
     config: GameConfig;
     /**@internal */

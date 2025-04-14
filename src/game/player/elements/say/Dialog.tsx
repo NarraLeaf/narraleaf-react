@@ -131,7 +131,7 @@ function BaseDialog({
 
     return (
         <SentenceContext.Provider value={sentenceContext}>
-            <div>
+            <div data-element-type={"dialog"}>
                 {sentence.state.display && showDialog && (
                     <Inspect.Div
                         tag={"say.aspectScaleContainer"}
