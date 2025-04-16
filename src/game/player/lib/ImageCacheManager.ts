@@ -1,3 +1,4 @@
+import { Game } from "@lib/game/nlcore/game";
 import {getImageDataUrl} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 
@@ -12,14 +13,18 @@ export type PreloadedToken = {
 };
 
 export class ImageCacheManager {
-    public static getImage(src: string, abortSignal?: AbortSignal): Promise<string> {
+    public static getImage(src: string, abortSignal?: AbortSignal, options?: RequestInit): Promise<string> {
         return getImageDataUrl(src, {
+            ...options,
             signal: abortSignal,
         });
     }
 
     private src: Map<string, string> = new Map();
     private preloadTasks: Map<string, ImageCacheTask> = new Map();
+
+    constructor(private readonly game: Game) {
+    }
 
     public has(name: string): boolean {
         return this.src.has(name);
@@ -66,19 +71,31 @@ export class ImageCacheManager {
             };
             return token;
         }
+        let srcUrl = url, options: RequestInit = {};
+        this.game.hooks.rawTrigger("preloadImage", () => [srcUrl, (src: string, newOptions?: RequestInit) => {
+            srcUrl = src;
+            options = {
+                ...options,
+                ...newOptions,
+            };
+        }]);
 
         const controller = new AbortController();
         const signal = controller.signal;
         const errorHandlers: ((reason: any) => void)[] = [];
 
-        const promise = ImageCacheManager.getImage(url, signal).then((dataUrl) => {
+        const promise = ImageCacheManager.getImage(srcUrl, signal, options).then((dataUrl) => {
             this.preloadTasks.delete(url);
             if (dataUrl) {
                 this.add(url, dataUrl);
             }
         })
             .catch((reason) => {
-                gameState.logger.error("ImageCacheManager", `Failed to preload image: ${url}`, reason);
+                gameState.logger.error(
+                    "ImageCacheManager",
+                    `Failed to preload image: ${url}`,
+                    `Reason: ${reason}`
+                );
                 errorHandlers.forEach(handler => handler(reason));
             });
 

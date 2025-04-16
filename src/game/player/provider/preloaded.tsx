@@ -3,6 +3,7 @@
 import React, {createContext, useContext, useState} from "react";
 import {Preloaded} from "@player/lib/Preloaded";
 import {ImageCacheManager} from "@player/lib/ImageCacheManager";
+import { useGame } from "./game-state";
 
 type PreloadedContextType = {
     preloaded: Preloaded;
@@ -15,9 +16,9 @@ const PreloadedContext = createContext<null | PreloadedContextType>(null);
 export function PreloadedProvider({children}: {
     children: React.ReactNode
 }) {
-    "use client";
+    const game = useGame();
     const [preloaded] = useState(() => new Preloaded());
-    const [cacheManager] = useState(() => new ImageCacheManager());
+    const [cacheManager] = useState(() => new ImageCacheManager(game));
 
     return (
         <>

@@ -6,7 +6,7 @@ import { Preference } from "@core/game/preference";
 import { GameState } from "@player/gameState";
 import { GuardWarningType } from "@player/guard";
 import { DefaultElements } from "../player/elements/elements";
-
+import { Plugins, IGamePluginRegistry } from "./game/plugin/plugin";
 enum GameSettingsNamespace {
     game = "game",
 }
@@ -26,9 +26,13 @@ export type GameHooks = {
      */
     "init": [];
     /**
-     * Hook when the plugins are initialized
+     * Hook when preloading images
+     * 
+     * @param src - The source of the image
+     * @param set - Calling this function will set the src and options of the fetch request. This is useful to proxy
+     * - **Note**: "signal" is preserved from the original options
      */
-    "pluginsInit": [];
+    "preloadImage": [src: string, set: (src: string, options?: RequestInit) => void];
 };
 
 export class Game {
@@ -126,6 +130,10 @@ export class Game {
      * Game settings
      */
     public preference: Preference<GamePreference> = new Preference<GamePreference>(Game.DefaultPreference);
+    /**
+     * Plugin registry
+     */
+    public plugins: Plugins;
 
     /**
      * Create a new game
@@ -133,6 +141,7 @@ export class Game {
      */
     constructor(config: DeepPartial<GameConfig>) {
         this.config = deepMerge<GameConfig>(Game.DefaultConfig, config);
+        this.plugins = new Plugins(this);
     }
 
     /**
@@ -141,6 +150,15 @@ export class Game {
     public configure(config: DeepPartial<GameConfig>): this {
         this.config = deepMerge<GameConfig>(this.config, config);
         this.getLiveGame().getGameState()?.events.emit(GameState.EventTypes["event:state.player.requestFlush"]);
+        return this;
+    }
+
+    /**
+     * Use a plugin
+     * @param plugin - The plugin to use
+     */
+    public use(plugin: IGamePluginRegistry): this {
+        this.plugins.use(plugin).register(plugin);
         return this;
     }
 

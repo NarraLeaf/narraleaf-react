@@ -11,18 +11,22 @@ export class Plugins {
 
     constructor(public readonly game: Game) {
         this.registerAll();
-        this.game.hooks.trigger("pluginsInit", []);
     }
 
-    use(plugin: IGamePluginRegistry) {
+    use(plugin: IGamePluginRegistry): this {
         this.plugins.push(plugin);
+        return this;
     }
 
-    private registerAll() {
+    register(plugin: IGamePluginRegistry) {
+        plugin.register(this.game);
+    }
+
+    registerAll() {
         this.plugins.forEach(plugin => plugin.register(this.game));
     }
 
-    private unregisterAll() {
+    unregisterAll() {
         this.plugins.forEach(plugin => plugin.unregister(this.game));
     }
 }

@@ -33,6 +33,7 @@
 - Added `createPersistent` as a shortcut for initializing a persistent
 - Added game hooks to `Game`
 - Added `Character.config.color` to set the color of the character's name tag
+- Added `useLiveGame` hook
 
 ### Fixed
 
