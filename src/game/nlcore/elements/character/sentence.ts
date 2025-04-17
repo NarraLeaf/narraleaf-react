@@ -25,18 +25,13 @@ export type SentenceState = {
 export type SentenceUserConfig = Partial<Omit<SentenceConfig, "voice"> & {
     voice: Sound | string | null | undefined
 }>;
-/**@internal */
 export type DynamicWord = (ctx: ScriptCtx) => DynamicWordResult;
-/**@internal */
 export type DynamicWordResult = string | Word | Pausing | (string | Word | Pausing)[];
-/**@internal */
 export type StaticWord<T extends string | DynamicWord | Pausing = string | DynamicWord | Pausing> =
     string
     | Pausing
     | Word<T>;
-/**@internal */
 export type SingleWord = StaticWord | DynamicWord;
-/**@internal */
 export type SentencePrompt = SingleWord[] | SingleWord;
 
 export class Sentence {
