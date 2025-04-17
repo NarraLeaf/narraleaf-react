@@ -26,7 +26,7 @@ NarraLeaf-React uses TypeScript for all scripting, so you don't have to learn a 
 It also has a highly abstracted and easy-to-use API, for example:
 
 ```typescript
-import {Character, Menu, Scene, Word} from "narraleaf-react";
+import {Character, Menu, Scene, Word, c, b} from "narraleaf-react";
 ```
 
 ```typescript
@@ -40,13 +40,13 @@ const johnDoe = new Character("John Doe");
 scene1.action([
   /**
    * John Smith: Hello, world!
-   * John Smith: This is my first NarraLeaf story.
+   * John Smith: This is my first **NarraLeaf** story.
    * John Smith: Start editing src/story.js and enjoy the journey!
    */
   johnSmith
     .say("Hello, world!")
-    .say("This is my first NarraLeaf story.")
-    .say`Start editing ${Word.color("src/story.js", "#0000ff")} and enjoy the journey!`,
+    .say`This is my first ${b("NarraLeaf")} story.`
+    .say`Start editing ${c("src/story.js", "#0000ff")} and enjoy the journey!`,
 
   /**
    * John Doe: Also, don't forget to check out the documentation!

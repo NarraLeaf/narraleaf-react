@@ -26,7 +26,7 @@ NarraLeaf-React 使用 TypeScript 进行所有脚本编写，因此您无需学�
 它还具有高度抽象和易于使用的API，例如：
 
 ```typescript
-import {Character, Menu, Scene, Word} from "narraleaf-react";
+import {Character, Menu, Scene, Word, c, b} from "narraleaf-react";
 ```
 
 ```typescript
@@ -40,13 +40,13 @@ const johnDoe = new Character("约翰·多");
 scene1.action([
     /**
      * 约翰·史密斯: 你好世界！
-     * 约翰·史密斯: 这是我的第一个NarraLeaf视觉小说
+     * 约翰·史密斯: 这是我的第一个 **NarraLeaf** 视觉小说
      * 约翰·史密斯: 开始编辑 src/story.js 并享受旅程！
      */
     johnSmith
         .say("你好世界！")
-        .say("这是我的第一个NarraLeaf视觉小说")
-        .say`开始编辑 ${Word.color("src/story.js", "#0000ff")} 并享受旅程！`,
+        .say`这是我的第一个 ${b("NarraLeaf")} 视觉小说`
+        .say`开始编辑 ${c("src/story.js", "#0000ff")} 并享受旅程！`,
 
     /**
      * 约翰·多: 对了，别忘了查看文档！
