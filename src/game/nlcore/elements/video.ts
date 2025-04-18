@@ -89,19 +89,6 @@ export class Video extends Actionable<VideoStateRaw> {
         ));
     }
 
-    /**
-     * Seek to a specific time in the video
-     *
-     * @param time - The time to seek to in seconds
-     * @chainable
-     */
-    seek(time: number): ChainedVideo {
-        return this.chain(this.createAction(
-            VideoActionTypes.seek,
-            [time]
-        ));
-    }
-
     /**@internal */
     toData(): VideoStateRaw {
         return {
