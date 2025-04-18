@@ -29,4 +29,8 @@ export class Plugins {
     unregisterAll() {
         this.plugins.forEach(plugin => plugin.unregister(this.game));
     }
+
+    has(plugin: IGamePluginRegistry) {
+        return this.plugins.some(p => p.name === plugin.name);
+    }
 }

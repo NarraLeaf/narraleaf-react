@@ -120,12 +120,13 @@ export class Game {
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 
-    /**@internal */
-    hooks: Hooks<GameHooks> = new Hooks<GameHooks>();
+    public readonly hooks: Hooks<GameHooks> = new Hooks<GameHooks>();
     /**@internal */
     config: GameConfig;
     /**@internal */
     liveGame: LiveGame | null = null;
+    /**@internal */
+    sideEffect: VoidFunction[] = [];
     /**
      * Game settings
      */
@@ -158,7 +159,9 @@ export class Game {
      * @param plugin - The plugin to use
      */
     public use(plugin: IGamePluginRegistry): this {
-        this.plugins.use(plugin).register(plugin);
+        if (!this.plugins.has(plugin)) {
+            this.plugins.use(plugin).register(plugin);
+        }
         return this;
     }
 
@@ -170,6 +173,22 @@ export class Game {
             return liveGame;
         }
         return this.liveGame;
+    }
+
+    /**
+     * Dispose the game and all its resources
+     * 
+     * **Note**: This action is irreversible.
+     */
+    public dispose() {
+        this.plugins.unregisterAll();
+        this.liveGame?.dispose();
+        this.sideEffect.forEach(sideEffect => sideEffect());
+    }
+
+    /**@internal */
+    public addSideEffect(sideEffect: VoidFunction) {
+        this.sideEffect.push(sideEffect);
     }
 
     /**@internal */

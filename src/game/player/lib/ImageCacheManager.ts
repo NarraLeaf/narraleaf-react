@@ -24,6 +24,10 @@ export class ImageCacheManager {
     private preloadTasks: Map<string, ImageCacheTask> = new Map();
 
     constructor(private readonly game: Game) {
+        this.game.addSideEffect(() => {
+            this.abortAll();
+            this.src.clear();
+        });
     }
 
     public has(name: string): boolean {

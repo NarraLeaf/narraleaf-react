@@ -1251,21 +1251,21 @@ export class IdManager {
 }
 
 export class Hooks<T extends Record<string, Array<any>>> {
-    private hooks: Record<keyof T, ((...value: T[keyof T]) => VoidFunction | void)[]> = {} as Record<keyof T, ((...value: T[keyof T]) => VoidFunction | void)[]>;
+    private hooks: { [K in keyof T]?: ((...value: T[K]) => VoidFunction | void)[] } = {};
 
-    hook(key: keyof T, hook: (...value: T[keyof T]) => VoidFunction | void): LiveGameEventToken {
+    hook<K extends keyof T>(key: K, hook: (...value: T[K]) => VoidFunction | void): LiveGameEventToken {
         this.hooks[key] = this.hooks[key] || [];
-        this.hooks[key].push(hook);
+        this.hooks[key]!.push(hook);
         return {
             cancel: () => this.unhook(key, hook),
         };
     }
 
-    unhook(key: keyof T, hook: (...value: T[keyof T]) => VoidFunction | void) {
+    unhook<K extends keyof T>(key: K, hook: (...value: T[K]) => VoidFunction | void) {
         this.hooks[key] = this.hooks[key]?.filter(h => h !== hook) || [];
     }
 
-    trigger(key: keyof T, value: T[keyof T]): VoidFunction {
+    trigger<K extends keyof T>(key: K, value: T[K]): VoidFunction {
         const hooks = this.hooks[key];
         if (!hooks) {
             return () => {};
@@ -1276,7 +1276,7 @@ export class Hooks<T extends Record<string, Array<any>>> {
         };
     }
 
-    rawTrigger(key: keyof T, value: () => T[keyof T]): VoidFunction {
+    rawTrigger<K extends keyof T>(key: K, value: () => T[K]): VoidFunction {
         const hooks = this.hooks[key];
         if (!hooks) {
             return () => {};

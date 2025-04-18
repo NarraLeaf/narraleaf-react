@@ -273,6 +273,12 @@ export class LiveGame {
         }, 0);
     }
 
+    /**@internal */
+    public dispose() {
+        this.events.clear();
+        this.gameState?.dispose();
+    }
+
     /**
      * Notify the player with a message
      * 
