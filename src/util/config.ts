@@ -5,7 +5,6 @@ type ConfigHandler<T, U> = (config: T) => U;
 type ConfigHandlersDataType<T extends Record<string, any>> = {
     [K in keyof T]?: any
 }
-/**@internal */
 export type MergeConfig<
     Raw extends Record<string, any>,
     Handlers extends ConfigHandlersDataType<Raw> = Record<string, any>,
@@ -15,7 +14,6 @@ export type MergeConfig<
         : Raw[K]
 };
 
-/**@internal */
 export type ConfigHandlers<Raw extends Record<string, any>, Handlers extends ConfigHandlersDataType<Raw>> = {
     [K in keyof Raw]?: ConfigHandler<Raw[K], Handlers[K]>
 }
