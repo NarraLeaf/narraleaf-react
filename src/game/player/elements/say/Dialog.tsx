@@ -132,13 +132,14 @@ function BaseDialog({
     return (
         <SentenceContext.Provider value={sentenceContext}>
             <div data-element-type={"dialog"}>
-                {sentence.state.display && showDialog && (
+                {sentence.state.display && (
                     <Inspect.Div
                         tag={"say.aspectScaleContainer"}
                         color={"blue"}
                         border={"dashed"}
                         className={clsx(
                             "absolute bottom-0 w-[calc(100%-40px)]",
+                            !showDialog && "invisible pointer-events-auto"
                         )}
                         onClick={onElementClick}
                         style={{

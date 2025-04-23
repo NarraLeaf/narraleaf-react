@@ -6,7 +6,6 @@ import { Transform } from "@core/elements/transform/transform";
 import type { Scene } from "@core/elements/scene";
 import type { MenuData } from "@core/elements/menu";
 import { Awaitable, FlexibleTuple, SelectElementFromEach } from "@lib/util/data";
-import { ITransition } from "@core/elements/transition/type";
 import type { Sound } from "@core/elements/sound";
 import type { Script } from "@core/elements/script";
 import { Sentence } from "@core/elements/character/sentence";
@@ -169,7 +168,6 @@ export type TextActionContentType = {
     K extends "text:hide" ? [Transform<TransformDefinitions.TextTransformProps>] :
     K extends "text:applyTransform" ? [Transform<TransformDefinitions.TextTransformProps>] :
     K extends "text:init" ? [Scene?] :
-    K extends "text:applyTransition" ? [ITransition] :
     K extends "text:setFontSize" ? [number] :
     any;
 }
