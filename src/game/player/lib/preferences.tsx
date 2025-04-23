@@ -3,10 +3,15 @@ import {GamePreference} from "@core/game";
 import React, {useEffect} from "react";
 import {useGame} from "@player/provider/game-state";
 
+/**
+ * Custom hook for managing game preferences
+ * @param key - Preference key to access/modify
+ * @returns Tuple containing current preference value and setter function
+ */
 export function usePreference<K extends StringKeyOf<GamePreference>>(
     key: K
 ): [GamePreference[K], (value: GamePreference[K]) => void] {
-    const {game} = useGame();
+    const game = useGame();
     const [currentValue, setCurrentValue] = React.useState(game.preference.getPreference(key));
 
     const setPreference = (value: GamePreference[K]) => {

@@ -8,6 +8,8 @@ export type WordConfig = {
     className: string;
     ruby: string;
     color: Color;
+    pause: boolean;
+    cps?: number;  // characters per second
 } & Font;
 
 export class Word<T extends string | DynamicWord | Pausing = string | DynamicWord | Pausing> {
@@ -84,8 +86,9 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
     /**@internal */
     inherit(config: Partial<WordConfig>): this {
         this.config.color = this.config.color || config.color;
-        this.config.italic = this.config.italic || config.italic;
-        this.config.bold = this.config.bold || config.bold;
+        this.config.italic = this.config.italic ?? config.italic;
+        this.config.bold = this.config.bold ?? config.bold;
+        this.config.cps = this.config.cps ?? config.cps;
         return this;
     }
 

@@ -1,17 +1,17 @@
 import React from "react";
-import type {CommonDisplayableConfig, CommonImagePosition} from "@core/types";
-import {ImagePosition} from "@core/types";
-import {animate} from "motion/react";
+import type { CommonDisplayableConfig, CommonImagePosition } from "@core/types";
+import { ImagePosition } from "@core/types";
+import { animate } from "motion/react";
 import type {
     At,
     DOMKeyframesDefinition,
     DOMSegmentWithTransition,
-    DynamicAnimationOptions,
+    AnimationOptions,
     SequenceOptions
 } from "motion";
-import {Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, toHex} from "@lib/util/data";
-import {GameState} from "@player/gameState";
-import {TransformDefinitions} from "./type";
+import { Awaitable, deepMerge, DeepPartial, onlyValidFields, Serializer, SkipController, StringKeyOf, toHex } from "@lib/util/data";
+import { GameState } from "@player/gameState";
+import { TransformDefinitions } from "./type";
 import {
     Align,
     CommonPosition,
@@ -22,9 +22,9 @@ import {
     PositionUtils,
     RawPosition
 } from "./position";
-import {CSSProps} from "@core/elements/transition/type";
-import {ConfigConstructor} from "@lib/util/config";
-import {RuntimeScriptError} from "@core/common/Utils";
+import { CSSProps } from "@core/elements/transition/type";
+import { ConfigConstructor } from "@lib/util/config";
+import { RuntimeScriptError } from "@core/common/Utils";
 
 export type Transformers =
     "position"
@@ -40,6 +40,11 @@ export type Transformers =
 export type TransformHandler<T> = (value: T) => DOMKeyframesDefinition;
 /**@internal */
 export type TransformStateProps = TransformDefinitions.Types;
+
+type Change<K extends StringKeyOf<TransformDefinitions.Types>> = {
+    key: K;
+    props: TransformDefinitions.Types[K];
+};
 
 const CommonImagePositionMap = {
     [ImagePosition.left]: "25.33%",
@@ -185,12 +190,17 @@ export class TransformState<T extends TransformDefinitions.Types> {
         if (!this.canWrite(key)) {
             throw new Error("Trying to write a locked transform state.");
         }
-        this.state = Object.assign({}, this.state, state);
+        this.state = TransformState.mergeState<T>(this.state, state);
+        return this;
+    }
+
+    public forceOverwrite(state: Partial<T>): this {
+        this.state = state;
         return this;
     }
 }
 
-export class Transform<T extends TransformDefinitions.Types = any> {
+export class Transform<T extends TransformDefinitions.Types = CommonDisplayableConfig> {
     /**@internal */
     static defaultConfig: TransformDefinitions.TransformConfig = {
         sync: true,
@@ -229,7 +239,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     ): Transform<TransformDefinitions.ImageTransformProps> {
         return new Transform<TransformDefinitions.ImageTransformProps>({
             position: CommonPosition.Positions.Left
-        }, {duration, ease: easing});
+        }, { duration, ease: easing });
     }
 
     /**
@@ -241,7 +251,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     ): Transform<TransformDefinitions.ImageTransformProps> {
         return new Transform<TransformDefinitions.ImageTransformProps>({
             position: CommonPosition.Positions.Right
-        }, {duration, ease: easing});
+        }, { duration, ease: easing });
     }
 
     /**
@@ -253,7 +263,16 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     ): Transform<TransformDefinitions.ImageTransformProps> {
         return new Transform<TransformDefinitions.ImageTransformProps>({
             position: CommonPosition.Positions.Center
-        }, {duration, ease: easing});
+        }, { duration, ease: easing });
+    }
+
+    /**
+     * Create a new transform with the given config. The sequences will be empty.
+     * @param config - The config for the transform.
+     * @returns A new transform with the given config.
+     */
+    public static create<T extends TransformDefinitions.Types = CommonDisplayableConfig>(config?: Partial<TransformDefinitions.TransformConfig>): Transform<T> {
+        return new Transform<T>([], config);
     }
 
     /**@internal */
@@ -315,7 +334,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
 
         const propScale = (prop["scale"] !== undefined) ? prop["scale"] : 1;
 
-        const {invertY, invertX} = state.getStory().getInversionConfig();
+        const { invertY, invertX } = state.getStory().getInversionConfig();
         const Transforms = [
             `translate(${translate[0] || ((invertX ? "" : "-") + "50%")}, ${translate[1] || ((invertY ? "" : "-") + "50%")})`,
             (prop["rotation"] !== undefined) && `rotate(${prop["rotation"]}deg)`,
@@ -326,8 +345,8 @@ export class Transform<T extends TransformDefinitions.Types = any> {
 
     /**@internal */
     static constructStyle<T extends TransformDefinitions.Types>(state: GameState, props: Partial<T>, overwrites?: OverwriteDefinition): DOMKeyframesDefinition {
-        const {invertY, invertX} = state.getStory().getInversionConfig();
-        const {transform, scale, overwrite} = overwrites || {};
+        const { invertY, invertX } = state.getStory().getInversionConfig();
+        const { transform, scale, overwrite } = overwrites || {};
         return {
             ...Transform.positionToCSS(props.position, invertY, invertX),
             opacity: props.opacity,
@@ -342,6 +361,8 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     private readonly config: TransformDefinitions.TransformConfig;
     /**@internal */
     private sequences: TransformDefinitions.Sequence<T>[] = [];
+    /**@internal */
+    private stagedChanges: Change<StringKeyOf<TransformDefinitions.Types>>[] = [];
 
     /**
      * @example
@@ -367,7 +388,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         } else {
             const [props, options] =
                 [(arg0 as TransformDefinitions.SequenceProps<T>), (arg1 || Transform.defaultOptions as Partial<TransformDefinitions.CommonTransformProps>)];
-            this.sequences.push({props, options: options || {}});
+            this.sequences.push({ props, options: options || Transform.defaultOptions });
             this.config =
                 Object.assign({}, Transform.defaultConfig) as TransformDefinitions.TransformConfig;
         }
@@ -389,6 +410,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
         if (!ref.current) {
             throw new Error("No ref found when animating.");
         }
+        this.commit();
 
         const {
             finalState,
@@ -400,10 +422,14 @@ export class Transform<T extends TransformDefinitions.Types = any> {
             overwrites,
             current: ref.current,
         });
+        if (!sequences.length) {
+            gameState.logger.warn("Transform", "No sequences to animate.");
+        }
 
         const lock = transformState.lock();
         const token = animate(sequences, options);
         const skip = () => {
+            transformState.unlock(lock);
             token.complete();
         };
         const awaitable = new Awaitable<void>()
@@ -451,17 +477,17 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     }
 
     /**@internal */
-    public getOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): DynamicAnimationOptions & At {
+    public getOptions(options?: Partial<TransformDefinitions.CommonTransformProps>): AnimationOptions & At {
         if (!options) {
-            return {};
+            return { ...Transform.defaultOptions };
         }
-        const {duration, ease, delay, at} = options;
+        const { duration, ease, delay, at } = options;
         return {
             duration: this.toSeconds(duration, undefined),
             ease,
             delay: this.toSeconds(delay, undefined),
             at: this.atToSeconds(at),
-        } satisfies DynamicAnimationOptions & At;
+        } satisfies AnimationOptions & At;
     }
 
     /**
@@ -487,7 +513,7 @@ export class Transform<T extends TransformDefinitions.Types = any> {
     } {
         const state = transformState.clone();
         const lock = state.lock();
-        const sequences = this.sequences.map(({props, options}) => {
+        const sequences = this.sequences.map(({ props, options }) => {
             const segDefinition = state.assign(lock, props).toFramesDefinition(
                 gameState,
                 overwrites
@@ -507,15 +533,132 @@ export class Transform<T extends TransformDefinitions.Types = any> {
 
     /**@internal */
     public getSequenceOptions(): SequenceOptions {
-        const {repeat, repeatDelay} = this.config;
+        const { repeat, repeatDelay } = this.config;
         return {
             repeat: this.toSeconds(repeat, undefined),
             repeatDelay: this.toSeconds(repeatDelay, undefined),
         };
     }
 
+    /**
+     * Copy the current transform.
+     * @returns {Transform<T>} A new transform with the same sequences and config.
+     */
     public copy(): Transform<T> {
         return new Transform<T>(this.sequences, this.config);
+    }
+
+    /**
+     * Commits all staged changes to the transform sequence.
+     * This method will create a new sequence from all pending changes that have been staged via chained methods.
+     * If there are no staged changes, this method will return the current instance without modification.
+     * After committing, the staged changes array will be cleared.
+     * @returns {this} The current Transform i  nstance for method chaining
+     * @example
+     * ```ts
+     * transform
+     *   .position({ x: 100, y: 100 })
+     *   .opacity(1).commit() // will create a new sequence with opacity 1 and position x: 100, y: 100
+     *   .position({ x: 200, y: 200 })
+     *   .opacity(0).commit({ duration: 1000 }) // will create a new sequence with opacity 0 and position x: 200, y: 200 with a duration of 1 second
+     * ```
+     * 
+     * **Note**: The staged changes will be committed before animation starts to ensure the latest changes are applied.
+     */
+    public commit(options?: Partial<TransformDefinitions.SequenceOptions>): this {
+        if (!this.stagedChanges.length) {
+            return this;
+        }
+
+        const sequence = this.constructCommit(this.stagedChanges, this.getSequenceOptions());
+        this.sequences.push({
+            props: sequence.props as Partial<T>,
+            options: {
+                ...this.getSequenceOptions(),
+                ...options,
+            },
+        } satisfies TransformDefinitions.Sequence<T>);
+        this.stagedChanges = [];
+
+        return this;
+    }
+
+    /**
+     * Scale the current staging sequence.
+     * @param {number} scale - The scale of the transform.
+     * @returns {this} The current Transform instance for method chaining.
+     */
+    public scale(scale: TransformDefinitions.Types["scale"]): this {
+        return this.pushChange({
+            key: "scale",
+            props: scale,
+        });
+    }
+
+    /**
+     * Rotate the current staging sequence.
+     * @param {number} rotation - The rotation of the transform.
+     * @returns {this} The current Transform instance for method chaining.
+     */
+    public rotation(rotation: TransformDefinitions.Types["rotation"]): this {
+        return this.pushChange({
+            key: "rotation",
+            props: rotation,
+        });
+    }
+
+    /**
+     * Set the position of the current staging sequence.
+     * @param {number} position - The position of the transform.
+     * @returns {this} The current Transform instance for method chaining.
+     */
+    public position(position: TransformDefinitions.Types["position"]): this {
+        return this.pushChange({
+            key: "position",
+            props: position,
+        });
+    }
+
+    /**
+     * Set the opacity of the current staging sequence.
+     * @param {number} opacity - The opacity of the transform.
+     * @returns {this} The current Transform instance for method chaining.
+     */
+    public opacity(opacity: TransformDefinitions.Types["opacity"]): this {
+        return this.pushChange({
+            key: "opacity",
+            props: opacity,
+        });
+    }
+
+    /**
+     * Set the font color of the current staging sequence.
+     * @param {string} fontColor - The font color of the transform.
+     * @returns {this} The current Transform instance for method chaining.
+     */
+    public fontColor(fontColor: TransformDefinitions.Types["fontColor"]): this {
+        return this.pushChange({
+            key: "fontColor",
+            props: fontColor,
+        });
+    }
+
+    /**@internal */
+    private constructCommit(stagedChanges: Change<StringKeyOf<TransformDefinitions.Types>>[], options: TransformDefinitions.SequenceOptions): TransformDefinitions.Sequence<TransformDefinitions.Types> {
+        const sequence: TransformDefinitions.Sequence<TransformDefinitions.Types> = {
+            props: {},
+            options,
+        };
+        for (const change of stagedChanges) {
+            sequence.props[change.key] = change.props as any;
+        }
+        return sequence;
+    }
+
+    /**@internal */
+    pushChange<K extends StringKeyOf<TransformDefinitions.Types>>(change: Change<K>): this {
+        this.stagedChanges.push(change);
+        return this;
     }
 
     /**@internal */
@@ -537,13 +680,13 @@ export class Transform<T extends TransformDefinitions.Types = any> {
 
         /**
          * Regex:
-         * - `(?<sign>[+-])`: match a sign of `+` or `-`.
-         * - `(?<number>\d+)`: match a number.
+         * - `([+-])`: match a sign of `+` or `-`.
+         * - `(\d+)`: match a number.
          * Matches:
          * - `+n`: positive number.
          * - `-n`: negative number.
          */
-        const regex = /^(?<sign>[+-])(?<number>\d+)$/;
+        const regex = /^([+-])(\d+)$/;
         const match = regex.exec(atDefinition);
 
         if (!match) {

@@ -1,6 +1,6 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {EventDispatcher, Values} from "@lib/util/data";
-import {Choice, MenuData} from "@core/elements/menu";
+import {Awaitable, EventDispatcher, IdManager, Values} from "@lib/util/data";
+import {MenuData} from "@core/elements/menu";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import * as Howler from "howler";
@@ -23,14 +23,25 @@ import {Layer} from "@core/elements/layer";
 import {GameStateGuard, GuardWarningType} from "@player/guard";
 import {LiveGameEventToken} from "@core/types";
 import * as htmlToImage from "html-to-image";
+import {Video, VideoStateRaw} from "@core/elements/video";
+import {Timeline, Timelines} from "@player/Tasks";
+import {Notification, NotificationManager} from "@player/lib/notification";
+import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
+import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
+import { Displayable } from "../nlcore/elements/displayable/displayable";
+import { Transform } from "../nlcore/common/elements";
 
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Chosen>[];
     displayable: LogicAction.DisplayableElements[];
 };
+type ScheduleHandle = {
+    retry: () => void;
+};
 export type PlayerState = {
     sounds: Sound[];
+    videos: Video[];
     srcManagers: SrcManager[];
     elements: PlayerStateElement[];
 };
@@ -55,6 +66,12 @@ export type PlayerStateData = {
         };
     }[],
     audio: AudioManagerDataRaw;
+    videos: [videoId: string, videoState: VideoStateRaw][];
+};
+/**@internal */
+export type PlayerStateElementSnapshot = {
+    scene: Scene,
+    layers: Map<Layer, [LogicAction.DisplayableElements, Record<string, any>][]>;
 };
 /**@internal */
 export type PlayerAction = CalledActionResult;
@@ -62,6 +79,7 @@ export type PlayerAction = CalledActionResult;
 interface StageUtils {
     update: () => void;
     forceUpdate: () => void;
+    forceRemount: () => void;
     next: () => void;
     dispatch: (action: PlayerAction) => void;
 }
@@ -72,17 +90,24 @@ type GameStateEvents = {
     "event:state.player.skip": [];
     "event:state.player.requestFlush": [];
     "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
+    "event:state.onRender": [];
 };
 
+/**
+ * Core game state management class
+ * Manages all game-related states including sounds, videos, elements and their lifecycle
+ */
 export class GameState {
     static EventTypes: { [K in keyof GameStateEvents]: K } = {
         "event:state.end": "event:state.end",
         "event:state.player.skip": "event:state.player.skip",
         "event:state.player.requestFlush": "event:state.player.requestFlush",
         "event.state.onExpose": "event.state.onExpose",
+        "event:state.onRender": "event:state.onRender",
     };
     state: PlayerState = {
         sounds: [],
+        videos: [],
         srcManagers: [],
         elements: [],
     };
@@ -93,10 +118,15 @@ export class GameState {
     mainContentNode: HTMLDivElement | null = null;
     exposedState: Map<Values<ExposedKeys>, object> = new Map();
     guard: GameStateGuard;
+    timelines: Timelines;
+    public readonly notificationMgr: NotificationManager;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
     public readonly audioManager: AudioManager;
     public readonly htmlToImage = htmlToImage;
+    public readonly idManager: IdManager;
+    public readonly actionHistory: ActionHistoryManager;
+    public readonly gameHistory: GameHistoryManager;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
@@ -104,7 +134,35 @@ export class GameState {
         this.events = new EventDispatcher();
         this.logger = new Logger(game, "NarraLeaf-React");
         this.audioManager = new AudioManager(this);
-        this.guard = new GameStateGuard(this.game.config.app.guard).observe(this);
+        this.guard = new GameStateGuard(game.config.app.guard).observe(this);
+        this.timelines = new Timelines(this.guard);
+        this.notificationMgr = new NotificationManager(this, []);
+        this.idManager = new IdManager();
+        this.actionHistory = new ActionHistoryManager();
+        this.gameHistory = new GameHistoryManager(this.actionHistory);
+    }
+
+    public addVideo(video: Video): this {
+        this.state.videos.push(video);
+        return this;
+    }
+
+    public removeVideo(video: Video): this {
+        const index = this.state.videos.indexOf(video);
+        if (index === -1) {
+            this.logger.weakWarn("Video not found when removing", video.getId());
+            return this;
+        }
+        this.state.videos.splice(index, 1);
+        return this;
+    }
+
+    public isVideoAdded(video: Video): boolean {
+        return this.state.videos.includes(video);
+    }
+
+    public getVideos(): Video[] {
+        return this.state.videos;
     }
 
     public findElementByScene(scene: Scene): PlayerStateElement | null {
@@ -121,6 +179,21 @@ export class GameState {
             }
             return false;
         }) || null;
+    }
+
+    public removeElement(element: PlayerStateElement): this {
+        const index = this.state.elements.indexOf(element);
+        if (index === -1) {
+            this.logger.weakWarn("Element not found when removing", element.scene.getId());
+            return this;
+        }
+        this.state.elements.splice(index, 1);
+        return this;
+    }
+
+    public addElement(element: PlayerStateElement): this {
+        this.state.elements.push(element);
+        return this;
     }
 
     public addScene(scene: Scene): this {
@@ -177,9 +250,19 @@ export class GameState {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    public schedule(callback: () => void, ms: number): () => void {
-        const timeout = setTimeout(callback, ms);
+    public schedule(callback: (scheduleHandle: ScheduleHandle) => void, ms: number): () => void {
+        const timeout = setTimeout(() => {
+            callback({
+                retry: () => {
+                    this.schedule(callback, 0);
+                }
+            });
+        }, ms);
         return () => clearTimeout(timeout);
+    }
+
+    public notify(notification: Notification) {
+        this.notificationMgr.addNotification(notification);
     }
 
     handle(action: PlayerAction): this {
@@ -193,7 +276,9 @@ export class GameState {
         return this;
     }
 
-    public createDialog(id: string, sentence: Sentence, afterClick?: () => void, scene?: Scene) {
+    public createDialog(id: string, sentence: Sentence, afterClick?: () => void, scene?: Scene): LiveGameEventToken & {
+        text: string;
+    } {
         const texts = this.findElementByScene(this.getLastSceneIfNot(scene))?.texts;
         if (!texts) {
             throw this.sceneNotFound();
@@ -216,9 +301,20 @@ export class GameState {
             if (afterClick) afterClick();
         });
         texts.push(action);
+
+        return {
+            cancel: () => {
+                const index = texts.indexOf(action as any);
+                if (index === -1) return;
+                texts.splice(index, 1);
+            },
+            text: Word.getText(words),
+        };
     }
 
-    public createMenu(menu: MenuData, afterChoose?: (choice: Choice) => void, scene?: Scene) {
+    public createMenu(menu: MenuData, afterChoose?: (choice: Chosen) => void, scene?: Scene): LiveGameEventToken & {
+        prompt: string;
+    } {
         if (!menu.choices.length) {
             throw new Error("Menu must have at least one choice");
         }
@@ -234,13 +330,21 @@ export class GameState {
         }, (choice) => {
             menus.splice(menus.indexOf(action as any), 1);
             if (afterChoose) afterChoose(choice);
-            this.game.getLiveGame().events.emit(LiveGame.EventTypes["event:character.prompt"], {
-                character: choice.prompt.config.character,
+            this.game.getLiveGame().events.emit(LiveGame.EventTypes["event:menu.choose"], {
                 sentence: choice.prompt,
                 text: choice.evaluated,
             });
         });
         menus.push(action);
+
+        return {
+            cancel: () => {
+                const index = menus.indexOf(action as any);
+                if (index === -1) return;
+                menus.splice(index, 1);
+            },
+            prompt: Word.getText(words),
+        };
     }
 
     public createDisplayable(
@@ -290,7 +394,11 @@ export class GameState {
         });
         this.state.elements = [];
         this.state.srcManagers = [];
+        this.state.videos = [];
         this.audioManager.reset();
+        this.timelines.abortAll();
+        this.gameHistory.reset();
+        this.actionHistory.reset();
     }
 
     getHowl(): typeof Howler.Howl {
@@ -338,6 +446,30 @@ export class GameState {
         clearTimeout(timeout);
     }
 
+    public forceAnimation(): Awaitable {
+        const [awaitable, timeline] = Timeline.proxy(Awaitable.nothing);
+        const elements: Displayable<any, any>[] = [];
+        Array.from(this.exposedState.keys()).forEach((state: Values<ExposedKeys>) => {
+            if (state instanceof Displayable) {
+                elements.push(state);
+            }
+        });
+        elements.forEach(element => {
+            const state = this.getExposedStateForce<ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text>(element);
+            const task = state.applyTransform(Transform.immediate({}), () => {});
+            timeline.attachChild(task);
+        });
+        this.timelines.attachTimeline(timeline);
+
+        return awaitable;
+    }
+
+    /**
+     * Mounts a new state to the game state manager
+     * @param key - Unique identifier for the state
+     * @param state - State object to be mounted
+     * @returns Object containing unmount function
+     */
     public mountState<T extends ExposedStateType>(key: ExposedKeys[T], state: ExposedState[T]): {
         unMount: () => void;
     } {
@@ -362,6 +494,11 @@ export class GameState {
             this.guard.warn(GuardWarningType.invalidExposedStateUnmounting, "State not found when unmounting");
         }
         this.exposedState.delete(key);
+        return this;
+    }
+
+    public initVideo(video: Video): this {
+        this.state.videos.push(video);
         return this;
     }
 
@@ -412,6 +549,10 @@ export class GameState {
         this.forceReset();
     }
 
+    /**
+     * Converts current game state to serializable data format
+     * @returns PlayerStateData object containing all state information
+     */
     toData(): PlayerStateData {
         return {
             scenes: this.state.elements.map(e => {
@@ -426,6 +567,10 @@ export class GameState {
                 };
             }),
             audio: this.audioManager.toData(),
+            videos: this.state.videos.map(v => [
+                v.getId(),
+                v.toData(),
+            ]),
         };
     }
 
@@ -437,7 +582,7 @@ export class GameState {
             throw new Error("No story loaded");
         }
 
-        const {scenes, audio} = data;
+        const {scenes, audio, videos} = data;
         scenes.forEach(({sceneId, elements}) => {
             this.logger.debug("Loading scene: " + sceneId);
 
@@ -460,6 +605,14 @@ export class GameState {
             });
         });
         this.audioManager.fromData(audio, elementMap);
+        this.state.videos = videos.map(([id, state]) => {
+            const video = elementMap.get(id) as Video;
+            if (!video) {
+                throw new RuntimeGameError("Video not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
+            }
+            video.fromData(state);
+            return video;
+        });
     }
 
     public getLastSceneIfNot(scene: Scene | null | void) {
@@ -468,6 +621,31 @@ export class GameState {
             throw new RuntimeGameError("Scene not found, please call \"scene.activate()\" first.");
         }
         return targetScene;
+    }
+
+    public createElementSnapshot(element: PlayerStateElement): PlayerStateElementSnapshot {
+        return {
+            scene: element.scene,
+            layers: new Map(Array.from(element.layers.entries()).map(([layer, elements]: [Layer, LogicAction.DisplayableElements[]]) => {
+                return [layer, elements.map((element: LogicAction.DisplayableElements) => {
+                    return [element, element.toData()];
+                })];
+            })),
+        };
+    }
+
+    public fromElementSnapshot(snapshot: PlayerStateElementSnapshot): PlayerStateElement {
+        return {
+            scene: snapshot.scene,
+            layers: new Map(Array.from(snapshot.layers.entries()).map(([layer, elements]) => {
+                return [layer, elements.map(([element, data]: [LogicAction.DisplayableElements, any]) => {
+                    element.fromData(data);
+                    return element;
+                })];
+            })),
+            texts: [],
+            menus: [],
+        };
     }
 
     private removeElements(scene: Scene): this {

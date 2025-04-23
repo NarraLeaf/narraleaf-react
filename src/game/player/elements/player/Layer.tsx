@@ -22,7 +22,7 @@ export function Layer(
     } = useDisplayable<any, HTMLDivElement>({
         element: layer,
         state: layer.transformState,
-        skipTransform: state.game.config.elements.layers.allowSkipTransform,
+        skipTransform: state.game.config.allowSkipLayersTransform,
         skipTransition: false,
         transitionsProps: [{
             style: {
@@ -49,7 +49,7 @@ export function Layer(
 
     return (
         <>
-            <motion.div layout className={"absolute w-full h-full"} ref={transformRef}>
+            <motion.div layout className={"absolute w-full h-full"} ref={transformRef} data-element-type={"layer"} data-layer-id={layer.getId()}>
                 {transitionRefs.map(([ref, key]) => (
                     <div className={"relative w-full h-full"} ref={ref} key={key}>
                         {children}

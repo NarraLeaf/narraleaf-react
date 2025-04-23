@@ -1,13 +1,15 @@
-import {Scene as GameScene} from "@core/elements/scene";
-import React, {useEffect} from "react";
-import {GameState, PlayerStateElement} from "@player/gameState";
+import { Scene as GameScene } from "@core/elements/scene";
+import React, { useEffect, useRef } from "react";
+import { GameState, PlayerStateElement } from "@player/gameState";
 import clsx from "clsx";
-import {Layer} from "@player/elements/player/Layer";
+import { Layer } from "@player/elements/player/Layer";
 import Displayables from "@player/elements/displayable/Displayables";
-import {useGame} from "@player/provider/game-state";
-import {useExposeState} from "@player/lib/useExposeState";
-import {ExposedStateType} from "@player/type";
-import {Sound} from "@core/elements/sound";
+import { useExposeState } from "@player/lib/useExposeState";
+import { ExposedStateType } from "@player/type";
+import { Sound } from "@core/elements/sound";
+import PlayerMenu from "@lib/game/player/elements/menu/PlayerMenu";
+import PlayerDialog from "../say/UIDialog";
+import PlayerNotification from "../notification/PlayerNotification";
 
 /**@internal */
 export default function Scene(
@@ -20,10 +22,8 @@ export default function Scene(
         className?: string;
         elements: PlayerStateElement;
     }>) {
-    const {game} = useGame();
-    const {scene, layers, texts, menus} = elements;
-    const Say = game.config.elements.say.use;
-    const Menu = game.config.elements.menu.use;
+    const { scene, layers, texts, menus } = elements;
+    const usingSkipRef = useRef(false);
 
     useEffect(() => {
         return scene.events.depends([
@@ -63,6 +63,10 @@ export default function Scene(
             });
         }
     });
+    
+    useEffect(() => {
+        state.events.emit(GameState.EventTypes["event:state.onRender"]);
+    }, []);
 
     return (
         <div className={clsx(className, "w-full h-full absolute")}>
@@ -70,23 +74,30 @@ export default function Scene(
                 return layerA.config.zIndex - layerB.config.zIndex;
             }).map(([layer, ele]) => (
                 <Layer state={state} layer={layer} key={layer.getId()}>
-                    <Displayables state={state} displayable={ele}/>
+                    <Displayables state={state} displayable={ele} />
                 </Layer>
             )))}
-            {texts.map(({action, onClick}) => (
-                <Say
-                    state={state}
+            {texts.map(({ action, onClick }) => (
+                <PlayerDialog
+                    gameState={state}
                     key={"say-" + action.id}
                     action={action}
-                    onClick={() => {
+                    onClick={(skiped) => {
+                        if (skiped) {
+                            usingSkipRef.current = true;
+                        }
                         onClick();
                         state.stage.next();
+                        setTimeout(() => {
+                            usingSkipRef.current = false;
+                        }, 0);
                     }}
+                    useTypeEffect={!usingSkipRef.current}
                 />
             ))}
-            {menus.map(({action, onClick}, i) => (
-                <div key={"menu-" + i}>
-                    <Menu
+            {menus.map(({ action, onClick }, i) => (
+                <div key={"menu-" + i} data-element-type={"menu"}>
+                    <PlayerMenu
                         state={state}
                         prompt={action.prompt}
                         choices={action.choices}
@@ -98,6 +109,7 @@ export default function Scene(
                     />
                 </div>
             ))}
+            <PlayerNotification gameState={state} />
         </div>
     );
 };

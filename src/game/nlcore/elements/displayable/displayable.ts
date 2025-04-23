@@ -143,7 +143,7 @@ export abstract class Displayable<
         const trans =
             (options instanceof Transform) ? options.copy() : new Transform<TransformType>({
                 opacity: 1,
-            } as TransformType, options || {});
+            } as TransformType, options);
         const action = new DisplayableAction<typeof DisplayableActionTypes.applyTransform, Self>(
             chain,
             DisplayableActionTypes.applyTransform,
@@ -177,7 +177,7 @@ export abstract class Displayable<
         const trans =
             (options instanceof Transform) ? options.copy() : new Transform<TransformType>({
                 opacity: 0,
-            } as TransformType, options || {});
+            } as TransformType, options);
         const action = new DisplayableAction<typeof DisplayableActionTypes.applyTransform, Self>(
             chain,
             DisplayableActionTypes.applyTransform,

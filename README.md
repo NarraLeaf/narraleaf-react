@@ -26,50 +26,50 @@ NarraLeaf-React uses TypeScript for all scripting, so you don't have to learn a 
 It also has a highly abstracted and easy-to-use API, for example:
 
 ```typescript
-import {Character, Menu, Scene, Word} from "narraleaf-react";
+import {Character, Menu, Scene, Word, c, b} from "narraleaf-react";
 ```
 
 ```typescript
 const scene1 = new Scene("scene1_hello_world", {
-    background: "/background/scene1_hello_world.jpg",
+  background: "/background/scene1_hello_world.jpg",
 });
 
 const johnSmith = new Character("John Smith");
 const johnDoe = new Character("John Doe");
 
 scene1.action([
-    /**
-     * John Smith: Hello, world!
-     * John Smith: This is my first NarraLeaf story.
-     * John Smith: Start editing src/story.js and enjoy the journey!
-     */
-    johnSmith
-        .say("Hello, world!")
-        .say("This is my first NarraLeaf story.")
-        .say`Start editing ${Word.color("src/story.js", "#0000ff")} and enjoy the journey!`,
+  /**
+   * John Smith: Hello, world!
+   * John Smith: This is my first **NarraLeaf** story.
+   * John Smith: Start editing src/story.js and enjoy the journey!
+   */
+  johnSmith
+    .say("Hello, world!")
+    .say`This is my first ${b("NarraLeaf")} story.`
+    .say`Start editing ${c("src/story.js", "#00f")} and enjoy the journey!`,
 
-    /**
-     * John Doe: Also, don't forget to check out the documentation!
-     */
-    johnDoe.say("Also, don't forget to check out the documentation!"),
+  /**
+   * John Doe: Also, don't forget to check out the documentation!
+   */
+  johnDoe.say("Also, don't forget to check out the documentation!"),
     
-    /**
-     * Menu: Start the journey
-     *   > Yes I will!
-     *     - John Smith: Great! Let's start the journey!
-     *     - John Smith: You can open issues on GitHub if you have any questions.
-     *   > No, I'm going to check the documentation
-     *     - John Smith: Sure! Take your time!
-     */
-    new Menu("Start the journey")
-        .choose("Yes I will!", [
-            johnSmith
-                .say("Great! Let's start the journey!")
-                .say("You can open issues on GitHub if you have any questions.")
-        ])
-        .choose("No, I'm going to check the documentation", [
-            johnSmith.say("Sure! Take your time!")
-        ])
+  /**
+   * Menu: Start the journey
+   *   > Yes I will!
+   *     - John Smith: Great! Let's start the journey!
+   *     - John Smith: You can open issues on GitHub if you have any questions.
+   *   > No, I'm going to check the documentation
+   *     - John Smith: Sure! Take your time!
+   */
+  Menu.prompt("Start the journey")
+    .choose("Yes I will!", [
+      johnSmith
+        .say("Great! Let's start the journey!")
+        .say("You can open issues on GitHub if you have any questions.")
+    ])
+    .choose("No, I'm going to check the documentation", [
+      johnSmith.say("Sure! Take your time!")
+    ])
 ]);
 ```
 
@@ -85,7 +85,7 @@ npm install narraleaf-react
 
 ### Documentation
 
-- [Introduction](https://react.narraleaf.com/documentation/introduction)
+- [Introduction](https://react.narraleaf.com/documentation/introduction)****
 - [Quick Start](https://react.narraleaf.com/documentation/quick-start)
 - [Installation](https://react.narraleaf.com/documentation/installation)
 - [Basic](https://react.narraleaf.com/documentation/basic)
@@ -100,6 +100,9 @@ npm install narraleaf-react
   - [Conditional](https://react.narraleaf.com/documentation/basic/conditional)
   - [Voice](https://react.narraleaf.com/documentation/basic/voice)
   - [Manage Preferences](https://react.narraleaf.com/documentation/basic/manage-preferences)
+- [Solutions](https://react.narraleaf.com/documentation/solutions)
+  - [Customizing the font](https://react.narraleaf.com/documentation/solutions/font)
+  - [Migration from Ren'Py](https://react.narraleaf.com/documentation/solutions/from-renpy)
 - [Core](https://react.narraleaf.com/documentation/core)
   - [Elements](https://react.narraleaf.com/documentation/core/elements)
     - [Scene](https://react.narraleaf.com/documentation/core/elements/scene)
@@ -116,13 +119,16 @@ npm install narraleaf-react
     - [Text](https://react.narraleaf.com/documentation/core/elements/text)
     - [Persistent](https://react.narraleaf.com/documentation/core/elements/persistent)
     - [Story](https://react.narraleaf.com/documentation/core/elements/story)
+    - [Displayable](https://react.narraleaf.com/documentation/core/elements/displayable)
+    - [Layer](https://react.narraleaf.com/documentation/core/elements/layer)
+    - [Service](https://react.narraleaf.com/documentation/core/elements/service)
+    - [Video](https://react.narraleaf.com/documentation/core/elements/video)
   - [Animation](https://react.narraleaf.com/documentation/core/animation)
   - [Game](https://react.narraleaf.com/documentation/core/game)
+  - [Plugin](https://react.narraleaf.com/documentation/core/plugin)
+  - [Utils](https://react.narraleaf.com/documentation/core/utils)
 - [Player](https://react.narraleaf.com/documentation/player)
-- [Customization](https://react.narraleaf.com/documentation/custom)
-- [Migration](https://react.narraleaf.com/documentation/migration)
-  - [From Ren'Py](https://react.narraleaf.com/documentation/migration/from-renpy)
-- Info
+- About
   - [License](https://react.narraleaf.com/documentation/info/license)
   - [Incompatible Changes](https://react.narraleaf.com/documentation/info/incompatible-changes)
 

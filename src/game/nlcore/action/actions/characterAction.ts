@@ -7,6 +7,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {Sentence} from "@core/elements/character/sentence";
 import {TypedAction} from "@core/action/actions";
 import {Sound} from "@core/elements/sound";
+import { Timeline } from "@lib/game/player/Tasks";
 
 export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof CharacterActionTypes] = typeof CharacterActionTypes[keyof typeof CharacterActionTypes]>
     extends TypedAction<CharacterActionContentType, T, Character> {
@@ -25,25 +26,32 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
         return Sound.toSound(scene.getVoice(voiceId) || voice);
     }
 
-    public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(gameState: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+        /**
+         * {@link Character.say}
+         * Create a game dialog and play voice if available
+         */
         if (this.type === CharacterActionTypes.say) {
             const awaitable =
                 new Awaitable<CalledActionResult, CalledActionResult>(v => v)
-                    .registerSkipController(new SkipController(() => ({
-                        type: this.type as any,
-                        node: this.contentNode.getChild()
-                    })));
-
+                    .registerSkipController(new SkipController(() => {
+                        dialog.cancel();
+                    }));
+            const timeline = new Timeline(awaitable);
             const sentence = (this.contentNode as ContentNode<Sentence>).getContent();
-            const voice = CharacterAction.getVoice(state, sentence);
 
+            // Play voice if available
+            const voice = CharacterAction.getVoice(gameState, sentence);
             if (voice) {
-                state.audioManager.play(voice);
+                const task = gameState.audioManager.play(voice);
+                timeline.attachChild(task);
             }
 
-            state.createDialog(this.getId(), sentence, () => {
+            // Create dialog
+            const dialog = gameState.createDialog(this.getId(), sentence, () => {
                 if (voice) {
-                    state.audioManager.stop(voice);
+                    const task = gameState.audioManager.stop(voice);
+                    timeline.attachChild(task);
                 }
 
                 awaitable.resolve({
@@ -52,10 +60,36 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 });
             });
 
+            // Attach timeline
+            gameState.timelines.attachTimeline(timeline);
+
+            // Push action to action history
+            const { id } = gameState.actionHistory.push(this, () => {
+                if (voice && gameState.audioManager.isPlaying(voice)) {
+                    const task = gameState.audioManager.stop(voice);
+                    timeline.attachChild(task);
+                }
+            });
+            gameState.gameHistory.push({
+                token: id,
+                action: this,
+                element: {
+                    type: "say",
+                    text: dialog.text,
+                    voice: voice ? voice.getSrc() : null,
+                }
+            });
+
             return awaitable;
         } else if (this.type === CharacterActionTypes.setName) {
+            const oldName = this.callee.state.name;
             this.callee.state.name = (this.contentNode as ContentNode<CharacterActionContentType["character:setName"]>).getContent()[0];
-            return super.executeAction(state);
+
+            gameState.actionHistory.push<[oldName: string]>(this, (oldName) => {
+                this.callee.state.name = oldName;
+            }, [oldName]);
+
+            return super.executeAction(gameState);
         }
 
         throw super.unknownTypeError();

@@ -1,4 +1,4 @@
-import {Awaitable, EventDispatcher, Lock, MultiLock} from "@lib/util/data";
+import {Awaitable, EventDispatcher, generateId, MultiLock} from "@lib/util/data";
 import type {CalledActionResult, SavedGame} from "@core/gameTypes";
 import {Story} from "@core/elements/story";
 import {GameState} from "@player/gameState";
@@ -16,6 +16,8 @@ import {LiveGameEventHandler, LiveGameEventToken} from "@core/types";
 import {Character} from "@core/elements/character";
 import {Sentence} from "@core/elements/character/sentence";
 import {RuntimeGameError} from "@core/common/Utils";
+import { GameHistory } from "../action/gameHistory";
+import { Options } from "html-to-image/lib/types";
 
 /**@internal */
 type LiveGameEvent = {
@@ -73,8 +75,6 @@ export class LiveGame {
     private _lockedCount = 0;
     /**@internal */
     private currentAction: LogicAction.Actions | null = null;
-    /**@internal */
-    private _nextLock = new Lock();
 
     /**@internal */
     constructor(game: Game) {
@@ -124,6 +124,10 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
+        if (!this.currentSavedGame) {
+            throw new Error("Failed when trying to serialize the game: The game has not started");
+        }
+
         // get all element states
         const store = this.storable.toData();
         const stage = gameState.toData();
@@ -131,10 +135,11 @@ export class LiveGame {
         const elementStates = story.getAllElementStates();
 
         return {
-            name: this.currentSavedGame?.name || "",
+            name: this.currentSavedGame.name,
             meta: {
-                created: this.currentSavedGame?.meta.created || Date.now(),
+                created: this.currentSavedGame.meta.created,
                 updated: Date.now(),
+                id: this.currentSavedGame.meta.id,
             },
             game: {
                 store,
@@ -163,7 +168,7 @@ export class LiveGame {
         }
 
         this.reset({gameState});
-        gameState.stage.forceUpdate();
+        gameState.stage.forceRemount();
 
         const actionMaps = new Map<string, LogicAction.Actions>();
         const elementMaps = new Map<string, LogicAction.GameElement>();
@@ -213,7 +218,84 @@ export class LiveGame {
         story.deserializeServices(services);
 
         gameState.stage.forceUpdate();
-        gameState.stage.next();
+        gameState.events.once(GameState.EventTypes["event:state.onRender"], () => {
+            gameState.schedule(() => {
+                gameState.stage.next();
+            }, 0);
+        });
+    }
+
+    /**
+     * Get the history of the game
+     * 
+     * The history is a list of element actions that have been executed  
+     * For example, when a character says something, the history will record the sentence and voice
+     * 
+     * You can use the id to undo the action by using `liveGame.undo(id)`
+     * 
+     * This method is an utility method for creating a backlog
+     */
+    public getHistory(): GameHistory[] {
+        this.assertGameState();
+        return this.gameState.gameHistory.getHistory();
+    }
+
+    /**
+     * Undo the action
+     * 
+     * - If the id is provided, it will undo the action **by id**  
+     * - If the id is not provided, it will undo **the last action**
+     */
+    public undo(id?: string) {
+        this.assertGameState();
+
+        if (this.lockedAwaiting) {
+            this.lockedAwaiting.abort();
+            this.lockedAwaiting = null;
+        }
+
+        let action = this.currentAction;
+        if (id) {
+            action = this.gameState.actionHistory.undoUntil(id);
+        } else {
+            action = this.gameState.actionHistory.undo();
+        }
+        if (action) {
+            this.currentAction = action;
+        } else {
+            this.gameState.logger.warn("LiveGame.undo", "No action found");
+        }
+        this.gameState.logger.info("LiveGame.undo", "Undo until", id, "currentAction", this.currentAction, "action", action);
+        
+        this.gameState.stage.forceUpdate();
+        this.gameState.stage.next();
+        this.gameState.schedule(() => {
+            if (this.gameState) this.gameState.forceAnimation();
+        }, 0);
+    }
+
+    /**@internal */
+    public dispose() {
+        this.events.clear();
+        this.gameState?.dispose();
+    }
+
+    /**
+     * Notify the player with a message
+     * 
+     * @param message - The message to notify the player with
+     * @param duration - The duration of the notification in milliseconds, default is 3000ms
+     */
+    public notify(message: string, duration: number = 3000) {
+        this.assertGameState();
+
+        const id = this.gameState.idManager.generateId();
+        this.gameState.notificationMgr.consume({id, message, duration});
+    }
+
+    private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {
+        this.assertGameState();
+        this.assertPlayerElement();
     }
 
     /**
@@ -222,9 +304,8 @@ export class LiveGame {
      * Returns a PNG image base64-encoded data URL
      */
     capturePng(): Promise<string> {
-        this.assertGameState();
-        this.assertPlayerElement();
-        return this.gameState.htmlToImage.toPng(this.gameState.mainContentNode!);
+        this.assertScreenshot();
+        return this.gameState.htmlToImage.toPng(this.gameState.mainContentNode!, this.getScreenshotOptions());
     }
 
     /**
@@ -233,9 +314,8 @@ export class LiveGame {
      * Returns compressed JPEG image data URL
      */
     captureJpeg(): Promise<string> {
-        this.assertGameState();
-        this.assertPlayerElement();
-        return this.gameState.htmlToImage.toJpeg(this.gameState.mainContentNode!);
+        this.assertScreenshot();
+        return this.gameState.htmlToImage.toJpeg(this.gameState.mainContentNode!, this.getScreenshotOptions());
     }
 
     /**
@@ -244,9 +324,8 @@ export class LiveGame {
      * Returns an SVG data URL
      */
     captureSvg(): Promise<string> {
-        this.assertGameState();
-        this.assertPlayerElement();
-        return this.gameState.htmlToImage.toSvg(this.gameState.mainContentNode!);
+        this.assertScreenshot();
+        return this.gameState.htmlToImage.toSvg(this.gameState.mainContentNode!, this.getScreenshotOptions());
     }
 
     /**
@@ -255,9 +334,10 @@ export class LiveGame {
      * Returns a PNG image blob
      */
     capturePngBlob(): Promise<Blob | null> {
+        this.assertScreenshot();
         this.assertGameState();
         this.assertPlayerElement();
-        return this.gameState.htmlToImage.toBlob(this.gameState.mainContentNode!);
+        return this.gameState.htmlToImage.toBlob(this.gameState.mainContentNode!, this.getScreenshotOptions());
     }
 
     /**
@@ -353,6 +433,13 @@ export class LiveGame {
         }
     }
 
+    /**@internal */
+    getScreenshotOptions(): Options {
+        return {
+            quality: this.game.config.screenshotQuality
+        };
+    }
+
     /**
      * Listen to the events of the player element
      */
@@ -406,11 +493,6 @@ export class LiveGame {
             return this.gameLock;
         }
 
-        if (this._nextLock.isLocked()) {
-            return null;
-        }
-        this._nextLock.lock();
-
         if (!this.story) {
             throw new Error("No story loaded");
         }
@@ -425,7 +507,6 @@ export class LiveGame {
                     throw new Error("LiveGame locked: dead cycle detected\nPlease refresh the page");
                 }
 
-                this._nextLock.unlock();
                 return this.lockedAwaiting;
             }
             const next = this.lockedAwaiting.result;
@@ -437,14 +518,12 @@ export class LiveGame {
 
             state.logger.debug("next action (lockedAwaiting)", next);
 
-            this._nextLock.unlock();
             return next || null;
         }
 
         if (!this.currentAction) {
             state.logger.weakWarn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
 
-            this._nextLock.unlock();
             return null;
         }
 
@@ -452,7 +531,6 @@ export class LiveGame {
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             this.lockedAwaiting = nextAction;
 
-            this._nextLock.unlock();
             return nextAction;
         }
 
@@ -461,7 +539,6 @@ export class LiveGame {
         this._lockedCount = 0;
         this.currentAction = nextAction.node?.action || null;
 
-        this._nextLock.unlock();
         return nextAction;
     }
 
@@ -486,6 +563,11 @@ export class LiveGame {
             return nextAction;
         }
         return nextAction?.node?.action || null;
+    }
+
+    /**@internal */
+    executeActionRaw(state: GameState, action: LogicAction.Actions): CalledActionResult | Awaitable<CalledActionResult, any> | null {
+        return action.executeAction(state);
     }
 
     /**@internal */
@@ -553,6 +635,7 @@ export class LiveGame {
             meta: {
                 created: Date.now(),
                 updated: Date.now(),
+                id: generateId(),
             },
             game: {
                 store: {},
@@ -561,6 +644,7 @@ export class LiveGame {
                     audio: {
                         sounds: [],
                     },
+                    videos: [],
                 },
                 elementStates: [],
                 currentAction: this.story?.entryScene?.getSceneRoot().getId() || null,
@@ -583,7 +667,7 @@ export class LiveGame {
      * @internal
      * @throws {RuntimeGameError} - If the player element isn't mounted
      */
-    private assertPlayerElement(): asserts this is { gameState: GameState & {playerCurrent: HTMLDivElement } } {
+    private assertPlayerElement(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {
         this.assertGameState();
         if (!this.gameState.playerCurrent) {
             throw new RuntimeGameError("Player Element Not Mounted");

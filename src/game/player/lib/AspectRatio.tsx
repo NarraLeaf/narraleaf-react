@@ -18,25 +18,25 @@ export default function AspectRatio(
     }) {
     const [style, setStyle] = useState({});
     const {ratio} = useRatio();
-    const {game} = useGame();
+    const game = useGame();
     const [flush] = useFlush();
 
-    const MIN_WIDTH = game.config.player.minWidth;
-    const MIN_HEIGHT = game.config.player.minHeight;
+    const MIN_WIDTH = game.config.minWidth;
+    const MIN_HEIGHT = game.config.minHeight;
 
     useEffect(() => {
-        gameState.logger.debug("AspectRatio", "mount, using interval", game.config.player.ratioUpdateInterval);
+        gameState.logger.debug("AspectRatio", "mount, using interval", game.config.ratioUpdateInterval);
         const updateStyle = () => {
             if (ratio.isLocked()) {
                 gameState.logger.weakWarn("Ratio is locked, skipping update");
                 return;
             }
 
-            const container = document.getElementById(game.config.player.contentContainerId);
+            const container = document.getElementById(game.config.contentContainerId);
             if (container) {
                 const containerWidth = container.clientWidth;
                 const containerHeight = container.clientHeight;
-                const aspectRatio = game.config.player.aspectRatio;
+                const aspectRatio = game.config.aspectRatio;
 
                 let width: number, height: number;
                 if (containerWidth / containerHeight > aspectRatio) {
@@ -64,7 +64,7 @@ export default function AspectRatio(
                     justifyContent: "center"
                 });
 
-                const scale = width / game.config.player.width;
+                const scale = width / game.config.width;
                 ratio.update(width, height, scale);
                 ratio.updateMin(MIN_WIDTH, MIN_HEIGHT);
                 flush();
@@ -77,7 +77,7 @@ export default function AspectRatio(
             updateStyle();
         };
 
-        const listener = debounce(handleResize, game.config.player.ratioUpdateInterval);
+        const listener = debounce(handleResize, game.config.ratioUpdateInterval);
 
         listener();
         window.addEventListener("resize", listener);
@@ -88,14 +88,14 @@ export default function AspectRatio(
             window.removeEventListener("resize", listener);
             updateRequestListenerToken();
         };
-    }, [ratio, game.config.player.ratioUpdateInterval]);
+    }, [ratio, game.config.ratioUpdateInterval]);
 
     useEffect(() => {
         return gameState.events.on(GameState.EventTypes["event:state.player.requestFlush"], flush).cancel;
     }, [gameState]);
 
     return (
-        <div id={game.config.player.contentContainerId}
+        <div id={game.config.contentContainerId}
              style={{position: "relative", width: "100%", height: "100%", overflow: "hidden"}}>
             <div className={clsx(className)} style={style}>
                 {children}
