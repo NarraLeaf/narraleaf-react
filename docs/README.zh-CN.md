@@ -27,7 +27,7 @@ NarraLeaf-React 使用 TypeScript 进行所有脚本编写，因此您无需学�
 它还具有高度抽象和易于使用的API，例如：
 
 ```typescript
-import {Character, Menu, Scene, Word} from "narraleaf-react";
+import {Character, Menu, Scene, Word, c, b} from "narraleaf-react";
 ```
 
 ```typescript
@@ -41,13 +41,13 @@ const johnDoe = new Character("约翰·多");
 scene1.action([
     /**
      * 约翰·史密斯: 你好世界！
-     * 约翰·史密斯: 这是我的第一个NarraLeaf视觉小说
+     * 约翰·史密斯: 这是我的第一个 **NarraLeaf** 视觉小说
      * 约翰·史密斯: 开始编辑 src/story.js 并享受旅程！
      */
     johnSmith
         .say("你好世界！")
-        .say("这是我的第一个NarraLeaf视觉小说")
-        .say`开始编辑 ${Word.color("src/story.js", "#0000ff")} 并享受旅程！`,
+        .say`这是我的第一个 ${b("NarraLeaf")} 视觉小说`
+        .say`开始编辑 ${c("src/story.js", "#00f")} 并享受旅程！`,
 
     /**
      * 约翰·多: 对了，别忘了查看文档！
@@ -62,7 +62,7 @@ scene1.action([
      *   > 不，我要查看文档
      *     - 约翰·史密斯: 当然！慢慢来！
      */
-    new Menu("开始旅程")
+    Menu.promp("开始旅程")
         .choose("是的，我会！", [
             johnSmith
                 .say("太好了！让我们开始旅程！")
@@ -101,6 +101,9 @@ npm install narraleaf-react
     - [条件](https://react.narraleaf.com/documentation/basic/conditional)
     - [配音](https://react.narraleaf.com/documentation/basic/voice)
     - [管理偏好](https://react.narraleaf.com/documentation/basic/manage-preferences)
+- [解决方案](https://react.narraleaf.com/documentation/solutions)
+    - [自定义字体](https://react.narraleaf.com/documentation/solutions/font)
+    - [从Ren'Py迁移](https://react.narraleaf.com/documentation/solutions/from-renpy)
 - [核心](https://react.narraleaf.com/documentation/core)
     - [元素](https://react.narraleaf.com/documentation/core/elements)
         - [场景](https://react.narraleaf.com/documentation/core/elements/scene)
@@ -117,13 +120,16 @@ npm install narraleaf-react
         - [文本](https://react.narraleaf.com/documentation/core/elements/text)
         - [持久化](https://react.narraleaf.com/documentation/core/elements/persistent)
         - [故事](https://react.narraleaf.com/documentation/core/elements/story)
+        - [Displayable](https://react.narraleaf.com/documentation/core/elements/displayable)
+        - [图层](https://react.narraleaf.com/documentation/core/elements/layer)
+        - [服务](https://react.narraleaf.com/documentation/core/elements/service)
+        - [视频](https://react.narraleaf.com/documentation/core/elements/video)
     - [动画](https://react.narraleaf.com/documentation/core/animation)
     - [游戏](https://react.narraleaf.com/documentation/core/game)
+    - [插件](https://react.narraleaf.com/documentation/core/plugin)
+    - [实用工具](https://react.narraleaf.com/documentation/core/utils)
 - [播放器](https://react.narraleaf.com/documentation/player)
-- [定制化](https://react.narraleaf.com/documentation/custom)
-- [迁移](https://react.narraleaf.com/documentation/migration)
-    - [来自 Ren'Py](https://react.narraleaf.com/documentation/migration/from-renpy)
-- Info
+- 关于
     - [许可](https://react.narraleaf.com/documentation/info/license)
     - [不兼容的更改](https://react.narraleaf.com/documentation/info/incompatible-changes)
 

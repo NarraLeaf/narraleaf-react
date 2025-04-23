@@ -12,3 +12,7 @@ export interface MenuElementProps {
     state: GameState;
     words: Word<Pausing | string>[];
 }
+
+export interface IUserMenuProps {
+    items: number[];
+}

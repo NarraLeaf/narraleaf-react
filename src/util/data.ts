@@ -1,4 +1,6 @@
-import {HexColor, NamedColor} from "@core/types";
+import {HexColor, LiveGameEventToken, NamedColor} from "@core/types";
+import { ServiceHandlerCtx } from "@lib/game/nlcore/elements/service";
+import { ServiceHandler } from "@lib/game/nlcore/elements/service";
 
 interface ITypeOf {
     DataTypes: typeof DataTypes;
@@ -129,9 +131,16 @@ export type DeepPartial<T> = T extends object ? {
     [P in keyof T]?: DeepPartial<T[P]>;
 } : T;
 
-export class Awaitable<T, U = T> {
+export class Awaitable<T = any, U = T> {
     static isAwaitable<T, U = T>(obj: any): obj is Awaitable<T, U> {
         return obj instanceof Awaitable;
+    }
+
+    static fromPromise<T>(promise: Promise<T>): Awaitable<T> {
+        const awaitable = new Awaitable<T>();
+        promise.then(value => awaitable.resolve(value));
+
+        return awaitable;
     }
 
     static nothing: ((value: any) => any) = (value) => value as any;
@@ -142,10 +151,42 @@ export class Awaitable<T, U = T> {
         return awaitable;
     }
 
+    static delay(ms: number): Awaitable<void> {
+        const awaitable = new Awaitable<void>();
+        setTimeout(() => awaitable.resolve(), ms);
+        return awaitable;
+    }
+
+    /**
+     * Creates a new `Awaitable<T>` that forwards resolution and cancellation from/to a source awaitable.
+     *
+     * This is useful when:
+     * - You want to attach additional result transformation (e.g., `then → mapped result`)
+     * - You want to expose a new awaitable while preserving skip/cancel propagation from both sides
+     *
+     * Behavior:
+     * - When the source `awaitable` resolves, the new awaitable resolves with the provided `result`.
+     * - If either the source or the new awaitable is aborted, the other is also aborted.
+     *
+     * @template T The result type of the new awaitable.
+     *
+     * @param {Awaitable<any>} awaitable
+     *        The source awaitable whose completion or cancellation is being tracked.
+     *
+     * @param {T} result
+     *        The result to resolve the new awaitable with, once the source awaitable completes.
+     *
+     * @param {SkipController<T>} [skipController]
+     *        Optional custom skip controller for the new awaitable.
+     *        If not provided, a default controller that returns `result` will be created.
+     *
+     * @returns {Awaitable<T>} A new awaitable that resolves with `result` and mirrors skip behavior.
+     */
     static forward<T>(awaitable: Awaitable<any>, result: T, skipController?: SkipController<T, []>) {
         const newAwaitable = new Awaitable<T>()
             .registerSkipController(skipController || new SkipController(() => result));
         awaitable.then(() => newAwaitable.resolve(result));
+
         const skipControllerToken = awaitable.skipController?.onAbort(() => {
             newAwaitable.skipController?.abort();
             skipControllerToken?.cancel();
@@ -156,14 +197,18 @@ export class Awaitable<T, U = T> {
             skipControllerToken?.cancel();
             newSkipControllerToken?.cancel();
         });
+
         return newAwaitable;
     }
 
     receiver: (value: U) => T;
     result: T | undefined;
     solved = false;
-    protected skipController: SkipController<T, []> | undefined;
+    aborted = false;
+    skipController: SkipController<T, []> | undefined;
     private readonly listeners: ((value: T) => void)[] = [];
+    private readonly onRegisterSkipController: ((skipController: SkipController<T, []>) => void)[] = [];
+    private readonly __stack?: string;
 
     constructor(
         receiver: (value: U) => T = ((value) => value as any),
@@ -171,10 +216,15 @@ export class Awaitable<T, U = T> {
     ) {
         this.receiver = receiver;
         this.skipController = skipController;
+        this.__stack = getCallStack();
     }
 
     registerSkipController(skipController: SkipController<T, []>) {
         this.skipController = skipController;
+        for (const listener of this.onRegisterSkipController) {
+            listener(skipController);
+        }
+
         return this;
     }
 
@@ -207,14 +257,29 @@ export class Awaitable<T, U = T> {
             callback();
         } else {
             this.listeners.push(callback);
-            this.skipController?.onAbort(() => {
-                callback();
+            this.onSkipControllerRegister((controller) => {
+                controller.onAbort(() => {
+                    callback();
+                });
             });
         }
         return this;
     }
 
+    onSkipControllerRegister(callback: (skipController: SkipController<T, []>) => void) {
+        if (this.skipController) {
+            callback(this.skipController);
+        } else {
+            this.onRegisterSkipController.push(callback);
+        }
+        return this;
+    }
+
+    /**
+     * **Note**: Calling this method won't trigger the `then` or `onSettled` callbacks.
+     */
     abort() {
+        this.aborted = true;
         if (this.skipController) {
             return this.skipController.abort();
         }
@@ -222,7 +287,15 @@ export class Awaitable<T, U = T> {
     }
 
     isSolved() {
-        return this.solved;
+        return this.solved && !this.aborted;
+    }
+
+    isAborted() {
+        return this.aborted;
+    }
+    
+    isSettled() {
+        return this.solved || this.aborted;
     }
 }
 
@@ -382,14 +455,13 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
 /**
  * Get the call stack
  * @param n The number of stack frames to skip
- * @param s The number of stack frames cut off from the end
  */
-export function getCallStack(n: number = 1, s: number = 0): string {
+export function getCallStack(n: number = 1): string {
     const stack = new Error().stack;
     if (!stack) {
         return "";
     }
-    return stack.split("\n").slice(n + 1, -s).join("\n").trim();
+    return stack.split("\n").slice(n + 1).join("\n").trim();
 }
 
 export function sleep(ms: number): Promise<void> {
@@ -416,25 +488,23 @@ type SkipControllerEvents = {
     "event:skipController.abort": [];
 }
 
-export class SkipController<T = any, U extends Array<any> = any[]> {
+export class SkipController<_T = any, U extends Array<any> = any[]> {
     static EventTypes: { [K in keyof SkipControllerEvents]: K } = {
         "event:skipController.abort": "event:skipController.abort",
     };
     public readonly events: EventDispatcher<SkipControllerEvents> = new EventDispatcher();
     private aborted = false;
-    private result: T | undefined;
 
-    constructor(private readonly abortHandler: (...args: U) => T) {
+    constructor(private readonly abortHandler: (...args: U) => void) {
     };
 
-    public abort(...args: U) {
+    public abort(...args: U): void {
         if (this.aborted) {
-            return this.result;
+            return;
         }
         this.aborted = true;
-        this.result = this.abortHandler(...args);
+        this.abortHandler(...args);
         this.events.emit(SkipController.EventTypes["event:skipController.abort"]);
-        return this.result;
     }
 
     public isAborted() {
@@ -744,19 +814,18 @@ export type BooleanValueKeyOf<T> = Extract<{
 }[keyof T], string>;
 
 export function createMicroTask(t: () => (() => void) | void): () => void {
-    let executed = false;
+    let cleanupFn: (() => void) | void;
+
     const task = Promise.resolve().then(() => {
-        executed = true;
-        return t();
+        cleanupFn = t();
     });
+
     return () => {
-        if (executed) {
-            task.then(fn => {
-                if (fn) {
-                    fn();
-                }
-            });
-        }
+        task.then(() => {
+            if (cleanupFn) {
+                cleanupFn();
+            }
+        });
     };
 }
 
@@ -1145,4 +1214,97 @@ export function once<T extends (...args: any[]) => any>(fn: T): T {
         called = true;
         return fn(...args);
     } as T;
+}
+
+export function randId(len: number = 16): string {
+    let result = "";
+    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const charactersLength = characters.length;
+    for (let i = 0; i < len; i++) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+}
+
+export function generateId(length: number = 16): string {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return result;
+}
+
+export const voidFunction: () => VoidFunction = () => {
+    return () => {};
+};
+
+export class IdManager {
+    private counter = 0;
+
+    constructor(private prefix: string = "") {}
+
+    generateId(): string {
+        const id = `${this.prefix ? this.prefix + "-" : ""}${this.counter++}`;
+        return id;
+    }
+}
+
+export class Hooks<T extends Record<string, Array<any>>> {
+    private hooks: { [K in keyof T]?: ((...value: T[K]) => VoidFunction | void)[] } = {};
+
+    hook<K extends keyof T>(key: K, hook: (...value: T[K]) => VoidFunction | void): LiveGameEventToken {
+        this.hooks[key] = this.hooks[key] || [];
+        this.hooks[key]!.push(hook);
+        return {
+            cancel: () => this.unhook(key, hook),
+        };
+    }
+
+    unhook<K extends keyof T>(key: K, hook: (...value: T[K]) => VoidFunction | void) {
+        this.hooks[key] = this.hooks[key]?.filter(h => h !== hook) || [];
+    }
+
+    trigger<K extends keyof T>(key: K, value: T[K]): VoidFunction {
+        const hooks = this.hooks[key];
+        if (!hooks) {
+            return () => {};
+        }
+        const cleanup = hooks.map(h => h(...value));
+        return () => {
+            cleanup.forEach(c => c && c());
+        };
+    }
+
+    rawTrigger<K extends keyof T>(key: K, value: () => T[K]): VoidFunction {
+        const hooks = this.hooks[key];
+        if (!hooks) {
+            return () => {};
+        }
+        const cleanup = hooks.map(h => h(...value()));
+        return () => {
+            cleanup.forEach(c => c && c());
+        };
+    }
+}
+
+type AbortifyFn<T extends any[]> = ServiceHandler<T> & {
+    onAbort: (handler: () => void) => AbortifyFn<T>;
+};
+
+export function abortify<T extends any[]>(fn: ServiceHandler<T>): AbortifyFn<T> {
+    const abortHandlers: (() => void)[] = [];
+    const abortableFn = function (ctx: ServiceHandlerCtx, ...args: T): void | Promise<void> {
+        ctx.onAbort(() => {
+            for (const handler of abortHandlers) {
+                handler();
+            }
+        });
+        return fn(ctx, ...args);
+    };
+    abortableFn.onAbort = (handler: () => void): AbortifyFn<T> => {
+        abortHandlers.push(handler);
+        return abortableFn;
+    };
+    return abortableFn;
 }

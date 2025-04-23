@@ -9,6 +9,8 @@ import {Text} from "@core/elements/displayable/text";
 import {Displayable} from "@core/elements/displayable/displayable";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
+import {Video} from "@core/elements/video";
+import { Timeline } from "./Tasks";
 
 export * from "@player/elements/type";
 export type Chosen = Choice & {
@@ -20,29 +22,40 @@ export enum ExposedStateType {
     text = "narraleaf:text",
     layer = "narraleaf:layer",
     scene = "narraleaf:scene",
+    video = "narraleaf:video",
 }
 
 export type ExposedState = {
     [ExposedStateType.image]: {
         createWearable: (wearable: Image) => void;
+        disposeWearable: (wearable: Image) => void;
         events: EventDispatcher<ImageEvents>;
-        initDisplayable: (onResolve: () => void) => void;
-        applyTransform: (transform: Transform, onResolve: () => void) => void;
-        applyTransition: (transition: Transition<any>, onResolve: () => void) => void;
+        initDisplayable: (onResolve: () => void) => Timeline;
+        applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
     };
     [ExposedStateType.text]: {
-        initDisplayable: (onResolve: () => void) => void;
-        applyTransform: (transform: Transform, onResolve: () => void) => void;
-        applyTransition: (transition: Transition<any>, onResolve: () => void) => void;
+        initDisplayable: (onResolve: () => void) => Timeline;
+        applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
         flush: () => void;
     };
     [ExposedStateType.layer]: {
-        initDisplayable: (onResolve: () => void) => void;
-        applyTransform: (transform: Transform, onResolve: () => void) => void;
-        applyTransition: (transition: Transition<any>, onResolve: () => void) => void;
+        initDisplayable: (onResolve: () => void) => Timeline;
+        applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
     };
     [ExposedStateType.scene]: {
         setBackgroundMusic: (music: Sound | null, fade: number) => Promise<void>;
+    };
+    [ExposedStateType.video]: {
+        show: () => void;
+        hide: () => void;
+        play: () => Promise<void>;
+        pause: () => void;
+        resume: () => Promise<void>;
+        stop: () => void;
+        seek: (time: number) => void;
     };
 };
 
@@ -51,4 +64,5 @@ export type ExposedKeys = {
     [ExposedStateType.text]: Text | Displayable<any, any>;
     [ExposedStateType.layer]: Layer | Displayable<any, any>;
     [ExposedStateType.scene]: Scene;
+    [ExposedStateType.video]: Video;
 };

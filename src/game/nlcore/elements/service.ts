@@ -27,12 +27,12 @@ export class ServiceSkeleton<
      * @param key action type
      * @param handler handler, the arguments are the same as the action content type
      */
-    public onAction<K extends StringKeyOf<Content>>(key: K, handler: ServiceHandler<Content[K]>): this {
+    public on<K extends StringKeyOf<Content>>(key: K, handler: ServiceHandler<Content[K]>): this {
         this._registerActionHandler(key, handler);
         return this;
     }
 
-    public action<K extends StringKeyOf<Content>>(type: K, ...args: Content[K]): Proxied<this, Chained<ServiceAction, this>> {
+    public trigger<K extends StringKeyOf<Content>>(type: K, ...args: Content[K]): Proxied<this, Chained<ServiceAction, this>> {
         const chain = this.chain();
         return chain.chain(this._createAction(chain as any, type, args)) as unknown as Proxied<this, Chained<ServiceAction, this>>;
     }
@@ -40,7 +40,10 @@ export class ServiceSkeleton<
     /**@internal */
     triggerAction<K extends StringKeyOf<Content>>(ctx: ScriptCtx, type: K, args: Content[K]): void | Awaitable<void> {
         const handler = this._handlers[type];
-        if (!handler) return;
+        if (!handler) {
+            ctx.gameState.logger.warn(`(in User-Defined Service) Trying to trigger action ${type} before it's registered, please use "service.on" to register the action`);
+            return;
+        }
 
         if (isAsyncFunction<[ctx: ServiceHandlerCtx, ...args: Content[K]], void>(handler)) {
             const skipHandlers: (() => void)[] = [];
@@ -104,31 +107,10 @@ class ServiceSkeletonMask<
     private declare __actions: never;
 }
 
-type AbortifyFn<T extends any[]> = ServiceHandler<T> & {
-    onAbort: (handler: () => void) => AbortifyFn<T>;
-};
-
 export abstract class Service<
     Content extends ServiceContentType = ServiceContentType,
     RawData extends Record<string, SerializableData> | null = Record<string, any>,
 > extends ServiceSkeletonMask<Content, RawData> {
-    public static abortify<T extends any[]>(fn: ServiceHandler<T>): AbortifyFn<T> {
-        const abortHandlers: (() => void)[] = [];
-        const abortableFn = function (ctx: ServiceHandlerCtx, ...args: T): void | Promise<void> {
-            ctx.onAbort(() => {
-                for (const handler of abortHandlers) {
-                    handler();
-                }
-            });
-            return fn(ctx, ...args);
-        };
-        abortableFn.onAbort = (handler: () => void): AbortifyFn<T> => {
-            abortHandlers.push(handler);
-            return abortableFn;
-        };
-        return abortableFn;
-    }
-
     /**
      * Serialize the service to data
      *
@@ -141,4 +123,9 @@ export abstract class Service<
      * @param data data exported from toData
      */
     abstract deserialize?(data: RawData): void;
+
+    /**
+     * Called when the service is initialized
+     */
+    abstract init?(): void;
 }

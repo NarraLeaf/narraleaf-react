@@ -34,7 +34,7 @@ function InspectBase<T extends keyof React.JSX.IntrinsicElements | React.Compone
         as?: T;
         ref?: React.RefObject<HTMLDivElement | null>;
     } & InspectStyle & ElementProps<T>> & Record<string, any>) {
-    const {game} = useGame();
+    const game = useGame();
     const [isHovered, setIsHovered] = useState(false);
 
     if (!game.config.app.inspector) {
@@ -81,7 +81,7 @@ function InspectCloseBase<T extends keyof React.JSX.IntrinsicElements | React.Co
         as?: T;
     } & InspectStyle & ElementProps<T>>
 ) {
-    const {game} = useGame();
+    const game = useGame();
     const [isHovered, setIsHovered] = useState(false);
 
     if (!game.config.app.inspector) {

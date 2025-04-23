@@ -43,8 +43,18 @@ export class Menu extends Actionable<any, Menu> {
     /**@internal */
     protected choices: Choice[] = [];
 
+    /**
+     * Create a menu with a prompt
+     * @param prompt - The prompt to display to the player
+     * @returns A new menu
+     */
+    public static prompt(prompt: SentencePrompt | Sentence, config: MenuConfig = {}): Menu {
+        return new Menu(prompt, config);
+    }
+
     constructor(prompt: SentencePrompt, config?: MenuConfig);
     constructor(prompt: Sentence, config?: MenuConfig);
+    constructor(prompt: SentencePrompt | Sentence, config: MenuConfig);
     constructor(prompt: SentencePrompt | Sentence, config: MenuConfig = {}) {
         super();
         this.prompt = Sentence.isSentence(prompt) ? prompt : new Sentence(prompt);

@@ -1,6 +1,48 @@
 # Changelog
 
-## [0.3.0]
+## [0.4.0]
+
+### _Incompatible Changes_
+
+- `game.config.elements.say.textInterval` is deprecated, use `game.config.elements.say.cps` instead
+- `game.config` has been refactored, see [GameConfig](src/game/nlcore/gameTypes.ts#GameConfig) for more details
+  - `game.config.player` is deprecated, use `game.config` instead
+  - `game.config.elements` is deprecated, use `game.config` instead
+  - `game.config.elementStyles` is deprecated, use `game.config` instead
+
+### _Feature_
+
+- Shorten the way to use `character.say`
+- `Video` player
+- Customizable components
+- Game notification
+- Commit-style transform construction
+- Game history
+- Plugin System
+
+### Updated
+
+- `Player` now doesn't require a `router` prop, the router will be shard across the game
+- Added some interfaces for NarraLeaf
+- Use Timeline Model instead of Promise All
+  - **Interruptible Task Graph Model**: Structured, Cancel-aware, Stateful Async Task Graph
+- Added `cps` to `Word` config
+- Better text skipping
+- Added static method `Menu.prompt` as an alias of `new Menu`
+- Use `game.config.defaultTextColor` to set the default text color
+- Added `createPersistent` as a shortcut for initializing a persistent
+- Added game hooks to `Game`
+- Added `Character.config.color` to set the color of the character's name tag
+- Added `useLiveGame` hook
+
+### Fixed
+
+- `event:menu.choose` is never triggered
+- Element states are incorrect when deserializing
+- Transition incorrect when passing a `Transition` instance directly into `scene.jumpTo`
+- Showing a displayable with incorrect default duration
+
+## [0.3.0] - 2025/2/16
 
 ### _Incompatible Changes_
 

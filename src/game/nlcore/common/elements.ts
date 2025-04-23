@@ -15,6 +15,7 @@ import {Pause} from "@core/elements/character/pause";
 import {Persistent} from "@core/elements/persistent";
 import {Service} from "@core/elements/service";
 import {Layer} from "@core/elements/layer";
+import {Video} from "@core/elements/video";
 
 export {
     Character,
@@ -35,4 +36,5 @@ export {
     Persistent,
     Service,
     Layer,
+    Video,
 };

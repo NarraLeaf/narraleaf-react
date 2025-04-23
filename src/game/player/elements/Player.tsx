@@ -21,6 +21,7 @@ import {default as StageScene} from "@player/elements/scene/Scene";
 import {Awaitable, createMicroTask, MultiLock} from "@lib/util/data";
 import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
+import Video from "@player/elements/video/video";
 
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
@@ -35,15 +36,23 @@ export default function Player(
         onReady,
         onEnd,
         children,
-        router,
+        active = true,
     }: Readonly<PlayerProps>) {
     const [, update] = useReducer((x) => x + 1, 0);
-    const {game} = useGame();
+    const [key, setKey] = useState(0);
+    const game = useGame();
     const [state, dispatch] = useReducer(handleAction, new GameState(game, {
         update,
         forceUpdate: () => {
             (state as GameState).logger.weakWarn("Player", "force update");
             flushSync(() => {
+                update();
+            });
+        },
+        forceRemount: () => {
+            (state as GameState).logger.weakWarn("Player", "force remount");
+            flushSync(() => {
+                setKey(k => k + 1);
                 update();
             });
         },
@@ -54,6 +63,9 @@ export default function Player(
     const mainContentRef = React.createRef<HTMLDivElement>();
     const [ready, setReady] = useState(false);
     const readyHandlerExecuted = React.useRef(false);
+
+    const {preloaded} = usePreloaded();
+    const [preloadedReady, setPreloadedReady] = useState(false);
 
     function next() {
         let exited = false;
@@ -134,6 +146,7 @@ export default function Player(
         return createMicroTask(() => {
             if (ready && onReady && !readyHandlerExecuted.current) {
                 readyHandlerExecuted.current = true;
+                state.stage.forceUpdate();
                 onReady({
                     game,
                     gameState: state,
@@ -144,15 +157,24 @@ export default function Player(
         });
     }, [ready]);
 
-    function handlePreloadLoaded() {
-        state.stage.update();
-        if (story) {
-            next();
-        }
-    }
+    useEffect(() => {
+        return preloaded.events.depends([
+            preloaded.events.on(Preloaded.EventTypes["event:preloaded.ready"], () => {
+                setPreloadedReady(true);
+                state.stage.update();
+                if (story) {
+                    next();
+                }
+            }),
+        ]).cancel;
+    }, []);
 
-    const playerWidth = width || game.config.player.width;
-    const playerHeight = height || game.config.player.height;
+    useEffect(() => {
+        game.hooks.trigger("init", []);
+    }, []);
+
+    const playerWidth = width || game.config.width;
+    const playerHeight = height || game.config.height;
 
     return (
         <ErrorBoundary>
@@ -168,24 +190,29 @@ export default function Player(
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
                     <SizeUpdateAnnouncer ref={containerRef}/>
                     <Isolated className={"absolute"} ref={mainContentRef} style={{
-                        cursor: state.game.config.player.cursor ? "none" : "auto",
-                        overflow: state.game.config.player.showOverflow ? "visible" : "hidden",
+                        cursor: state.game.config.cursor ? "none" : "auto",
+                        overflow: state.game.config.showOverflow ? "visible" : "hidden",
                     }}>
-                        {game.config.player.cursor && (
+                        {game.config.cursor && (
                             <Cursor
-                                src={game.config.player.cursor}
-                                width={game.config.player.cursorWidth}
-                                height={game.config.player.cursorHeight}
+                                src={game.config.cursor}
+                                width={game.config.cursorWidth}
+                                height={game.config.cursorHeight}
                             />
                         )}
-                        <OnlyPreloaded onLoaded={handlePreloadLoaded} state={state}>
-                            <KeyEventAnnouncer state={state} router={router}/>
+                        <OnlyPreloaded show={preloadedReady && active} key={key}>
+                            <KeyEventAnnouncer state={state}/>
                             {state.getSceneElements().map((elements) => (
                                 <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements}/>
                             ))}
+                            {state.getVideos().map((video, index) => (
+                                <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
+                                    <Video gameState={state} video={video}/>
+                                </div>
+                            ))}
                         </OnlyPreloaded>
                         <Preload state={state}/>
-                        <PageRouter router={router}>
+                        <PageRouter>
                             {children}
                         </PageRouter>
                     </Isolated>
@@ -195,26 +222,13 @@ export default function Player(
     );
 }
 
-function OnlyPreloaded({children, onLoaded}: Readonly<{
+function OnlyPreloaded({children, show}: Readonly<{
     children: React.ReactNode,
-    onLoaded: () => void,
-    state: GameState
+    show: boolean,
 }>) {
-    const {preloaded} = usePreloaded();
-    const [preloadedReady, setPreloadedReady] = useState(false);
-
-    useEffect(() => {
-        return preloaded.events.depends([
-            preloaded.events.on(Preloaded.EventTypes["event:preloaded.ready"], () => {
-                setPreloadedReady(true);
-                onLoaded();
-            }),
-        ]).cancel;
-    }, []);
-
     return (
         <>
-            {preloadedReady ? children : null}
+            {show ? children : null}
         </>
     );
 }

@@ -14,7 +14,7 @@ export function Preload(
         state: GameState;
     }>) {
     const {preloaded, cacheManager} = usePreloaded();
-    const {game} = useGame();
+    const game = useGame();
     const cachedSrc = useRef<Set<ActiveSrc>>(new Set());
 
     const LogTag = "Preload";
@@ -38,12 +38,12 @@ export function Preload(
             state.logger.warn(LogTag, "Fetch is not supported in this environment, skipping preload");
             return onPreloaderUnmount;
         }
-        if (!game.config.player.preloadAllImages) {
+        if (!game.config.preloadAllImages) {
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             state.logger.debug(LogTag, "Preload all images is disabled, skipping preload");
             return onPreloaderUnmount;
         }
-        if (game.config.player.forceClearCache) {
+        if (game.config.forceClearCache) {
             cacheManager.clear();
             state.logger.weakWarn(LogTag, "Cache cleared");
         }
@@ -58,8 +58,8 @@ export function Preload(
             ...(lastScene.srcManager?.getFutureSrc() || []),
         ]);
         const taskPool = new TaskPool(
-            game.config.player.preloadConcurrency,
-            game.config.player.preloadDelay,
+            game.config.preloadConcurrency,
+            game.config.preloadDelay,
         );
         const loadedSrc: string[] = [];
         const logGroup = state.logger.group(LogTag, true);
@@ -98,13 +98,13 @@ export function Preload(
         taskPool.start().then(() => {
             state.logger.info(LogTag, "Image preload", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
 
-            if (game.config.player.waitForPreload) {
+            if (game.config.waitForPreload) {
                 preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             }
             cacheManager.filter(loadedSrc);
         });
 
-        if (!game.config.player.waitForPreload) {
+        if (!game.config.waitForPreload) {
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
         }
         preloaded.events.emit(Preloaded.EventTypes["event:preloaded.mount"]);
@@ -128,7 +128,7 @@ export function Preload(
         if (typeof fetch === "undefined") {
             return;
         }
-        if (game.config.player.preloadAllImages) {
+        if (game.config.preloadAllImages) {
             return;
         }
         if (!story) {
@@ -139,7 +139,7 @@ export function Preload(
         const timeStart = performance.now();
         const allSrc: ActiveSrc[] = game
             .getLiveGame()
-            .getAllPredictableActions(story, currentAction, game.config.player.maxPreloadActions)
+            .getAllPredictableActions(story, currentAction, game.config.maxPreloadActions)
             .map(s => SrcManager.getPreloadableSrc(story, s))
             .filter<ActiveSrc>(function (src): src is ActiveSrc {
                 return src !== null;
@@ -161,8 +161,8 @@ export function Preload(
         ]);
 
         const taskPool = new TaskPool(
-            game.config.player.preloadConcurrency,
-            game.config.player.preloadDelay,
+            game.config.preloadConcurrency,
+            game.config.preloadDelay,
         );
         const preloadSrc: string[] = [];
         const logGroup = state.logger.group(LogTag);

@@ -32,3 +32,7 @@ yarn.lock
 
 # Windows specific
 Thumbs.db
+
+# Project specific
+test/
+

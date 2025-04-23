@@ -1,5 +1,5 @@
 import {Constructable} from "../action/constructable";
-import {deepMerge, EventDispatcher, Serializer, TypeOf} from "@lib/util/data";
+import {deepMerge, EventDispatcher, Serializer} from "@lib/util/data";
 import {Color, ImageSrc} from "@core/types";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
@@ -8,7 +8,7 @@ import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
-import {Control, Persistent, Story} from "@core/common/core";
+import {Control, Persistent, Story, Transition} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -251,7 +251,9 @@ export class Scene extends Constructable<
         }), chain => {
             const defaultJumpConfig: Partial<JumpConfig> = {unloadScene: true};
             const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig,
-                TypeOf(config) === TypeOf.DataTypes.object ? config : {transition: config}
+                config instanceof Transition
+                    ? {transition: config} satisfies Partial<JumpConfig>
+                    : config
             );
             chain
                 .chain(new SceneAction<typeof SceneActionTypes.preUnmount>(
@@ -266,22 +268,6 @@ export class Scene extends Constructable<
             }
             return chain;
         })._jumpTo(scene);
-    }
-
-    /**
-     * Wait for a period of time, the parameter can be the number of milliseconds or a Promise
-     * @chainable
-     */
-    public sleep(ms: number): ChainedScene;
-
-    public sleep(promise: Promise<any>): ChainedScene;
-
-    public sleep(content: number | Promise<any>): ChainedScene {
-        return this.chain(new SceneAction(
-            this.chain(),
-            "scene:sleep",
-            new ContentNode().setContent(content)
-        ));
     }
 
     /**
@@ -501,25 +487,21 @@ export class Scene extends Constructable<
         });
     }
 
-    /**
-     * @internal STILL IN DEVELOPMENT
-     */
+    /**@internal */
     assignActionId(story: Story) {
         const actions = this.getAllChildren(story, this.sceneRoot || [], {allowFutureScene: true});
 
         actions.forEach((action, i) => {
-            action.setId(`action-${i}`);
+            action.setId(`a-${i}`);
         });
     }
 
-    /**
-     * @internal STILL IN DEVELOPMENT
-     */
+    /**@internal */
     assignElementId(story: Story) {
         const elements = this.getAllChildrenElements(story, this.sceneRoot || []);
 
         elements.forEach((element, i) => {
-            element.setId(`element-${i}`);
+            element.setId(`e-${i}`);
         });
     }
 

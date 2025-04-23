@@ -11,3 +11,11 @@
     -webkit-user-drag: none;
     -webkit-user-select: none;
 }
+
+.__narraleaf_content-player .pointer-disabled {
+    pointer-events: none;
+}
+
+.__narraleaf_content-player .pointer-disabled > :not(.pointer-disabled) {
+    pointer-events: auto;
+  }

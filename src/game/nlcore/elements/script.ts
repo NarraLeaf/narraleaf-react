@@ -40,8 +40,8 @@ export class Script extends Actionable<object> {
     }
 
     /**@internal */
-    execute({gameState}: { gameState: GameState }): void {
-        this.handler(Script.getCtx({
+    execute({gameState}: { gameState: GameState }): ScriptCleaner | void {
+        return this.handler(Script.getCtx({
             gameState
         }));
     }

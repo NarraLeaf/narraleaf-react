@@ -41,8 +41,8 @@ export default function Image(
     } = useDisplayable<ImageTransition, HTMLImageElement>({
         element: image,
         state: image.transformState,
-        skipTransform: state.game.config.elements.img.allowSkipTransform,
-        skipTransition: state.game.config.elements.img.allowSkipTransition,
+        skipTransform: state.game.config.allowSkipImageTransform,
+        skipTransition: state.game.config.allowSkipImageTransition,
         transitionsProps: (task) => {
             const currentSrc = task ? task.transition._getCurrentSrc() : image.state.currentSrc;
             return [
@@ -100,6 +100,9 @@ export default function Image(
         createWearable: (wearable: GameImage) => {
             setWearables((prev) => [...prev, wearable]);
         },
+        disposeWearable: (wearable: GameImage) => {
+            setWearables((prev) => prev.filter((w) => w.getId() !== wearable.getId()));
+        },
         initDisplayable,
         applyTransform,
         applyTransition,
@@ -125,8 +128,9 @@ export default function Image(
             layout={isTransforming}
             ref={transformRef}
             className={"absolute w-max h-max"}
+            data-element-type={"image"}
         >
-            <div className={"relative h-full w-full"} ref={containerRef}>
+            <div className={"relative h-full w-full"} ref={containerRef} data-image-id={image.getId()}>
                 {transitionRefs.map(([ref, key], i) => (
                     <AspectScaleImage
                         key={key}

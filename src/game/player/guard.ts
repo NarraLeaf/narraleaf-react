@@ -2,15 +2,13 @@ import {GameState} from "@player/gameState";
 
 export enum GuardWarningType {
     invalidExposedStateUnmounting = "invalidExposedStateUnmounting",
+    unexpectedTimelineStatusChange = "unexpectedTimelineStatusChange",
 }
 
 export interface GuardConfig {
     [GuardWarningType.invalidExposedStateUnmounting]: boolean;
+    [GuardWarningType.unexpectedTimelineStatusChange]: boolean;
 }
-
-type GuardTask = {
-    cancel: () => void
-};
 
 /**
  * Guard for the game state.
@@ -20,7 +18,6 @@ type GuardTask = {
  */
 export class GameStateGuard {
     private watching: GameState | null = null;
-    private guardTasks: GuardTask[] = [];
     private warnings: [GuardWarningType, string][] = [];
     constructor(public readonly config: GuardConfig) {
     }

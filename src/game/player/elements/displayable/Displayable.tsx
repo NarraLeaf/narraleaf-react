@@ -9,11 +9,12 @@ import {
 } from "@core/elements/transition/type";
 import {useFlush} from "@player/lib/flush";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
-import {Awaitable, deepMerge, KeyGen} from "@lib/util/data";
+import {Awaitable, deepMerge, KeyGen, SkipController} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 import {Transition} from "@core/elements/transition/transition";
 import {RuntimeGameError} from "@core/common/Utils";
+import {Timeline} from "@player/Tasks";
 
 /**@internal */
 export type DisplayableHookConfig<TransitionType extends Transition<U>, U extends HTMLElement> = {
@@ -43,9 +44,9 @@ export type DisplayableHookResult<TransitionType extends Transition<U>, U extend
     transitionRefs: RefGroupDefinition<U>[];
     isTransforming: boolean;
     transitionTask: TransitionTaskWithController<TransitionType, U> | null;
-    initDisplayable: (resolve: () => void) => void;
-    applyTransform: (transform: Transform, resolve: () => void) => void;
-    applyTransition: (transition: Transition, resolve: () => void) => void;
+    initDisplayable: (resolve: () => void) => Timeline;
+    applyTransform: (transform: Transform, resolve: () => void) => Timeline;
+    applyTransition: (transition: Transition, resolve: () => void) => Timeline;
     deps: React.DependencyList;
 };
 
@@ -71,7 +72,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     const [keyGen] = useState(() => new KeyGen("displayable.refGroup"));
     const currentKey = useRef<string>(keyGen.next());
     const refs = useRef<RefGroupDefinition<U>[]>(initRefs()) satisfies RefGroup<U>;
-    const {game} = useGame();
+    const game = useGame();
     const gameState = game.getLiveGame().getGameState()!;
     const evaluatedTransProps = typeof transitionsProps === "function"
         ? transitionsProps(transitionTask)
@@ -144,7 +145,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }, []);
 
     function handleOnTransform(transform: Transform) {
-        console.debug("Displayable", "Transform applied", state.toStyle(gameState, overwriteDefinition), ref.current);
+        gameState.logger.debug("Displayable", "Transform applied", state.toStyle(gameState, overwriteDefinition), ref.current);
 
         flush();
         onTransform?.(transform);
@@ -181,7 +182,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         }
     }
 
-    function applyTransform(transform: Transform, resolve: () => void): void {
+    function applyTransform(transform: Transform, resolve: () => void): Timeline {
         if (transformToken) {
             transformToken.abort();
             setTransformToken(null);
@@ -195,21 +196,43 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
                 overwrites: overwriteDefinition,
             }
         );
+        const timeline = new Timeline(awaitable);
+
+        gameState.timelines.attachTimeline(timeline);
+        awaitable.onSkipControllerRegister((controller) => {
+            controller.onAbort(() => {
+                timeline.abort();
+            });
+        });
+
         setTransformToken(awaitable);
         awaitable.then(() => {
             setTransformToken(null);
             handleOnTransform(transform);
             resolve();
         });
+
+        return timeline;
     }
 
-    function applyTransition(newTransition: TransitionType, resolve: () => void): void {
+    function applyTransition(newTransition: TransitionType, resolve: () => void): Timeline {
         if (transitionTask) {
             transitionTask.controller.complete();
         }
 
         const task = newTransition.createTask(gameState);
         const controller = newTransition.requestAnimations(task.animations);
+        const awaitable = new Awaitable<void>()
+            .registerSkipController(new SkipController(controller.cancel));
+        const timeline = new Timeline(awaitable);
+
+        awaitable.skipController!.onAbort(() => {
+            controller.cancel();
+        });
+        controller.onCanceled(() => {
+            timeline.abort();
+        });
+        gameState.timelines.attachTimeline(timeline);
         setTransitionTask({
             task,
             controller,
@@ -245,13 +268,16 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
             setTransitionTask(null);
             resolve();
+            awaitable.resolve();
         });
+
+        return timeline;
     }
 
-    function initDisplayable(resolve: () => void): void {
+    function initDisplayable(resolve: () => void): Timeline {
         gameState.logger.debug("initDisplayable", element);
 
-        applyTransform(Transform.immediate(state.get()), resolve);
+        return applyTransform(Transform.immediate(state.get()), resolve);
     }
 
     function skip() {
@@ -286,7 +312,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         transitionTask,
         initDisplayable,
         applyTransform,
-        applyTransition: applyTransition as (transition: Transition, resolve: () => void) => void,
+        applyTransition: applyTransition as (transition: Transition, resolve: () => void) => Timeline,
         deps: [transformToken, transitionTask, refs],
     };
 }

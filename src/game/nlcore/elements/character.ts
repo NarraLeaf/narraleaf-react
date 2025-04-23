@@ -8,7 +8,7 @@ import {Sentence, SentencePrompt, SentenceUserConfig, SingleWord} from "@core/el
 import {CharacterAction} from "@core/action/actions/characterAction";
 
 export type CharacterConfig = {
-    color: Color;
+    color?: Color;
 };
 /**@internal */
 export type CharacterStateData = {
@@ -19,13 +19,24 @@ export type CharacterState = {
     name: string;
 };
 
+export interface Character {
+    (content: string, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
+
+    (content: Sentence): Proxied<Character, Chained<LogicAction.Actions>>;
+
+    (content: SentencePrompt, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
+
+    (texts: TemplateStringsArray, ...words: SingleWord[]): Proxied<Character, Chained<LogicAction.Actions>>;
+}
+
 export class Character extends Actionable<
     CharacterStateData,
     Character
 > {
     /**@internal */
+    static defaultCharacterColor: Color = "#000";
+    /**@internal */
     static defaultConfig: CharacterConfig = {
-        color: "#000",
     };
     /**@internal */
     readonly config: CharacterConfig;
@@ -123,6 +134,17 @@ export class Character extends Actionable<
         );
         return this.chain(action);
     }
+
+    public apply(content: string, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
+    public apply(content: Sentence): Proxied<Character, Chained<LogicAction.Actions>>;
+    public apply(content: SentencePrompt, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
+    public apply(texts: TemplateStringsArray, ...words: SingleWord[]): Proxied<Character, Chained<LogicAction.Actions>>;
+    public apply(
+        contentOrText: SentencePrompt | Sentence | TemplateStringsArray,
+        configOrArg0?: SentenceUserConfig | Sentence | SingleWord,
+        ...words: SingleWord[]
+    ): Proxied<Character, Chained<LogicAction.Actions>> {
+        // eslint-disable-next-line prefer-spread
+        return this.say.apply(this, [contentOrText, configOrArg0, ...words] as any);
+    }
 }
-
-

@@ -49,5 +49,6 @@ export default [...compat.extends(
         "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
         "@typescript-eslint/no-namespace": "off",
         "@typescript-eslint/no-this-alias": "off",
+        "@typescript-eslint/no-unsafe-declaration-merging": "off",
     },
 }];

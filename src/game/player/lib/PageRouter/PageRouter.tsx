@@ -1,13 +1,12 @@
 import React, {useEffect} from "react";
 import {AnimatePresence} from "motion/react";
 import {Page} from "@player/lib/PageRouter/Page";
-import {Router} from "@player/lib/PageRouter/router";
+import {useRouter} from "@player/lib/PageRouter/router";
 import {useFlush} from "@player/lib/flush";
 import {Stage} from "@player/lib/PageRouter/Stage";
 
 type PageRouterProps = Readonly<{
     children?: React.ReactNode;
-    router?: Router;
 }>;
 
 /**
@@ -34,9 +33,9 @@ type PageRouterProps = Readonly<{
 export function PageRouter(
     {
         children,
-        router,
     }: PageRouterProps) {
     const [flush] = useFlush();
+    const router = useRouter();
 
     useEffect(() => {
         if (!router) {
@@ -69,12 +68,13 @@ export function PageRouter(
         }
     );
 
+    const AnimatePresence_ = AnimatePresence as any;
     return (
         <>
             {stageChild}
-            <AnimatePresence>
+            <AnimatePresence_>
                 {currentPage}
-            </AnimatePresence>
+            </AnimatePresence_>
         </>
     );
 }

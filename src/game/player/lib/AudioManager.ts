@@ -138,6 +138,9 @@ export class AudioManager {
     }
 
     public isPlaying(sound: Sound): boolean {
+        if (!this.isManaged(sound)) {
+            return false;
+        }
         const state = this.getState(sound);
         return state.group.playing(state.token);
     }

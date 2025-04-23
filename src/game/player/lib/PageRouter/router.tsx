@@ -1,10 +1,8 @@
-import {useState} from "react";
+import React, {createContext, useContext, useState} from "react";
 import {EventDispatcher} from "@lib/util/data";
 import {Game} from "@core/game";
 import {useGame} from "@player/provider/game-state";
 
-
-type RouterHookResult = Router;
 type RouterEvents = {
     "event:router.onChange": [];
 };
@@ -35,13 +33,16 @@ export class Router {
         return this.current;
     }
 
+    /**
+     * Push a new page id to the router history
+     */
     public push(id: string): this {
         if (this.historyIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.historyIndex + 1);
         }
         this.history.push(id);
 
-        if (this.history.length > this.game.config.player.maxRouterHistory) {
+        if (this.history.length > this.game.config.maxRouterHistory) {
             this.history.shift();
             this.historyIndex--;
         }
@@ -52,21 +53,43 @@ export class Router {
         return this;
     }
 
+    /**
+     * Go back to the previous page id in the router history
+     */
     public back(): this {
         if (this.historyIndex > 0) {
             this.historyIndex--;
             this.current = this.history[this.historyIndex];
             this.emitOnChange();
+        } else {
+            this.current = null;
+            this.emitOnChange();
         }
         return this;
     }
 
+    /**
+     * Go forward to the next page id in the router history
+     */
     public forward(): this {
         if (this.historyIndex < this.history.length - 1) {
             this.historyIndex++;
             this.current = this.history[this.historyIndex];
             this.emitOnChange();
         }
+        return this;
+    }
+
+    /**
+     * Clear the current page id and history
+     *
+     * All pages will be removed from the stage
+     */
+    public clear(): this {
+        this.current = null;
+        this.history = [];
+        this.historyIndex = -1;
+        this.emitOnChange();
         return this;
     }
 
@@ -87,11 +110,31 @@ export class Router {
     }
 }
 
+type RouterContextType = {
+    router: Router;
+};
 
-export function useRouter(defaultId?: string): RouterHookResult {
-    const {game} = useGame();
-    const [router] = useState(() => new Router(game, defaultId));
+const RouterContext = createContext<null | RouterContextType>(null);
 
-    return router;
+/**@internal */
+export function RouterProvider({children}: {
+    children: React.ReactNode
+}) {
+    "use client";
+    const game = useGame();
+    const [router] = useState(() => new Router(game));
+
+    return (
+        <>
+            <RouterContext value={{router}}>
+                {children}
+            </RouterContext>
+        </>
+    );
+}
+
+export function useRouter(): Router {
+    if (!useContext(RouterContext)) throw new Error("usePreloaded must be used within a PreloadedProvider");
+    return (useContext(RouterContext) as RouterContextType).router;
 }
 
