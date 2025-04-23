@@ -46,7 +46,7 @@ scene1.action([
   johnSmith
     .say("Hello, world!")
     .say`This is my first ${b("NarraLeaf")} story.`
-    .say`Start editing ${c("src/story.js", "#0000ff")} and enjoy the journey!`,
+    .say`Start editing ${c("src/story.js", "#00f")} and enjoy the journey!`,
 
   /**
    * John Doe: Also, don't forget to check out the documentation!
@@ -85,7 +85,7 @@ npm install narraleaf-react
 
 ### Documentation
 
-- [Introduction](https://react.narraleaf.com/documentation/introduction)
+- [Introduction](https://react.narraleaf.com/documentation/introduction)****
 - [Quick Start](https://react.narraleaf.com/documentation/quick-start)
 - [Installation](https://react.narraleaf.com/documentation/installation)
 - [Basic](https://react.narraleaf.com/documentation/basic)
@@ -100,6 +100,9 @@ npm install narraleaf-react
   - [Conditional](https://react.narraleaf.com/documentation/basic/conditional)
   - [Voice](https://react.narraleaf.com/documentation/basic/voice)
   - [Manage Preferences](https://react.narraleaf.com/documentation/basic/manage-preferences)
+- [Solutions](https://react.narraleaf.com/documentation/solutions)
+  - [Customizing the font](https://react.narraleaf.com/documentation/solutions/font)
+  - [Migration from Ren'Py](https://react.narraleaf.com/documentation/solutions/from-renpy)
 - [Core](https://react.narraleaf.com/documentation/core)
   - [Elements](https://react.narraleaf.com/documentation/core/elements)
     - [Scene](https://react.narraleaf.com/documentation/core/elements/scene)
@@ -116,13 +119,16 @@ npm install narraleaf-react
     - [Text](https://react.narraleaf.com/documentation/core/elements/text)
     - [Persistent](https://react.narraleaf.com/documentation/core/elements/persistent)
     - [Story](https://react.narraleaf.com/documentation/core/elements/story)
+    - [Displayable](https://react.narraleaf.com/documentation/core/elements/displayable)
+    - [Layer](https://react.narraleaf.com/documentation/core/elements/layer)
+    - [Service](https://react.narraleaf.com/documentation/core/elements/service)
+    - [Video](https://react.narraleaf.com/documentation/core/elements/video)
   - [Animation](https://react.narraleaf.com/documentation/core/animation)
   - [Game](https://react.narraleaf.com/documentation/core/game)
+  - [Plugin](https://react.narraleaf.com/documentation/core/plugin)
+  - [Utils](https://react.narraleaf.com/documentation/core/utils)
 - [Player](https://react.narraleaf.com/documentation/player)
-- [Customization](https://react.narraleaf.com/documentation/custom)
-- [Migration](https://react.narraleaf.com/documentation/migration)
-  - [From Ren'Py](https://react.narraleaf.com/documentation/migration/from-renpy)
-- Info
+- About
   - [License](https://react.narraleaf.com/documentation/info/license)
   - [Incompatible Changes](https://react.narraleaf.com/documentation/info/incompatible-changes)
 

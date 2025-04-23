@@ -27,36 +27,6 @@ export interface SavedGame {
 }
 
 export type GameConfig = {
-    app: {
-        debug: boolean;
-        /**
-         * Log level for the logger
-         * Set to true to enable all logs
-         */
-        logger: {
-            log: boolean;
-            info: boolean;
-            warn: boolean;
-            error: boolean;
-            debug: boolean;
-            trace: boolean;
-            verbose: boolean;
-        } | boolean;
-        /**
-         * If true, the game will show the inspector when you hover over the element
-         */
-        inspector: boolean;
-        /**
-         * The config of {@link GameStateGuard}
-         */
-        guard: GuardConfig;
-        /**
-         * Quality of the screenshot, between 0 and 1
-         * @default 1
-         * @deprecated Moved to `$root.screenshotQuality`
-         */
-        screenshotQuality: number;
-    };
     /**
      * The id of the container element for the game
      * @default "__narraleaf_content"
@@ -175,7 +145,6 @@ export type GameConfig = {
     /**
      * Quality of the screenshot, between 0 and 1
      * @default 1
-     * @deprecated Moved to `$root.screenshotQuality`
      */
     screenshotQuality: number;
     /**
@@ -291,6 +260,30 @@ export type GameConfig = {
      * @default () => {}
      */
     onError: (error: Error) => void;
+    app: {
+        debug: boolean;
+        /**
+         * Log level for the logger
+         * Set to true to enable all logs
+         */
+        logger: {
+            log: boolean;
+            info: boolean;
+            warn: boolean;
+            error: boolean;
+            debug: boolean;
+            trace: boolean;
+            verbose: boolean;
+        } | boolean;
+        /**
+         * If true, the game will show the inspector when you hover over the element
+         */
+        inspector: boolean;
+        /**
+         * The config of {@link GameStateGuard}
+         */
+        guard: GuardConfig;
+    };
 };
 export type GameSettings = {
     volume: number;

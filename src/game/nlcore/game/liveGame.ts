@@ -17,6 +17,7 @@ import {Character} from "@core/elements/character";
 import {Sentence} from "@core/elements/character/sentence";
 import {RuntimeGameError} from "@core/common/Utils";
 import { GameHistory } from "../action/gameHistory";
+import { Options } from "html-to-image/lib/types";
 
 /**@internal */
 type LiveGameEvent = {
@@ -304,7 +305,7 @@ export class LiveGame {
      */
     capturePng(): Promise<string> {
         this.assertScreenshot();
-        return this.gameState.htmlToImage.toPng(this.gameState.mainContentNode!);
+        return this.gameState.htmlToImage.toPng(this.gameState.mainContentNode!, this.getScreenshotOptions());
     }
 
     /**
@@ -314,7 +315,7 @@ export class LiveGame {
      */
     captureJpeg(): Promise<string> {
         this.assertScreenshot();
-        return this.gameState.htmlToImage.toJpeg(this.gameState.mainContentNode!);
+        return this.gameState.htmlToImage.toJpeg(this.gameState.mainContentNode!, this.getScreenshotOptions());
     }
 
     /**
@@ -324,7 +325,7 @@ export class LiveGame {
      */
     captureSvg(): Promise<string> {
         this.assertScreenshot();
-        return this.gameState.htmlToImage.toSvg(this.gameState.mainContentNode!);
+        return this.gameState.htmlToImage.toSvg(this.gameState.mainContentNode!, this.getScreenshotOptions());
     }
 
     /**
@@ -336,7 +337,7 @@ export class LiveGame {
         this.assertScreenshot();
         this.assertGameState();
         this.assertPlayerElement();
-        return this.gameState.htmlToImage.toBlob(this.gameState.mainContentNode!);
+        return this.gameState.htmlToImage.toBlob(this.gameState.mainContentNode!, this.getScreenshotOptions());
     }
 
     /**
@@ -430,6 +431,13 @@ export class LiveGame {
         } catch (e) {
             this.gameState.logger.error(LogTag, e);
         }
+    }
+
+    /**@internal */
+    getScreenshotOptions(): Options {
+        return {
+            quality: this.game.config.screenshotQuality
+        };
     }
 
     /**

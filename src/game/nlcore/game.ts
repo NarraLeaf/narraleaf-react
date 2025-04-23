@@ -72,7 +72,6 @@ export class Game {
                 [GuardWarningType.invalidExposedStateUnmounting]: true,
                 [GuardWarningType.unexpectedTimelineStatusChange]: true,
             },
-            screenshotQuality: 1,
         },
         contentContainerId: "__narraleaf_content",
         aspectRatio: 16 / 9,
