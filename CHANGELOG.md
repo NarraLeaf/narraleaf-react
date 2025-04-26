@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.4.0]
+## [0.4.1]
+
+### _Feature_
+
+- Added key bindings for Menu Item
+
+## [0.4.0] - 2025/4/22
 
 ### _Incompatible Changes_
 
