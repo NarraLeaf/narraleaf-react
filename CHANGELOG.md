@@ -6,6 +6,10 @@
 
 - Added key bindings for Menu Item
 
+### Fixed
+
+- Word properties are not assigned correctly when using `Word` static method
+
 ## [0.4.0] - 2025/4/22
 
 ### _Incompatible Changes_

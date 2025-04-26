@@ -147,6 +147,8 @@ export default function Player(
             if (ready && onReady && !readyHandlerExecuted.current) {
                 readyHandlerExecuted.current = true;
                 state.stage.forceUpdate();
+
+                game.hooks.trigger("init", []);
                 onReady({
                     game,
                     gameState: state,
@@ -167,10 +169,6 @@ export default function Player(
                 }
             }),
         ]).cancel;
-    }, []);
-
-    useEffect(() => {
-        game.hooks.trigger("init", []);
     }, []);
 
     const playerWidth = width || game.config.width;
