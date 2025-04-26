@@ -285,7 +285,7 @@ function BaseTexts({
                             } : {}),
                         }}
                         className={clsx(
-                            "whitespace-pre inline-block",
+                            "inline-block break-all",
                             {
                                 "font-bold": word.config.bold,
                                 "italic": word.config.italic,
