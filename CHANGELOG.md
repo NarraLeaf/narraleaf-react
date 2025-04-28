@@ -11,6 +11,10 @@
 
 - Word properties are not assigned correctly when using `Word` static method
 
+### Updated
+
+- Refactored the way to calculate the text styles
+
 ## [0.4.0] - 2025/4/22
 
 ### _Incompatible Changes_

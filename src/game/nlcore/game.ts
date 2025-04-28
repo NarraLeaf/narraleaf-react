@@ -116,6 +116,10 @@ export class Game {
         onError: (error: Error) => {
             console.error(error);
         },
+        fontSize: 16,
+        fontWeight: 400,
+        fontWeightBold: 700,
+        fontFamily: "sans-serif",
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 

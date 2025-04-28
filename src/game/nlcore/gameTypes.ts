@@ -284,6 +284,26 @@ export type GameConfig = {
          */
         guard: GuardConfig;
     };
+    /**
+     * Default font size for the game
+     * @default "16px"
+     */
+    fontSize: React.CSSProperties["fontSize"];
+    /**
+     * Default font weight for the game
+     * @default 400
+     */
+    fontWeight: number;
+    /**
+     * Default font weight for the game
+     * @default 700
+     */
+    fontWeightBold: number;
+    /**
+     * Default font family for the game
+     * @default "sans-serif"
+     */
+    fontFamily: React.CSSProperties["fontFamily"];
 };
 export type GameSettings = {
     volume: number;

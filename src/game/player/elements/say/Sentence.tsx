@@ -1,10 +1,10 @@
-import React, {useEffect, useMemo, useReducer, useRef, useState} from "react";
-import {Word, WordConfig} from "@core/elements/character/word";
-import {toHex} from "@lib/util/data";
+import React, { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Word, WordConfig } from "@core/elements/character/word";
+import { onlyIf, toHex } from "@lib/util/data";
 import clsx from "clsx";
-import {Pause, Pausing} from "@core/elements/character/pause";
+import { Pause, Pausing } from "@core/elements/character/pause";
 import Inspect from "@player/lib/Inspect";
-import {Script} from "@core/elements/script";
+import { Script } from "@core/elements/script";
 import { useSentenceContext } from "./context";
 import { DialogElementProps } from "./type";
 import { GameState } from "@lib/game/nlcore/common/game";
@@ -48,7 +48,7 @@ function BaseTexts({
     ...props
 }: BaseTextsProps) {
     const [isFinished, setIsFinished] = useState(false);
-    const {game} = gameState;
+    const { game } = gameState;
     const words = useMemo(() => w || sentence.evaluate(Script.getCtx({
         gameState,
     })), [w, sentence, gameState]);
@@ -88,7 +88,7 @@ function BaseTexts({
             return;
         }
 
-        const {done, value} = updaterRef.current.next();
+        const { done, value } = updaterRef.current.next();
         if (done) {
             setIsFinished(true);
             if (onCompleted) {
@@ -134,14 +134,28 @@ function BaseTexts({
         setTrigger((prev) => prev + 1);
     }, [count]);
 
+    useEffect(() => {
+        if (!style) return;
+
+        const violated = ["fontSize", "fontWeight", "color", "fontFamily"].filter((key) => {
+            const value = style[key as keyof React.CSSProperties];
+            return value !== undefined && value !== null && value !== "";
+        });
+        gameState.logger.warn("Dialog",
+            `Style properties ${violated.join(", ")} are not supported. `,
+            "(style:", style, ")",
+            "Please use the game config instead."
+        );
+    }, [style]);
+
     const displayedWords: Exclude<SplitWord, Pausing>[] = useTypeEffect ? currentWords : (() => {
         const result: Exclude<SplitWord, Pausing>[] = [];
         const updater = textUpdater(words);
         let exited = false;
         const processedWords = new Set<SplitWord>();
-        
+
         while (!exited) {
-            const {done, value} = updater.next();
+            const { done, value } = updater.next();
             if (done) {
                 exited = true;
             } else if (!Pause.isPause(value)) {
@@ -173,7 +187,7 @@ function BaseTexts({
 
         let exited = false;
         while (!exited) {
-            const {done, value} = updaterRef.current.next();
+            const { done, value } = updaterRef.current.next();
             if (done) {
                 setIsFinished(true);
                 if (onCompleted) {
@@ -253,43 +267,52 @@ function BaseTexts({
         return;
     }
 
+    const calculatedSentence: React.CSSProperties = {
+        fontWeight: sentence.config.bold ? game.config.fontWeightBold : game.config.fontWeight,
+        fontSize: sentence.config.fontSize ?? game.config.fontSize,
+        color: toHex(sentence.config.color ?? game.config.defaultTextColor),
+        fontFamily: sentence.config.fontFamily ?? game.config.fontFamily,
+        fontStyle: sentence.config.italic ? "italic" : undefined,
+    };
+
+    const calculateStyle = (word: Exclude<SplitWord, Pausing | "\n">): React.CSSProperties => ({
+        fontWeight: word.config.bold
+            ? game.config.fontWeightBold
+            : sentence.config.bold
+                ? game.config.fontWeightBold
+                : game.config.fontWeight,
+        fontSize: word.config.fontSize ?? sentence.config.fontSize ?? game.config.fontSize,
+        color: toHex(word.config.color ?? sentence.config.color ?? game.config.defaultTextColor),
+        fontFamily: word.config.fontFamily ?? sentence.config.fontFamily ?? game.config.fontFamily,
+        fontStyle: word.config.italic ?? sentence.config.italic ? "italic" : undefined,
+    });
+
     return (
         <div
             {...props}
             className={clsx(
                 "whitespace-pre-wrap",
-                {
-                    "font-bold": sentence.config.bold,
-                    "italic": sentence.config.italic,
-                },
                 className,
             )}
             style={{
                 ...style,
+                ...calculatedSentence,
             }}
         >
             {displayedWords.map((word, index) => {
-                if (word === "\n") {
-                    return <br key={index}/>;
-                }
+                if (word === "\n") return (<br key={index} />);
                 return (
                     <Inspect.Span
                         tag={`say.word.${index}`}
                         key={index}
                         style={{
-                            color: toHex(word.config.color || sentence.config.color || game.config.defaultTextColor),
-                            fontFamily: word.config.fontFamily,
-                            fontSize: word.config.fontSize,
-                            ...(game.config.app.debug ? {
+                            ...calculateStyle(word),
+                            ...onlyIf<React.CSSProperties>(game.config.app.debug, {
                                 outline: "1px dashed red",
-                            } : {}),
+                            }),
                         }}
                         className={clsx(
                             "inline-block break-all",
-                            {
-                                "font-bold": word.config.bold,
-                                "italic": word.config.italic,
-                            },
                             word.config.className,
                         )}
                     >
