@@ -5,6 +5,7 @@
 ### _Feature_
 
 - Added key bindings for Menu Item
+- Added `useDialog` hook to access the dialog state
 
 ### Fixed
 
