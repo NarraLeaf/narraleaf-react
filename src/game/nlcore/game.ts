@@ -120,6 +120,7 @@ export class Game {
         fontWeight: 400,
         fontWeightBold: 700,
         fontFamily: "sans-serif",
+        stage: null,
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 

@@ -304,6 +304,11 @@ export type GameConfig = {
      * @default "sans-serif"
      */
     fontFamily: React.CSSProperties["fontFamily"];
+    /**
+     * Override the default stage
+     * @default null
+     */
+    stage: React.ReactNode | null;
 };
 export type GameSettings = {
     volume: number;

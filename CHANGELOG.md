@@ -14,6 +14,7 @@
 ### Updated
 
 - Refactored the way to calculate the text styles
+- Added `game.config.stage` to modify the default stage
 
 ## [0.4.0] - 2025/4/22
 

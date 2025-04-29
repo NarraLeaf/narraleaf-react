@@ -4,6 +4,7 @@ import {Page} from "@player/lib/PageRouter/Page";
 import {useRouter} from "@player/lib/PageRouter/router";
 import {useFlush} from "@player/lib/flush";
 import {Stage} from "@player/lib/PageRouter/Stage";
+import { useGame } from "../../provider/game-state";
 
 type PageRouterProps = Readonly<{
     children?: React.ReactNode;
@@ -12,7 +13,7 @@ type PageRouterProps = Readonly<{
 /**
  * Page Router for NarraLeaf-React
  *
- * **Note**: only `Page` components are allowed as children, other components will be ignored.
+ * **Note**: only `Page` and `Stage` components are allowed as children, other components will be ignored.
  *
  * @example
  * ```tsx
@@ -36,11 +37,13 @@ export function PageRouter(
     }: PageRouterProps) {
     const [flush] = useFlush();
     const router = useRouter();
+    const game = useGame();
 
     useEffect(() => {
         if (!router) {
             return;
         }
+
         return router.events.on("event:router.onChange", flush).cancel;
     }, []);
 
@@ -48,7 +51,7 @@ export function PageRouter(
         return null;
     }
 
-    const childrenElements = React.Children.toArray(children);
+    const childrenElements = React.Children.toArray([...(game.config.stage ? [game.config.stage] : []), ...(children ? [children] : [])]);
 
     const validConstructor = Page;
     const validChildren = childrenElements.filter(
