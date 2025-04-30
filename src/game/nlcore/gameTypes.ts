@@ -174,6 +174,13 @@ export type GameConfig = {
      */
     autoForwardDelay: number;
     /**
+     * The default pause duration in milliseconds when auto-forward is enabled
+     * 
+     * When auto-forward is enabled, any Pause without a custom duration will use this value
+     * @default 1000
+     */
+    autoForwardDefaultPause: number;
+    /**
      * If true, when you press [GameConfig.player.skipKey], the game will skip the image transform
      * @default true
      */

@@ -7,8 +7,9 @@ import Inspect from "@player/lib/Inspect";
 import { Script } from "@core/elements/script";
 import { useSentenceContext } from "./context";
 import { DialogElementProps } from "./type";
-import { GameState } from "@lib/game/nlcore/common/game";
+import { Game, GameState } from "@lib/game/nlcore/common/game";
 import { Sentence } from "@core/elements/character/sentence";
+import { usePreference } from "../../libElements";
 
 /**@internal */
 type SplitWord = {
@@ -60,6 +61,50 @@ function BaseTexts({
     const [, forceUpdate] = useReducer((x) => x + 1, 0);
     const [seen, setSeen] = useState(new Set<SplitWord>());
     const [isPaused, setIsPaused] = useState(false);
+    const [gameSpeed] = usePreference(Game.Preferences.gameSpeed);
+    const [autoForward] = usePreference(Game.Preferences.autoForward);
+    const lastWordRef = useRef<Exclude<SplitWord, Pausing> | null>(null);
+
+    /**
+     * Calculate and set the interval for the next character based on the current word and game speed
+     */
+    const setNextInterval = (word: Exclude<SplitWord, Pausing>) => {
+        const baseCps = (typeof word === "object" && "cps" in word && word.cps !== undefined)
+            ? word.cps
+            : game.config.cps;
+        const adjustedCps = baseCps * gameSpeed;
+        const interval = Math.round(1000 / adjustedCps);
+        
+        if (intervalRef.current) {
+            clearTimeout(intervalRef.current);
+        }
+        
+        intervalRef.current = setTimeout(() => {
+            setTrigger((prev) => prev + 1);
+        }, interval);
+    };
+
+    /**
+     * Effect to handle gameSpeed changes and update interval immediately
+     */
+    useEffect(() => {
+        if (!lastWordRef.current || isFinished || finished || isPaused || pauseTimerRef.current) {
+            return;
+        }
+
+        setNextInterval(lastWordRef.current);
+    }, [gameSpeed]);
+
+    /**
+     * Effect to handle autoForward changes
+     */
+    useEffect(() => {
+        if (autoForward && isPaused && pauseTimerRef.current) {
+            clearTimeout(pauseTimerRef.current);
+            pauseTimerRef.current = null;
+            setTrigger((prev) => prev + 1);
+        }
+    }, [autoForward]);
 
     /**
      * Primary effect for handling text animation and typewriter effect.
@@ -68,6 +113,8 @@ function BaseTexts({
      * - trigger: Controls the timing of word display
      * - finished: External completion signal
      * - isPaused: Internal pause state
+     * - gameSpeed: Controls the speed of text printing
+     * - autoForward: Controls the autoForward state
      */
     useEffect(() => {
         if (!useTypeEffect) {
@@ -104,15 +151,10 @@ function BaseTexts({
         } else {
             addWord(value);
             forceUpdate();
-
-            const interval = (typeof value === "object" && "cps" in value && value.cps !== undefined)
-                ? Math.round(1000 / value.cps)
-                : Math.round(1000 / game.config.cps);
-            intervalRef.current = setTimeout(() => {
-                setTrigger((prev) => prev + 1);
-            }, interval);
+            lastWordRef.current = value;
+            setNextInterval(value);
         }
-    }, [trigger, finished, isPaused]);
+    }, [trigger, finished, isPaused, gameSpeed, autoForward]);
 
     /**
      * Secondary effect for handling count-based text progression.
@@ -228,12 +270,19 @@ function BaseTexts({
     }
 
     function waitForPause(pause: Pause) {
-        gameState.logger.info("Say", "Paused", pause);
+        gameState.logger.info("Say", "Paused", pause, "autoForward", autoForward);
         if (pause.config.duration) {
+            const adjustedDuration = pause.config.duration / gameSpeed;
             pauseTimerRef.current = setTimeout(() => {
                 pauseTimerRef.current = null;
                 setTrigger((prev) => prev + 1);
-            }, pause.config.duration);
+            }, adjustedDuration);
+        } else if (autoForward) {
+            const adjustedDuration = game.config.autoForwardDefaultPause / gameSpeed;
+            pauseTimerRef.current = setTimeout(() => {
+                pauseTimerRef.current = null;
+                setTrigger((prev) => prev + 1);
+            }, adjustedDuration);
         } else {
             setIsPaused(true);
         }

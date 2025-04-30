@@ -12,9 +12,29 @@ enum GameSettingsNamespace {
 }
 
 export type GamePreference = {
+    /**
+     * If true, the game will automatically forward to the next sentence when the player has finished the current sentence
+     * @default false
+     */
     autoForward: boolean;
+    /**
+     * If true, the game will allow the player to skip the dialog
+     * @default true
+     */
     skip: boolean;
+    /**
+     * If true, the game will show the dialog
+     * @default true
+     */
     showDialog: boolean;
+    /**
+     * The multiplier of the dialog speed
+     * 
+     * Dialog speed will apply to:
+     * - The text speed
+     * - The auto-forward delay
+     */
+    gameSpeed: number;
 };
 
 export type GameHooks = {
@@ -45,6 +65,7 @@ export class Game {
         autoForward: false,
         skip: true,
         showDialog: true,
+        gameSpeed: 1,
     };
     /**@internal */
     static Preferences: {
@@ -53,7 +74,8 @@ export class Game {
             autoForward: "autoForward",
             skip: "skip",
             showDialog: "showDialog",
-        };
+            gameSpeed: "gameSpeed",
+    };
     /**@internal */
     static DefaultConfig: GameConfig = {
         app: {
@@ -98,6 +120,7 @@ export class Game {
         cps: 10,
         useAspectScale: true,
         autoForwardDelay: 3 * 1000,
+        autoForwardDefaultPause: 1000,
         allowSkipImageTransform: true,
         allowSkipImageTransition: true,
         allowSkipBackgroundTransform: true,

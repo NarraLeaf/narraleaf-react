@@ -42,6 +42,7 @@ function BaseDialog({
     const { ratio } = useRatio();
     const [scheduler] = useState(new Scheduler());
     const [showDialog] = usePreference(Game.Preferences.showDialog);
+    const [gameSpeed] = usePreference(Game.Preferences.gameSpeed);
 
     const handleComplete = () => {
         setIsFinished(true);
@@ -104,7 +105,7 @@ function BaseDialog({
         return () => {
             event.cancel();
         };
-    }, [isFinished]);
+    }, [isFinished, gameSpeed]);
 
     useEffect(() => () => {
         scheduler.cancelTask();
@@ -116,7 +117,7 @@ function BaseDialog({
             .cancelTask()
             .scheduleTask(() => {
                 if (onClick) onClick();
-            }, game.config.autoForwardDelay);
+            }, game.config.autoForwardDelay / gameSpeed);
     }
 
     const sentenceContext: SentenceContext = {
