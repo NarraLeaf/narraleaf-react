@@ -1,6 +1,23 @@
 # Changelog
 
-## [0.4.0]
+## [0.4.1]
+
+### _Feature_
+
+- Added key bindings for Menu Item
+- Added `useDialog` hook to access the dialog state
+
+### Fixed
+
+- Word properties are not assigned correctly when using `Word` static method
+- Some unexpected behaviors when using `autoForward` and `pause` together
+
+### Updated
+
+- Refactored the way to calculate the text styles
+- Added `game.config.stage` to modify the default stage
+
+## [0.4.0] - 2025/4/22
 
 ### _Incompatible Changes_
 
