@@ -1,10 +1,15 @@
-![](docs/nlr-logo-banner.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-transparent.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-light.png">
+  <img alt="Fallback image description" src="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-light.png">
+</picture>
 
-# NarraLeaf-React
+<h1 align="center">NarraLeaf-React</h1>
 
-English | [简体中文](docs/README.zh-CN.md)
+<h4 align="center">A React visual novel player framework</h3>
 
-A React visual novel player framework
+<p align="center">English | <a href="docs/README.zh-CN.md">简体中文</a></p>
+
 
 ## What is NarraLeaf-React?
 

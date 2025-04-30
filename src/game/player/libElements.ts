@@ -7,7 +7,8 @@ import Item from "@player/elements/menu/UIMenu/Item";
 import Notifications from "@player/elements/notification/Notifications";
 import Texts from "@player/elements/say/Sentence";
 import Nametag from "@player/elements/say/Nametag";
-import Dialog from "@lib/game/player/elements/say/Dialog";
+import Dialog from "@player/elements/say/Dialog";
+import { useDialog } from "@player/elements/say/useDialog";
 
 export {
     Isolated,
@@ -20,4 +21,5 @@ export {
     Texts,
     Nametag,
     Dialog,
+    useDialog,
 };

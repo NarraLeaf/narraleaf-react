@@ -24,21 +24,21 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
 
     public static color(text: string | Word, color: Color): Word {
         if (Word.isWord(text)) {
-            return text.copy().inherit({color});
+            return text.copy().assign({color});
         }
         return new Word(text, {color});
     }
 
     public static bold(text: string | Word): Word {
         if (Word.isWord(text)) {
-            return text.copy().inherit({bold: true});
+            return text.copy().assign({bold: true});
         }
         return new Word(text, {bold: true});
     }
 
     public static italic(text: string | Word): Word {
         if (Word.isWord(text)) {
-            return text.copy().inherit({italic: true});
+            return text.copy().assign({italic: true});
         }
         return new Word(text, {italic: true});
     }
@@ -89,6 +89,12 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
         this.config.italic = this.config.italic ?? config.italic;
         this.config.bold = this.config.bold ?? config.bold;
         this.config.cps = this.config.cps ?? config.cps;
+        return this;
+    }
+
+    /**@internal */
+    assign(config: Partial<WordConfig>): this {
+        this.config = deepMerge<Partial<WordConfig>>(this.config, config);
         return this;
     }
 

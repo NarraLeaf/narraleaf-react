@@ -1,11 +1,11 @@
 import clsx from "clsx";
-import React, {useEffect, useState} from "react";
-import {DialogProps} from "@player/elements/say/type";
-import {GameState} from "@core/common/game";
-import {onlyIf, Scheduler} from "@lib/util/data";
-import {useRatio} from "@player/provider/ratio";
+import React, { useEffect, useState } from "react";
+import { DialogProps } from "@player/elements/say/type";
+import { GameState } from "@core/common/game";
+import { onlyIf, Scheduler } from "@lib/util/data";
+import { useRatio } from "@player/provider/ratio";
 import Inspect from "@player/lib/Inspect";
-import {Game} from "@core/game";
+import { Game } from "@core/game";
 import { Nametag, usePreference } from "@player/libElements";
 import { SentenceContext, useSayContext } from "./context";
 import { Texts } from "./Sentence";
@@ -37,11 +37,12 @@ function BaseDialog({
     ...props
 }: BaseDialogProps) {
     const [isFinished, setIsFinished] = useState(false);
-    const {game} = gameState;
+    const { game } = gameState;
     const [count, setCount] = useState(0);
-    const {ratio} = useRatio();
+    const { ratio } = useRatio();
     const [scheduler] = useState(new Scheduler());
     const [showDialog] = usePreference(Game.Preferences.showDialog);
+    const [gameSpeed] = usePreference(Game.Preferences.gameSpeed);
 
     const handleComplete = () => {
         setIsFinished(true);
@@ -104,7 +105,7 @@ function BaseDialog({
         return () => {
             event.cancel();
         };
-    }, [isFinished]);
+    }, [isFinished, gameSpeed]);
 
     useEffect(() => () => {
         scheduler.cancelTask();
@@ -116,7 +117,7 @@ function BaseDialog({
             .cancelTask()
             .scheduleTask(() => {
                 if (onClick) onClick();
-            }, game.config.autoForwardDelay);
+            }, game.config.autoForwardDelay / gameSpeed);
     }
 
     const sentenceContext: SentenceContext = {
@@ -131,39 +132,31 @@ function BaseDialog({
 
     return (
         <SentenceContext.Provider value={sentenceContext}>
-            <div data-element-type={"dialog"}>
+            <div data-element-type={"dialog"} className="w-full h-full">
                 {sentence.state.display && (
                     <Inspect.Div
                         tag={"say.aspectScaleContainer"}
                         color={"blue"}
                         border={"dashed"}
                         className={clsx(
-                            "absolute bottom-0 w-[calc(100%-40px)]",
+                            "absolute bottom-0 w-full h-full",
                             !showDialog && "invisible pointer-events-auto"
                         )}
                         onClick={onElementClick}
                         style={{
                             ...onlyIf<React.CSSProperties>(game.config.useAspectScale, {
-                                width: game.config.dialogWidth,
-                                height: game.config.dialogHeight,
+                                maxWidth: game.config.dialogWidth,
+                                maxHeight: game.config.dialogHeight,
+                                transform: `scale(${ratio.state.scale})`,
+                                transformOrigin: "bottom left",
+                                width: game.config.width,
+                                height: game.config.height,
                             }),
                         }}
                     >
-                        <Inspect.Div
-                            tag={"say.containerClassName"}
-                            style={{
-                                ...onlyIf<React.CSSProperties>(game.config.useAspectScale, {
-                                    transform: `scale(${ratio.state.scale})`,
-                                    transformOrigin: "bottom left",
-                                    width: "100%",
-                                    height: "100%",
-                                }),
-                            }}
-                        >
-                            <div {...props}>
-                                {children}
-                            </div>
-                        </Inspect.Div>
+                        <div {...props}>
+                            {children}
+                        </div>
                     </Inspect.Div>
                 )}
             </div>
@@ -192,7 +185,7 @@ export function RawDialog(props: RawDialogProps) {
  * Context-based wrapper component
  * Provides integration with the say context
  */
-export function Dialog({children, ...props}: DialogProps) {
+export function Dialog({ children, ...props }: DialogProps) {
     const context = useSayContext();
     return (
         <BaseDialog

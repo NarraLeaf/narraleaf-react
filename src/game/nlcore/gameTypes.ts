@@ -174,6 +174,13 @@ export type GameConfig = {
      */
     autoForwardDelay: number;
     /**
+     * The default pause duration in milliseconds when auto-forward is enabled
+     * 
+     * When auto-forward is enabled, any Pause without a custom duration will use this value
+     * @default 1000
+     */
+    autoForwardDefaultPause: number;
+    /**
      * If true, when you press [GameConfig.player.skipKey], the game will skip the image transform
      * @default true
      */
@@ -284,6 +291,31 @@ export type GameConfig = {
          */
         guard: GuardConfig;
     };
+    /**
+     * Default font size for the game
+     * @default "16px"
+     */
+    fontSize: React.CSSProperties["fontSize"];
+    /**
+     * Default font weight for the game
+     * @default 400
+     */
+    fontWeight: number;
+    /**
+     * Default font weight for the game
+     * @default 700
+     */
+    fontWeightBold: number;
+    /**
+     * Default font family for the game
+     * @default "sans-serif"
+     */
+    fontFamily: React.CSSProperties["fontFamily"];
+    /**
+     * Override the default stage
+     * @default null
+     */
+    stage: React.ReactNode | null;
 };
 export type GameSettings = {
     volume: number;
