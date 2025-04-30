@@ -10,6 +10,7 @@
 ### Fixed
 
 - Word properties are not assigned correctly when using `Word` static method
+- Some unexpected behaviors when using `autoForward` and `pause` together
 
 ### Updated
 

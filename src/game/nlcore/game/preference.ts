@@ -16,6 +16,7 @@ export class Preference<T extends Record<string, string | boolean | number | nul
     }> = new EventDispatcher();
 
     constructor(private readonly settings: T) {
+        this.events.setMaxListeners(64);
     }
 
     public setPreference<K extends StringKeyof<T>>(key: K, value: T[K]) {
