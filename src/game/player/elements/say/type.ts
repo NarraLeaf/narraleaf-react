@@ -7,9 +7,9 @@ import React from "react";
 
 export interface SayElementProps {
     action: {
-        sentence: Sentence;
+        sentence: Sentence | null;
         character: Character | null;
-        words: Word<Pausing | string>[];
+        words: Word<Pausing | string>[] | null;
     }
     /**
      * Callback function to be called when the player triggers the next action

@@ -27,7 +27,7 @@ export type Choice = {
 };
 
 export type MenuData = {
-    prompt: Sentence;
+    prompt: Sentence | null;
     choices: Choice[];
 }
 
@@ -37,7 +37,7 @@ export class Menu extends Actionable<any, Menu> {
     /**@internal */
     static targetAction = MenuAction;
     /**@internal */
-    readonly prompt: Sentence;
+    readonly prompt: Sentence | null;
     /**@internal */
     readonly config: MenuConfig;
     /**@internal */
@@ -52,12 +52,19 @@ export class Menu extends Actionable<any, Menu> {
         return new Menu(prompt, config);
     }
 
+    public static choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>> {
+        const menu = new Menu(null, {});
+        return menu.choose(arg0, arg1);
+    }
+
     constructor(prompt: SentencePrompt, config?: MenuConfig);
     constructor(prompt: Sentence, config?: MenuConfig);
     constructor(prompt: SentencePrompt | Sentence, config: MenuConfig);
-    constructor(prompt: SentencePrompt | Sentence, config: MenuConfig = {}) {
+    constructor(prompt: null, config?: MenuConfig);
+    constructor(prompt: SentencePrompt | Sentence | null, config: MenuConfig = {}) {
         super();
-        this.prompt = Sentence.isSentence(prompt) ? prompt : new Sentence(prompt);
+        this.prompt = Sentence.isSentence(prompt) ? prompt :
+            prompt === null ? null : new Sentence(prompt);
         this.config = deepMerge<MenuConfig>(Menu.defaultConfig, config);
     }
 
@@ -72,6 +79,7 @@ export class Menu extends Actionable<any, Menu> {
     public choose(choice: MenuChoice): Proxied<Menu, Chained<LogicAction.Actions>>;
     public choose(prompt: Sentence, action: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
     public choose(prompt: SentencePrompt, action: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
+    public choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
     public choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>> {
         const chained = this.chain();
         if (Sentence.isSentence(arg0) && arg1) {

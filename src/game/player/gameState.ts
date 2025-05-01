@@ -313,7 +313,7 @@ export class GameState {
     }
 
     public createMenu(menu: MenuData, afterChoose?: (choice: Chosen) => void, scene?: Scene): LiveGameEventToken & {
-        prompt: string;
+        prompt: null | string;
     } {
         if (!menu.choices.length) {
             throw new Error("Menu must have at least one choice");
@@ -323,7 +323,7 @@ export class GameState {
             throw this.sceneNotFound();
         }
 
-        const words = menu.prompt.evaluate(Script.getCtx({gameState: this}));
+        const words = menu.prompt?.evaluate(Script.getCtx({gameState: this})) || null;
         const action = this.createWaitableAction<MenuElement, Chosen>({
             ...menu,
             words,
@@ -343,7 +343,7 @@ export class GameState {
                 if (index === -1) return;
                 menus.splice(index, 1);
             },
-            prompt: Word.getText(words),
+            prompt: words ? Word.getText(words) : null,
         };
     }
 

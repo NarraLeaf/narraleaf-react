@@ -10,6 +10,7 @@ import { DialogElementProps } from "./type";
 import { Game, GameState } from "@lib/game/nlcore/common/game";
 import { Sentence } from "@core/elements/character/sentence";
 import { usePreference } from "../../libElements";
+import { Color } from "@lib/game/nlcore/types";
 
 /**@internal */
 type SplitWord = {
@@ -34,6 +35,7 @@ interface BaseTextsProps {
     words?: Word<Pausing | string>[];
     className?: string;
     style?: React.CSSProperties;
+    defaultColor?: Color;
 }
 
 function BaseTexts({
@@ -46,6 +48,7 @@ function BaseTexts({
     words: w,
     className,
     style,
+    defaultColor,
     ...props
 }: BaseTextsProps) {
     const [isFinished, setIsFinished] = useState(false);
@@ -331,7 +334,7 @@ function BaseTexts({
                 ? game.config.fontWeightBold
                 : game.config.fontWeight,
         fontSize: word.config.fontSize ?? sentence.config.fontSize ?? game.config.fontSize,
-        color: toHex(word.config.color ?? sentence.config.color ?? game.config.defaultTextColor),
+        color: toHex(word.config.color ?? sentence.config.color ?? defaultColor ?? game.config.defaultTextColor),
         fontFamily: word.config.fontFamily ?? sentence.config.fontFamily ?? game.config.fontFamily,
         fontStyle: word.config.italic ?? sentence.config.italic ? "italic" : undefined,
     });

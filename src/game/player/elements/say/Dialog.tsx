@@ -187,6 +187,11 @@ export function RawDialog(props: RawDialogProps) {
  */
 export function Dialog({ children, ...props }: DialogProps) {
     const context = useSayContext();
+
+    if (!context.action.sentence || !context.action.words) {
+        return null;
+    }
+
     return (
         <BaseDialog
             {...props}

@@ -14,7 +14,7 @@ type GameElementHistory =
     }
     | {
         type: "menu";
-        text: string;
+        text: string | null;
         selected: string;
     };
 

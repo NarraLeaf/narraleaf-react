@@ -6,11 +6,11 @@ import {Pausing} from "@core/elements/character/pause";
 import {Chosen} from "@player/type";
 
 export interface MenuElementProps {
-    prompt: Sentence;
+    prompt: Sentence | null;
     choices: Choice[];
     afterChoose: (choice: Chosen) => void;
     state: GameState;
-    words: Word<Pausing | string>[];
+    words: Word<Pausing | string>[] | null;
 }
 
 export interface IUserMenuProps {
