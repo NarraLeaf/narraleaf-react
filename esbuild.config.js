@@ -14,6 +14,10 @@ async function build() {
       target: ['es2020'],
       format: 'esm',
       minify: isProduction,
+      minifyIdentifiers: isProduction,
+      minifySyntax: isProduction,
+      minifyWhitespace: isProduction,
+      mangleProps: isProduction ? /^_/ : undefined,
       sourcemap: 'external',
       external: ['react', 'react-dom', '@emotion/is-prop-valid'],
       plugins: [
@@ -35,11 +39,12 @@ async function build() {
       resolveExtensions: ['.ts', '.tsx', '.js', '.jsx'],
       mainFields: ['module', 'main'],
       preserveSymlinks: true,
-      treeShaking: true,
+      treeShaking: isProduction,
       logLevel: 'info',
+      keepNames: !isProduction,
     });
 
-    console.log('Build completed successfully!');
+    console.log(`Build completed successfully! (${isProduction ? 'Production' : 'Development'} mode)`);
     return result;
   } catch (error) {
     console.error('Build failed:', error);
