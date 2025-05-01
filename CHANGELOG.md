@@ -16,6 +16,7 @@
 
 - Refactored the way to calculate the text styles
 - Added `game.config.stage` to modify the default stage
+- Moved to ESBuild and reduced the bundle size/build time
 
 ## [0.4.0] - 2025/4/22
 
