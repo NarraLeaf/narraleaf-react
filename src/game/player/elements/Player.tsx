@@ -1,5 +1,5 @@
 import "client-only";
-import "@player/lib/styles/style.css";
+import "../../../styles/globals.css";
 
 import clsx from "clsx";
 import {flushSync} from "react-dom";

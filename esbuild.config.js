@@ -1,55 +1,37 @@
-const esbuild = require('esbuild');
-const alias = require('esbuild-plugin-alias');
-const path = require('path');
+// esbuild.config.js
+const esbuild = require("esbuild");
+const path = require("path");
+const postCssPlugin = require("esbuild-plugin-postcss2");
+// Use the new PostCSS package for Tailwind CSS
+const tailwindPostcss = require("@tailwindcss/postcss");
+const autoprefixer = require("autoprefixer");
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = process.env.NODE_ENV === "production";
 
-async function build() {
-  try {
-    const result = await esbuild.build({
-      entryPoints: ['src/index.ts'],
-      bundle: true,
-      outfile: 'dist/main.js',
-      platform: 'browser',
-      target: ['es2020'],
-      format: 'esm',
-      minify: isProduction,
-      minifyIdentifiers: isProduction,
-      minifySyntax: isProduction,
-      minifyWhitespace: isProduction,
-      mangleProps: isProduction ? /^_/ : undefined,
-      sourcemap: 'external',
-      external: ['react', 'react-dom', '@emotion/is-prop-valid'],
+esbuild.build({
+  entryPoints: ["./src/index.ts"],
+  bundle: true,
+  sourcemap: !isProduction,
+  minify: isProduction,
+  target: ["es2020", "chrome58", "firefox57", "safari11"],
+  outfile: "dist/main.js",
+  format: "esm",
+  define: {
+    "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV || "development"),
+  },
+  plugins: [
+    postCssPlugin.default({
       plugins: [
-        alias({
-          '@lib': path.resolve(__dirname, 'src/'),
-          '@core': path.resolve(__dirname, 'src/game/nlcore/'),
-          '@player': path.resolve(__dirname, 'src/game/player/'),
-        }),
+        // Replace direct tailwindcss plugin with @tailwindcss/postcss
+        tailwindPostcss(path.resolve(__dirname, "tailwind.config.js")),
+        autoprefixer,
       ],
-      loader: {
-        '.ts': 'ts',
-        '.tsx': 'tsx',
-        '.css': 'css',
-      },
-      define: {
-        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
-      },
-      tsconfig: 'tsconfig.json',
-      resolveExtensions: ['.ts', '.tsx', '.js', '.jsx'],
-      mainFields: ['module', 'main'],
-      preserveSymlinks: true,
-      treeShaking: isProduction,
-      logLevel: 'info',
-      keepNames: !isProduction,
-    });
-
-    console.log(`Build completed successfully! (${isProduction ? 'Production' : 'Development'} mode)`);
-    return result;
-  } catch (error) {
-    console.error('Build failed:', error);
-    process.exit(1);
-  }
-}
-
-build(); 
+    }),
+  ],
+  loader: {
+    ".png": "file",
+    ".svg": "file",
+    ".css": "css",
+  },
+  external: ["react", "react-dom"],
+}).catch(() => process.exit(1));

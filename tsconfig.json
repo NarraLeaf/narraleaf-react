@@ -38,6 +38,7 @@
       "src/types"
     ],
     "stripInternal": true,
+    "types": ["node"]
   },
   "include": [
     "src/**/*"

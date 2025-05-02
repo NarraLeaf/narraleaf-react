@@ -18,4 +18,12 @@
 
 .__narraleaf_content-player .pointer-disabled > :not(.pointer-disabled) {
     pointer-events: auto;
-  }
+}
+
+.pointer-events-auto {
+    pointer-events: auto;
+}
+
+.pointer-events-none {
+    pointer-events: none;
+}
