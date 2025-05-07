@@ -1,62 +1,28 @@
-import clsx from "clsx";
-import React, { useEffect, useState } from "react";
-import { DialogProps } from "@player/elements/say/type";
 import { GameState } from "@core/common/game";
-import { onlyIf, Scheduler } from "@lib/util/data";
-import { useRatio } from "@player/provider/ratio";
-import Inspect from "@player/lib/Inspect";
 import { Game } from "@core/game";
+import { useGame } from "@lib/game/nlcore/common/player";
+import { onlyIf } from "@lib/util/data";
+import { DialogProps } from "@player/elements/say/type";
+import Inspect from "@player/lib/Inspect";
 import { Nametag, usePreference } from "@player/libElements";
-import { SentenceContext, useSayContext } from "./context";
+import { useRatio } from "@player/provider/ratio";
+import clsx from "clsx";
+import React, { useEffect } from "react";
+import { useDialogContext } from "./context";
 import { Texts } from "./Sentence";
-import { Sentence } from "@core/elements/character/sentence";
-import { Word } from "@core/elements/character/word";
-import { Pausing } from "@core/elements/character/pause";
-
-/**
- * Base component that handles the core dialog rendering logic
- * This component is not meant to be used directly
- */
-interface BaseDialogProps extends Omit<DialogProps, "onClick"> {
-    sentence: Sentence;
-    words: Word<Pausing | string>[];
-    gameState: GameState;
-    useTypeEffect?: boolean;
-    onClick?: (skiped?: boolean) => void;
-    onFinished?: () => void;
-}
 
 function BaseDialog({
     children,
-    sentence,
-    words,
-    gameState,
-    useTypeEffect = true,
-    onClick,
-    onFinished,
     ...props
-}: BaseDialogProps) {
-    const [isFinished, setIsFinished] = useState(false);
-    const { game } = gameState;
-    const [count, setCount] = useState(0);
+}: DialogProps) {
+    const game = useGame();
+    const gameState = game.getLiveGame().getGameState()!;
+    const dialog = useDialogContext();
     const { ratio } = useRatio();
-    const [scheduler] = useState(new Scheduler());
     const [showDialog] = usePreference(Game.Preferences.showDialog);
-    const [gameSpeed] = usePreference(Game.Preferences.gameSpeed);
-
-    const handleComplete = () => {
-        setIsFinished(true);
-        onFinished?.();
-        scheduleAutoForward();
-    };
 
     function onElementClick() {
-        if (isFinished) {
-            if (onClick) onClick();
-            scheduleAutoForward();
-        } else {
-            setCount((count) => count + 1);
-        }
+        dialog.requestComplete();
     }
 
     useEffect(() => {
@@ -67,11 +33,7 @@ function BaseDialog({
 
         const handleKeyUp = (e: KeyboardEvent) => {
             if (game.config.nextKey.includes(e.key)) {
-                if (isFinished) {
-                    if (onClick) onClick();
-                } else {
-                    setCount((count) => count + 1);
-                }
+                dialog.requestComplete();
             }
         };
 
@@ -80,104 +42,59 @@ function BaseDialog({
         return () => {
             window.removeEventListener("keyup", handleKeyUp);
         };
-    }, [isFinished]);
+    }, [dialog]);
 
     useEffect(() => {
         return gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
             gameState.logger.log("NarraLeaf-React: Say", "Skipped");
-            if (isFinished) {
-                if (onClick) onClick(true);
-            } else {
-                setIsFinished(true);
-                onFinished?.();
-            }
+            dialog.forceSkip();
         }).cancel;
-    }, [isFinished]);
+    }, [dialog]);
 
     useEffect(() => {
         const event = game.preference.onPreferenceChange(Game.Preferences.autoForward, (autoForward) => {
-            if (autoForward && isFinished) {
-                scheduleAutoForward();
+            if (autoForward && dialog.isEnded()) {
+                dialog.tryScheduleAutoForward();
             } else {
-                scheduler.cancelTask();
+                dialog.cancelAutoForward();
             }
         });
         return () => {
             event.cancel();
         };
-    }, [isFinished, gameSpeed]);
-
-    useEffect(() => () => {
-        scheduler.cancelTask();
-    }, []);
-
-    function scheduleAutoForward() {
-        if (!game.preference.getPreference(Game.Preferences.autoForward)) return;
-        scheduler
-            .cancelTask()
-            .scheduleTask(() => {
-                if (onClick) onClick();
-            }, game.config.autoForwardDelay / gameSpeed);
-    }
-
-    const sentenceContext: SentenceContext = {
-        sentence,
-        gameState,
-        finished: isFinished,
-        useTypeEffect,
-        count,
-        words,
-        onCompleted: handleComplete,
-    };
+    }, [dialog]);
 
     return (
-        <SentenceContext.Provider value={sentenceContext}>
-            <div data-element-type={"dialog"} className="w-full h-full">
-                {sentence.state.display && (
-                    <Inspect.Div
-                        tag={"say.aspectScaleContainer"}
-                        color={"blue"}
-                        border={"dashed"}
-                        className={clsx(
-                            "absolute bottom-0 w-full h-full",
-                            !showDialog && "invisible pointer-events-auto"
-                        )}
-                        onClick={onElementClick}
-                        style={{
-                            ...onlyIf<React.CSSProperties>(game.config.useAspectScale, {
-                                maxWidth: game.config.dialogWidth,
-                                maxHeight: game.config.dialogHeight,
-                                transform: `scale(${ratio.state.scale})`,
-                                transformOrigin: "bottom left",
-                                width: game.config.width,
-                                height: game.config.height,
-                            }),
-                        }}
-                    >
-                        <div {...props}>
-                            {children}
-                        </div>
-                    </Inspect.Div>
+        <div data-element-type={"dialog"} className="w-full h-full">
+            <Inspect.Div
+                tag={"say.aspectScaleContainer"}
+                color={"blue"}
+                border={"dashed"}
+                className={clsx(
+                    "absolute bottom-0 w-full h-full",
+                    !showDialog && "invisible pointer-events-auto"
                 )}
-            </div>
-        </SentenceContext.Provider>
+                onClick={onElementClick}
+                style={{
+                    ...onlyIf<React.CSSProperties>(game.config.useAspectScale, {
+                        maxWidth: game.config.dialogWidth,
+                        maxHeight: game.config.dialogHeight,
+                        transform: `scale(${ratio.state.scale})`,
+                        transformOrigin: "bottom left",
+                        width: game.config.width,
+                        height: game.config.height,
+                    }),
+                }}
+            >
+                <div {...props}>
+                    {children}
+                </div>
+            </Inspect.Div>
+        </div>
     );
 }
 
-/**
- * Props-based wrapper component
- * Provides a clean interface for direct prop usage
- */
-export interface RawDialogProps extends Omit<DialogProps, "onClick"> {
-    sentence: Sentence;
-    words: Word<Pausing | string>[];
-    gameState: GameState;
-    useTypeEffect?: boolean;
-    onClick?: (skiped?: boolean) => void;
-    onFinished?: () => void;
-}
-
-export function RawDialog(props: RawDialogProps) {
+export function RawDialog(props: DialogProps) {
     return <BaseDialog {...props} />;
 }
 
@@ -186,22 +103,14 @@ export function RawDialog(props: RawDialogProps) {
  * Provides integration with the say context
  */
 export function Dialog({ children, ...props }: DialogProps) {
-    const context = useSayContext();
+    const context = useDialogContext();
 
-    if (!context.action.sentence || !context.action.words) {
+    if (!context.config.action.sentence || !context.config.action.words) {
         return null;
     }
 
     return (
-        <BaseDialog
-            {...props}
-            sentence={context.action.sentence}
-            words={context.action.words}
-            gameState={context.gameState}
-            useTypeEffect={context.useTypeEffect}
-            onClick={context.onClick}
-            onFinished={context.onFinished}
-        >
+        <BaseDialog {...props}>
             {children}
         </BaseDialog>
     );

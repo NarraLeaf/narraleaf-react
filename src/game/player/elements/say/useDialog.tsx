@@ -1,4 +1,4 @@
-import { useSentenceContext } from "./context";
+import { useDialogContext } from "./context";
 import { Word } from "@lib/game/nlcore/common/elements";
 
 /**
@@ -20,11 +20,11 @@ export type DialogContext = {
  * @returns {DialogContext} An object containing the dialog's completion status and text content
  */
 export function useDialog() {
-    const {finished, words} = useSentenceContext();
-    const text = Word.getText(words);
+    const dialog = useDialogContext();
+    const text = Word.getText(dialog.config.evaluatedWords);
 
     return {
-        done: finished,
+        done: dialog.isEnded(),
         text,
     };
 }

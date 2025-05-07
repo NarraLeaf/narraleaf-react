@@ -82,7 +82,7 @@ export default function Scene(
                     gameState={state}
                     key={"say-" + action.id}
                     action={action}
-                    onClick={(skiped) => {
+                    onFinished={(skiped) => {
                         if (skiped) {
                             usingSkipRef.current = true;
                         }
