@@ -15,7 +15,7 @@ export function Stage(
 ) {
     return (
         <>
-            <Full style={style} className={className}>
+            <Full style={style} className={className} data-element-type="stage" data-code-source="Stage.tsx">
                 {children}
             </Full>
         </>

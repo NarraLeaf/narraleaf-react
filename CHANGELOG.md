@@ -1,6 +1,13 @@
 # Changelog
 
-## [0.4.2]
+## [0.4.3]
+
+### Fixed
+
+- The dialog state is not flushed when the dialog is completed
+- The dialog cannot be clicked because of the stage elements
+
+## [0.4.2] - 2025/5/8
 
 ### Fixed
 

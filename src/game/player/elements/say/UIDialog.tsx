@@ -3,7 +3,7 @@ import { Word } from "@core/elements/character/word";
 import { Script } from "@lib/game/nlcore/common/elements";
 import { GameState } from "@lib/game/nlcore/common/game";
 import { Game } from "@lib/game/nlcore/game";
-import { EventDispatcher, Scheduler } from "@lib/util/data";
+import { EventDispatcher, EventToken, Scheduler } from "@lib/util/data";
 import { SayComponent } from "@player/type";
 import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { DialogContext } from "./context";
@@ -13,6 +13,7 @@ type DialogEvents = {
     "event:dialog.requestComplete": [];
     "event:dialog.complete": [];
     "event:dialog.forceSkip": [];
+    "event:dialog.onFlush": [];
 };
 
 type DialogStateConfig = {
@@ -27,10 +28,12 @@ export class DialogState {
         requestComplete: "event:dialog.requestComplete";
         complete: "event:dialog.complete";
         forceSkip: "event:dialog.forceSkip";
+        onFlush: "event:dialog.onFlush";
     } = {
             requestComplete: "event:dialog.requestComplete",
             complete: "event:dialog.complete",
             forceSkip: "event:dialog.forceSkip",
+            onFlush: "event:dialog.onFlush",
         };
 
     public readonly config: Readonly<DialogStateConfig>;
@@ -85,7 +88,7 @@ export class DialogState {
      */
     public forceSkip() {
         if (this.state === DialogStateType.Ended) {
-            this.events.emit(DialogState.Events.complete);
+            this.emitComplete();
         } else {
             this._forceSkipped = true;
             this.events.emit(DialogState.Events.forceSkip);
@@ -110,10 +113,13 @@ export class DialogState {
             this.scheduleAutoForward();
         }
         this.emitComplete();
+        return this;
     }
 
-    public emitComplete() {
+    public emitComplete(): this {
         this.events.emit(DialogState.Events.complete);
+        this.emitFlush();
+        return this;
     }
 
     public isEnded() {
@@ -140,6 +146,16 @@ export class DialogState {
 
     public cancelAutoForward() {
         this.autoForwardScheduler.cancelTask();
+    }
+
+    public emitFlush(): this {
+        this._count++;
+        this.events.emit(DialogState.Events.onFlush);
+        return this;
+    }
+
+    public onFlush(listener: () => void): EventToken {
+        return this.events.on(DialogState.Events.onFlush, listener);
     }
 
     private scheduleAutoForward() {
