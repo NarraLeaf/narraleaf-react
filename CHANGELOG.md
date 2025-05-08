@@ -2,9 +2,16 @@
 
 ## [0.4.2]
 
+### Fixed
+
+- Game stops after transition
+
 ### Update
 
 - Refactored the dialog state management
+- Moved to ESBuild and reduced the bundle size/build time (2x faster and the bundle size dropped from 835kb to 520kb)
+- Added `game.config.defaultMenuChoiceColor` to set the default color for the menu choices
+- Hide the menu dialog when the menu has no prompt
 
 ## [0.4.1] - 2025/5/1
 
@@ -22,9 +29,6 @@
 
 - Refactored the way to calculate the text styles
 - Added `game.config.stage` to modify the default stage
-- Moved to ESBuild and reduced the bundle size/build time
-- Added `game.config.defaultMenuChoiceColor` to set the default color for the menu choices
-- Hide the menu dialog when the menu has no prompt
 
 ## [0.4.0] - 2025/4/22
 
