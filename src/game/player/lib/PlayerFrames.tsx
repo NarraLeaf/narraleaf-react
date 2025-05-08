@@ -27,8 +27,8 @@ function Full({children, className, style}: ForwardChildren & ForwardStyle) {
             height: game.config.height,
             pointerEvents: "none",
         }}>
-            <div className={"absolute w-full h-full pointer-disabled"}>
-                <div className={"h-full w-full pointer-disabled"}>
+            <div className={"absolute inset-0 pointer-events-auto"}>
+                <div className={"inset-0"}>
                     <div className={clsx(className)} style={style}>
                         {children}
                     </div>

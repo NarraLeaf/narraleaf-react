@@ -1,10 +1,11 @@
-import {deepEqual, deepMerge, safeClone} from "@lib/util/data";
-import {Sound} from "@core/elements/sound";
-import type {Character} from "@core/elements/character";
-import {Word, WordConfig} from "@core/elements/character/word";
-import {Color, Font} from "@core/types";
-import type {ScriptCtx} from "@core/elements/script";
-import {Pause, Pausing} from "@core/elements/character/pause";
+import type { Character } from "@core/elements/character";
+import { Pause, Pausing } from "@core/elements/character/pause";
+import { Word, WordConfig } from "@core/elements/character/word";
+import type { ScriptCtx } from "@core/elements/script";
+import { Sound } from "@core/elements/sound";
+import { Color, Font } from "@core/types";
+import { deepMerge, safeClone } from "@lib/util/data";
+import { EmptyObject } from "../transition/type";
 
 export type SentenceConfig = {
     pause?: boolean | number;
@@ -19,9 +20,7 @@ export type SentenceDataRaw = {
     state: SentenceState;
 };
 /**@internal */
-export type SentenceState = {
-    display: boolean;
-};
+export type SentenceState = EmptyObject;
 export type SentenceUserConfig = Partial<Omit<SentenceConfig, "voice"> & {
     voice: Sound | string | null | undefined
 }>;
@@ -43,9 +42,7 @@ export class Sentence {
         voiceId: null,
     };
     /**@internal */
-    static defaultState: SentenceState = {
-        display: true
-    };
+    static defaultState: SentenceState = {};
 
     /**@internal */
     static isSentence(obj: any): obj is Sentence {
@@ -128,12 +125,7 @@ export class Sentence {
 
     /**@internal */
     toData(): SentenceDataRaw | null {
-        if (deepEqual(this.state, Sentence.defaultState)) {
-            return null;
-        }
-        return {
-            state: safeClone(this.state),
-        };
+        return null;
     }
 
     /**@internal */

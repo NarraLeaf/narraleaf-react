@@ -5,6 +5,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useUIListContext, useUIMenuContext } from "./context";
 import { Pausing } from "@lib/game/nlcore/elements/character/pause";
 import { RawTexts } from "@player/elements/say/Sentence";
+import { DialogState } from "../../say/UIDialog";
 
 export interface ItemProps {
     className?: string;
@@ -76,10 +77,16 @@ export default function Item({ className, style, bindKey }: ItemProps) {
             >
                 {choice && (
                     <RawTexts
-                        sentence={choice.prompt}
-                        gameState={gameState}
-                        useTypeEffect={false}
-                        words={choice.words}
+                        dialog={new DialogState({
+                            useTypeEffect: false,
+                            action: {
+                                sentence: choice.prompt,
+                                words: choice.words,
+                                character: null,
+                            },
+                            gameState,
+                            evaluatedWords: choice.words,
+                        })}
                     />
                 )}
             </button>

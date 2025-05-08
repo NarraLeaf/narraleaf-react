@@ -53,11 +53,11 @@ import {ExposedStateType} from "@player/type";
 import {Video} from "@core/elements/video";
 import {VideoAction} from "@core/action/actions/videoAction";
 
-export namespace LogicAction {
-    export type DisplayableElements = Text | Image | Layer | AbstractDisplayable<any, any>;
-    export type DisplayableExposed = ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text;
-    export type GameElement =
-        Character
+// Define the interface first
+export interface LogicActionInterface {
+    DisplayableElements: Text | Image | Layer | AbstractDisplayable<any, any>;
+    DisplayableExposed: ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text;
+    GameElement: Character
         | Scene
         | Story
         | Image
@@ -71,8 +71,7 @@ export namespace LogicAction {
         | Persistent<any>
         | ServiceSkeleton
         | Video;
-    export type Actions =
-        TypedAction
+    Actions: TypedAction
         | CharacterAction
         | ConditionAction
         | ImageAction
@@ -88,8 +87,7 @@ export namespace LogicAction {
         | ServiceAction
         | LayerAction
         | VideoAction;
-    export type ActionTypes =
-        Values<typeof CharacterActionTypes>
+    ActionTypes: Values<typeof CharacterActionTypes>
         | Values<typeof ConditionActionTypes>
         | Values<typeof ImageActionTypes>
         | Values<typeof SceneActionTypes>
@@ -104,8 +102,7 @@ export namespace LogicAction {
         | StringKeyOf<ServiceActionContentType>
         | Values<typeof LayerActionTypes>
         | Values<typeof VideoActionTypes>;
-    export type ActionContents =
-        CharacterActionContentType
+    ActionContents: CharacterActionContentType
         & ConditionActionContentType
         & ImageActionContentType
         & SceneActionContentType
@@ -121,3 +118,75 @@ export namespace LogicAction {
         & LayerActionContentType
         & VideoActionContentType;
 }
+
+export const LogicAction = {
+} as const;
+
+// Define and export the namespace type
+export namespace LogicAction {
+    export type DisplayableElements = Text | Image | Layer | AbstractDisplayable<any, any>;
+    export type DisplayableExposed = ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text;
+    export type GameElement = Character
+        | Scene
+        | Story
+        | Image
+        | Condition
+        | Script
+        | Menu
+        | Sound
+        | Control
+        | Text
+        | AbstractDisplayable<any, any>
+        | Persistent<any>
+        | ServiceSkeleton
+        | Video;
+    export type Actions = TypedAction
+        | CharacterAction
+        | ConditionAction
+        | ImageAction
+        | SceneAction
+        | ScriptAction
+        | StoryAction
+        | MenuAction
+        | SoundAction
+        | ControlAction
+        | TextAction
+        | DisplayableAction
+        | PersistentAction
+        | ServiceAction
+        | LayerAction
+        | VideoAction;
+    export type ActionTypes = Values<typeof CharacterActionTypes>
+        | Values<typeof ConditionActionTypes>
+        | Values<typeof ImageActionTypes>
+        | Values<typeof SceneActionTypes>
+        | Values<typeof ScriptActionTypes>
+        | Values<typeof StoryActionTypes>
+        | Values<typeof MenuActionTypes>
+        | Values<typeof SoundAction.ActionTypes>
+        | Values<typeof ControlAction.ActionTypes>
+        | Values<typeof TextAction.ActionTypes>
+        | Values<typeof DisplayableActionTypes>
+        | Values<typeof PersistentActionTypes>
+        | StringKeyOf<ServiceActionContentType>
+        | Values<typeof LayerActionTypes>
+        | Values<typeof VideoActionTypes>;
+    export type ActionContents = CharacterActionContentType
+        & ConditionActionContentType
+        & ImageActionContentType
+        & SceneActionContentType
+        & ScriptActionContentType
+        & StoryActionContentType
+        & MenuActionContentType
+        & SoundActionContentType
+        & ControlActionContentType
+        & TextActionContentType
+        & DisplayableActionContentType
+        & PersistentActionContentType
+        & ServiceActionContentType
+        & LayerActionContentType
+        & VideoActionContentType;
+}
+
+// Export the type
+export type LogicAction = typeof LogicAction;

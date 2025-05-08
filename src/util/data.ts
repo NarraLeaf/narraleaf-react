@@ -157,6 +157,64 @@ export class Awaitable<T = any, U = T> {
         return awaitable;
     }
 
+    static create<T>(handler: (awaitable: Awaitable<T>) => T): Awaitable<T> {
+        const awaitable = new Awaitable<T>();
+        handler(awaitable);
+        return awaitable;
+    }
+
+    /**
+     * Creates a new `Awaitable<void>` that resolves when the provided awaitable resolves.
+     * 
+     * **Note**: this approach is _**radical**_! If this Awaitable is canceled, the Promise returned by this method will never be resolved.
+     * 
+     * @param awaitable The awaitable to wait for
+     * @returns A new awaitable that resolves when the provided awaitable resolves
+     */
+    static wait(awaitable: Awaitable<void>): Awaitable<void> {
+        const result = new Awaitable<void>();
+        awaitable.then(() => result.resolve());
+        return result;
+    }
+
+    /**
+     * Creates a new `Awaitable<T>` that resolves with the first resolved value from multiple awaitables.
+     * All other awaitables will be cancelled when one resolves.
+     * 
+     * @template T The type of the awaitables
+     * @param awaitables Array of awaitables to race
+     * @returns A new awaitable that resolves with the first resolved value
+     */
+    static race<T>(awaitables: Awaitable<T>[]): Awaitable<T> {
+        const result = new Awaitable<T>();
+        
+        // If no awaitables provided, resolve immediately
+        if (awaitables.length === 0) {
+            result.resolve(undefined as T);
+            return result;
+        }
+
+        // Handle each awaitable
+        awaitables.forEach(awaitable => {
+            // When any awaitable resolves, resolve the result and cancel others
+            awaitable.then(value => {
+                // Cancel all other awaitables
+                awaitables.forEach(a => {
+                    if (a !== awaitable) {
+                        a.skipController?.abort();
+                    }
+                });
+                result.resolve(value);
+            });
+        });
+
+        result.registerSkipController(new SkipController(() => {
+            awaitables.forEach(a => a.skipController?.abort());
+        }));
+
+        return result;
+    }
+
     /**
      * Creates a new `Awaitable<T>` that forwards resolution and cancellation from/to a source awaitable.
      *

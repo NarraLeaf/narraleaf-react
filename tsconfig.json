@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "incremental": true,
+    "incremental": false,
     "esModuleInterop": true,
     "module": "esnext",
     "removeComments": false,
@@ -38,6 +38,7 @@
       "src/types"
     ],
     "stripInternal": true,
+    "types": ["node"]
   },
   "include": [
     "src/**/*"

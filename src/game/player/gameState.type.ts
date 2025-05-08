@@ -18,7 +18,7 @@ export type TextElement = {
 };
 /**@internal */
 export type MenuElement = {
-    prompt: Sentence;
+    prompt: Sentence | null;
     choices: Choice[];
-    words: Word<Pausing | string>[];
+    words: Word<Pausing | string>[] | null;
 };
