@@ -83,14 +83,11 @@ export default function Scene(
                     key={"say-" + action.id}
                     action={action}
                     onFinished={(skiped) => {
-                        if (skiped) {
-                            usingSkipRef.current = true;
+                        if (skiped !== undefined) {
+                            usingSkipRef.current = skiped;
                         }
                         onClick();
                         state.stage.next();
-                        setTimeout(() => {
-                            usingSkipRef.current = false;
-                        }, 0);
                     }}
                     useTypeEffect={!usingSkipRef.current}
                 />

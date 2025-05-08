@@ -1,9 +1,7 @@
-import { GameState } from "@core/common/game";
 import { Game } from "@core/game";
 import { useGame } from "@lib/game/nlcore/common/player";
 import { onlyIf } from "@lib/util/data";
 import { DialogProps } from "@player/elements/say/type";
-import Inspect from "@player/lib/Inspect";
 import { Nametag, usePreference } from "@player/libElements";
 import { useRatio } from "@player/provider/ratio";
 import clsx from "clsx";
@@ -16,7 +14,6 @@ function BaseDialog({
     ...props
 }: DialogProps) {
     const game = useGame();
-    const gameState = game.getLiveGame().getGameState()!;
     const dialog = useDialogContext();
     const { ratio } = useRatio();
     const [showDialog] = usePreference(Game.Preferences.showDialog);
@@ -45,13 +42,6 @@ function BaseDialog({
     }, [dialog]);
 
     useEffect(() => {
-        return gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
-            gameState.logger.log("NarraLeaf-React: Say", "Skipped");
-            dialog.forceSkip();
-        }).cancel;
-    }, [dialog]);
-
-    useEffect(() => {
         const event = game.preference.onPreferenceChange(Game.Preferences.autoForward, (autoForward) => {
             if (autoForward && dialog.isEnded()) {
                 dialog.tryScheduleAutoForward();
@@ -66,10 +56,7 @@ function BaseDialog({
 
     return (
         <div data-element-type={"dialog"} className="w-full h-full">
-            <Inspect.Div
-                tag={"say.aspectScaleContainer"}
-                color={"blue"}
-                border={"dashed"}
+            <div
                 className={clsx(
                     "absolute bottom-0 w-full h-full",
                     !showDialog && "invisible pointer-events-auto"
@@ -89,7 +76,7 @@ function BaseDialog({
                 <div {...props}>
                     {children}
                 </div>
-            </Inspect.Div>
+            </div>
         </div>
     );
 }

@@ -10,6 +10,7 @@ export interface SayElementProps {
         sentence: Sentence | null;
         character: Character | null;
         words: Word<Pausing | string>[] | null;
+        id?: string;
     }
     /**
      * @deprecated
@@ -55,5 +56,6 @@ export type DialogAction = {
     sentence: Sentence | null;
     character: Character | null;
     words: Word<Pausing | string>[] | null;
+    id?: string;
 }
 

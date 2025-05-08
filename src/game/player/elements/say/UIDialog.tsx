@@ -5,7 +5,7 @@ import { GameState } from "@lib/game/nlcore/common/game";
 import { Game } from "@lib/game/nlcore/game";
 import { EventDispatcher, Scheduler } from "@lib/util/data";
 import { SayComponent } from "@player/type";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { DialogContext } from "./context";
 import { DialogAction, DialogStateType, SayElementProps } from "./type";
 
@@ -37,8 +37,8 @@ export class DialogState {
     public readonly events: EventDispatcher<DialogEvents> = new EventDispatcher<DialogEvents>();
     private _state: DialogStateType;
     private _count: number;
-    private _completeEventConsumed = false;
     private _forceSkipped = false;
+    private _idle = false;
     private autoForwardScheduler: Scheduler;
 
     constructor(config: DialogStateConfig) {
@@ -56,6 +56,14 @@ export class DialogState {
         return [this._count];
     }
 
+    public isIdle() {
+        return this._idle;
+    }
+
+    public setIdle(idle: boolean) {
+        this._idle = idle;
+    }
+
     /**
      * Only for dialog component to call
      * 
@@ -64,9 +72,6 @@ export class DialogState {
      */
     public requestComplete() {
         if (this.state === DialogStateType.Ended) {
-            if (this._completeEventConsumed) return;
-            else this._completeEventConsumed = true;
-
             this.events.emit(DialogState.Events.complete);
         } else {
             this.events.emit(DialogState.Events.requestComplete);
@@ -79,8 +84,12 @@ export class DialogState {
      * Force the sentence to cancel/skip all the tasks
      */
     public forceSkip() {
-        this._forceSkipped = true;
-        this.events.emit(DialogState.Events.forceSkip);
+        if (this.state === DialogStateType.Ended) {
+            this.events.emit(DialogState.Events.complete);
+        } else {
+            this._forceSkipped = true;
+            this.events.emit(DialogState.Events.forceSkip);
+        }
     }
 
     /**
@@ -90,7 +99,7 @@ export class DialogState {
      * Calling this method will schedule the exit of the dialog
      */
     public dispatchComplete() {
-        if (this.state === DialogStateType.Ended || this._completeEventConsumed) {
+        if (this.state === DialogStateType.Ended) {
             return;
         }
 
@@ -100,6 +109,10 @@ export class DialogState {
         if (preference.getPreference(Game.Preferences.autoForward)) {
             this.scheduleAutoForward();
         }
+        this.emitComplete();
+    }
+
+    public emitComplete() {
         this.events.emit(DialogState.Events.complete);
     }
 
@@ -158,15 +171,39 @@ export default function PlayerDialog({
     }));
     const DialogConstructor: SayComponent = gameState.game.config.dialog;
 
+    /**
+     * Listen to the complete event
+     */
+    useLayoutEffect(() => {
+        return dialogState.events.depends([
+            dialogState.events.on(DialogState.Events.complete, () => {
+                gameState.logger.log("NarraLeaf-React: Say", "Complete", dialogState.isIdle());
+                if (dialogState.isIdle()) {
+                    onFinished?.(false);
+                } else {
+                    dialogState.setIdle(true);
+                }
+            })
+        ]).cancel;
+    }, []);
+
+    /**
+     * Listen to the skip event
+     */
     useEffect(() => {
-        return dialogState.events.on(DialogState.Events.complete, () => {
-            onFinished?.(dialogState.isForceSkipped());
+        return gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+            gameState.logger.log("NarraLeaf-React: Say", "Skipped", dialogState.isIdle());
+            if (dialogState.isIdle()) {
+                onFinished?.(true);
+            } else {
+                dialogState.forceSkip();
+            }
         }).cancel;
     }, [dialogState]);
 
     return (
         <>
-            <DialogContext value={dialogState}>
+            <DialogContext value={dialogState} key={action.id}>
                 <DialogConstructor />
             </DialogContext>
         </>
