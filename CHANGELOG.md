@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.4.1]
+## [0.4.2]
+
+### Update
+
+- Refactored the dialog state management
+
+## [0.4.1] - 2025/5/1
 
 ### _Feature_
 

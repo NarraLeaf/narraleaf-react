@@ -160,11 +160,24 @@ function BaseText(
         const updater = textUpdater(dialog!.config.evaluatedWords);
         let renderTask: Awaitable | null = null;
         const sideEffects: VoidFunction[] = [];
+        const queue: SplitWord[] = [];
         const clearSideEffects = () => {
             sideEffects.forEach((effect) => effect());
             sideEffects.length = 0;
         };
-
+        const iterate = (): { done: boolean | undefined, value: SplitWord } => {
+            if (queue.length !== 0) {
+                return {
+                    done: false,
+                    value: queue.shift()!,
+                };
+            }
+            const { done, value } = updater.next();
+            return {
+                done,
+                value,
+            };
+        };
         const onceInteraction = (listener: InteractionHandler): LiveGameEventToken => {
             const newListener = (preventDefault: () => void) => {
                 listener(preventDefault);
@@ -197,7 +210,7 @@ function BaseText(
             // Skip to next pause or end
             let exited = false;
             while (!exited) {
-                const { done, value } = updater.next();
+                const { done, value } = iterate();
                 if (done) {
                     exited = true;
                     break;
@@ -208,6 +221,7 @@ function BaseText(
                         continue;
                     }
                     exited = true;
+                    queue.push(value);
                     break;
                 } else if (value === "\n") {
                     // Skip non-pause words
@@ -230,7 +244,7 @@ function BaseText(
             let exited = false, completed = false;
             while (!exited) {
                 // If the task is completed, exit the loop and mark the task as completed
-                const { done, value } = updater.next();
+                const { done, value } = iterate();
                 if (done) {
                     exited = completed = true;
                     break;
