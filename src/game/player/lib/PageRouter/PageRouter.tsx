@@ -75,7 +75,7 @@ export function PageRouter(
     return (
         <>
             {stageChild}
-            <AnimatePresence_>
+            <AnimatePresence_ mode="wait">
                 {currentPage}
             </AnimatePresence_>
         </>

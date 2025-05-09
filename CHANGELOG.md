@@ -1,6 +1,28 @@
 # Changelog
 
-## [0.4.1]
+## [0.4.3]
+
+### Fixed
+
+- The dialog state is not flushed when the dialog is completed
+- The dialog cannot be clicked because of the stage elements
+- The behavior of `cps` is incorrect
+- The page exit animation is not working
+
+## [0.4.2] - 2025/5/8
+
+### Fixed
+
+- Game stops after transition
+
+### Update
+
+- Refactored the dialog state management
+- Moved to ESBuild and reduced the bundle size/build time (2x faster and the bundle size dropped from 835kb to 520kb)
+- Added `game.config.defaultMenuChoiceColor` to set the default color for the menu choices
+- Hide the menu dialog when the menu has no prompt
+
+## [0.4.1] - 2025/5/1
 
 ### _Feature_
 

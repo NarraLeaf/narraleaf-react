@@ -316,6 +316,11 @@ export type GameConfig = {
      * @default null
      */
     stage: React.ReactNode | null;
+    /**
+     * The default color for the menu choices
+     * @default "#000"
+     */
+    defaultMenuChoiceColor: Color;
 };
 export type GameSettings = {
     volume: number;

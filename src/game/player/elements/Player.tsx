@@ -1,5 +1,4 @@
 import "client-only";
-import "@player/lib/styles/style.css";
 
 import clsx from "clsx";
 import {flushSync} from "react-dom";
@@ -75,6 +74,9 @@ export default function Player(
                 break;
             }
             if (Awaitable.isAwaitable<CalledActionResult>(nextResult)) {
+                nextResult.then(() => {
+                    state.stage.next();
+                });
                 exited = true;
                 break;
             }

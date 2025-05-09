@@ -7,26 +7,23 @@ import React from "react";
 
 export interface SayElementProps {
     action: {
-        sentence: Sentence;
+        sentence: Sentence | null;
         character: Character | null;
-        words: Word<Pausing | string>[];
+        words: Word<Pausing | string>[] | null;
+        id?: string;
     }
     /**
+     * @deprecated
      * Callback function to be called when the player triggers the next action
      */
     onClick?: (skiped?: boolean) => void;
-    onFinished?: () => void;
+    onFinished?: (skiped?: boolean) => void;
     useTypeEffect?: boolean;
     gameState: GameState;
 }
 
-export interface PlayerDialogProps extends SayElementProps {
-    onFinished?: () => void;
-}
-
-export interface IDialogProps {
-    isFinished: boolean;
-};
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface IDialogProps {};
 
 export type DialogProps = {
     children: React.ReactNode;
@@ -37,5 +34,28 @@ export type DialogElementProps = {
 
 export interface IDialogElementProps extends React.HTMLAttributes<HTMLDivElement> {
     children?: never;
+}
+
+export enum DialogStateType {
+    Pending = "pending",
+    Paused = "paused",
+    Ended = "ended",
+}
+
+export interface DialogContext {
+    gameState: GameState;
+    action: {
+        sentence: Sentence | null;
+        character: Character | null;
+        words: Word<Pausing | string>[] | null;
+    };
+    state: DialogStateType;
+}
+
+export type DialogAction = {
+    sentence: Sentence | null;
+    character: Character | null;
+    words: Word<Pausing | string>[] | null;
+    id?: string;
 }
 

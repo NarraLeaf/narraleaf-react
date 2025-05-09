@@ -144,6 +144,7 @@ export class Game {
         fontWeightBold: 700,
         fontFamily: "sans-serif",
         stage: null,
+        defaultMenuChoiceColor: "#000",
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 

@@ -6,17 +6,16 @@ import clsx from "clsx";
 import {useRatio} from "@player/provider/ratio";
 
 export default function Isolated(
-    {children, className, props, style, ref}:
+    {children, className, style, ref, ...props}:
         Readonly<{
             children: ReactNode;
             className?: string;
-            props?: Record<any, any>;
             style?: React.CSSProperties;
             ref?: React.RefObject<HTMLDivElement | null>;
-        }>
+        } & React.HTMLAttributes<HTMLDivElement>
+    >
 ) {
     const {ratio} = useRatio();
-
     const styles = ratio.getStyle();
 
     return (
@@ -30,12 +29,12 @@ export default function Isolated(
                 minWidth: `${ratio.state.minWidth}px`,
                 minHeight: `${ratio.state.minHeight}px`,
             }}
+            {...props}
         >
             <div
                 style={{
                     ...styles,
                     position: "relative",
-                    ...(props?.style || {}),
                     ...(style || {}),
                 }}
                 {...(props || {})}

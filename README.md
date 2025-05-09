@@ -90,7 +90,7 @@ npm install narraleaf-react
 
 ### Documentation
 
-- [Introduction](https://react.narraleaf.com/documentation/introduction)****
+- [Introduction](https://react.narraleaf.com/documentation/introduction)
 - [Quick Start](https://react.narraleaf.com/documentation/quick-start)
 - [Installation](https://react.narraleaf.com/documentation/installation)
 - [Basic](https://react.narraleaf.com/documentation/basic)
