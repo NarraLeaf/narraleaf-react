@@ -5,6 +5,7 @@
 ### Fixed
 
 - Unhandled side effects causing performance issues
+- False positive of dead cycle
 
 ## [0.4.3] - 2025/5/8
 

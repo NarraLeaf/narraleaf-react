@@ -5,6 +5,7 @@ import {usePreloaded} from "@player/provider/preloaded";
 import {Preloaded} from "@player/lib/Preloaded";
 import {TaskPool} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
+import { Scene } from "@lib/game/nlcore/elements/scene";
 
 /**@internal */
 export function Preload(
@@ -18,7 +19,7 @@ export function Preload(
     const cachedSrc = useRef<Set<ActiveSrc>>(new Set());
 
     const LogTag = "Preload";
-    const lastScene = state.getLastScene();
+    const lastScene: Scene | null = state.getLastScene() || state.getPreloadingScene();
     const currentAction = game.getLiveGame().getCurrentAction();
     const story = game.getLiveGame().story;
 

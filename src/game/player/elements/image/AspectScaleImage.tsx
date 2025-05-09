@@ -91,7 +91,7 @@ export default function AspectScaleImage(
             onLoad={handleOnLoad}
             width={width}
             height={height}
-            alt={"image"}
+            alt={""}
         />
     );
 }
