@@ -43,3 +43,15 @@
 .top-0 {
     top: 0;
 }
+
+.bg-cover {
+    background-size: cover;
+}
+
+.bg-center {
+    background-position: center;
+}
+
+.pointer-events-auto-rest * {
+    pointer-events: auto;
+}

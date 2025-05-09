@@ -16,7 +16,7 @@ export default function PlayerNotification({ gameState }: PlayerNotificationProp
     const NotificationConstructor = gameState.game.config.notification;
 
     return (
-        <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none" data-element-type="notification">
             <NotificationConstructor notifications={manager.toArray()} />
         </div>
     );

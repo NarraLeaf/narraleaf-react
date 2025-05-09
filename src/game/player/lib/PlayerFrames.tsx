@@ -11,9 +11,9 @@ type ForwardChildren = {
 type ForwardStyle = {
     className?: string;
     style?: React.CSSProperties;
-};
+} & React.HTMLAttributes<HTMLDivElement>;
 
-function Full({children, className, style}: ForwardChildren & ForwardStyle) {
+function Full({children, className, style, ...props}: ForwardChildren & ForwardStyle & React.HTMLAttributes<HTMLDivElement>) {
     const {ratio} = useRatio();
     const game = useGame();
 
@@ -26,10 +26,10 @@ function Full({children, className, style}: ForwardChildren & ForwardStyle) {
             width: game.config.width,
             height: game.config.height,
             pointerEvents: "none",
-        }}>
-            <div className={"absolute inset-0 pointer-events-auto"}>
-                <div className={"inset-0"}>
-                    <div className={clsx(className)} style={style}>
+        }} data-element-type="full" {...props}>
+            <div className={"absolute inset-0 w-full h-full"}>
+                <div className={"inset-0 w-full h-full"}>
+                    <div className={clsx("pointer-events-auto-rest", className)} style={style}>
                         {children}
                     </div>
                 </div>

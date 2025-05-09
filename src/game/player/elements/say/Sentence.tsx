@@ -130,9 +130,6 @@ function BaseText(
                 gameState.logger.debug("Sentence.tsx", "forceSkip");
                 if (!dialog.isEnded()) {
                     taskRef.current?.forceSkip();
-                } else {
-                    // is using to emit the complete event
-                    // dialog.emitComplete(); //@debug
                 }
             }),
         ]).cancel;
@@ -305,8 +302,8 @@ function BaseText(
                     const baseCps = (typeof value === "object" && "cps" in value && value.cps !== undefined)
                         ? value.cps
                         : game.config.cps;
-                    const delay = baseCps / gameSpeed;
-                    await Awaitable.delay(delay);
+                    const delay = 1000 / (baseCps * gameSpeed);
+                    await sleep(delay);
                 }
             }
 
