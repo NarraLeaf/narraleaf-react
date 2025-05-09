@@ -27,8 +27,8 @@ function Full({children, className, style, ...props}: ForwardChildren & ForwardS
             height: game.config.height,
             pointerEvents: "none",
         }} data-element-type="full" {...props}>
-            <div className={"absolute inset-0"}>
-                <div className={"inset-0 pointer-events-auto"}>
+            <div className={"absolute inset-0 w-full h-full"}>
+                <div className={"inset-0 pointer-events-auto w-full h-full"}>
                     <div className={clsx(className)} style={style}>
                         {children}
                     </div>

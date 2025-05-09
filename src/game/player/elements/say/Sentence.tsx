@@ -130,9 +130,6 @@ function BaseText(
                 gameState.logger.debug("Sentence.tsx", "forceSkip");
                 if (!dialog.isEnded()) {
                     taskRef.current?.forceSkip();
-                } else {
-                    // is using to emit the complete event
-                    // dialog.emitComplete(); //@debug
                 }
             }),
         ]).cancel;

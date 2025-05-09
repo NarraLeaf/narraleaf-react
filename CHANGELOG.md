@@ -7,6 +7,7 @@
 - The dialog state is not flushed when the dialog is completed
 - The dialog cannot be clicked because of the stage elements
 - The behavior of `cps` is incorrect
+- The page exit animation is not working
 
 ## [0.4.2] - 2025/5/8
 
