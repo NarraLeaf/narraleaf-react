@@ -498,7 +498,7 @@ export class LiveGame {
         }
 
         if (this.lockedAwaiting) {
-            if (!this.lockedAwaiting.solved) {
+            if (!this.lockedAwaiting.isSettled()) {
                 this._lockedCount++;
 
                 if (this._lockedCount > 1000) {
@@ -515,6 +515,7 @@ export class LiveGame {
             if (!this.currentAction) {
                 state.events.emit(GameState.EventTypes["event:state.end"]);
             }
+            this._lockedCount = 0;
 
             state.logger.debug("next action (lockedAwaiting)", next);
 
@@ -530,6 +531,7 @@ export class LiveGame {
         const nextAction = this.currentAction.executeAction(state);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             this.lockedAwaiting = nextAction;
+            this._lockedCount = 0;
 
             return nextAction;
         }

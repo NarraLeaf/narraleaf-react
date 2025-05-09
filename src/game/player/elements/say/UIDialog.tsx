@@ -208,7 +208,6 @@ export default function PlayerDialog({
      */
     useEffect(() => {
         return gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
-            gameState.logger.log("NarraLeaf-React: Say", "Skipped", dialogState.isIdle());
             if (dialogState.isIdle()) {
                 onFinished?.(true);
             } else {

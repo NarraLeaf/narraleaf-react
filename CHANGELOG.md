@@ -1,6 +1,13 @@
 # Changelog
 
-## [0.4.3]
+## [0.4.4] - 2025/5/9
+
+### Fixed
+
+- Unhandled side effects causing performance issues
+- False positive of dead cycle
+
+## [0.4.3] - 2025/5/8
 
 ### Fixed
 
@@ -9,7 +16,7 @@
 - The behavior of `cps` is incorrect
 - The page exit animation is not working
 
-## [0.4.2] - 2025/5/8
+## [0.4.2] - 2025/5/7
 
 ### Fixed
 

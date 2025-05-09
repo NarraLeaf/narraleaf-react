@@ -119,6 +119,7 @@ export class GameState {
     exposedState: Map<Values<ExposedKeys>, object> = new Map();
     guard: GameStateGuard;
     timelines: Timelines;
+    preloadingScene: Scene | null = null;
     public readonly notificationMgr: NotificationManager;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
@@ -189,6 +190,15 @@ export class GameState {
         }
         this.state.elements.splice(index, 1);
         return this;
+    }
+
+    public preloadScene(scene: Scene): this {
+        this.preloadingScene = scene;
+        return this;
+    }
+
+    public getPreloadingScene(): Scene | null {
+        return this.preloadingScene;
     }
 
     public addElement(element: PlayerStateElement): this {
