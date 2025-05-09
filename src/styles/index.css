@@ -51,3 +51,7 @@
 .bg-center {
     background-position: center;
 }
+
+.pointer-events-auto-rest * {
+    pointer-events: auto;
+}
