@@ -123,11 +123,9 @@ function BaseText(
     useEffect(() => {
         return dialog.events.depends([
             dialog.events.on(DialogState.Events.requestComplete, () => {
-                gameState.logger.debug("Sentence.tsx", "requestComplete");
                 taskRef.current?.interact();
             }),
             dialog.events.on(DialogState.Events.forceSkip, () => {
-                gameState.logger.debug("Sentence.tsx", "forceSkip");
                 if (!dialog.isEnded()) {
                     taskRef.current?.forceSkip();
                 }
@@ -140,12 +138,14 @@ function BaseText(
      * - autoForward, gameSpeed changes
      */
     useEffect(() => {
-        game.preference.onPreferenceChange(Game.Preferences.gameSpeed, () => {
-            taskRef.current?.update();
-        });
-        game.preference.onPreferenceChange(Game.Preferences.autoForward, () => {
-            taskRef.current?.update();
-        });
+        return game.preference.events.depends([
+            game.preference.onPreferenceChange(Game.Preferences.gameSpeed, () => {
+                taskRef.current?.update();
+            }),
+            game.preference.onPreferenceChange(Game.Preferences.autoForward, () => {
+                taskRef.current?.update();
+            })
+        ]).cancel;
     }, []);
 
     function roll(): RollingTask {
@@ -202,8 +202,6 @@ function BaseText(
         };
 
         const trySkip = (untilEnd: boolean = false) => {
-            gameState.logger.debug("Sentence.tsx", "skipToEnd");
-
             // Skip to next pause or end
             let exited = false;
             while (!exited) {

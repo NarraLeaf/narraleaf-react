@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.4] - 2025/5/8
+
+### Fixed
+
+- Unhandled side effects causing performance issues
+
 ## [0.4.3] - 2025/5/8
 
 ### Fixed
