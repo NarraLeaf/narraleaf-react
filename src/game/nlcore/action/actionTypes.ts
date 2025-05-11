@@ -189,10 +189,12 @@ export type PersistentActionContentType = {
 /* Layer */
 export const LayerActionTypes = {
     action: "layer:action",
+    setZIndex: "layer:setZIndex",
 } as const;
 export type LayerActionContentType = {
     [K in typeof LayerActionTypes[keyof typeof LayerActionTypes]]:
     K extends "layer:action" ? any :
+    K extends "layer:setZIndex" ? [number] :
     any;
 }
 /* Video */

@@ -6,6 +6,7 @@
 
 - New image transition: `Darkness`
 - Added method image.`darken`
+- Added method layer.`setZIndex`
 
 ### Update
 

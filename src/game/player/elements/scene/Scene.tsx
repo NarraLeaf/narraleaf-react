@@ -71,7 +71,7 @@ export default function Scene(
     return (
         <div className={clsx(className, "w-full h-full absolute")}>
             {([...layers.entries()].sort(([layerA], [layerB]) => {
-                return layerA.config.zIndex - layerB.config.zIndex;
+                return layerA.state.zIndex - layerB.state.zIndex;
             }).map(([layer, ele]) => (
                 <Layer state={state} layer={layer} key={layer.getId()}>
                     <Displayables state={state} displayable={ele} />
