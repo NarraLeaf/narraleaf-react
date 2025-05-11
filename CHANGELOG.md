@@ -7,6 +7,10 @@
 - New image transition: `Darkness`
 - Added method image.`darken`
 
+### Update
+
+- The skip action will now listen to the window events instead of the player element by default
+
 ## [0.4.4] - 2025/5/9
 
 ### Fixed

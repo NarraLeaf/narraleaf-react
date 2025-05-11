@@ -103,6 +103,7 @@ export class Game {
         height: 1080,
         skipKey: ["Control"],
         skipInterval: 100,
+        useWindowListener: true,
         ratioUpdateInterval: 50,
         preloadDelay: 100,
         preloadConcurrency: 5,

@@ -77,6 +77,14 @@ export type GameConfig = {
      */
     skipInterval: number;
     /**
+     * If true, the game will listen to the window events instead of the player element
+     * 
+     * Using this will allow the game to listen to the keyboard events even when the player is not focused  
+     * Resulting in a better user experience on skipping actions
+     * @default false
+     */
+    useWindowListener: boolean;
+    /**
      * The debounced interval in milliseconds for updating the aspect ratio
      *
      * Set to 0 to update the ratio immediately on every resize event.

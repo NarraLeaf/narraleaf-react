@@ -463,6 +463,20 @@ export class LiveGame {
         };
     }
 
+    /**
+     * Listen to the events of the window
+     */
+    onWindowEvent<K extends keyof WindowEventMap>(
+        type: K,
+        listener: (this: Window, ev: WindowEventMap[K]) => any,
+        options?: boolean | AddEventListenerOptions
+    ): LiveGameEventToken {
+        window.addEventListener(type, listener, options);
+        return {
+            cancel: () => window.removeEventListener(type, listener, options),
+        };
+    }
+
     /**@internal */
     reset({gameState}: { gameState: GameState }) {
         if (this.lockedAwaiting) {
