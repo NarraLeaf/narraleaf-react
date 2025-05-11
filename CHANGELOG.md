@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.5]
+
+### _Feature_
+
+- New image transition: `Darkness`
+- Added method image.`darken`
+
 ## [0.4.4] - 2025/5/9
 
 ### Fixed

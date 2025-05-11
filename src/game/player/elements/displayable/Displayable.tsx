@@ -15,6 +15,7 @@ import {GameState} from "@player/gameState";
 import {Transition} from "@core/elements/transition/transition";
 import {RuntimeGameError} from "@core/common/Utils";
 import {Timeline} from "@player/Tasks";
+import {DisplayableElementRef, DisplayableRefGroup} from "@player/elements/displayable/type";
 
 /**@internal */
 export type DisplayableHookConfig<TransitionType extends Transition<U>, U extends HTMLElement> = {
@@ -41,18 +42,15 @@ type TransitionTaskWithController<TransitionType extends Transition<U>, U extend
 /**@internal */
 export type DisplayableHookResult<TransitionType extends Transition<U>, U extends HTMLElement> = {
     transformRef: React.RefObject<HTMLDivElement | null>;
-    transitionRefs: RefGroupDefinition<U>[];
+    transitionRefs: DisplayableRefGroup<U>[];
     isTransforming: boolean;
     transitionTask: TransitionTaskWithController<TransitionType, U> | null;
     initDisplayable: (resolve: () => void) => Timeline;
     applyTransform: (transform: Transform, resolve: () => void) => Timeline;
     applyTransition: (transition: Transition, resolve: () => void) => Timeline;
+    updateStyleSync: () => void;
     deps: React.DependencyList;
 };
-
-/**@internal */
-type RefGroupDefinition<T extends HTMLElement> = [ref: React.RefObject<T | null>, key: string];
-type RefGroup<T extends HTMLElement> = React.RefObject<RefGroupDefinition<T>[]>;
 
 /**@internal */
 export function useDisplayable<TransitionType extends Transition<U>, U extends HTMLElement>(
@@ -71,7 +69,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     const ref = React.useRef<HTMLDivElement | null>(null);
     const [keyGen] = useState(() => new KeyGen("displayable.refGroup"));
     const currentKey = useRef<string>(keyGen.next());
-    const refs = useRef<RefGroupDefinition<U>[]>(initRefs()) satisfies RefGroup<U>;
+    const refs = useRef<DisplayableRefGroup<U>[]>(initRefs());
     const game = useGame();
     const gameState = game.getLiveGame().getGameState()!;
     const evaluatedTransProps = typeof transitionsProps === "function"
@@ -117,18 +115,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }, [transitionTask]);
 
     useEffect(() => {
-        if (!refs.current || !refs.current.length) {
-            throw new RuntimeGameError("Displayable: Transition group refs are not initialized correctly");
-        }
-        if (refs.current.some(([ref]) => !ref.current)) {
-            throw new RuntimeGameError("Displayable: Trying to access transition groups before they are mounted");
-        }
-        refs.current.forEach(([ref], index) => {
-            if (!ref.current) {
-                throw new RuntimeGameError("Displayable: Trying to assign properties to unmounted element");
-            }
-            assignProperties(ref, evaluatedTransProps[index] || evaluatedTransProps[evaluatedTransProps.length - 1] || {});
-        });
+        updateStyleSync();
     }, [transitionTask]);
 
     useEffect(() => {
@@ -143,6 +130,24 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         Object.assign(ref.current!.style, initialStyle);
         gameState.logger.debug("Displayable", "Initial style applied", ref.current, initialStyle);
     }, []);
+
+    function updateStyleSync() {
+        const evaluatedTransProps = typeof transitionsProps === "function"
+            ? transitionsProps(transitionTask)
+            : transitionsProps;
+        if (!refs.current || !refs.current.length) {
+            throw new RuntimeGameError("Displayable: Transition group refs are not initialized correctly");
+        }
+        if (refs.current.some(([ref]) => !ref.current)) {
+            throw new RuntimeGameError("Displayable: Trying to access transition groups before they are mounted");
+        }
+        refs.current.forEach(([ref], index) => {
+            if (!ref.current) {
+                throw new RuntimeGameError("Displayable: Trying to assign properties to unmounted element");
+            }
+            assignProperties(ref, evaluatedTransProps[index] || evaluatedTransProps[evaluatedTransProps.length - 1] || {});
+        });
+    }
 
     function handleOnTransform(transform: Transform) {
         gameState.logger.debug("Displayable", "Transform applied", state.toStyle(gameState, overwriteDefinition), ref.current);
@@ -242,7 +247,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
         let nextKey: string;
         refs.current = task.resolve.map((solution) => {
-            const ref = React.createRef<U | null>();
+            const ref = React.createRef<DisplayableElementRef<U> | null>();
             const type = typeof solution === "function" ? undefined : solution.key;
 
             if (!type) {
@@ -262,13 +267,23 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         }
         currentKey.current = nextKey;
 
-        controller.start();
-        controller.onComplete(() => {
-            resetRefs();
+        // Wait for all elements to load before starting the animation
+        const loadPromises = refs.current.map(([ref]) => {
+            const loadableElement = ref.current;
+            if (loadableElement?.waitForLoad) {
+                return loadableElement.waitForLoad();
+            }
+            return Promise.resolve();
+        });
 
-            setTransitionTask(null);
-            resolve();
-            awaitable.resolve();
+        Promise.all(loadPromises).then(() => {
+            controller.start();
+            controller.onComplete(() => {
+                resetRefs();
+                setTransitionTask(null);
+                resolve();
+                awaitable.resolve();
+            });
         });
 
         return timeline;
@@ -294,8 +309,8 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         }
     }
 
-    function initRefs(): RefGroupDefinition<U>[] {
-        return [[React.createRef<U | null>(), currentKey.current]];
+    function initRefs(): DisplayableRefGroup<U>[] {
+        return [[React.createRef<DisplayableElementRef<U> | null>(), currentKey.current]];
     }
 
     function resetRefs() {
@@ -313,6 +328,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         initDisplayable,
         applyTransform,
         applyTransition: applyTransition as (transition: Transition, resolve: () => void) => Timeline,
+        updateStyleSync,
         deps: [transformToken, transitionTask, refs],
     };
 }

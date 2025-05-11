@@ -33,6 +33,7 @@ export type ExposedState = {
         initDisplayable: (onResolve: () => void) => Timeline;
         applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
         applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
+        updateStyleSync: () => void;
     };
     [ExposedStateType.text]: {
         initDisplayable: (onResolve: () => void) => Timeline;

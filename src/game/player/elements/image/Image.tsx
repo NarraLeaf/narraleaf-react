@@ -37,6 +37,7 @@ export default function Image(
         initDisplayable,
         applyTransition,
         applyTransform,
+        updateStyleSync,
         deps,
     } = useDisplayable<ImageTransition, HTMLImageElement>({
         element: image,
@@ -48,6 +49,7 @@ export default function Image(
             return [
                 {
                     style: {
+                        willChange: "filter",
                         position: "absolute",
                         transformOrigin: "center",
                         backgroundColor: Utils.isColor(currentSrc) ? Utils.colorToString(currentSrc) : undefined,
@@ -56,11 +58,13 @@ export default function Image(
                         left: "auto",
                         right: "auto",
                         bottom: "auto",
+                        filter: `brightness(${1 - image.state.darkness})`,
                     },
                     src: Utils.isImageSrc(currentSrc) ? Utils.srcToURL(currentSrc) : GameImage.DefaultImagePlaceholder,
                 },
                 {
                     style: {
+                        willChange: "filter",
                         position: "absolute",
                         transformOrigin: "center",
                         transform: "translate(-50%, -50%)",
@@ -70,6 +74,7 @@ export default function Image(
                         bottom: "auto",
                         maxWidth: "none",
                         maxHeight: "none",
+                        filter: "brightness(1)",
                     }
                 }
             ];
@@ -107,6 +112,7 @@ export default function Image(
         applyTransform,
         applyTransition,
         events,
+        updateStyleSync,
     }, [...deps]);
 
     function handleWidthChange(width: number, height: number) {

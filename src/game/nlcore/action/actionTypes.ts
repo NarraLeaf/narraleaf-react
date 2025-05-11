@@ -79,6 +79,7 @@ export const ImageActionTypes = {
     flush: "image:flush",
     initWearable: "image:initWearable",
     setAppearance: "image:setAppearance",
+    setDarkness: "image:setDarkness",
 } as const;
 export type ImageActionContentType = {
     [K in typeof ImageActionTypes[keyof typeof ImageActionTypes]]:
@@ -86,6 +87,7 @@ export type ImageActionContentType = {
     K extends "image:flush" ? [] :
     K extends "image:initWearable" ? [Image] :
     K extends "image:setAppearance" ? [FlexibleTuple<SelectElementFromEach<TagGroupDefinition>> | string[], ImageTransition | undefined] :
+    K extends "image:setDarkness" ? [darkness: number, duration?: number, easing?: TransformDefinitions.EasingDefinition] :
     any;
 } & DisplayableActionContentType<ImageTransition>;
 /* Condition */

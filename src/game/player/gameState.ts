@@ -91,6 +91,7 @@ type GameStateEvents = {
     "event:state.player.requestFlush": [];
     "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
     "event:state.onRender": [];
+    "event:state:flushPreloadedScenes": [];
 };
 
 /**
@@ -104,6 +105,7 @@ export class GameState {
         "event:state.player.requestFlush": "event:state.player.requestFlush",
         "event.state.onExpose": "event.state.onExpose",
         "event:state.onRender": "event:state.onRender",
+        "event:state:flushPreloadedScenes": "event:state:flushPreloadedScenes",
     };
     state: PlayerState = {
         sounds: [],
@@ -192,8 +194,13 @@ export class GameState {
         return this;
     }
 
-    public preloadScene(scene: Scene): this {
+    public preloadScene(arg: Scene | Story): this {
+        const scene = Scene.isScene(arg) ? arg : arg.entryScene;
+        if (!scene) {
+            throw new RuntimeGameError("Trying to preload a story but the story is not loaded");
+        }
         this.preloadingScene = scene;
+        this.events.emit(GameState.EventTypes["event:state:flushPreloadedScenes"]);
         return this;
     }
 
