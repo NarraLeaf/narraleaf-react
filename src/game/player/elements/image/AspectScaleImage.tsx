@@ -54,7 +54,7 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
         updateWidth();
 
         return ratio.onUpdate(updateWidth);
-    }, []);
+    }, [onSizeChanged]);
 
     useEffect(() => {
         const observer = new MutationObserver((mutations) => {
@@ -74,7 +74,7 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
         return () => {
             observer.disconnect();
         };
-    }, []);
+    }, [onSizeChanged]);
 
     function updateWidth() {
         if (imgRef.current && imgRef.current.naturalWidth) {
