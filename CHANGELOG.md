@@ -15,6 +15,7 @@
 ### Update
 
 - The skip action will now listen to the window events instead of the player element by default
+- Added `isNarrator` to the dialog state
 
 ## [0.4.4] - 2025/5/9
 

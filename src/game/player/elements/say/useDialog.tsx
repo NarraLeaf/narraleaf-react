@@ -13,6 +13,8 @@ export type DialogContext = {
     done: boolean;
     /** The text content of the dialog */
     text: string;
+    /** Whether the dialog is the narrator */
+    isNarrator: boolean;
 };
 
 /**
@@ -34,6 +36,7 @@ export function useDialog(): DialogContext {
     return {
         done: dialog.isEnded(),
         text,
+        isNarrator: dialog.config.action.character === null,
     };
 }
 
