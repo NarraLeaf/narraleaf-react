@@ -33,8 +33,14 @@ export type GamePreference = {
      * Dialog speed will apply to:
      * - The text speed
      * - The auto-forward delay
+     * @default 1.0
      */
     gameSpeed: number;
+    /**
+     * The speed of the text effects in characters per second.
+     * @default 10
+     */
+    cps: number;
 };
 
 export type GameHooks = {
@@ -66,6 +72,7 @@ export class Game {
         skip: true,
         showDialog: true,
         gameSpeed: 1,
+        cps: 10,
     };
     /**@internal */
     static Preferences: {
@@ -75,7 +82,8 @@ export class Game {
             skip: "skip",
             showDialog: "showDialog",
             gameSpeed: "gameSpeed",
-    };
+            cps: "cps",
+        };
     /**@internal */
     static DefaultConfig: GameConfig = {
         app: {
@@ -118,7 +126,6 @@ export class Game {
         maxRouterHistory: 10,
         screenshotQuality: 1,
         nextKey: [" "],
-        cps: 10,
         useAspectScale: true,
         autoForwardDelay: 3 * 1000,
         autoForwardDefaultPause: 1000,

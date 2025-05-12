@@ -163,11 +163,6 @@ export type GameConfig = {
      */
     nextKey: React.KeyboardEvent["key"][];
     /**
-     * The speed of the text effects in characters per second.
-     * @default 10
-     */
-    cps: number;
-    /**
      * If true, the game will scale the dialog to fit the screen
      *
      * Text will look smaller when this is enabled

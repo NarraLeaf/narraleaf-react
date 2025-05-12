@@ -1,6 +1,10 @@
 # Changelog
 
-## [0.4.5]
+## [0.5.0]
+
+### _Incompatible Changes_
+
+- `game.config.cps` is deprecated, use `GamePreference.cps` instead
 
 ### _Feature_
 
