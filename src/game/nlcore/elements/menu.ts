@@ -48,8 +48,11 @@ export class Menu extends Actionable<any, Menu> {
      * @param prompt - The prompt to display to the player
      * @returns A new menu
      */
-    public static prompt(prompt: SentencePrompt | Sentence, config: MenuConfig = {}): Menu {
-        return new Menu(prompt, config);
+    public static prompt(prompt: SentencePrompt | Sentence | null | undefined, config: MenuConfig = {}): Menu {
+        return new Menu(
+            prompt !== undefined ? prompt : null,
+            config
+        );
     }
 
     public static choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>> {
@@ -61,6 +64,7 @@ export class Menu extends Actionable<any, Menu> {
     constructor(prompt: Sentence, config?: MenuConfig);
     constructor(prompt: SentencePrompt | Sentence, config: MenuConfig);
     constructor(prompt: null, config?: MenuConfig);
+    constructor(prompt: SentencePrompt | Sentence | null, config: MenuConfig);
     constructor(prompt: SentencePrompt | Sentence | null, config: MenuConfig = {}) {
         super();
         this.prompt = Sentence.isSentence(prompt) ? prompt :
