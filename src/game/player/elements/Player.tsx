@@ -21,7 +21,7 @@ import {Awaitable, createMicroTask, MultiLock} from "@lib/util/data";
 import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 import Video from "@player/elements/video/video";
-
+import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
 }
@@ -189,6 +189,7 @@ export default function Player(
             >
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
                     <SizeUpdateAnnouncer ref={containerRef}/>
+                    <PreferenceUpdateAnnouncer gameState={state}/>
                     <Isolated className={"absolute"} ref={mainContentRef} style={{
                         cursor: state.game.config.cursor ? "none" : "auto",
                         overflow: state.game.config.showOverflow ? "visible" : "hidden",

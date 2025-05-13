@@ -1,4 +1,4 @@
-import {Sound} from "@core/elements/sound";
+import {Sound, SoundType} from "@core/elements/sound";
 import * as Howler from "howler";
 import {FadeOptions} from "@core/elements/type";
 import {Awaitable, ChainedAwaitable, ChainedAwaitableTask, SkipController} from "@lib/util/data";
@@ -9,10 +9,16 @@ import {LogicAction} from "@core/action/logicAction";
 type SoundState = {
     group: Howler.Howl;
     token: number;
+    originalVolume: number;
 };
 
 type SoundTask = {
     awaitable: Awaitable<void>;
+};
+
+type SoundGroup = {
+    volume: number;
+    sounds: Set<Sound>;
 };
 
 export type AudioDataRaw = {
@@ -22,13 +28,21 @@ export type AudioDataRaw = {
 
 export type AudioManagerDataRaw = {
     sounds: [string, AudioDataRaw][];
+    groups: [SoundType, number][];
 };
 
 export class AudioManager {
     private state: Map<Sound, SoundState> = new Map();
     private tasks: Map<Howler.Howl, SoundTask> = new Map();
+    private groups: Map<SoundType, SoundGroup> = new Map();
 
     constructor(private gameState: GameState) {
+        Object.values(SoundType).forEach(type => {
+            this.groups.set(type, {
+                volume: 1,
+                sounds: new Set()
+            });
+        });
     }
 
     public play(sound: Sound, options: FadeOptions = {
@@ -40,12 +54,16 @@ export class AudioManager {
         }
         const {group, token, onPlayTask, onEndTask} = this.initSound(sound);
 
-        this.state.set(sound, {group, token});
+        const groupVolume = this.groups.get(sound.config.type)?.volume ?? 1;
+        const effectiveVolume = options.end * groupVolume;
+        
+        this.state.set(sound, {group, token, originalVolume: options.end});
         return this.pushTask(group, new ChainedAwaitable()
             .addTask(onPlayTask)
             .addTask(this.fadeTo(group, token, {
                 ...options,
                 start: 0,
+                end: effectiveVolume,
             }))
             .addTask(this.createTask((resolve) => {
                 sound.state.volume = options.end;
@@ -76,12 +94,18 @@ export class AudioManager {
     public setVolume(sound: Sound, volume: number, duration: number = 0): Awaitable<void> {
         const state = this.getState(sound);
         this.abortTask(state.group);
+        
+        // Store the original volume and calculate effective volume
+        state.originalVolume = volume;
+        const groupVolume = this.groups.get(sound.config.type)?.volume ?? 1;
+        const effectiveVolume = volume * groupVolume;
+
         if (duration === 0) {
-            state.group.volume(volume, state.token);
+            state.group.volume(effectiveVolume, state.token);
             return Awaitable.resolve<void>(undefined);
         }
         return this.pushTask(state.group, new ChainedAwaitable()
-            .addTask(this.fadeTo(state.group, state.token, {start: sound.state.volume, end: volume, duration}))
+            .addTask(this.fadeTo(state.group, state.token, {start: sound.state.volume, end: effectiveVolume, duration}))
             .addTask(this.createTask((resolve) => {
                 sound.state.volume = volume;
                 resolve();
@@ -114,8 +138,10 @@ export class AudioManager {
             state.group.play(state.token);
             return Awaitable.resolve<void>(undefined);
         }
+        const groupVolume = this.groups.get(sound.config.type)?.volume ?? 1;
+        const effectiveVolume = state.originalVolume * groupVolume;
         return this.pushTask(state.group, new ChainedAwaitable()
-            .addTask(this.fadeTo(state.group, state.token, {start: 0, end: sound.state.volume, duration}))
+            .addTask(this.fadeTo(state.group, state.token, {start: 0, end: effectiveVolume, duration}))
             .addTask(this.resumeSound(state.group, state.token))
             .addTask(this.createTask((resolve) => {
                 sound.state.paused = false;
@@ -154,10 +180,26 @@ export class AudioManager {
                     position: state.group.seek(state.token),
                 }
             ]),
+            groups: [...this.groups.entries()].map(([type, group]) => [type, group.volume])
         };
     }
 
     public fromData(data: AudioManagerDataRaw, elementMap: Map<string, LogicAction.GameElement>): this {
+        data.groups?.forEach(([type, volume]) => {
+            const group = this.groups.get(type);
+            if (group) {
+                group.volume = volume;
+                // Update volume for all sounds in the group
+                group.sounds.forEach(sound => {
+                    if (this.isManaged(sound)) {
+                        const state = this.getState(sound);
+                        const effectiveVolume = state.originalVolume * volume;
+                        state.group.volume(effectiveVolume, state.token);
+                    }
+                });
+            }
+        });
+
         data.sounds.forEach(([soundId, soundData]) => {
             const sound = elementMap.get(soundId) as Sound;
             if (!sound) {
@@ -198,6 +240,34 @@ export class AudioManager {
             task.awaitable.abort();
         });
         this.tasks.clear();
+        
+        // Reset group volumes to 1 and clear sound sets
+        this.groups.forEach(group => {
+            group.volume = 1;
+            group.sounds.clear();
+        });
+    }
+
+    public setGroupVolume(type: SoundType, volume: number): void {
+        const group = this.groups.get(type);
+        if (!group) {
+            throw new RuntimeGameError(`Sound group not found (type: "${type}")`);
+        }
+
+        group.volume = volume;
+
+        // Update volume for all sounds in the group by applying the group volume
+        group.sounds.forEach(sound => {
+            if (this.isManaged(sound)) {
+                const state = this.getState(sound);
+                const effectiveVolume = state.originalVolume * volume;
+                state.group.volume(effectiveVolume, state.token);
+            }
+        });
+    }
+
+    public getGroupVolume(type: SoundType): number {
+        return this.groups.get(type)?.volume ?? 1;
     }
 
     private initSound(sound: Sound): SoundState & {
@@ -207,10 +277,20 @@ export class AudioManager {
         if (this.state.has(sound)) {
             return this.state.get(sound)!;
         }
+
+        // Add sound to its type group
+        const group = this.groups.get(sound.config.type);
+        if (group) {
+            group.sounds.add(sound);
+        }
+
         const audioManager = this;
         const [onPlay, onPlayTask] = this.wrapTask();
         const [onEnd, onEndTask] = this.wrapTask();
-        const group = Reflect.construct(this.gameState.getHowl(), [this.getHowlConfig(sound, {
+        const groupVolume = this.groups.get(sound.config.type)?.volume ?? 1;
+        const effectiveVolume = sound.state.volume * groupVolume;
+
+        const howlGroup = Reflect.construct(this.gameState.getHowl(), [this.getHowlConfig(sound, {
             onend() {
                 onEnd.resolve();
             },
@@ -219,13 +299,6 @@ export class AudioManager {
             },
             onloaderror(_, error: unknown) {
                 const code = error as 1 | 2 | 3 | 4;
-                /**
-                 * 1 - The fetching process for the media resource was aborted by the user agent at the user's request.
-                 * 2 - A network error of some description caused the user agent to stop fetching the media resource, after the resource was established to be usable.
-                 * 3 - An error of some description occurred while decoding the media resource, after the resource was established to be usable.
-                 * 4 - The media resource indicated by the src attribute or assigned media provider object was not suitable.
-                 * For more information, see https://github.com/goldfire/howler.js?tab=readme-ov-file#onloaderror-function
-                 */
                 const messages: {
                     [K in 1 | 2 | 3 | 4]: string;
                 } = {
@@ -239,16 +312,23 @@ export class AudioManager {
                     + " \nFor more information, see https://github.com/goldfire/howler.js?tab=readme-ov-file#onloaderror-function");
             }
         })]);
-        const token = group.play();
-        this.state.set(sound, {group, token});
-        group
+        const token = howlGroup.play();
+        const state = {group: howlGroup, token, originalVolume: sound.state.volume};
+        this.state.set(sound, state);
+        
+        // Set initial volume and update sound state
+        howlGroup
             .seek(sound.config.seek, token)
-            .volume(sound.state.volume, token)
+            .volume(effectiveVolume, token)
             .rate(sound.state.rate, token);
+            
+        // Ensure sound state is synchronized with actual volume
+        sound.state.volume = sound.state.volume;
+        
         if (sound.state.paused) {
-            group.pause(token);
+            howlGroup.pause(token);
         }
-        return {group, token, onPlayTask, onEndTask};
+        return {...state, onPlayTask, onEndTask};
     }
 
     private pushTask(spirit: Howler.Howl, awaitable: Awaitable<void>): Awaitable<void> {

@@ -11,6 +11,7 @@
 - New image transition: `Darkness`
 - Added method image.`darken`
 - Added method layer.`setZIndex`
+- Added `voiceVolume`, `bgmVolume`, `soundVolume`, and `musicVolume` to the game preferences
 
 ### Update
 

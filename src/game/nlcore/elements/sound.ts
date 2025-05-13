@@ -8,6 +8,12 @@ import {SoundAction} from "@core/action/actions/soundAction";
 import {Config, ConfigConstructor} from "@lib/util/config";
 
 type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
+export enum SoundType {
+    Voice = "voice",
+    Bgm = "bgm",
+    Sound = "sound",
+    Music = "music",
+}
 
 /**@internal */
 export type SoundDataRaw = {
@@ -48,6 +54,11 @@ export interface ISoundUserConfig {
      * @default 0
      */
     seek: number;
+    /**
+     * The type of the sound
+     * @default SoundType.Sound
+     */
+    type: SoundType;
 }
 
 type SoundConfig = {
@@ -55,6 +66,7 @@ type SoundConfig = {
     loop: boolean;
     streaming: boolean;
     seek: number;
+    type: SoundType;
 };
 
 type SoundState = {
@@ -75,6 +87,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         streaming: false,
         rate: 1,
         seek: 0,
+        type: SoundType.Sound,
     });
 
     /**@internal */
@@ -83,6 +96,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         loop: false,
         streaming: false,
         seek: 0,
+        type: SoundType.Sound,
     });
 
     /**@internal */

@@ -41,6 +41,26 @@ export type GamePreference = {
      * @default 10
      */
     cps: number;
+    /**
+     * The volume of the voice
+     * @default 1
+     */
+    voiceVolume: number;
+    /**
+     * The volume of the background music
+     * @default 1
+     */
+    bgmVolume: number;
+    /**
+     * The volume of the sound effects
+     * @default 1
+     */
+    soundVolume: number;
+    /**
+     * The volume of the music
+     * @default 1
+     */
+    musicVolume: number;
 };
 
 export type GameHooks = {
@@ -73,6 +93,10 @@ export class Game {
         showDialog: true,
         gameSpeed: 1,
         cps: 10,
+        voiceVolume: 1,
+        bgmVolume: 1,
+        soundVolume: 1,
+        musicVolume: 1,
     };
     /**@internal */
     static Preferences: {
@@ -83,6 +107,10 @@ export class Game {
             showDialog: "showDialog",
             gameSpeed: "gameSpeed",
             cps: "cps",
+            voiceVolume: "voiceVolume",
+            bgmVolume: "bgmVolume",
+            soundVolume: "soundVolume",
+            musicVolume: "musicVolume",
         };
     /**@internal */
     static DefaultConfig: GameConfig = {
