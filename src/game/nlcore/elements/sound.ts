@@ -6,6 +6,7 @@ import {SoundActionContentType, SoundActionTypes} from "@core/action/actionTypes
 import {Chained, Proxied} from "@core/action/chain";
 import {SoundAction} from "@core/action/actions/soundAction";
 import {Config, ConfigConstructor} from "@lib/util/config";
+import { StaticScriptWarning } from "../common/Utils";
 
 type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
 export enum SoundType {
@@ -120,6 +121,26 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**@internal */
+    static isSound(v: any): v is Sound {
+        return v instanceof Sound;
+    }
+
+    public static voice(arg0: Partial<ISoundUserConfig> | string) {
+        const config = typeof arg0 === "string" ? {src: arg0} : arg0;
+        return new Sound({...config, type: SoundType.Voice});
+    }
+
+    public static bgm(arg0: Partial<ISoundUserConfig> | string) {
+        const config = typeof arg0 === "string" ? {src: arg0} : arg0;
+        return new Sound({...config, type: SoundType.Bgm});
+    }
+
+    public static sound(arg0: Partial<ISoundUserConfig> | string) {
+        const config = typeof arg0 === "string" ? {src: arg0} : arg0;
+        return new Sound({...config, type: SoundType.Sound});
+    }
+
+    /**@internal */
     public readonly config: Readonly<SoundConfig>;
     /**@internal */
     public state: SoundState;
@@ -128,6 +149,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
 
     constructor(config?: Partial<ISoundUserConfig>);
     constructor(src?: string);
+    constructor(arg0: Partial<ISoundUserConfig> | string)
     constructor(arg0: Partial<ISoundUserConfig> | string = {}) {
         super();
         const rawConfig = typeof arg0 === "string" ? {src: arg0} : arg0;
@@ -140,12 +162,19 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**
-     * Start playing the sound
+     * Start playing the sound and **wait for it to finish**
      *
      * This action will be resolved when the sound reaches the end
      * @chainable
      */
     public play(duration?: number): ChainedSound {
+        if (this.config.type === SoundType.Bgm) {
+            throw new StaticScriptWarning(
+                `Sound (src: ${this.config.src}) is marked as bgm, but it is being played as a normal sound. \n`
+                + "To prevent unintended behavior, the sound marked as bgm cannot be played using `play()`."
+            );
+        }
+
         return this.pushAction<SoundActionContentType["sound:play"]>(SoundAction.ActionTypes.play, [{
             end: this.state.volume,
             duration: duration || 0,
@@ -225,8 +254,9 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**@internal */
-    override reset() {
+    override reset(): this {
         this.state = this.getInitialState(this.userConfig);
+        return this;
     }
 
     /**@internal */

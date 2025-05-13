@@ -5,7 +5,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {EmptyObject} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
-import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
+import {Sound, SoundDataRaw, SoundType, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
 import {Control, Persistent, Story, Transition} from "@core/common/core";
@@ -19,7 +19,7 @@ import {DynamicPersistent} from "@core/elements/persistent";
 import {Config, ConfigConstructor} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
-import {Utils} from "@core/common/Utils";
+import {StaticScriptWarning, Utils} from "@core/common/Utils";
 import {Layer} from "@core/elements/layer";
 
 /**@internal */
@@ -107,7 +107,9 @@ export class Scene extends Constructable<
         layers: [],
     });
     /**@internal */
-    static DefaultSceneConfig = new ConfigConstructor<SceneConfig, EmptyObject>({
+    static DefaultSceneConfig = new ConfigConstructor<SceneConfig, {
+        voices: VoiceIdMap | VoiceSrcGenerator | null;
+    }>({
         name: "",
         backgroundMusicFade: 0,
         voices: null,
@@ -118,7 +120,43 @@ export class Scene extends Constructable<
         defaultDisplayableLayer: new Layer("[[Displayable Layer]]", {
             zIndex: 0,
         }),
+    }, {
+        voices: (voices: VoiceIdMap | VoiceSrcGenerator | null) => {
+            const isVoiceIdMap = (voices: any): voices is VoiceIdMap => {
+                return typeof voices === "object" && voices !== null;
+            };
+            const isVoiceSrcGenerator = (voices: any): voices is VoiceSrcGenerator => {
+                return typeof voices === "function";
+            };
+            if (!voices) {
+                return null;
+            }
+            if (isVoiceIdMap(voices)) {
+                Object.values(voices).forEach((value) => {
+                    if (Sound.isSound(value)) {
+                        Scene.validateVoice(value);
+                    }
+                });
+            }
+            if (isVoiceSrcGenerator(voices)) {
+                return voices;
+            }
+            throw new StaticScriptWarning(
+                `Invalid voices config: ${voices}`
+            );
+        },
     });
+
+    /**@internal */
+    static validateVoice(voice: Sound) {
+        if (voice.config.type !== SoundType.Voice && voice.config.type !== SoundType.Sound) {
+            throw new StaticScriptWarning(
+                `Voice must be a voice, but got ${voice.config.type}. \n`
+                + "To prevent unintended behavior and unexpected results, the sound have to be marked as voice. Please use `Sound.voice()` to create the sound."
+            );
+        }
+    }
+
     /**@internal */
     static DefaultSceneState = new ConfigConstructor<SceneState>({
         backgroundImage: new Image(),
@@ -155,6 +193,7 @@ export class Scene extends Constructable<
                     : null,
         });
     }
+    
 
     /**@internal */
     public config: SceneConfig;
@@ -514,7 +553,12 @@ export class Scene extends Constructable<
         const voices = this.config.voices;
         if (voices) {
             if (typeof voices === "function") {
-                return voices(id);
+                const voice = voices(id);
+                if (typeof voice === "string") {
+                    return voice;
+                }
+                Scene.validateVoice(voice);
+                return voice;
             }
             return voices[id] || null;
         }
@@ -538,14 +582,25 @@ export class Scene extends Constructable<
 
     /**@internal */
     private getInitialState(): SceneState {
+        const userConfig = this.userConfig.get();
+        if (userConfig.backgroundMusic && userConfig.backgroundMusic.config.type !== SoundType.Bgm) {
+            throw new StaticScriptWarning(
+                `[Scene: ${this.config.name}] Background music must be a bgm, but got ${userConfig.backgroundMusic.config.type}. \n`
+                + "To prevent unintended behavior and unexpected results, the sound have to be marked as bgm. Please use `Sound.bgm()` to create the sound."
+            );
+        }
+
         return Scene.DefaultSceneState.create().assign({
             backgroundImage: this.state?.backgroundImage ? this.state.backgroundImage.reset() : (new Image({
-                src: this.userConfig.get().background,
+                src: userConfig.background,
                 opacity: 1,
                 autoFit: true,
                 name: `[[Background Image of ${this.config.name}]]`,
                 layer: this.config.defaultBackgroundLayer,
             })._setIsBackground(true)),
+            ...(userConfig.backgroundMusic ? {
+                backgroundMusic: this.state?.backgroundMusic ? this.state.backgroundMusic.reset() : userConfig.backgroundMusic,
+            } : {}),
         }).get();
     }
 

@@ -174,6 +174,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             }, [originalMusic]);
 
             exposed.setBackgroundMusic(sound, fade || 0);
+            this.callee.state.backgroundMusic = sound;
 
             return super.executeAction(gameState);
         } else if (this.type === SceneActionTypes.preUnmount) {

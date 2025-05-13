@@ -53,13 +53,22 @@ export default function Scene(
                 if (!scene.state.backgroundMusic) {
                     return;
                 }
-                state.audioManager.stop(scene.state.backgroundMusic, fade).then(() => {
-                    scene.state.backgroundMusic = null;
-                    if (music) state.audioManager.play(music, {
-                        end: music.state.volume,
-                        duration: fade,
-                    }).then(resolve);
-                });
+
+                (async function () {
+                    if (scene.state.backgroundMusic && state.audioManager.isManaged(scene.state.backgroundMusic)) {
+                        await state.audioManager.stop(scene.state.backgroundMusic, fade);
+                    }
+                    if (music) {
+                        await state.audioManager.play(music, {
+                            end: music.state.volume,
+                            duration: fade,
+                        });
+                        scene.state.backgroundMusic = music;
+                    } else {
+                        scene.state.backgroundMusic = null;
+                    }
+                    resolve();
+                })();
             });
         }
     });
