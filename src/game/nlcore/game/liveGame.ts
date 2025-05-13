@@ -659,6 +659,7 @@ export class LiveGame {
                     scenes: [],
                     audio: {
                         sounds: [],
+                        groups: [],
                     },
                     videos: [],
                 },

@@ -57,10 +57,10 @@ export type GamePreference = {
      */
     soundVolume: number;
     /**
-     * The volume of the music
+     * The volume of the global audio
      * @default 1
      */
-    musicVolume: number;
+    globalVolume: number;
 };
 
 export type GameHooks = {
@@ -96,7 +96,7 @@ export class Game {
         voiceVolume: 1,
         bgmVolume: 1,
         soundVolume: 1,
-        musicVolume: 1,
+        globalVolume: 1,
     };
     /**@internal */
     static Preferences: {
@@ -110,7 +110,7 @@ export class Game {
             voiceVolume: "voiceVolume",
             bgmVolume: "bgmVolume",
             soundVolume: "soundVolume",
-            musicVolume: "musicVolume",
+            globalVolume: "globalVolume",
         };
     /**@internal */
     static DefaultConfig: GameConfig = {

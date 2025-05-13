@@ -12,7 +12,6 @@ export enum SoundType {
     Voice = "voice",
     Bgm = "bgm",
     Sound = "sound",
-    Music = "music",
 }
 
 /**@internal */

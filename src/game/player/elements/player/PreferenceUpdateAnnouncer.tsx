@@ -9,7 +9,12 @@ export default function PreferenceUpdateAnnouncer({gameState}: Readonly<{gameSta
     const [voiceVolume] = usePreference("voiceVolume");
     const [bgmVolume] = usePreference("bgmVolume");
     const [soundVolume] = usePreference("soundVolume");
-    const [musicVolume] = usePreference("musicVolume");
+    const [globalVolume, setGlobalVolume] = usePreference("globalVolume");
+
+    // Set the global volume to the initial volume
+    useEffect(() => {
+        setGlobalVolume(audioManager.getGlobalVolume());
+    }, []);
 
     useEffect(() => {
         audioManager.setGroupVolume(SoundType.Voice, voiceVolume);
@@ -24,8 +29,8 @@ export default function PreferenceUpdateAnnouncer({gameState}: Readonly<{gameSta
     }, [soundVolume]);
 
     useEffect(() => {
-        audioManager.setGroupVolume(SoundType.Music, musicVolume);
-    }, [musicVolume]);
+        audioManager.setGlobalVolume(globalVolume);
+    }, [globalVolume]);
 
     return null;
 }

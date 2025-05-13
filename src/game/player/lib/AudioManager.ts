@@ -1,10 +1,10 @@
-import {Sound, SoundType} from "@core/elements/sound";
+import { Sound, SoundType } from "@core/elements/sound";
 import * as Howler from "howler";
-import {FadeOptions} from "@core/elements/type";
-import {Awaitable, ChainedAwaitable, ChainedAwaitableTask, SkipController} from "@lib/util/data";
-import {GameState} from "@player/gameState";
-import {RuntimeGameError} from "@core/common/Utils";
-import {LogicAction} from "@core/action/logicAction";
+import { FadeOptions } from "@core/elements/type";
+import { Awaitable, ChainedAwaitable, ChainedAwaitableTask, SkipController } from "@lib/util/data";
+import { GameState } from "@player/gameState";
+import { RuntimeGameError } from "@core/common/Utils";
+import { LogicAction } from "@core/action/logicAction";
 
 type SoundState = {
     group: Howler.Howl;
@@ -38,11 +38,9 @@ export class AudioManager {
 
     constructor(private gameState: GameState) {
         Object.values(SoundType).forEach(type => {
-            this.groups.set(type, {
-                volume: 1,
-                sounds: new Set()
-            });
+            this.groups.set(type, { volume: 1, sounds: new Set() });
         });
+        this.setupGroupVolume();
     }
 
     public play(sound: Sound, options: FadeOptions = {
@@ -52,12 +50,12 @@ export class AudioManager {
         if (this.state.has(sound)) {
             this.abortTask(this.getState(sound).group);
         }
-        const {group, token, onPlayTask, onEndTask} = this.initSound(sound);
+        const { group, token, onPlayTask, onEndTask } = this.initSound(sound);
 
         const groupVolume = this.groups.get(sound.config.type)?.volume ?? 1;
         const effectiveVolume = options.end * groupVolume;
-        
-        this.state.set(sound, {group, token, originalVolume: options.end});
+
+        this.state.set(sound, { group, token, originalVolume: options.end });
         return this.pushTask(group, new ChainedAwaitable()
             .addTask(onPlayTask)
             .addTask(this.fadeTo(group, token, {
@@ -82,7 +80,7 @@ export class AudioManager {
             return Awaitable.resolve<void>(undefined);
         }
         return this.pushTask(state.group, new ChainedAwaitable()
-            .addTask(this.fadeTo(state.group, state.token, {start: sound.state.volume, end: 0, duration}))
+            .addTask(this.fadeTo(state.group, state.token, { start: sound.state.volume, end: 0, duration }))
             .addTask(this.createTask((resolve) => {
                 state.group.volume(sound.state.volume, state.token);
                 resolve();
@@ -94,7 +92,7 @@ export class AudioManager {
     public setVolume(sound: Sound, volume: number, duration: number = 0): Awaitable<void> {
         const state = this.getState(sound);
         this.abortTask(state.group);
-        
+
         // Store the original volume and calculate effective volume
         state.originalVolume = volume;
         const groupVolume = this.groups.get(sound.config.type)?.volume ?? 1;
@@ -105,7 +103,7 @@ export class AudioManager {
             return Awaitable.resolve<void>(undefined);
         }
         return this.pushTask(state.group, new ChainedAwaitable()
-            .addTask(this.fadeTo(state.group, state.token, {start: sound.state.volume, end: effectiveVolume, duration}))
+            .addTask(this.fadeTo(state.group, state.token, { start: sound.state.volume, end: effectiveVolume, duration }))
             .addTask(this.createTask((resolve) => {
                 sound.state.volume = volume;
                 resolve();
@@ -121,7 +119,7 @@ export class AudioManager {
             return Awaitable.resolve<void>(undefined);
         }
         return this.pushTask(state.group, new ChainedAwaitable()
-            .addTask(this.fadeTo(state.group, state.token, {start: sound.state.volume, end: 0, duration}))
+            .addTask(this.fadeTo(state.group, state.token, { start: sound.state.volume, end: 0, duration }))
             .addTask(this.pauseSound(state.group, state.token))
             .addTask(this.createTask((resolve) => {
                 this.applyEffectiveVolume(sound);
@@ -141,7 +139,7 @@ export class AudioManager {
         const groupVolume = this.groups.get(sound.config.type)?.volume ?? 1;
         const effectiveVolume = state.originalVolume * groupVolume;
         return this.pushTask(state.group, new ChainedAwaitable()
-            .addTask(this.fadeTo(state.group, state.token, {start: 0, end: effectiveVolume, duration}))
+            .addTask(this.fadeTo(state.group, state.token, { start: 0, end: effectiveVolume, duration }))
             .addTask(this.resumeSound(state.group, state.token))
             .addTask(this.createTask((resolve) => {
                 sound.state.paused = false;
@@ -236,12 +234,13 @@ export class AudioManager {
             task.awaitable.abort();
         });
         this.tasks.clear();
-        
+
         // Reset group volumes to 1 and clear sound sets
         this.groups.forEach(group => {
             group.volume = 1;
             group.sounds.clear();
         });
+        this.setupGroupVolume();
     }
 
     public setGroupVolume(type: SoundType, volume: number): void {
@@ -258,8 +257,23 @@ export class AudioManager {
         });
     }
 
+    public setGlobalVolume(volume: number): void {
+        Howler.Howler.volume(volume);
+    }
+
+    public getGlobalVolume(): number {
+        return Howler.Howler.volume();
+    }
+
     public getGroupVolume(type: SoundType): number {
         return this.groups.get(type)?.volume ?? 1;
+    }
+
+    private setupGroupVolume(): void {
+        const {soundVolume, bgmVolume, voiceVolume} = this.gameState.game.preference.getPreferences();
+        this.setGroupVolume(SoundType.Sound, soundVolume);
+        this.setGroupVolume(SoundType.Bgm, bgmVolume);
+        this.setGroupVolume(SoundType.Voice, voiceVolume);
     }
 
     private initSound(sound: Sound): SoundState & {
@@ -283,6 +297,7 @@ export class AudioManager {
         const effectiveVolume = sound.state.volume * groupVolume;
 
         const howlGroup = Reflect.construct(this.gameState.getHowl(), [this.getHowlConfig(sound, {
+            volume: effectiveVolume,
             onend() {
                 onEnd.resolve();
             },
@@ -305,19 +320,18 @@ export class AudioManager {
             }
         })]);
         const token = howlGroup.play();
-        const state = {group: howlGroup, token, originalVolume: sound.state.volume};
+        const state = { group: howlGroup, token, originalVolume: sound.state.volume };
         this.state.set(sound, state);
-        
+
         // Set initial volume and update sound state
         howlGroup
             .seek(sound.config.seek, token)
-            .volume(effectiveVolume, token)
             .rate(sound.state.rate, token);
-        
+
         if (sound.state.paused) {
             howlGroup.pause(token);
         }
-        return {...state, onPlayTask, onEndTask};
+        return { ...state, onPlayTask, onEndTask };
     }
 
     private pushTask(spirit: Howler.Howl, awaitable: Awaitable<void>): Awaitable<void> {
@@ -427,6 +441,6 @@ export class AudioManager {
         const groupVolume = this.groups.get(sound.config.type)?.volume ?? 1;
         const effectiveVolume = state.originalVolume * groupVolume;
         state.group.volume(effectiveVolume, state.token);
-    }    
+    }
 }
 
