@@ -49,6 +49,27 @@ export class Character extends Actionable<
         this.state = {
             name: name || "",
         };
+
+        const self = this;
+        const callable = function (
+            contentOrText: TemplateStringsArray | SentencePrompt | Sentence,
+            configOrArg0?: SentenceUserConfig | Sentence | SingleWord,
+            ...words: SingleWord[]
+        ) {
+            return self.call(contentOrText, configOrArg0, ...words);
+        };
+        return new Proxy(callable as any, {
+            get(_, prop) {
+                return (self as any)[prop];
+            },
+            set(_, prop, value) {
+                (self as any)[prop] = value;
+                return true;
+            },
+            has(_, prop) {
+                return prop in self;
+            },
+        });
     }
 
     /**
@@ -146,6 +167,35 @@ export class Character extends Actionable<
     ): Proxied<Character, Chained<LogicAction.Actions>> {
         // eslint-disable-next-line prefer-spread
         return this.say.apply(this, [contentOrText, configOrArg0, ...words] as any);
+    }
+
+    /**
+     * Call method to implement tag function functionality
+     * @internal
+     */
+    public call(
+        this: Character,
+        contentOrText: SentencePrompt | Sentence | TemplateStringsArray,
+        configOrArg0?: SentenceUserConfig | Sentence | SingleWord,
+        ...words: SingleWord[]
+    ): Proxied<Character, Chained<LogicAction.Actions>> {
+        if (Array.isArray(contentOrText) && "raw" in contentOrText) {
+            // This is a template string call
+            if (configOrArg0 && Sentence.isSingleWord(configOrArg0)) {
+                return this.say(contentOrText as TemplateStringsArray, configOrArg0 as SingleWord, ...words);
+            }
+            return this.say(contentOrText as TemplateStringsArray);
+        }
+        if (typeof contentOrText === "string") {
+            // This is a string call
+            return this.say(contentOrText, configOrArg0 as SentenceUserConfig);
+        }
+        if (Sentence.isSentence(contentOrText)) {
+            // This is a Sentence call
+            return this.say(contentOrText);
+        }
+        // This is a SentencePrompt call
+        return this.say(contentOrText as SentencePrompt, configOrArg0 as SentenceUserConfig);
     }
 }
 
