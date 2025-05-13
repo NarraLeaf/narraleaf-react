@@ -124,7 +124,7 @@ export class AudioManager {
             .addTask(this.fadeTo(state.group, state.token, {start: sound.state.volume, end: 0, duration}))
             .addTask(this.pauseSound(state.group, state.token))
             .addTask(this.createTask((resolve) => {
-                state.group.volume(sound.state.volume, state.token);
+                this.applyEffectiveVolume(sound);
                 sound.state.paused = true;
                 resolve();
             }))
@@ -191,11 +191,7 @@ export class AudioManager {
                 group.volume = volume;
                 // Update volume for all sounds in the group
                 group.sounds.forEach(sound => {
-                    if (this.isManaged(sound)) {
-                        const state = this.getState(sound);
-                        const effectiveVolume = state.originalVolume * volume;
-                        state.group.volume(effectiveVolume, state.token);
-                    }
+                    this.applyEffectiveVolume(sound);
                 });
             }
         });
@@ -258,11 +254,7 @@ export class AudioManager {
 
         // Update volume for all sounds in the group by applying the group volume
         group.sounds.forEach(sound => {
-            if (this.isManaged(sound)) {
-                const state = this.getState(sound);
-                const effectiveVolume = state.originalVolume * volume;
-                state.group.volume(effectiveVolume, state.token);
-            }
+            this.applyEffectiveVolume(sound);
         });
     }
 
@@ -321,9 +313,6 @@ export class AudioManager {
             .seek(sound.config.seek, token)
             .volume(effectiveVolume, token)
             .rate(sound.state.rate, token);
-            
-        // Ensure sound state is synchronized with actual volume
-        sound.state.volume = sound.state.volume;
         
         if (sound.state.paused) {
             howlGroup.pause(token);
@@ -431,5 +420,13 @@ export class AudioManager {
             }
         }]];
     }
+
+    private applyEffectiveVolume(sound: Sound): void {
+        if (!this.isManaged(sound)) return;
+        const state = this.getState(sound);
+        const groupVolume = this.groups.get(sound.config.type)?.volume ?? 1;
+        const effectiveVolume = state.originalVolume * groupVolume;
+        state.group.volume(effectiveVolume, state.token);
+    }    
 }
 
