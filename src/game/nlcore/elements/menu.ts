@@ -7,19 +7,15 @@ import {Sentence, SentencePrompt} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
 import {MenuAction} from "@core/action/actions/menuAction";
 import Actions = LogicAction.Actions;
-import GameElement = LogicAction.GameElement;
+import { ActionStatements } from "./type";
+import { Narrator } from "./character";
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type MenuConfig = {};
 export type MenuChoice = {
-    action: ChainedActions;
+    action: ActionStatements;
     prompt: SentencePrompt | Sentence;
 };
-
-/**@internal */
-type ChainedAction = Proxied<GameElement, Chained<LogicAction.Actions>>;
-/**@internal */
-type ChainedActions = (ChainedAction | ChainedAction[] | Actions | Actions[])[];
 
 export type Choice = {
     action: Actions[];
@@ -55,7 +51,7 @@ export class Menu extends Actionable<any, Menu> {
         );
     }
 
-    public static choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>> {
+    public static choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
         const menu = new Menu(null, {});
         return menu.choose(arg0, arg1);
     }
@@ -81,17 +77,17 @@ export class Menu extends Actionable<any, Menu> {
      * @chainable
      */
     public choose(choice: MenuChoice): Proxied<Menu, Chained<LogicAction.Actions>>;
-    public choose(prompt: Sentence, action: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
-    public choose(prompt: SentencePrompt, action: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
-    public choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>>;
-    public choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ChainedActions): Proxied<Menu, Chained<LogicAction.Actions>> {
+    public choose(prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>>;
+    public choose(prompt: SentencePrompt, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>>;
+    public choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>>;
+    public choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
         const chained = this.chain();
         if (Sentence.isSentence(arg0) && arg1) {
-            chained.choices.push({prompt: Sentence.toSentence(arg0), action: Chained.toActions(arg1)});
+            chained.choices.push({prompt: Sentence.toSentence(arg0), action: this.narrativeToActions(arg1)});
         } else if ((Word.isWord(arg0) || Array.isArray(arg0) || typeof arg0 === "string") && arg1) {
-            chained.choices.push({prompt: Sentence.toSentence(arg0), action: Chained.toActions(arg1)});
+            chained.choices.push({prompt: Sentence.toSentence(arg0), action: this.narrativeToActions(arg1)});
         } else if (typeof arg0 === "object" && "prompt" in arg0 && "action" in arg0) {
-            chained.choices.push({prompt: Sentence.toSentence(arg0.prompt), action: Chained.toActions(arg0.action)});
+            chained.choices.push({prompt: Sentence.toSentence(arg0.prompt), action: this.narrativeToActions(arg0.action)});
         } else {
             console.warn("No valid choice added to menu, ", {
                 arg0,
@@ -119,6 +115,16 @@ export class Menu extends Actionable<any, Menu> {
     _getFutureActions(choices: Choice[]): LogicAction.Actions[] {
         return choices.map(choice => choice.action[0] || null)
             .filter(action => action !== null);
+    }
+
+    /**@internal */
+    narrativeToActions(statements: ActionStatements): LogicAction.Actions[] {
+        return statements.flatMap(statement => {
+            if (typeof statement === "string") {
+                return Narrator.say(statement).getActions();
+            }
+            return Chained.toActions([statement]);
+        });
     }
 
     /**@internal */

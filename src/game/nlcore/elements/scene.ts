@@ -8,7 +8,7 @@ import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, SoundType, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
-import {Control, Persistent, Story, Transition} from "@core/common/core";
+import {ActionStatements, Control, Persistent, Story, Transition} from "@core/common/core";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -21,6 +21,7 @@ import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {StaticScriptWarning, Utils} from "@core/common/Utils";
 import {Layer} from "@core/elements/layer";
+import { Narrator } from "./character";
 
 /**@internal */
 export type SceneConfig = {
@@ -204,7 +205,7 @@ export class Scene extends Constructable<
     /**@internal */
     public state: SceneState;
     /**@internal */
-    private actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[]) = [];
+    private actions: ActionStatements | ((scene: Scene) => ActionStatements) = [];
     /**@internal */
     private sceneRoot?: SceneAction<"scene:action">;
     /**@internal */
@@ -326,11 +327,11 @@ export class Scene extends Constructable<
     /**
      * Add actions to the scene
      */
-    public action(actions: (ChainableAction | ChainableAction[])[]): this;
+    public action(actions: ActionStatements): this;
 
-    public action(actions: ((scene: Scene) => ChainableAction[]) | (() => ChainableAction[])): this;
+    public action(actions: ((scene: Scene) => ActionStatements) | (() => ActionStatements)): this;
 
-    public action(actions: (ChainableAction | ChainableAction[])[] | ((scene: Scene) => ChainableAction[]) | (() => ChainableAction[])): this {
+    public action(actions: ActionStatements | ((scene: Scene) => ActionStatements) | (() => ActionStatements)): this {
         this.actions = actions;
         return this;
     }
@@ -375,7 +376,9 @@ export class Scene extends Constructable<
         );
 
         const actions = this.actions;
-        const userChainedActions: ChainableAction[] = Array.isArray(actions) ? actions.flat(2) : actions(this).flat(2);
+        const userChainedActions: ChainableAction[] = this.narrativeToActions(
+            typeof actions === "function" ? actions(this) : actions
+        );
         const userActions = userChainedActions.map(v => {
             if (Chained.isChained(v)) {
                 return v.fromChained(v as any);
@@ -447,6 +450,16 @@ export class Scene extends Constructable<
         this._futureActions_ = futureActions;
 
         return this;
+    }
+
+    /**@internal */
+    narrativeToActions(statements: ActionStatements): LogicAction.Actions[] {
+        return statements.flatMap(statement => {
+            if (typeof statement === "string") {
+                return Narrator.say(statement).getActions();
+            }
+            return Chained.toActions([statement]);
+        });
     }
 
     /**@internal */
@@ -659,4 +672,3 @@ export class Scene extends Constructable<
         ];
     }
 }
-

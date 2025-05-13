@@ -148,3 +148,5 @@ export class Character extends Actionable<
         return this.say.apply(this, [contentOrText, configOrArg0, ...words] as any);
     }
 }
+
+export const Narrator = new Character(null);

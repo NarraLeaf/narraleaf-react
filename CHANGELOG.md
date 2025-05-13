@@ -12,6 +12,7 @@
 - Added method image.`darken`
 - Added method layer.`setZIndex`
 - Added `voiceVolume`, `bgmVolume`, `soundVolume`, and `globalVolume` to the game preferences
+- Using raw text for narrator instead of using Character instance
 
 ### Update
 

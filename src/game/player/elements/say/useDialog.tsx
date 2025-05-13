@@ -36,7 +36,8 @@ export function useDialog(): DialogContext {
     return {
         done: dialog.isEnded(),
         text,
-        isNarrator: dialog.config.action.character === null,
+        isNarrator: dialog.config.action.character === null
+            || dialog.config.action.character.state.name === "",
     };
 }
 
