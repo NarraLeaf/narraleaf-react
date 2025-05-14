@@ -1366,3 +1366,5 @@ export function abortify<T extends any[]>(fn: ServiceHandler<T>): AbortifyFn<T> 
     };
     return abortableFn;
 }
+
+export type FirstParam<T> = T extends (first: infer P, ...args: any[]) => any ? P : never;

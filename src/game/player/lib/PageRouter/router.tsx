@@ -2,9 +2,11 @@ import React, {createContext, useContext, useState} from "react";
 import {EventDispatcher} from "@lib/util/data";
 import {Game} from "@core/game";
 import {useGame} from "@player/provider/game-state";
+import { LiveGameEventToken } from "@lib/game/nlcore/types";
 
 type RouterEvents = {
     "event:router.onChange": [];
+    "event:router.onExitComplete": [];
 };
 
 export class Router {
@@ -97,6 +99,21 @@ export class Router {
         this.history = this.current ? [this.current] : [];
         this.historyIndex = this.current ? 0 : -1;
         return this;
+    }
+
+    /**@internal */
+    onExitComplete(handler: () => void): LiveGameEventToken {
+        return this.events.on("event:router.onExitComplete", handler);
+    }
+
+    /**@internal */
+    onceExitComplete(handler: () => void): LiveGameEventToken {
+        return this.events.once("event:router.onExitComplete", handler);
+    }
+
+    /**@internal */
+    emitOnExitComplete(): void {
+        this.events.emit("event:router.onExitComplete");
     }
 
     /**@internal */

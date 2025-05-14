@@ -13,6 +13,7 @@
 - Added method layer.`setZIndex`
 - Added `voiceVolume`, `bgmVolume`, `soundVolume`, and `globalVolume` to the game preferences
 - Using raw text for narrator instead of using Character instance
+- Added `waitForRouterExit` to wait for the page exit animation to complete
 
 ### Update
 

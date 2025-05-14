@@ -1,10 +1,11 @@
-import React, {useEffect} from "react";
-import {AnimatePresence} from "motion/react";
-import {Page} from "@player/lib/PageRouter/Page";
-import {useRouter} from "@player/lib/PageRouter/router";
-import {useFlush} from "@player/lib/flush";
-import {Stage} from "@player/lib/PageRouter/Stage";
+import React, { useEffect } from "react";
+import { Page } from "@player/lib/PageRouter/Page";
+import { useRouter } from "@player/lib/PageRouter/router";
+import { useFlush } from "@player/lib/flush";
+import { Stage } from "@player/lib/PageRouter/Stage";
 import { useGame } from "../../provider/game-state";
+import { AnimatePresence as OriginalAnimatePresence } from "motion/react";
+import { AnimatePresenceComponent } from "./AnimatePresence";
 
 type PageRouterProps = Readonly<{
     children?: React.ReactNode;
@@ -47,6 +48,19 @@ export function PageRouter(
         return router.events.on("event:router.onChange", flush).cancel;
     }, []);
 
+    useEffect(() => {
+        const gameState = game.getLiveGame().getGameState();
+        if (!gameState) {
+            return;
+        }
+
+        gameState.pageRouter = router;
+
+        return () => {
+            gameState.pageRouter = null;
+        };
+    }, [game, game.getLiveGame().getGameState()]);
+
     if (!router) {
         return null;
     }
@@ -71,13 +85,20 @@ export function PageRouter(
         }
     );
 
-    const AnimatePresence_ = AnimatePresence as any;
+    const handleExitComplete = () => {
+        router.emitOnExitComplete();
+    };
+
+    const AnimatePresence = OriginalAnimatePresence as AnimatePresenceComponent;
+
     return (
         <>
             {stageChild}
-            <AnimatePresence_ mode="wait">
-                {currentPage}
-            </AnimatePresence_>
+            <AnimatePresence mode="wait" onExitComplete={handleExitComplete}>
+                <React.Fragment key={currentPage?.props.id}>
+                    {currentPage}
+                </React.Fragment>
+            </AnimatePresence>
         </>
     );
 }
