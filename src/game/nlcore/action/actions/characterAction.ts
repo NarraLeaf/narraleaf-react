@@ -48,7 +48,8 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             }
 
             // Create dialog
-            const dialog = gameState.createDialog(this.getId(), sentence, () => {
+            const dialogId = gameState.idManager.generateId();
+            const dialog = gameState.createDialog(dialogId, sentence, () => {
                 if (voice) {
                     const task = gameState.audioManager.stop(voice);
                     timeline.attachChild(task);
