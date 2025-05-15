@@ -23,6 +23,7 @@
 ### Fixed
 
 - Background music is not playing
+- Visual errors after applying transitions and before the elements are painted
 
 ## [0.4.4] - 2025/5/9
 

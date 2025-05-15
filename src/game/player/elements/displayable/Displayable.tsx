@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from "react";
+import React, {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {OverwriteDefinition, Transform, TransformState} from "@core/elements/transform/transform";
 import {
     AnimationController,
@@ -114,7 +114,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         return eventToken.cancel;
     }, [transitionTask]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         updateStyleSync();
     }, [transitionTask]);
 

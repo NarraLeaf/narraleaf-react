@@ -59,6 +59,7 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
     useEffect(() => {
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
+                console.log(`mutation: ${mutation.type} ${mutation.attributeName}`, mutation);
                 if (mutation.type === "attributes" && mutation.attributeName === "src") {
                     if (imgRef.current) {
                         updateWidth();

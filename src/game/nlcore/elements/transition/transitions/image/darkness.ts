@@ -33,7 +33,9 @@ export class Darkness extends ImageTransition<AnimationType> {
                 this.asPrev<AnimationType>(() => ({
                     style: {
                         opacity: 0,
-                    }
+                    },
+                    height: 0,
+                    width: 0,
                 })),
             ],
         };
