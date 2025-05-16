@@ -12,6 +12,7 @@ type GameElementHistory =
         type: "say";
         text: string;
         voice: string | null;
+        character: string | null;
     }
     | {
         type: "menu";

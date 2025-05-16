@@ -40,7 +40,7 @@ export class Router {
      */
     public push(id: string): this {
         if (this.historyIndex < this.history.length - 1) {
-            this.history = this.history.slice(0, this.historyIndex + 1);
+            this.history.length = this.historyIndex + 1;
         }
         this.history.push(id);
 
@@ -60,13 +60,13 @@ export class Router {
      */
     public back(): this {
         if (this.historyIndex > 0) {
-            this.historyIndex--;
             this.current = this.history[this.historyIndex];
-            this.emitOnChange();
         } else {
             this.current = null;
-            this.emitOnChange();
         }
+        this.historyIndex--;
+        this.emitOnChange();
+        
         return this;
     }
 

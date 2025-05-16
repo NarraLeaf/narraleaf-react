@@ -167,7 +167,7 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
-        this.reset({ gameState });
+        this.reset();
         gameState.stage.forceRemount();
 
         const actionMaps = new Map<string, LogicAction.Actions>();
@@ -366,7 +366,7 @@ export class LiveGame {
         const gameState = this.gameState;
         const logGroup = gameState.logger.group("LiveGame (newGame)", true);
 
-        this.reset({ gameState });
+        this.reset();
         this.initNamespaces();
 
         const newGame = this.getNewSavedGame();
@@ -507,8 +507,15 @@ export class LiveGame {
         };
     }
 
-    /**@internal */
-    reset({ gameState }: { gameState: GameState }) {
+    /**
+     * Reset the game state
+     * 
+     * **Note**: calling this method will lose the current game state
+     */
+    public reset() {
+        this.assertGameState();
+        const gameState = this.gameState;
+
         if (this.lockedAwaiting) {
             this.lockedAwaiting.abort();
         }

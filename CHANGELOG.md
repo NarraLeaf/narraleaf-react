@@ -27,6 +27,7 @@
 - Visual errors after applying transitions and before the elements are painted
 - Transform state is not updated correctly when the transform is skipped
 - Abort Events are not propagated correctly
+- Incorrect behavior of `router.back`
 
 ## [0.4.4] - 2025/5/9
 
