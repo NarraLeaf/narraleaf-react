@@ -426,18 +426,26 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
             gameState.logger.warn("Transform", "No sequences to animate.");
         }
 
+        let completed = false;
+
         const lock = transformState.lock();
         const token = animate(sequences, options);
         const skip = () => {
-            transformState.unlock(lock);
+            transformState
+                .overwrite(lock, finalState.get())
+                .unlock(lock);
             token.complete();
+            completed = true;
         };
         const awaitable = new Awaitable<void>()
             .registerSkipController(new SkipController(skip));
         const onComplete = () => {
-            transformState
-                .overwrite(lock, finalState.get())
-                .unlock(lock);
+            if (!completed) {
+                transformState
+                    .overwrite(lock, finalState.get())
+                    .unlock(lock);
+            }
+            completed = true;
 
             gameState.logger.debug("Transform", "Transform Completed", transformState.toStyle(gameState, overwrites));
             awaitable.resolve();

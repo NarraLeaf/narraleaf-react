@@ -129,19 +129,28 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     ._setPrevSrc(imageSrc)
                     ._setTargetSrc(imageSrc);
                 
-                exposed.applyTransition(transition, () => {
+                const task = exposed.applyTransition(transition, () => {
                     this.callee.state.darkness = darkness;
                     awaitable.resolve(super.executeAction(state) as CalledActionResult);
                     state.stage.next();
                 });
 
-                const timeline = state.timelines.attachTimeline(awaitable);
-                state.actionHistory.push(this, handleUndo, [], timeline);
+                const timeline = state.timelines
+                    .attachTimeline(awaitable)
+                    .attachChild(task);
+                state.actionHistory.push(this, () => {
+                    if (!awaitable.isSettled()) {
+                        awaitable.abort();
+                    }
+                    task.abort();
+                    handleUndo();
+                }, [], timeline);
 
                 return awaitable;
             }
 
             this.callee.state.darkness = darkness;
+            state.actionHistory.push(this, handleUndo);
 
             exposed.updateStyleSync();
             return super.executeAction(state);

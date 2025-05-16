@@ -477,6 +477,8 @@ export class GameState {
             const state = this.getExposedStateForce<ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text>(element);
             const task = state.applyTransform(Transform.immediate({}), () => {});
             timeline.attachChild(task);
+
+            state.updateStyleSync();
         });
         this.timelines.attachTimeline(timeline);
 

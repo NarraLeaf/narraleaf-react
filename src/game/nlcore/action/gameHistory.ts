@@ -4,6 +4,7 @@ import { ActionHistory, ActionHistoryManager } from "./actionHistory";
 type GameHistoryAction = {
     token: string;
     action: Action;
+    isPending?: boolean;
 };
 
 type GameElementHistory =
@@ -15,7 +16,7 @@ type GameElementHistory =
     | {
         type: "menu";
         text: string | null;
-        selected: string;
+        selected: string | null;
     };
 
 export type GameHistory = GameHistoryAction & {
@@ -49,6 +50,18 @@ export class GameHistoryManager {
 
     reset() {
         this.history = [];
+    }
+
+    updateByToken(id: string, handler: (result: GameHistory | null) => void) {
+        const result = this.history.find(h => h.token === id);
+        handler(result || null);
+    }
+
+    resolvePending(id: string) {
+        const result = this.history.find((h: GameHistory) => h.token === id);
+        if (result) {
+            result.isPending = false;
+        }
     }
     
     private crossFilter(affected: ActionHistory[]) {

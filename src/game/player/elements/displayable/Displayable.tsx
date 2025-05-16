@@ -207,6 +207,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         awaitable.onSkipControllerRegister((controller) => {
             controller.onAbort(() => {
                 timeline.abort();
+                setTransformToken(null);
             });
         });
 
@@ -236,6 +237,9 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         });
         controller.onCanceled(() => {
             timeline.abort();
+            setTransitionTask(null);
+            
+            gameState.logger.debug("Displayable", "Transition cancelled", newTransition);
         });
         gameState.timelines.attachTimeline(timeline);
         setTransitionTask({

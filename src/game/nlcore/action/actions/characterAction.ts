@@ -55,6 +55,8 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     timeline.attachChild(task);
                 }
 
+                gameState.gameHistory.resolvePending(id); // accessing id is technically dangerous, but I think it is impossible to happen
+
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
@@ -70,6 +72,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     const task = gameState.audioManager.stop(voice);
                     timeline.attachChild(task);
                 }
+                dialog.cancel();
             });
             gameState.gameHistory.push({
                 token: id,
@@ -78,7 +81,8 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     type: "say",
                     text: dialog.text,
                     voice: voice ? voice.getSrc() : null,
-                }
+                },
+                isPending: true,
             });
 
             return awaitable;

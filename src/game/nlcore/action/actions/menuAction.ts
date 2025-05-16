@@ -30,17 +30,28 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
                 type: this.type as any,
                 node: chosen.action[0].contentNode
             });
-            const {id} = state.actionHistory.push(this, undefined, [], timeline);
-            state.gameHistory.push({
-                token: id,
-                action: this,
-                element: {
-                    type: "menu",
-                    text: token.prompt,
-                    selected: chosen.evaluated,
+            state.gameHistory.updateByToken(id, (result) => {
+                if (result && result.element.type === "menu") {
+                    result.element.selected = chosen.evaluated;
+                    result.isPending = false;
                 }
             });
         });
+        
+        const {id} = state.actionHistory.push(this, () => {
+            token.cancel();
+        }, [], timeline);
+        state.gameHistory.push({
+            token: id,
+            action: this,
+            element: {
+                type: "menu",
+                text: token.prompt,
+                selected: null,
+            },
+            isPending: true,
+        });
+
         return awaitable;
     }
 

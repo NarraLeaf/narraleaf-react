@@ -248,6 +248,10 @@ export class LiveGame {
      */
     public undo(id?: string) {
         this.assertGameState();
+        if (!this.gameState.actionHistory.ableToUndo(this.gameState.gameHistory)) {
+            this.gameState.logger.warn("LiveGame.undo", "No action to undo");
+            return;
+        }
 
         if (this.lockedAwaiting) {
             this.lockedAwaiting.abort();
@@ -258,20 +262,20 @@ export class LiveGame {
         if (id) {
             action = this.gameState.actionHistory.undoUntil(id);
         } else {
-            action = this.gameState.actionHistory.undo();
+            action = this.gameState.actionHistory.undo(this.gameState.gameHistory);
         }
         if (action) {
             this.currentAction = action;
+            this.gameState.logger.info("LiveGame.undo", "Undo until", id, "currentAction", this.currentAction, "action", action);
+    
+            this.gameState.stage.forceUpdate();
+            this.gameState.stage.next();
+            this.gameState.schedule(() => {
+                if (this.gameState) this.gameState.forceAnimation();
+            }, 0);
         } else {
             this.gameState.logger.warn("LiveGame.undo", "No action found");
         }
-        this.gameState.logger.info("LiveGame.undo", "Undo until", id, "currentAction", this.currentAction, "action", action);
-
-        this.gameState.stage.forceUpdate();
-        this.gameState.stage.next();
-        this.gameState.schedule(() => {
-            if (this.gameState) this.gameState.forceAnimation();
-        }, 0);
     }
 
     /**@internal */

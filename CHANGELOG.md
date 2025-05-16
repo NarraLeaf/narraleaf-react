@@ -5,6 +5,7 @@
 ### _Incompatible Changes_
 
 - `game.config.cps` is deprecated, use `GamePreference.cps` instead
+- Menu GameElementHistory.`selected` may be null
 
 ### _Feature_
 
@@ -24,6 +25,8 @@
 
 - Background music is not playing
 - Visual errors after applying transitions and before the elements are painted
+- Transform state is not updated correctly when the transform is skipped
+- Abort Events are not propagated correctly
 
 ## [0.4.4] - 2025/5/9
 
