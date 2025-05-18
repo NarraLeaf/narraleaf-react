@@ -72,10 +72,6 @@ export default function Scene(
             });
         }
     });
-    
-    useEffect(() => {
-        state.events.emit(GameState.EventTypes["event:state.onRender"]);
-    }, []);
 
     return (
         <div className={clsx(className, "w-full h-full absolute")}>

@@ -226,3 +226,6 @@ export type NamedColor =
 export interface ActionSearchOptions {
     allowFutureScene?: boolean;
 }
+
+
+export type { SavedGame } from "./gameTypes";

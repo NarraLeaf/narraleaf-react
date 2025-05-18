@@ -59,12 +59,10 @@ export class Router {
      * Go back to the previous page id in the router history
      */
     public back(): this {
-        if (this.historyIndex > 0) {
-            this.current = this.history[this.historyIndex];
-        } else {
-            this.current = null;
+        if (this.historyIndex >= 0) {
+            this.historyIndex--;
         }
-        this.historyIndex--;
+        this.syncId();
         this.emitOnChange();
         
         return this;
@@ -76,7 +74,7 @@ export class Router {
     public forward(): this {
         if (this.historyIndex < this.history.length - 1) {
             this.historyIndex++;
-            this.current = this.history[this.historyIndex];
+            this.syncId();
             this.emitOnChange();
         }
         return this;
@@ -124,6 +122,15 @@ export class Router {
     /**@internal */
     private emitOnChange(): void {
         this.events.emit("event:router.onChange");
+    }
+
+    /**@internal */
+    private syncId(): void {
+        if (this.historyIndex < 0) {
+            this.current = null;
+        } else {
+            this.current = this.history[this.historyIndex];
+        }
     }
 }
 

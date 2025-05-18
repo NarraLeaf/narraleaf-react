@@ -78,9 +78,9 @@ export class TransformState<T extends TransformDefinitions.Types> {
             position: (pos: IPosition | RawPosition) => D2Position;
         }
     >({
-        position: (pos) => PositionUtils.toCoord2D(PositionUtils.tryParsePosition(pos)!),
+        position: (pos) => PositionUtils.serializePosition(PositionUtils.tryParsePosition(pos)!),
     }, {
-        position: PositionUtils.toCoord2D,
+        position: (pos) => PositionUtils.toCoord2D(pos),
     });
 
     static deserialize<T extends TransformDefinitions.Types>(data: Record<string, any>): TransformState<T> {

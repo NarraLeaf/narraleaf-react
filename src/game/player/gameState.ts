@@ -123,6 +123,7 @@ export class GameState {
     guard: GameStateGuard;
     timelines: Timelines;
     preloadingScene: Scene | null = null;
+    flushDep: number = 0;
     public readonly notificationMgr: NotificationManager;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
@@ -145,6 +146,10 @@ export class GameState {
         this.idManager = new IdManager();
         this.actionHistory = new ActionHistoryManager();
         this.gameHistory = new GameHistoryManager(this.actionHistory);
+    }
+
+    public get deps(): number {
+        return this.flushDep;
     }
 
     public addVideo(video: Video): this {

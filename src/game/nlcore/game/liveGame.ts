@@ -217,12 +217,12 @@ export class LiveGame {
         // restore services
         story.deserializeServices(services);
 
-        gameState.stage.forceUpdate();
         gameState.events.once(GameState.EventTypes["event:state.onRender"], () => {
             gameState.schedule(() => {
                 gameState.stage.next();
             }, 0);
         });
+        gameState.stage.forceUpdate();
     }
 
     /**

@@ -22,6 +22,7 @@ import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 import Video from "@player/elements/video/video";
 import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
+import { RenderEventAnnoucer } from "./player/RenderEventAnnoucer";
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
 }
@@ -37,7 +38,7 @@ export default function Player(
         children,
         active = true,
     }: Readonly<PlayerProps>) {
-    const [, update] = useReducer((x) => x + 1, 0);
+    const [flushDep, update] = useReducer((x) => x + 1, 0);
     const [key, setKey] = useState(0);
     const game = useGame();
     const [state, dispatch] = useReducer(handleAction, new GameState(game, {
@@ -173,6 +174,10 @@ export default function Player(
         ]).cancel;
     }, []);
 
+    useEffect(() => {
+        state.flushDep = flushDep;
+    }, [flushDep]);
+
     const playerWidth = width || game.config.width;
     const playerHeight = height || game.config.height;
 
@@ -190,6 +195,7 @@ export default function Player(
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
                     <SizeUpdateAnnouncer ref={containerRef}/>
                     <PreferenceUpdateAnnouncer gameState={state}/>
+                    <RenderEventAnnoucer gameState={state}/>
                     <Isolated className={"absolute"} ref={mainContentRef} style={{
                         cursor: state.game.config.cursor ? "none" : "auto",
                         overflow: state.game.config.showOverflow ? "visible" : "hidden",
