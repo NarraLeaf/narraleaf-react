@@ -116,7 +116,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
     useLayoutEffect(() => {
         updateStyleSync();
-    }, [transitionTask]);
+    }, [transitionTask, transitionsProps]);
 
     useEffect(() => {
         if (!ref.current) {
@@ -124,7 +124,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         }
     }, []);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const initialStyle = state.toStyle(gameState, overwriteDefinition);
 
         Object.assign(ref.current!.style, initialStyle);

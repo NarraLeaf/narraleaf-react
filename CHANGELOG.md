@@ -30,6 +30,7 @@
 - Incorrect behavior of `router.back`
 - The game state is not flushed correctly
 - Different behavior between autoForward and user clicking
+- Incorrect transform repeat behavior
 
 ## [0.4.4] - 2025/5/9
 

@@ -539,7 +539,7 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
     public getSequenceOptions(): SequenceOptions {
         const { repeat, repeatDelay } = this.config;
         return {
-            repeat: this.toSeconds(repeat, undefined),
+            repeat,
             repeatDelay: this.toSeconds(repeatDelay, undefined),
         };
     }
