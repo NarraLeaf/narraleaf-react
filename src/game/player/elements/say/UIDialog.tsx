@@ -14,6 +14,7 @@ type DialogEvents = {
     "event:dialog.complete": [];
     "event:dialog.forceSkip": [];
     "event:dialog.onFlush": [];
+    "event:dialog.simulateClick": [];
 };
 
 type DialogStateConfig = {
@@ -29,11 +30,13 @@ export class DialogState {
         complete: "event:dialog.complete";
         forceSkip: "event:dialog.forceSkip";
         onFlush: "event:dialog.onFlush";
+        simulateClick: "event:dialog.simulateClick";
     } = {
             requestComplete: "event:dialog.requestComplete",
             complete: "event:dialog.complete",
             forceSkip: "event:dialog.forceSkip",
             onFlush: "event:dialog.onFlush",
+            simulateClick: "event:dialog.simulateClick",
         };
 
     public readonly config: Readonly<DialogStateConfig>;
@@ -163,11 +166,9 @@ export class DialogState {
         if (!preference.getPreference(Game.Preferences.autoForward) || this.state !== DialogStateType.Ended) return;
         this.autoForwardScheduler
             .cancelTask().scheduleTask(() => {
-                this.events.emit(DialogState.Events.complete);
+                this.events.emit(DialogState.Events.simulateClick);
             }, this.config.gameState.game.config.autoForwardDelay / preference.getPreference(Game.Preferences.gameSpeed));
     }
-
-
 }
 
 export default function PlayerDialog({

@@ -328,10 +328,6 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
             translate?: [string?, string?];
             scale?: number;
         } = {}): string {
-        if (!state.getLastScene()) {
-            throw new Error("No scene found in state, make sure you called \"scene.activate()\" before this method.");
-        }
-
         const propScale = (prop["scale"] !== undefined) ? prop["scale"] : 1;
 
         const { invertY, invertX } = state.getStory().getInversionConfig();

@@ -69,3 +69,5 @@ export type ExposedKeys = {
     [ExposedStateType.scene]: Scene;
     [ExposedStateType.video]: Video;
 };
+
+export type { INotificationsProps } from "./elements/notification/type";
