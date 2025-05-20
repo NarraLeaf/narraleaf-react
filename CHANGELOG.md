@@ -31,6 +31,7 @@
 - The game state is not flushed correctly
 - Different behavior between autoForward and user clicking
 - Incorrect transform repeat behavior
+- Unexpected NaN when converting align to percentage
 
 ## [0.4.4] - 2025/5/9
 
