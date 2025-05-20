@@ -84,6 +84,8 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }, [transformToken, transitionTask, refs]);
 
     useEffect(() => {
+        updateStyleSync();
+
         if (!transitionTask) {
             return;
         }
@@ -113,10 +115,6 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
         return eventToken.cancel;
     }, [transitionTask]);
-
-    useLayoutEffect(() => {
-        updateStyleSync();
-    }, [transitionTask, transitionsProps]);
 
     useEffect(() => {
         if (!ref.current) {
