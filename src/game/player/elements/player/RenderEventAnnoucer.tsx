@@ -9,7 +9,7 @@ export function RenderEventAnnoucer({ gameState }: { gameState: GameState }) {
         rafRef.current = requestAnimationFrame(() => {
             setTimeout(() => {
                 gameState.events.emit(GameState.EventTypes["event:state.onRender"]);
-            }, 0); // 放到下一个任务队列，确保微任务和同步 effect 执行后
+            }, 0);
         });
 
         return () => {
