@@ -1,7 +1,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-transparent.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-light.png">
-  <img alt="Fallback image description" src="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-light.png">
+  <img alt="NarraLeaf Logo" src="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-light.png">
 </picture>
 
 <h1 align="center">NarraLeaf-React</h1>
@@ -31,49 +31,36 @@ NarraLeaf-React uses TypeScript for all scripting, so you don't have to learn a 
 It also has a highly abstracted and easy-to-use API, for example:
 
 ```typescript
-import {Character, Menu, Scene, Word, c, b} from "narraleaf-react";
+import {Character, Menu, Scene, c, b} from "narraleaf-react";
 ```
 
 ```typescript
-const scene1 = new Scene("scene1_hello_world", {
-  background: "/background/scene1_hello_world.jpg",
+const scene1 = new Scene("Scene1: Hello World", {
+  background: "/link/to/background.jpg",
 });
 
-const johnSmith = new Character("John Smith");
-const johnDoe = new Character("John Doe");
+const jS = new Character("John Smith");
+const jD = new Character("John Doe");
 
 scene1.action([
-  /**
-   * John Smith: Hello, world!
-   * John Smith: This is my first **NarraLeaf** story.
-   * John Smith: Start editing src/story.js and enjoy the journey!
-   */
-  johnSmith
-    .say("Hello, world!")
-    .say`This is my first ${b("NarraLeaf")} story.`
-    .say`Start editing ${c("src/story.js", "#00f")} and enjoy the journey!`,
+  jS`Hello, world!`,
+  jS`This is my first ${b("NarraLeaf")} story.`,
+  jS`Start editing ${c("src/story.js", "#00f")} and enjoy the journey!`,
 
-  /**
-   * John Doe: Also, don't forget to check out the documentation!
-   */
-  johnDoe.say("Also, don't forget to check out the documentation!"),
-    
-  /**
-   * Menu: Start the journey
-   *   > Yes I will!
-   *     - John Smith: Great! Let's start the journey!
-   *     - John Smith: You can open issues on GitHub if you have any questions.
-   *   > No, I'm going to check the documentation
-   *     - John Smith: Sure! Take your time!
-   */
+  jD`Also, don't forget to check out the ${c("documentation", "#00f")}!`,
+
+  "By the way, the documentation is available on https://react.narraleaf.com/documentation",
+  "You can also visit the website for demo and more information.",
+
   Menu.prompt("Start the journey")
+
     .choose("Yes I will!", [
-      johnSmith
-        .say("Great! Let's start the journey!")
-        .say("You can open issues on GitHub if you have any questions.")
+      jS`Great! Let's start the journey!`,
+      jS`You can open issues on GitHub if you have any questions.`
     ])
+
     .choose("No, I'm going to check the documentation", [
-      johnSmith.say("Sure! Take your time!")
+      jS`Sure! Take your time!`
     ])
 ]);
 ```
@@ -133,6 +120,17 @@ npm install narraleaf-react
   - [Plugin](https://react.narraleaf.com/documentation/core/plugin)
   - [Utils](https://react.narraleaf.com/documentation/core/utils)
 - [Player](https://react.narraleaf.com/documentation/player)
+  - [Player](https://react.narraleaf.com/documentation/player/player)
+  - [GameProviders](https://react.narraleaf.com/documentation/player/game-providers)
+  - Hooks
+    - [useGame](https://react.narraleaf.com/documentation/player/hooks/useGame)
+    - [usePreferences](https://react.narraleaf.com/documentation/player/hooks/usePreferences)
+    - [useRouter](https://react.narraleaf.com/documentation/player/hooks/useRouter)
+    - [useDialog](https://react.narraleaf.com/documentation/player/hooks/useDialog)
+  - [Page Router](https://react.narraleaf.com/documentation/player/page-router)
+  - [Dialog](https://react.narraleaf.com/documentation/player/dialog)
+  - [Notification](https://react.narraleaf.com/documentation/player/notification)
+  - [Menu](https://react.narraleaf.com/documentation/player/menu)
 - About
   - [License](https://react.narraleaf.com/documentation/info/license)
   - [Incompatible Changes](https://react.narraleaf.com/documentation/info/incompatible-changes)
