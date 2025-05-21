@@ -48,11 +48,14 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             }
 
             // Create dialog
-            const dialog = gameState.createDialog(this.getId(), sentence, () => {
+            const dialogId = gameState.idManager.generateId();
+            const dialog = gameState.createDialog(dialogId, sentence, () => {
                 if (voice) {
                     const task = gameState.audioManager.stop(voice);
                     timeline.attachChild(task);
                 }
+
+                gameState.gameHistory.resolvePending(id); // accessing id is technically dangerous, but I think it is impossible to happen
 
                 awaitable.resolve({
                     type: this.type,
@@ -69,6 +72,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     const task = gameState.audioManager.stop(voice);
                     timeline.attachChild(task);
                 }
+                dialog.cancel();
             });
             gameState.gameHistory.push({
                 token: id,
@@ -77,7 +81,9 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     type: "say",
                     text: dialog.text,
                     voice: voice ? voice.getSrc() : null,
-                }
+                    character: this.callee.state.name,
+                },
+                isPending: true,
             });
 
             return awaitable;

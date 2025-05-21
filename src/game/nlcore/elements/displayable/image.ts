@@ -43,6 +43,7 @@ type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | nul
     currentSrc: Tag extends null
         ? (ImageSrc | Color) : Tag extends TagGroupDefinition
             ? SelectElementFromEach<Tag> : SelectElementFromEach<Tag>;
+    darkness: number;
 };
 
 export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | null>
@@ -69,6 +70,11 @@ export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGro
      * layer of the image
      */
     layer?: Layer;
+    /**
+     * Darkness of the image, between 0 and 1
+     * @default 0
+     */
+    darkness?: number;
 }
 
 /**@internal */
@@ -132,6 +138,7 @@ export class Image<
      */
     static DefaultImageState = new ConfigConstructor<ImageState, EmptyObject>({
         currentSrc: Image.DefaultImagePlaceholder,
+        darkness: 0,
     });
 
     /**@internal */
@@ -265,7 +272,17 @@ export class Image<
                     .chain(this._flush());
             }
         });
+    }
 
+    /**
+     * Set the darkness of the image
+     * @param darkness - The darkness of the image, between 0 and 1
+     * @chainable
+     */
+    public darken(darkness: number, duration?: number, easing?: TransformDefinitions.EasingDefinition): Proxied<Image, Chained<LogicAction.Actions>> {
+        return this.combineActions(new Control(), chain => {
+            return chain.chain(this._setDarkness(chain, darkness, duration, easing));
+        });
     }
 
     /**
@@ -581,5 +598,21 @@ export class Image<
             }
         }
         return tagMap;
+    }
+
+    /**@internal */
+    _setDarkness(
+        chain: Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>>,
+        darkness: number,
+        duration?: number,
+        easing?: TransformDefinitions.EasingDefinition
+    ): ImageAction<typeof ImageAction.ActionTypes.setDarkness> {
+        return new ImageAction<typeof ImageAction.ActionTypes.setDarkness>(
+            chain as Proxied<Image, Chained<LogicAction.Actions>>,
+            ImageAction.ActionTypes.setDarkness,
+            new ContentNode<ImageActionContentType["image:setDarkness"]>().setContent([
+                darkness, duration, easing
+            ])
+        );
     }
 }

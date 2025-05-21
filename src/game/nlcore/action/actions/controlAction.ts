@@ -38,6 +38,8 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             const current = prev.node.action;
             const next = gameState.game.getLiveGame().executeActionRaw(gameState, current);
 
+            gameState.logger.debug("ControlAction", "executeActionSeries (seq)", current.type, next);
+
             if (!next) return null;
             else if (Awaitable.isAwaitable<CalledActionResult>(next)) return next;
             else return Awaitable.resolve(next);
@@ -46,7 +48,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             node: action.contentNode
         });
         const timeline = new Timeline(execProxy);
-        const awaitable = new Awaitable<T>();
+        const awaitable: Awaitable<T> = new Awaitable<T>();
 
         gameState.logger.debug("ControlAction", "executeActionSeries", action.type, action.contentNode);
 
@@ -147,19 +149,25 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             return super.executeAction(gameState);
         } else if (this.type === ControlActionTypes.repeat) {
             const [actions, times] = (this.contentNode as ContentNode<ControlActionContentType["control:repeat"]>).getContent();
+            if (times <= 0) {
+                return super.executeAction(gameState);
+            }
+
             const awaitable = Timeline.sequence<number>((index) => {
                 if (index >= times) {
                     return null;
                 }
 
                 const [awaitable, tl] = this.executeActionSeries(gameState, actions[0], () => index + 1);
-                timeline.attachChild(tl);
+                gameState.timelines.attachTimeline(tl);
+
+                gameState.logger.debug("ControlAction", "repeat", actions, times, index, awaitable);
 
                 return awaitable;
             }, 0);
-            const timeline = new Timeline(awaitable);
 
-            gameState.timelines.attachTimeline(timeline);
+            gameState.logger.debug("ControlAction", "repeat", actions, times);
+
             return Awaitable.forward<CalledActionResult>(awaitable, {
                 type: this.type,
                 node: this.contentNode.getChild(),

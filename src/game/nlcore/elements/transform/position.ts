@@ -118,13 +118,13 @@ export class PositionUtils {
         return Object.values(CommonPositionType).includes(arg);
     }
 
-    static isRawCoord2DPosition(arg: any): arg is Coord2DPosition {
+    static isRawCoord2DPosition(arg: any): arg is Partial<Coord2DPosition> {
         return typeof arg === "object" && (
             "x" in arg || "y" in arg || "xoffset" in arg || "yoffset" in arg
         );
     }
 
-    static isRawAlignPosition(arg: any): arg is AlignPosition {
+    static isRawAlignPosition(arg: any): arg is Partial<AlignPosition> {
         return typeof arg === "object" && (
             "xalign" in arg || "yalign" in arg || "xoffset" in arg || "yoffset" in arg
         );
@@ -213,10 +213,17 @@ export class Coord2D implements IPosition {
         });
     }
 
-    static fromAlignPosition(position: AlignPosition): Coord2D {
+    static fromAlignPosition(position: Partial<AlignPosition>): Coord2D {
+        const toPercentage = (align: number | undefined): UnknownAble<Coord2DPosition["x"]> => {
+            if (!align || PositionUtils.isUnknown(align)) {
+                return PositionUtils.Unknown;
+            }
+            return `${align * 100}%`;
+        };
+
         return new Coord2D({
-            x: (PositionUtils.isUnknown(position.xalign)) ? PositionUtils.Unknown : `${position.xalign * 100}%`,
-            y: (PositionUtils.isUnknown(position.yalign)) ? PositionUtils.Unknown : `${position.yalign * 100}%`,
+            x: toPercentage(position.xalign),
+            y: toPercentage(position.yalign), 
             xoffset: position.xoffset,
             yoffset: position.yoffset
         });
@@ -270,6 +277,19 @@ export class Coord2D implements IPosition {
             this.y = PositionUtils.orUnknown<Coord2DPosition["y"]>(y);
             this.xoffset = PositionUtils.Unknown;
             this.yoffset = PositionUtils.Unknown;
+        }
+        this.check();
+    }
+
+    check(): void {
+        const isValidPercentage = (value: string) => /^-?\d+(\.\d+)?%$/.test(value);
+        
+        if (typeof this.x === "string" && !isValidPercentage(this.x)) {
+            throw new Error(`Invalid x position: ${this.x}`);
+        }
+        
+        if (typeof this.y === "string" && !isValidPercentage(this.y)) {
+            throw new Error(`Invalid y position: ${this.y}`);
         }
     }
 
@@ -328,6 +348,16 @@ export class Align implements IPosition {
             this.yalign = PositionUtils.orUnknown<number>(yalign);
             this.xoffset = PositionUtils.Unknown;
             this.yoffset = PositionUtils.Unknown;
+        }
+        this.check();
+    }
+
+    check(): void {
+        if (typeof this.xalign === "number" && isNaN(this.xalign)) {
+            throw new Error("Invalid xalign position: " + this.xalign);
+        }
+        if (typeof this.yalign === "number" && isNaN(this.yalign)) {
+            throw new Error("Invalid yalign position: " + this.yalign);
         }
     }
 

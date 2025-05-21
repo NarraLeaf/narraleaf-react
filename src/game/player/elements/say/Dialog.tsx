@@ -5,9 +5,10 @@ import { DialogProps } from "@player/elements/say/type";
 import { Nametag, usePreference } from "@player/libElements";
 import { useRatio } from "@player/provider/ratio";
 import clsx from "clsx";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useDialogContext } from "./context";
 import { Texts } from "./Sentence";
+import { DialogState } from "./UIDialog";
 
 function BaseDialog({
     children,
@@ -17,6 +18,7 @@ function BaseDialog({
     const dialog = useDialogContext();
     const { ratio } = useRatio();
     const [showDialog] = usePreference(Game.Preferences.showDialog);
+    const dialogRef = useRef<HTMLDivElement>(null);
 
     function onElementClick() {
         dialog.requestComplete();
@@ -33,11 +35,17 @@ function BaseDialog({
                 dialog.requestComplete();
             }
         };
-
         window.addEventListener("keyup", handleKeyUp);
+
+        const token = dialog.events.on(DialogState.Events.simulateClick, () => {
+            if (dialogRef.current) {
+                dialogRef.current.click();
+            }
+        });
 
         return () => {
             window.removeEventListener("keyup", handleKeyUp);
+            token.cancel();
         };
     }, [dialog]);
 
@@ -72,6 +80,7 @@ function BaseDialog({
                         height: game.config.height,
                     }),
                 }}
+                ref={dialogRef}
             >
                 <div {...props}>
                     {children}

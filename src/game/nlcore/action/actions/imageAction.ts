@@ -8,6 +8,7 @@ import {TypedAction} from "@core/action/actions";
 import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {Color, RGBAColor, StaticImageData} from "@core/types";
 import {ExposedStateType} from "@player/type";
+import { Darkness } from "../../elements/transition/transitions/image/darkness";
 
 export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageActionTypes] = typeof ImageActionTypes[keyof typeof ImageActionTypes]>
     extends TypedAction<ImageActionContentType, T, Image> {
@@ -112,6 +113,46 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             this.callee.state.currentSrc = newTags as [];
             state.actionHistory.push(this, handleUndo);
 
+            return super.executeAction(state);
+        } else if (this.type === ImageActionTypes.setDarkness) {
+            const [darkness, duration, easing] = (this.contentNode as ContentNode<ImageActionContentType["image:setDarkness"]>).getContent();
+            const oldDarkness = this.callee.state.darkness;
+            const handleUndo = () => {
+                this.callee.state.darkness = oldDarkness;
+            };
+            const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
+
+            if (duration && easing) {
+                const imageSrc= ImageAction.resolveCurrentSrc(this.callee);
+                const awaitable = new Awaitable<CalledActionResult>(v => v);
+                const transition = new Darkness(oldDarkness, darkness, duration, easing)
+                    ._setPrevSrc(imageSrc)
+                    ._setTargetSrc(imageSrc);
+                
+                const task = exposed.applyTransition(transition, () => {
+                    this.callee.state.darkness = darkness;
+                    awaitable.resolve(super.executeAction(state) as CalledActionResult);
+                    state.stage.next();
+                });
+
+                const timeline = state.timelines
+                    .attachTimeline(awaitable)
+                    .attachChild(task);
+                state.actionHistory.push(this, () => {
+                    if (!awaitable.isSettled()) {
+                        awaitable.abort();
+                    }
+                    task.abort();
+                    handleUndo();
+                }, [], timeline);
+
+                return awaitable;
+            }
+
+            this.callee.state.darkness = darkness;
+            state.actionHistory.push(this, handleUndo);
+
+            exposed.updateStyleSync();
             return super.executeAction(state);
         }
 

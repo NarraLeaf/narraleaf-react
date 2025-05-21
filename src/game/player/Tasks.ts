@@ -143,7 +143,7 @@ export class Timeline {
 
         currentAwaitable = generator(initial);
         if (!currentAwaitable) {
-            awaitable.resolve(currentValue);
+            createMicroTask(() => awaitable.resolve(currentValue));
         } else {
             createMicroTask(() => iterate());
         }

@@ -2,11 +2,12 @@ import {ContentNode, RenderableNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {Actionable} from "@core/action/actionable";
 import {GameState} from "@player/gameState";
-import {Chained, ChainedActions, Proxied} from "@core/action/chain";
+import {Chained, Proxied} from "@core/action/chain";
 import {StaticScriptWarning} from "@core/common/Utils";
 import {ConditionAction} from "@core/action/actions/conditionAction";
-import {LambdaCtx, LambdaHandler} from "@core/elements/type";
+import {LambdaCtx, LambdaHandler, ActionStatements} from "@core/elements/type";
 import Actions = LogicAction.Actions;
+import { Narrator } from "./character";
 
 export class Lambda<T = any> {
     /**@internal */
@@ -82,7 +83,7 @@ export class Condition<Closed extends true | false = false> extends Actionable {
      * @chainable
      */
     public static If(
-        condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
+        condition: Lambda | LambdaHandler<boolean>, action: ActionStatements
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
         return new Condition().createIfCondition(condition, action);
     }
@@ -109,7 +110,7 @@ export class Condition<Closed extends true | false = false> extends Actionable {
      */
     public ElseIf(
         condition: Closed extends false ? (Lambda | LambdaHandler<boolean>) : never,
-        action: Closed extends false ? ChainedActions : never
+        action: Closed extends false ? ActionStatements : never
     ): Closed extends false ? Proxied<Condition, Chained<LogicAction.Actions>> : never {
         // when ELSE condition already set
         if (this.conditions.Else.action) {
@@ -127,7 +128,7 @@ export class Condition<Closed extends true | false = false> extends Actionable {
      * @chainable
      */
     public Else(
-        action: Closed extends false ? ChainedActions : never
+        action: Closed extends false ? ActionStatements : never
     ): Closed extends false ? Proxied<Condition<true>, Chained<LogicAction.Actions>> : never {
         // when ELSE condition already set
         if (this.conditions.Else.action) {
@@ -169,8 +170,8 @@ export class Condition<Closed extends true | false = false> extends Actionable {
     }
 
     /**@internal */
-    construct(chainedActions: ChainedActions, lastChild?: RenderableNode, parentChild?: RenderableNode): LogicAction.Actions[] {
-        const actions: Actions[] = Chained.toActions(chainedActions);
+    construct(chainedActions: ActionStatements, lastChild?: RenderableNode, parentChild?: RenderableNode): LogicAction.Actions[] {
+        const actions: Actions[] = this.narrativeToActions(chainedActions);
         for (let i = 0; i < actions.length; i++) {
             const node = actions[i].contentNode;
             const child = actions[i + 1]?.contentNode;
@@ -198,10 +199,20 @@ export class Condition<Closed extends true | false = false> extends Actionable {
 
     /**@internal */
     private createIfCondition(
-        condition: Lambda | LambdaHandler<boolean>, action: ChainedActions
+        condition: Lambda | LambdaHandler<boolean>, action: ActionStatements
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
         this.conditions.If.condition = condition instanceof Lambda ? condition : new Lambda(condition);
-        this.conditions.If.action = this.construct(Array.isArray(action) ? action : [action]);
+        this.conditions.If.action = this.construct(action);
         return this.chain();
+    }
+
+    /**@internal */
+    narrativeToActions(statements: ActionStatements): LogicAction.Actions[] {
+        return statements.flatMap(statement => {
+            if (typeof statement === "string") {
+                return Narrator.say(statement).getActions();
+            }
+            return Chained.toActions([statement]);
+        });
     }
 }

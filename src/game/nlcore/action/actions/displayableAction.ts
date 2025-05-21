@@ -64,6 +64,7 @@ export class DisplayableAction<
             if (!awaitable.isSettled()) {
                 awaitable.abort();
             }
+            task.abort();
             element.transformState
                 .forceOverwrite(originalTransform.state);
         }, [originalTransform], timeline);
@@ -86,7 +87,12 @@ export class DisplayableAction<
         const timeline = state.timelines
             .attachTimeline(awaitable)
             .attachChild(task);
-        state.actionHistory.push<[]>(this, undefined, [], timeline);
+        state.actionHistory.push<[]>(this, () => {
+            if (!awaitable.isSettled()) {
+                awaitable.abort();
+            }
+            task.abort();
+        }, [], timeline);
 
         return awaitable;
     }

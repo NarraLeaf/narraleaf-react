@@ -1,7 +1,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-transparent.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-light.png">
-  <img alt="Fallback image description" src="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-light.png">
+  <img alt="NarraLeaf Logo" src="https://raw.githubusercontent.com/NarraLeaf/.github/refs/heads/master/doc/banner-md-light.png">
 </picture>
 
 <h1 align="center">NarraLeaf-React</h1>
@@ -35,46 +35,33 @@ import {Character, Menu, Scene, Word, c, b} from "narraleaf-react";
 ```
 
 ```typescript
-const scene1 = new Scene("场景1_你好_世界", {
-    background: "/background/scene1_hello_world.jpg",
+const scene1 = new Scene("场景1: 你好，世界", {
+  background: "/link/to/background.jpg",
 });
 
-const johnSmith = new Character("约翰·史密斯");
-const johnDoe = new Character("约翰·多");
+const jS = new Character("John Smith");
+const jD = new Character("John Doe");
 
 scene1.action([
-    /**
-     * 约翰·史密斯: 你好世界！
-     * 约翰·史密斯: 这是我的第一个 **NarraLeaf** 视觉小说
-     * 约翰·史密斯: 开始编辑 src/story.js 并享受旅程！
-     */
-    johnSmith
-        .say("你好世界！")
-        .say`这是我的第一个 ${b("NarraLeaf")} 视觉小说`
-        .say`开始编辑 ${c("src/story.js", "#00f")} 并享受旅程！`,
+  jS`你好，世界！`,
+  jS`这是我的第一个 ${b("NarraLeaf")} 故事。`,
+  jS`开始编辑 ${c("src/story.js", "#00f")} 并享受旅程！`,
 
-    /**
-     * 约翰·多: 对了，别忘了查看文档！
-     */
-    johnDoe.say("对了，别忘了查看文档！"),
+  jD`别忘了检查 ${c("文档", "#00f")}!`,
 
-    /**
-     * Menu: 开始旅程
-     *   > 是的，我会！
-     *     - 约翰·史密斯: 太好了！让我们开始旅程！
-     *     - 约翰·史密斯: 如果您有任何问题，可以在GitHub上提出问题。
-     *   > 不，我要查看文档
-     *     - 约翰·史密斯: 当然！慢慢来！
-     */
-    Menu.promp("开始旅程")
-        .choose("是的，我会！", [
-            johnSmith
-                .say("太好了！让我们开始旅程！")
-                .say("如果您有任何问题，可以在GitHub上提出问题。")
-        ])
-        .choose("不，我要查看文档", [
-            johnSmith.say("当然！慢慢来！")
-        ])
+  "顺便说一句，文档在 https://react.narraleaf.com/documentation",
+  "你也可以访问网站获取更多信息。",
+
+  Menu.prompt("开始旅程")
+
+    .choose("是的，我愿意！", [
+      jS`太好了！让我们开始旅程！`,
+      jS`如果你有任何问题，可以在 GitHub 上提出问题。`
+    ])
+
+    .choose("不，我要检查文档", [
+      jS`好的，请慢慢来！`
+    ])
 ]);
 ```
 
@@ -124,7 +111,7 @@ npm install narraleaf-react
         - [文本](https://react.narraleaf.com/documentation/core/elements/text)
         - [持久化](https://react.narraleaf.com/documentation/core/elements/persistent)
         - [故事](https://react.narraleaf.com/documentation/core/elements/story)
-        - [Displayable](https://react.narraleaf.com/documentation/core/elements/displayable)
+        - [可视化组件](https://react.narraleaf.com/documentation/core/elements/displayable)
         - [图层](https://react.narraleaf.com/documentation/core/elements/layer)
         - [服务](https://react.narraleaf.com/documentation/core/elements/service)
         - [视频](https://react.narraleaf.com/documentation/core/elements/video)
@@ -133,6 +120,17 @@ npm install narraleaf-react
     - [插件](https://react.narraleaf.com/documentation/core/plugin)
     - [实用工具](https://react.narraleaf.com/documentation/core/utils)
 - [播放器](https://react.narraleaf.com/documentation/player)
+    - [Player](https://react.narraleaf.com/documentation/player/player)
+    - [GameProviders](https://react.narraleaf.com/documentation/player/game-providers)
+    - 钩子
+        - [useGame](https://react.narraleaf.com/documentation/player/hooks/useGame)
+        - [usePreferences](https://react.narraleaf.com/documentation/player/hooks/usePreferences)
+        - [useRouter](https://react.narraleaf.com/documentation/player/hooks/useRouter)
+        - [useDialog](https://react.narraleaf.com/documentation/player/hooks/useDialog)
+    - [页面路由](https://react.narraleaf.com/documentation/player/page-router)
+    - [对话框](https://react.narraleaf.com/documentation/player/dialog)
+    - [通知](https://react.narraleaf.com/documentation/player/notification)
+    - [选项框](https://react.narraleaf.com/documentation/player/menu)
 - 关于
     - [许可](https://react.narraleaf.com/documentation/info/license)
     - [不兼容的更改](https://react.narraleaf.com/documentation/info/incompatible-changes)

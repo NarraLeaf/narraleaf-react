@@ -3,6 +3,7 @@ import { Action } from "./action";
 import { randId } from "@lib/util/data";
 import { LiveGameEventToken } from "../types";
 import { LogicAction } from "../game";
+import { GameHistory, GameHistoryManager } from "./gameHistory";
 
 export type ActionHistory<T extends Array<unknown> = any> = {
     action: Action;
@@ -32,7 +33,7 @@ export class ActionHistoryManager {
      */
     public push<T extends Array<any> = Array<any>>(action: Action, onUndo?: (...args: T) => void, args?: T, timeline?: Timeline): {id: string} {
         const id = randId(6);
-        this.history.push({action, id, args, undo: onUndo, timeline});
+        this.history.push({action, id, args: args || [], undo: onUndo, timeline});
         
         // Check if the history size exceeds the limit
         if (this.history.length > this.maxHistorySize) {
@@ -63,29 +64,40 @@ export class ActionHistoryManager {
 
         const affected: ActionHistory<any>[] = [];
         for (let i = this.history.length - 1; i >= index; i--) {
-            if (this.history[i].timeline && !this.history[i].timeline!.isSettled) {
+            if (this.history[i].timeline && !this.history[i].timeline!.isSettled()) {
                 this.history[i].timeline!.abort();
             }
+            console.log("NarraLeaf-React [ActionHistory] Undoing", this.history[i].action.type, this.history[i]);
             this.history[i].undo?.(...(this.history[i].args || []));
             affected.push(this.history[i]);
         }
 
-        this.history.splice(index);
+        this.history.length = index;
         this.hooks.onUndo.forEach(cb => cb(affected));
         return (affected[affected.length - 1]?.action || null) as LogicAction.Actions | null;
     }
 
-    public undo(): LogicAction.Actions | null {
-        const last = this.history.pop();
-        if (last) {
-            if (last.timeline && !last.timeline.isSettled) {
-                last.timeline.abort();
+    public undo(gameHistory: GameHistoryManager): LogicAction.Actions | null {
+        if (!this.ableToUndo(gameHistory)) {
+            return null;
+        }
+
+        const history = gameHistory.getHistory();
+        let last: GameHistory | undefined;
+        for (let i = history.length - 1; i >= 0; i--) {
+            if (history[i].isPending !== true) {
+                last = history[i];
+                break;
             }
-            last.undo?.(...last.args);
-            this.hooks.onUndo.forEach(cb => cb([last]));
-            return last.action as LogicAction.Actions;
+        }
+        if (last) {
+            return this.undoUntil(last.token);
         }
         return null;
+    }
+
+    public ableToUndo(gameHistory: GameHistoryManager): boolean {
+        return this.history.length > 0 && gameHistory.getHistory().some((h: GameHistory) => h.isPending !== true);
     }
 
     public onUndo(callback: (affected: ActionHistory<any>[]) => void): LiveGameEventToken {

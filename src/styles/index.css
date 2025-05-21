@@ -20,6 +20,12 @@
     pointer-events: auto;
 }
 
+.__narraleaf_content-player img::before,
+.__narraleaf_content-player img::after {
+  content: none !important;
+  border: none !important;
+}
+
 .pointer-events-auto {
     pointer-events: auto;
 }

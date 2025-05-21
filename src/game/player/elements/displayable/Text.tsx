@@ -23,6 +23,7 @@ export default function Text({state, text}: Readonly<{
         initDisplayable,
         applyTransform,
         applyTransition,
+        updateStyleSync,
         deps,
         isTransforming,
     } = useDisplayable<TextTransition, HTMLSpanElement>({
@@ -63,6 +64,7 @@ export default function Text({state, text}: Readonly<{
         applyTransform,
         applyTransition,
         flush,
+        updateStyleSync,
     }, [...deps]);
 
     return (

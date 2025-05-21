@@ -17,6 +17,7 @@ export type FadeOptions = {
 };
 
 export type ChainedActions = (Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>> | LogicAction.Actions)[];
+export type ActionStatements = ChainedActions | string[];
 export type {
     TransitionAnimationType,
     TransitionTask,

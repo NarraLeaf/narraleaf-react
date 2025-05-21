@@ -18,6 +18,10 @@ export function KeyEventAnnouncer({state}: Readonly<{
             state.logger.warn("KeyEventAnnouncer", "Failed to listen to playerElement events");
             return;
         }
+        if (!window) {
+            state.logger.warn("KeyEventAnnouncer", "Failed to listen to window events");
+            return;
+        }
 
         const listener = throttle((event: KeyboardEvent) => {
             if (game.config.skipKey.includes(event.key)
@@ -28,7 +32,12 @@ export function KeyEventAnnouncer({state}: Readonly<{
                 state.events.emit(GameState.EventTypes["event:state.player.skip"]);
             }
         }, game.config.skipInterval);
-        return game.getLiveGame().onPlayerEvent("keydown", listener).cancel;
+
+        if (game.config.useWindowListener) {
+            return game.getLiveGame().onWindowEvent("keydown", listener).cancel;
+        } else {
+            return game.getLiveGame().onPlayerEvent("keydown", listener).cancel;
+        }
     }, [router]);
 
     return (<></>);
