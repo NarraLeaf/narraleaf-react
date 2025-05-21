@@ -30,6 +30,7 @@ import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
 import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
 import { Displayable } from "../nlcore/elements/displayable/displayable";
 import { Transform } from "../nlcore/common/elements";
+import { Router } from "./lib/PageRouter/router";
 
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -91,6 +92,7 @@ type GameStateEvents = {
     "event:state.player.requestFlush": [];
     "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
     "event:state.onRender": [];
+    "event:state:flushPreloadedScenes": [];
 };
 
 /**
@@ -104,6 +106,7 @@ export class GameState {
         "event:state.player.requestFlush": "event:state.player.requestFlush",
         "event.state.onExpose": "event.state.onExpose",
         "event:state.onRender": "event:state.onRender",
+        "event:state:flushPreloadedScenes": "event:state:flushPreloadedScenes",
     };
     state: PlayerState = {
         sounds: [],
@@ -120,6 +123,7 @@ export class GameState {
     guard: GameStateGuard;
     timelines: Timelines;
     preloadingScene: Scene | null = null;
+    flushDep: number = 0;
     public readonly notificationMgr: NotificationManager;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
@@ -128,6 +132,7 @@ export class GameState {
     public readonly idManager: IdManager;
     public readonly actionHistory: ActionHistoryManager;
     public readonly gameHistory: GameHistoryManager;
+    public pageRouter: Router | null = null;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
@@ -141,6 +146,10 @@ export class GameState {
         this.idManager = new IdManager();
         this.actionHistory = new ActionHistoryManager();
         this.gameHistory = new GameHistoryManager(this.actionHistory);
+    }
+
+    public get deps(): number {
+        return this.flushDep;
     }
 
     public addVideo(video: Video): this {
@@ -192,8 +201,13 @@ export class GameState {
         return this;
     }
 
-    public preloadScene(scene: Scene): this {
+    public preloadScene(arg: Scene | Story): this {
+        const scene = Scene.isScene(arg) ? arg : arg.entryScene;
+        if (!scene) {
+            throw new RuntimeGameError("Trying to preload a story but the story is not loaded");
+        }
         this.preloadingScene = scene;
+        this.events.emit(GameState.EventTypes["event:state:flushPreloadedScenes"]);
         return this;
     }
 
@@ -468,6 +482,8 @@ export class GameState {
             const state = this.getExposedStateForce<ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text>(element);
             const task = state.applyTransform(Transform.immediate({}), () => {});
             timeline.attachChild(task);
+
+            state.updateStyleSync();
         });
         this.timelines.attachTimeline(timeline);
 

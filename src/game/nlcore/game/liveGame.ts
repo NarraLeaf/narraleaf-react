@@ -1,21 +1,21 @@
-import {Awaitable, EventDispatcher, generateId, MultiLock} from "@lib/util/data";
-import type {CalledActionResult, SavedGame} from "@core/gameTypes";
-import {Story} from "@core/elements/story";
-import {GameState} from "@player/gameState";
-import {Namespace, Storable} from "@core/elements/persistent/storable";
-import {LogicAction} from "@core/action/logicAction";
-import {StorableType} from "@core/elements/persistent/type";
-import {Game} from "@core/game";
-import {ContentNode} from "@core/action/tree/actionTree";
-import {ConditionAction} from "@core/action/actions/conditionAction";
-import {SceneAction} from "@core/action/actions/sceneAction";
-import {ControlActionTypes, SceneActionTypes} from "@core/action/actionTypes";
-import {Scene} from "@core/elements/scene";
-import {ControlAction} from "@core/action/actions/controlAction";
-import {LiveGameEventHandler, LiveGameEventToken} from "@core/types";
-import {Character} from "@core/elements/character";
-import {Sentence} from "@core/elements/character/sentence";
-import {RuntimeGameError} from "@core/common/Utils";
+import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
+import type { CalledActionResult, SavedGame } from "@core/gameTypes";
+import { Story } from "@core/elements/story";
+import { GameState } from "@player/gameState";
+import { Namespace, Storable } from "@core/elements/persistent/storable";
+import { LogicAction } from "@core/action/logicAction";
+import { StorableType } from "@core/elements/persistent/type";
+import { Game } from "@core/game";
+import { ContentNode } from "@core/action/tree/actionTree";
+import { ConditionAction } from "@core/action/actions/conditionAction";
+import { SceneAction } from "@core/action/actions/sceneAction";
+import { ControlActionTypes, SceneActionTypes } from "@core/action/actionTypes";
+import { Scene } from "@core/elements/scene";
+import { ControlAction } from "@core/action/actions/controlAction";
+import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
+import { Character } from "@core/elements/character";
+import { Sentence } from "@core/elements/character/sentence";
+import { RuntimeGameError, RuntimeInternalError } from "@core/common/Utils";
 import { GameHistory } from "../action/gameHistory";
 import { Options } from "html-to-image/lib/types";
 
@@ -167,7 +167,7 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
-        this.reset({gameState});
+        this.reset();
         gameState.stage.forceRemount();
 
         const actionMaps = new Map<string, LogicAction.Actions>();
@@ -186,13 +186,13 @@ export class LiveGame {
         story.forEachChild(story, story.entryScene?.getSceneRoot() || [], action => {
             actionMaps.set(action.getId(), action);
             elementMaps.set(action.callee.getId(), action.callee);
-        }, {allowFutureScene: true});
+        }, { allowFutureScene: true });
 
         // restore storable
         this.storable.clear().load(store);
 
         // restore elements
-        elementStates.forEach(({id, data}) => {
+        elementStates.forEach(({ id, data }) => {
             gameState.logger.debug("restore element", id);
 
             const element = elementMaps.get(id);
@@ -217,12 +217,12 @@ export class LiveGame {
         // restore services
         story.deserializeServices(services);
 
-        gameState.stage.forceUpdate();
         gameState.events.once(GameState.EventTypes["event:state.onRender"], () => {
             gameState.schedule(() => {
                 gameState.stage.next();
             }, 0);
         });
+        gameState.stage.forceUpdate();
     }
 
     /**
@@ -248,6 +248,10 @@ export class LiveGame {
      */
     public undo(id?: string) {
         this.assertGameState();
+        if (!this.gameState.actionHistory.ableToUndo(this.gameState.gameHistory)) {
+            this.gameState.logger.warn("LiveGame.undo", "No action to undo");
+            return;
+        }
 
         if (this.lockedAwaiting) {
             this.lockedAwaiting.abort();
@@ -258,20 +262,20 @@ export class LiveGame {
         if (id) {
             action = this.gameState.actionHistory.undoUntil(id);
         } else {
-            action = this.gameState.actionHistory.undo();
+            action = this.gameState.actionHistory.undo(this.gameState.gameHistory);
         }
         if (action) {
             this.currentAction = action;
+            this.gameState.logger.info("LiveGame.undo", "Undo until", id, "currentAction", this.currentAction, "action", action);
+    
+            this.gameState.stage.forceUpdate();
+            this.gameState.stage.next();
+            this.gameState.schedule(() => {
+                if (this.gameState) this.gameState.forceAnimation();
+            }, 0);
         } else {
             this.gameState.logger.warn("LiveGame.undo", "No action found");
         }
-        this.gameState.logger.info("LiveGame.undo", "Undo until", id, "currentAction", this.currentAction, "action", action);
-        
-        this.gameState.stage.forceUpdate();
-        this.gameState.stage.next();
-        this.gameState.schedule(() => {
-            if (this.gameState) this.gameState.forceAnimation();
-        }, 0);
     }
 
     /**@internal */
@@ -290,7 +294,7 @@ export class LiveGame {
         this.assertGameState();
 
         const id = this.gameState.idManager.generateId();
-        this.gameState.notificationMgr.consume({id, message, duration});
+        this.gameState.notificationMgr.consume({ id, message, duration });
     }
 
     private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {
@@ -362,7 +366,7 @@ export class LiveGame {
         const gameState = this.gameState;
         const logGroup = gameState.logger.group("LiveGame (newGame)", true);
 
-        this.reset({gameState});
+        this.reset();
         this.initNamespaces();
 
         const newGame = this.getNewSavedGame();
@@ -386,6 +390,32 @@ export class LiveGame {
         logGroup.end();
 
         return this;
+    }
+
+    public waitForRouterExit(): {
+        promise: Promise<void>;
+        cancel: VoidFunction;
+    } {
+        let token: LiveGameEventToken | null = null;
+        return {
+            promise: new Promise((resolve, reject) => {
+                this.assertGameState();
+                const gameState = this.gameState;
+                if (!gameState.pageRouter) {
+                    reject(new RuntimeInternalError("Page router is not mounted"));
+                    return;
+                }
+
+                token = gameState.pageRouter.onceExitComplete(() => {
+                    resolve();
+                });
+            }),
+            cancel: () => {
+                if (token) {
+                    token.cancel();
+                }
+            }
+        };
     }
 
     /**
@@ -463,8 +493,29 @@ export class LiveGame {
         };
     }
 
-    /**@internal */
-    reset({gameState}: { gameState: GameState }) {
+    /**
+     * Listen to the events of the window
+     */
+    onWindowEvent<K extends keyof WindowEventMap>(
+        type: K,
+        listener: (this: Window, ev: WindowEventMap[K]) => any,
+        options?: boolean | AddEventListenerOptions
+    ): LiveGameEventToken {
+        window.addEventListener(type, listener, options);
+        return {
+            cancel: () => window.removeEventListener(type, listener, options),
+        };
+    }
+
+    /**
+     * Reset the game state
+     * 
+     * **Note**: calling this method will lose the current game state
+     */
+    public reset() {
+        this.assertGameState();
+        const gameState = this.gameState;
+
         if (this.lockedAwaiting) {
             this.lockedAwaiting.abort();
         }
@@ -645,6 +696,7 @@ export class LiveGame {
                     scenes: [],
                     audio: {
                         sounds: [],
+                        groups: [],
                     },
                     videos: [],
                 },

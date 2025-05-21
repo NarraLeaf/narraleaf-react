@@ -33,8 +33,34 @@ export type GamePreference = {
      * Dialog speed will apply to:
      * - The text speed
      * - The auto-forward delay
+     * @default 1.0
      */
     gameSpeed: number;
+    /**
+     * The speed of the text effects in characters per second.
+     * @default 10
+     */
+    cps: number;
+    /**
+     * The volume of the voice
+     * @default 1
+     */
+    voiceVolume: number;
+    /**
+     * The volume of the background music
+     * @default 1
+     */
+    bgmVolume: number;
+    /**
+     * The volume of the sound effects
+     * @default 1
+     */
+    soundVolume: number;
+    /**
+     * The volume of the global audio
+     * @default 1
+     */
+    globalVolume: number;
 };
 
 export type GameHooks = {
@@ -66,6 +92,11 @@ export class Game {
         skip: true,
         showDialog: true,
         gameSpeed: 1,
+        cps: 10,
+        voiceVolume: 1,
+        bgmVolume: 1,
+        soundVolume: 1,
+        globalVolume: 1,
     };
     /**@internal */
     static Preferences: {
@@ -75,7 +106,12 @@ export class Game {
             skip: "skip",
             showDialog: "showDialog",
             gameSpeed: "gameSpeed",
-    };
+            cps: "cps",
+            voiceVolume: "voiceVolume",
+            bgmVolume: "bgmVolume",
+            soundVolume: "soundVolume",
+            globalVolume: "globalVolume",
+        };
     /**@internal */
     static DefaultConfig: GameConfig = {
         app: {
@@ -103,6 +139,7 @@ export class Game {
         height: 1080,
         skipKey: ["Control"],
         skipInterval: 100,
+        useWindowListener: true,
         ratioUpdateInterval: 50,
         preloadDelay: 100,
         preloadConcurrency: 5,
@@ -117,7 +154,6 @@ export class Game {
         maxRouterHistory: 10,
         screenshotQuality: 1,
         nextKey: [" "],
-        cps: 10,
         useAspectScale: true,
         autoForwardDelay: 3 * 1000,
         autoForwardDefaultPause: 1000,

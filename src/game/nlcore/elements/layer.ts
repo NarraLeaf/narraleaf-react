@@ -18,6 +18,8 @@ import {DisplayableAction} from "@core/action/actions/displayableAction";
 import {Image} from "@core/elements/displayable/image";
 import {Text} from "@core/elements/displayable/text";
 import {Scene} from "@core/elements/scene";
+import { Serializer } from "@lib/util/data";
+import { Chained, Proxied } from "../action/chain";
 
 export interface ILayerUserConfig extends CommonDisplayableConfig {
     /**
@@ -35,11 +37,12 @@ type LayerConfig = {
 };
 /**@internal */
 type LayerState = {
-    displayables: LogicAction.DisplayableElements[];
     zIndex: number;
 };
 /**@internal */
-type LayerDataRaw = Record<string, any>;
+type LayerDataRaw = {
+    state: Record<string, any>;
+};
 
 export class Layer
     extends Displayable<LayerDataRaw, Layer, TransformDefinitions.ImageTransformProps>
@@ -64,12 +67,14 @@ export class Layer
         zIndex: 0,
     });
 
+    /**@internal */
+    static StateSerializer = new Serializer<LayerState>();
+
     /**
      * @internal
      * {@link LayerState}
      */
     static DefaultState = new ConfigConstructor<LayerState, EmptyObject>({
-        displayables: [],
         zIndex: 0,
     });
     /**@internal */
@@ -105,6 +110,34 @@ export class Layer
         e.forEach((element) => {
             element.useLayer(this);
         });
+        return this;
+    }
+
+    /**
+     * Set the z-index of the layer
+     * 
+     * @chainable
+     * @param zIndex - The z-index of the layer
+     * @returns The layer itself
+     */
+    public setZIndex(zIndex: number): Proxied<Layer, Chained<LogicAction.Actions>> {
+        return this.chain(new LayerAction(
+            this.chain(),
+            LayerActionTypes.setZIndex,
+            new ContentNode<LayerActionContentType["layer:setZIndex"]>().setContent([zIndex])
+        ));
+    }
+
+    /**@internal */
+    public toData(): LayerDataRaw | null {
+        return {
+            state: Layer.StateSerializer.serialize(this.state),
+        };
+    }
+
+    /**@internal */
+    public fromData(data: LayerDataRaw): this {
+        this.state = Layer.StateSerializer.deserialize(data.state);
         return this;
     }
 

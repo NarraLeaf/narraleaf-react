@@ -2,9 +2,11 @@ import React, {createContext, useContext, useState} from "react";
 import {EventDispatcher} from "@lib/util/data";
 import {Game} from "@core/game";
 import {useGame} from "@player/provider/game-state";
+import { LiveGameEventToken } from "@lib/game/nlcore/types";
 
 type RouterEvents = {
     "event:router.onChange": [];
+    "event:router.onExitComplete": [];
 };
 
 export class Router {
@@ -38,7 +40,7 @@ export class Router {
      */
     public push(id: string): this {
         if (this.historyIndex < this.history.length - 1) {
-            this.history = this.history.slice(0, this.historyIndex + 1);
+            this.history.length = this.historyIndex + 1;
         }
         this.history.push(id);
 
@@ -57,14 +59,12 @@ export class Router {
      * Go back to the previous page id in the router history
      */
     public back(): this {
-        if (this.historyIndex > 0) {
+        if (this.historyIndex >= 0) {
             this.historyIndex--;
-            this.current = this.history[this.historyIndex];
-            this.emitOnChange();
-        } else {
-            this.current = null;
-            this.emitOnChange();
         }
+        this.syncId();
+        this.emitOnChange();
+        
         return this;
     }
 
@@ -74,7 +74,7 @@ export class Router {
     public forward(): this {
         if (this.historyIndex < this.history.length - 1) {
             this.historyIndex++;
-            this.current = this.history[this.historyIndex];
+            this.syncId();
             this.emitOnChange();
         }
         return this;
@@ -100,6 +100,21 @@ export class Router {
     }
 
     /**@internal */
+    onExitComplete(handler: () => void): LiveGameEventToken {
+        return this.events.on("event:router.onExitComplete", handler);
+    }
+
+    /**@internal */
+    onceExitComplete(handler: () => void): LiveGameEventToken {
+        return this.events.once("event:router.onExitComplete", handler);
+    }
+
+    /**@internal */
+    emitOnExitComplete(): void {
+        this.events.emit("event:router.onExitComplete");
+    }
+
+    /**@internal */
     isActive(): boolean {
         return this.current !== null;
     }
@@ -107,6 +122,15 @@ export class Router {
     /**@internal */
     private emitOnChange(): void {
         this.events.emit("event:router.onChange");
+    }
+
+    /**@internal */
+    private syncId(): void {
+        if (this.historyIndex < 0) {
+            this.current = null;
+        } else {
+            this.current = this.history[this.historyIndex];
+        }
     }
 }
 

@@ -6,6 +6,7 @@ import {Preloaded} from "@player/lib/Preloaded";
 import {TaskPool} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import { Scene } from "@lib/game/nlcore/elements/scene";
+import { useFlush } from "../../lib/flush";
 
 /**@internal */
 export function Preload(
@@ -17,6 +18,7 @@ export function Preload(
     const {preloaded, cacheManager} = usePreloaded();
     const game = useGame();
     const cachedSrc = useRef<Set<ActiveSrc>>(new Set());
+    const [flush] = useFlush();
 
     const LogTag = "Preload";
     const lastScene: Scene | null = state.getLastScene() || state.getPreloadingScene();
@@ -27,6 +29,12 @@ export function Preload(
         state.logger.debug(LogTag, "Preload unmounted");
         preloaded.events.emit(Preloaded.EventTypes["event:preloaded.unmount"]);
     }
+
+    useEffect(() => {
+        return state.events.on(GameState.EventTypes["event:state:flushPreloadedScenes"], () => {
+            flush();
+        }).cancel;
+    }, []);
 
     /**
      * preload logic 2.0

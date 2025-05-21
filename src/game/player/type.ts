@@ -33,17 +33,20 @@ export type ExposedState = {
         initDisplayable: (onResolve: () => void) => Timeline;
         applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
         applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
+        updateStyleSync: () => void;
     };
     [ExposedStateType.text]: {
         initDisplayable: (onResolve: () => void) => Timeline;
         applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
         applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
+        updateStyleSync: () => void;
         flush: () => void;
     };
     [ExposedStateType.layer]: {
         initDisplayable: (onResolve: () => void) => Timeline;
         applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
         applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
+        updateStyleSync: () => void;
     };
     [ExposedStateType.scene]: {
         setBackgroundMusic: (music: Sound | null, fade: number) => Promise<void>;
@@ -66,3 +69,5 @@ export type ExposedKeys = {
     [ExposedStateType.scene]: Scene;
     [ExposedStateType.video]: Video;
 };
+
+export type { INotificationsProps } from "./elements/notification/type";

@@ -21,26 +21,44 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
         const timeline = state.timelines.attachTimeline(awaitable);
         const menu = this.contentNode.getContent() as MenuData;
 
+        let cleanup: (() => void) | null = null;
+
         const token = state.createMenu(menu, (chosen) => {
-            const lastChild = state.game.getLiveGame().getCurrentAction()?.contentNode.getChild() || null;
+            const currentNode = state.game.getLiveGame().getCurrentAction()?.contentNode;
+            const lastChild = currentNode?.getChild() || null;
             if (lastChild) {
                 chosen.action[chosen.action.length - 1]?.contentNode.addChild(lastChild);
+                cleanup = () => {
+                    currentNode?.addChild(lastChild);
+                };
             }
             awaitable.resolve({
                 type: this.type as any,
                 node: chosen.action[0].contentNode
             });
-            const {id} = state.actionHistory.push(this, undefined, [], timeline);
-            state.gameHistory.push({
-                token: id,
-                action: this,
-                element: {
-                    type: "menu",
-                    text: token.prompt,
-                    selected: chosen.evaluated,
+            state.gameHistory.updateByToken(id, (result) => {
+                if (result && result.element.type === "menu") {
+                    result.element.selected = chosen.evaluated;
+                    result.isPending = false;
                 }
             });
         });
+        
+        const {id} = state.actionHistory.push(this, () => {
+            token.cancel();
+            cleanup?.();
+        }, [], timeline);
+        state.gameHistory.push({
+            token: id,
+            action: this,
+            element: {
+                type: "menu",
+                text: token.prompt,
+                selected: null,
+            },
+            isPending: true,
+        });
+
         return awaitable;
     }
 

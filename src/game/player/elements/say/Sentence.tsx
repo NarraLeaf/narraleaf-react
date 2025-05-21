@@ -144,6 +144,9 @@ function BaseText(
             }),
             game.preference.onPreferenceChange(Game.Preferences.autoForward, () => {
                 taskRef.current?.update();
+            }),
+            game.preference.onPreferenceChange(Game.Preferences.cps, () => {
+                taskRef.current?.update();
             })
         ]).cancel;
     }, []);
@@ -296,10 +299,10 @@ function BaseText(
                     updateDisplaying(value);
 
                     // Wait for a delay
-                    const gameSpeed = game.preference.getPreference(Game.Preferences.gameSpeed);
+                    const { gameSpeed, cps } = game.preference.getPreferences();
                     const baseCps = (typeof value === "object" && "cps" in value && value.cps !== undefined)
                         ? value.cps
-                        : game.config.cps;
+                        : cps;
                     const delay = 1000 / (baseCps * gameSpeed);
                     await sleep(delay);
                 }

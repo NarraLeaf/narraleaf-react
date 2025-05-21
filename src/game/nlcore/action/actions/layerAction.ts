@@ -9,9 +9,20 @@ export class LayerAction<T extends Values<typeof LayerActionTypes> = Values<type
     extends TypedAction<LayerActionContentType, T, Layer> {
     static ActionTypes = LayerActionTypes;
 
-    public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(gameState: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
         if (this.type === LayerActionTypes.action) {
-            return super.executeAction(state);
+            return super.executeAction(gameState);
+        } else if (this.type === LayerActionTypes.setZIndex) {
+            const [zIndex] = (this as LayerAction<typeof LayerActionTypes.setZIndex>).contentNode.getContent();
+            const oldZIndex = this.callee.state.zIndex;
+            this.callee.state.zIndex = zIndex;
+
+            gameState.actionHistory.push<[number]>(this, (oldZIndex) => {
+                this.callee.state.zIndex = oldZIndex;
+            }, [oldZIndex]);
+
+            gameState.stage.update();
+            return super.executeAction(gameState);
         }
 
         throw super.unknownTypeError();

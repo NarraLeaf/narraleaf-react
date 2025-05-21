@@ -78,9 +78,9 @@ export class TransformState<T extends TransformDefinitions.Types> {
             position: (pos: IPosition | RawPosition) => D2Position;
         }
     >({
-        position: (pos) => PositionUtils.toCoord2D(PositionUtils.tryParsePosition(pos)!),
+        position: (pos) => PositionUtils.serializePosition(PositionUtils.tryParsePosition(pos)!),
     }, {
-        position: PositionUtils.toCoord2D,
+        position: (pos) => PositionUtils.toCoord2D(pos),
     });
 
     static deserialize<T extends TransformDefinitions.Types>(data: Record<string, any>): TransformState<T> {
@@ -328,10 +328,6 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
             translate?: [string?, string?];
             scale?: number;
         } = {}): string {
-        if (!state.getLastScene()) {
-            throw new Error("No scene found in state, make sure you called \"scene.activate()\" before this method.");
-        }
-
         const propScale = (prop["scale"] !== undefined) ? prop["scale"] : 1;
 
         const { invertY, invertX } = state.getStory().getInversionConfig();
@@ -426,18 +422,26 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
             gameState.logger.warn("Transform", "No sequences to animate.");
         }
 
+        let completed = false;
+
         const lock = transformState.lock();
         const token = animate(sequences, options);
         const skip = () => {
-            transformState.unlock(lock);
+            transformState
+                .overwrite(lock, finalState.get())
+                .unlock(lock);
             token.complete();
+            completed = true;
         };
         const awaitable = new Awaitable<void>()
             .registerSkipController(new SkipController(skip));
         const onComplete = () => {
-            transformState
-                .overwrite(lock, finalState.get())
-                .unlock(lock);
+            if (!completed) {
+                transformState
+                    .overwrite(lock, finalState.get())
+                    .unlock(lock);
+            }
+            completed = true;
 
             gameState.logger.debug("Transform", "Transform Completed", transformState.toStyle(gameState, overwrites));
             awaitable.resolve();
@@ -535,7 +539,7 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
     public getSequenceOptions(): SequenceOptions {
         const { repeat, repeatDelay } = this.config;
         return {
-            repeat: this.toSeconds(repeat, undefined),
+            repeat,
             repeatDelay: this.toSeconds(repeatDelay, undefined),
         };
     }

@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.5.0]
+
+### _Incompatible Changes_
+
+- `game.config.cps` is deprecated, use `GamePreference.cps` instead
+- Menu GameElementHistory.`selected` may be null
+
+### _Feature_
+
+- New image transition: `Darkness`
+- Added method image.`darken`
+- Added method layer.`setZIndex`
+- Added `voiceVolume`, `bgmVolume`, `soundVolume`, and `globalVolume` to the game preferences
+- Using raw text for narrator instead of using Character instance
+- Added `waitForRouterExit` to wait for the page exit animation to complete
+
+### Update
+
+- The skip action will now listen to the window events instead of the player element by default
+- Added `isNarrator` to the dialog state
+
+### Fixed
+
+- Background music is not playing
+- Visual errors after applying transitions and before the elements are painted
+- Transform state is not updated correctly when the transform is skipped
+- Abort Events are not propagated correctly
+- Incorrect behavior of `router.back`
+- The game state is not flushed correctly
+- Different behavior between autoForward and user clicking
+- Incorrect transform repeat behavior
+- Unexpected NaN when converting align to percentage
+
 ## [0.4.4] - 2025/5/9
 
 ### Fixed

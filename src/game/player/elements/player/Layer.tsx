@@ -18,6 +18,7 @@ export function Layer(
         initDisplayable,
         applyTransition,
         applyTransform,
+        updateStyleSync,
         deps,
     } = useDisplayable<any, HTMLDivElement>({
         element: layer,
@@ -37,6 +38,7 @@ export function Layer(
         initDisplayable,
         applyTransition,
         applyTransform,
+        updateStyleSync,
     }, [...deps]);
 
     useEffect(() => {
