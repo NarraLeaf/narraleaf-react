@@ -63,6 +63,8 @@ export default function Player(
     const mainContentRef = React.createRef<HTMLDivElement>();
     const [ready, setReady] = useState(false);
     const readyHandlerExecuted = React.useRef(false);
+    const nextAwaitable = React.useRef<Awaitable | null>(null);
+    const nextMultiLock = React.useRef<MultiLock | null>(null);
 
     const {preloaded} = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
@@ -75,15 +77,29 @@ export default function Player(
                 break;
             }
             if (Awaitable.isAwaitable<CalledActionResult>(nextResult)) {
-                nextResult.then(() => {
+                if (nextAwaitable.current === nextResult) {
+                    break;
+                }
+                nextAwaitable.current = nextResult;
+                nextResult.onSettled(() => {
                     state.stage.next();
+                    if (nextAwaitable.current === nextResult) {
+                        nextAwaitable.current = null;
+                    }
                 });
                 exited = true;
                 break;
             }
             if (nextResult instanceof MultiLock) {
+                if (nextMultiLock.current === nextResult) {
+                    break;
+                }
+                nextMultiLock.current = nextResult;
                 nextResult.nextUnlock().then(() => {
                     next();
+                    if (nextMultiLock.current === nextResult) {
+                        nextMultiLock.current = null;
+                    }
                 });
                 exited = true;
                 break;
@@ -104,7 +120,6 @@ export default function Player(
         return () => {
             game.getLiveGame().setGameState(undefined);
             state.playerCurrent = null;
-
         };
     }, [game, story]);
 

@@ -83,7 +83,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         ]).cancel;
     }, [transformToken, transitionTask, refs]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         updateStyleSync();
 
         if (!transitionTask) {

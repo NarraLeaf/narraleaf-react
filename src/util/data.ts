@@ -259,6 +259,8 @@ export class Awaitable<T = any, U = T> {
         return newAwaitable;
     }
 
+    static maxListeners = 8;
+
     receiver: (value: U) => T;
     result: T | undefined;
     solved = false;
@@ -305,7 +307,7 @@ export class Awaitable<T = any, U = T> {
         if (this.solved) {
             callback(this.result!);
         } else {
-            this.listeners.push(callback);
+            this.pushListener(callback);
         }
         return this;
     }
@@ -314,7 +316,7 @@ export class Awaitable<T = any, U = T> {
         if (this.solved) {
             callback();
         } else {
-            this.listeners.push(callback);
+            this.pushListener(callback);
             this.onSkipControllerRegister((controller) => {
                 controller.onAbort(() => {
                     callback();
@@ -354,6 +356,14 @@ export class Awaitable<T = any, U = T> {
     
     isSettled() {
         return this.solved || this.aborted;
+    }
+
+    private pushListener(listener: (value: T) => void) {
+        if (this.listeners.length >= Awaitable.maxListeners) {
+            console.warn("NarraLeaf-React: Awaitable has too many listeners, this may cause performance issues.");
+        }
+        this.listeners.push(listener);
+        return this;
     }
 }
 

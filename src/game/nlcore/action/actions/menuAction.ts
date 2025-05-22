@@ -13,18 +13,18 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
     extends TypedAction<MenuActionContentType, T, Menu> {
     static ActionTypes = MenuActionTypes;
 
-    public executeAction(state: GameState) {
+    public executeAction(gameState: GameState) {
         const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
             .registerSkipController(new SkipController(() => {
                 token.cancel();
             }));
-        const timeline = state.timelines.attachTimeline(awaitable);
+        const timeline = gameState.timelines.attachTimeline(awaitable);
         const menu = this.contentNode.getContent() as MenuData;
 
         let cleanup: (() => void) | null = null;
 
-        const token = state.createMenu(menu, (chosen) => {
-            const currentNode = state.game.getLiveGame().getCurrentAction()?.contentNode;
+        const token = gameState.createMenu(menu, (chosen) => {
+            const currentNode = gameState.game.getLiveGame().getCurrentAction()?.contentNode;
             const lastChild = currentNode?.getChild() || null;
             if (lastChild) {
                 chosen.action[chosen.action.length - 1]?.contentNode.addChild(lastChild);
@@ -36,7 +36,8 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
                 type: this.type as any,
                 node: chosen.action[0].contentNode
             });
-            state.gameHistory.updateByToken(id, (result) => {
+
+            gameState.gameHistory.updateByToken(id, (result) => {
                 if (result && result.element.type === "menu") {
                     result.element.selected = chosen.evaluated;
                     result.isPending = false;
@@ -44,11 +45,11 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             });
         });
         
-        const {id} = state.actionHistory.push(this, () => {
+        const {id} = gameState.actionHistory.push(this, () => {
             token.cancel();
             cleanup?.();
         }, [], timeline);
-        state.gameHistory.push({
+        gameState.gameHistory.push({
             token: id,
             action: this,
             element: {

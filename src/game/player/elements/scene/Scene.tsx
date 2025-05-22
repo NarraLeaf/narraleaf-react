@@ -93,9 +93,6 @@ export default function Scene(
                         }
                         onClick();
                         state.stage.next();
-                        setTimeout(() => {
-                            usingSkipRef.current = false;
-                        }, 0);
                     }}
                     useTypeEffect={!usingSkipRef.current}
                 />

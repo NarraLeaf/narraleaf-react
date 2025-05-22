@@ -26,7 +26,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
      * @param {function(CalledActionResult): T} onResolved - A callback function that processes the result of the action. The awaitable will be resolved to the value returned by this callback.
      * @returns {[Awaitable<T>, Timeline]} A tuple containing the Awaitable and the Timeline.
      */
-    public executeActionSeries<T>(
+    public static executeActionSeries<T>(
         gameState: GameState,
         action: LogicAction.Actions,
         onResolved: (result: CalledActionResult) => T
@@ -85,7 +85,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         const contentNode = this.contentNode as ContentNode<ControlActionContentType[T]>;
         const [content] = contentNode.getContent() as [LogicAction.Actions[]];
         if (this.type === ControlActionTypes.do) {
-            const [awaitable, timeline] = this.executeActionSeries(gameState, content[0], (result) => result);
+            const [awaitable, timeline] = ControlAction.executeActionSeries(gameState, content[0], (result) => result);
             gameState.timelines.attachTimeline(timeline);
 
             return Awaitable.forward(awaitable, {
@@ -94,7 +94,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             });
         } else if (this.type === ControlActionTypes.doAsync) {
             if (content.length > 0) {
-                const [, timeline] = this.executeActionSeries(gameState, content[0], (result) => result);
+                const [, timeline] = ControlAction.executeActionSeries(gameState, content[0], (result) => result);
                 gameState.timelines.attachTimeline(timeline);
             }
 
@@ -158,7 +158,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                     return null;
                 }
 
-                const [awaitable, tl] = this.executeActionSeries(gameState, actions[0], () => index + 1);
+                const [awaitable, tl] = ControlAction.executeActionSeries(gameState, actions[0], () => index + 1);
                 gameState.timelines.attachTimeline(tl);
 
                 gameState.logger.debug("ControlAction", "repeat", actions, times, index, awaitable);
