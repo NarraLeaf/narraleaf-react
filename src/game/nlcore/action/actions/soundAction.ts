@@ -1,16 +1,16 @@
-import {SoundActionContentType, SoundActionTypes} from "@core/action/actionTypes";
-import type {Sound, SoundDataRaw} from "@core/elements/sound";
-import {GameState} from "@player/gameState";
-import type {CalledActionResult} from "@core/gameTypes";
-import {Awaitable} from "@lib/util/data";
-import {ContentNode} from "@core/action/tree/actionTree";
-import {TypedAction} from "@core/action/actions";
+import { TypedAction } from "@core/action/actions";
+import { SoundActionContentType, SoundActionTypes } from "@core/action/actionTypes";
+import { ContentNode } from "@core/action/tree/actionTree";
+import type { Sound, SoundDataRaw } from "@core/elements/sound";
+import { Awaitable } from "@lib/util/data";
+import { GameState } from "@player/gameState";
+import { ExecutedActionResult } from "../action";
 
 export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundActionTypes] = typeof SoundActionTypes[keyof typeof SoundActionTypes]>
     extends TypedAction<SoundActionContentType, T, Sound> {
     static ActionTypes = SoundActionTypes;
 
-    public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(state: GameState): ExecutedActionResult {
         if (this.type === SoundActionTypes.play) {
             const [options] = (this.contentNode as ContentNode<SoundActionContentType["sound:play"]>).getContent();
             const originalState = this.callee.toData();

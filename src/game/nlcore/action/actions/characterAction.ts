@@ -8,6 +8,7 @@ import {Sentence} from "@core/elements/character/sentence";
 import {TypedAction} from "@core/action/actions";
 import {Sound} from "@core/elements/sound";
 import { Timeline } from "@lib/game/player/Tasks";
+import { ExecutedActionResult } from "../action";
 
 export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof CharacterActionTypes] = typeof CharacterActionTypes[keyof typeof CharacterActionTypes]>
     extends TypedAction<CharacterActionContentType, T, Character> {
@@ -26,7 +27,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
         return Sound.toSound(scene.getVoice(voiceId) || voice);
     }
 
-    public executeAction(gameState: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(gameState: GameState): ExecutedActionResult {
         /**
          * {@link Character.say}
          * Create a game dialog and play voice if available

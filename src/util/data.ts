@@ -336,7 +336,7 @@ export class Awaitable<T = any, U = T> {
     }
 
     /**
-     * **Note**: Calling this method won't trigger the `then` or `onSettled` callbacks.
+     * **Note**: Calling this method won't trigger the `then` callbacks.
      */
     abort() {
         this.aborted = true;
@@ -1378,3 +1378,65 @@ export function abortify<T extends any[]>(fn: ServiceHandler<T>): AbortifyFn<T> 
 }
 
 export type FirstParam<T> = T extends (first: infer P, ...args: any[]) => any ? P : never;
+
+export class Stack<T> {
+    private items: T[] = [];
+    private pushValidator: ((item: T) => boolean)[] = [];
+
+    constructor(initial?: T[]) {
+        if (initial) {
+            this.items = [...initial];
+        }
+    }
+
+    addPushValidator(validator: (item: T) => boolean): void {
+        this.pushValidator.push(validator);
+    }
+
+    removePushValidator(validator: (item: T) => boolean): void {
+        this.pushValidator = this.pushValidator.filter(v => v !== validator);
+    }
+
+    push(...items: T[]): void {
+        for (const item of items) {
+            if (this.pushValidator.some(validator => !validator(item))) {
+                continue;
+            }
+            this.items.push(item);
+        }
+    }
+
+    pop(): T | undefined {
+        return this.items.pop();
+    }
+
+    peek(): T | undefined {
+        return this.items[this.items.length - 1];
+    }
+
+    isEmpty(): boolean {
+        return this.items.length === 0;
+    }
+
+    size(): number {
+        return this.items.length;
+    }
+
+    clear(): void {
+        this.items = [];
+    }
+
+    toArray(): T[] {
+        return [...this.items];
+    }
+
+    forEach(fn: (item: T) => void): void {
+        this.items.forEach(fn);
+    }
+
+    forEachReverse(fn: (item: T) => void): void {
+        for (let i = this.items.length - 1; i >= 0; i--) {
+            fn(this.items[i]);
+        }
+    }
+}

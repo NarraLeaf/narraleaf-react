@@ -1,17 +1,16 @@
-import {TextActionContentType, TextActionTypes} from "@core/action/actionTypes";
-import {TypedAction} from "@core/action/actions";
-import {GameState} from "@player/gameState";
-import {CalledActionResult} from "@core/gameTypes";
-import {Awaitable} from "@lib/util/data";
-import {Text} from "@core/elements/displayable/text";
-import {ContentNode} from "@core/action/tree/actionTree";
-import {ExposedStateType} from "@player/type";
+import { TextActionContentType, TextActionTypes } from "@core/action/actionTypes";
+import { TypedAction } from "@core/action/actions";
+import { ContentNode } from "@core/action/tree/actionTree";
+import { Text } from "@core/elements/displayable/text";
+import { GameState } from "@player/gameState";
+import { ExposedStateType } from "@player/type";
+import { ExecutedActionResult } from "../action";
 
 export class TextAction<T extends typeof TextActionTypes[keyof typeof TextActionTypes] = typeof TextActionTypes[keyof typeof TextActionTypes]>
     extends TypedAction<TextActionContentType, T, Text> {
     static ActionTypes = TextActionTypes;
 
-    public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(state: GameState): ExecutedActionResult {
         if (this.type === TextActionTypes.setText) {
             const originalText = this.callee.state.text;
             this.callee.state.text = (this.contentNode as ContentNode<TextActionContentType["text:setText"]>).getContent()[0];

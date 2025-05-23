@@ -1,16 +1,15 @@
-import {TypedAction} from "@core/action/actions";
-import {Awaitable, StringKeyOf} from "@lib/util/data";
-import {ServiceSkeleton} from "@core/elements/service";
-import {GameState} from "@player/gameState";
-import {CalledActionResult} from "@core/gameTypes";
-import {Script} from "@core/elements/script";
+import { TypedAction } from "@core/action/actions";
+import { Script } from "@core/elements/script";
+import { ServiceSkeleton } from "@core/elements/service";
+import { Awaitable, StringKeyOf } from "@lib/util/data";
+import { GameState } from "@player/gameState";
 
 export type ServiceActionContentType = {
     "service:action": [type: string, args: unknown[]]
 };
 
 export class ServiceAction extends TypedAction<ServiceActionContentType, StringKeyOf<ServiceActionContentType>, ServiceSkeleton> {
-    public executeAction(gameState: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(gameState: GameState) {
         const [type, args] = (this.contentNode as any).getContent();
         const res = this.callee.triggerAction(Script.getCtx({
             gameState,

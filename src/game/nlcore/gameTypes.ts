@@ -9,7 +9,6 @@ import React from "react";
 import { MenuComponent, NotificationComponent, SayComponent } from "./common/player";
 import { Color } from "./types";
 
-
 export interface SavedGame {
     name: string;
     meta: {
@@ -21,8 +20,13 @@ export interface SavedGame {
         store: { [key: string]: StorableData; };
         elementStates: RawData<ElementStateRaw>[];
         stage: PlayerStateData;
+        /**
+         * The current action
+         * @deprecated
+         */
         currentAction: string | null;
         services: { [key: string]: unknown; };
+
     };
 }
 

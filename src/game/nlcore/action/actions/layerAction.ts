@@ -1,15 +1,15 @@
-import {LayerActionContentType, LayerActionTypes} from "@core/action/actionTypes";
-import {TypedAction} from "@core/action/actions";
-import {GameState} from "@player/gameState";
-import {CalledActionResult} from "@core/gameTypes";
-import {Awaitable, Values} from "@lib/util/data";
-import {Layer} from "@core/elements/layer";
+import { LayerActionContentType, LayerActionTypes } from "@core/action/actionTypes";
+import { TypedAction } from "@core/action/actions";
+import { Layer } from "@core/elements/layer";
+import { Values } from "@lib/util/data";
+import { GameState } from "@player/gameState";
+import { ExecutedActionResult } from "../action";
 
 export class LayerAction<T extends Values<typeof LayerActionTypes> = Values<typeof LayerActionTypes>>
     extends TypedAction<LayerActionContentType, T, Layer> {
     static ActionTypes = LayerActionTypes;
 
-    public executeAction(gameState: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(gameState: GameState): ExecutedActionResult {
         if (this.type === LayerActionTypes.action) {
             return super.executeAction(gameState);
         } else if (this.type === LayerActionTypes.setZIndex) {

@@ -14,6 +14,7 @@ import {ActionSearchOptions} from "@core/types";
 import {ExposedState, ExposedStateType} from "@player/type";
 import { Sound } from "../../elements/sound";
 import { ImageDataRaw } from "../../elements/displayable/image";
+import { ExecutedActionResult } from "../action";
 
 type SceneSnapshot = {
     state: SceneDataRaw | null;
@@ -115,7 +116,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         this.callee.state.backgroundImage.reset();
     }
 
-    public executeAction(gameState: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(gameState: GameState): ExecutedActionResult {
         if (this.type === SceneActionTypes.action) {
             return super.executeAction(gameState);
         } else if (this.is<SceneAction<"scene:init">>(SceneAction, "scene:init")) {

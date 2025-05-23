@@ -10,7 +10,7 @@ import { Transform, TransformState } from "@core/elements/transform/transform";
 import { Transition } from "@core/elements/transition/transition";
 import { Layer } from "@core/elements/layer";
 import { LogicAction } from "@core/action/logicAction";
-
+import { ExecutedActionResult } from "../action";
 
 export class DisplayableAction<
     T extends Values<typeof DisplayableActionTypes> = Values<typeof DisplayableActionTypes>,
@@ -20,7 +20,7 @@ export class DisplayableAction<
     extends TypedAction<DisplayableActionContentType<TransitionType>, T, Self> {
     static ActionTypes = DisplayableActionTypes;
 
-    public executeAction(gameState: GameState) {
+    public executeAction(gameState: GameState): ExecutedActionResult {
         if (this.type === DisplayableActionTypes.applyTransform) {
             const [transform] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:applyTransform"]>).getContent();
             const element = this.callee;

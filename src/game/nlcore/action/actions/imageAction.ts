@@ -9,6 +9,7 @@ import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {Color, RGBAColor, StaticImageData} from "@core/types";
 import {ExposedStateType} from "@player/type";
 import { Darkness } from "../../elements/transition/transitions/image/darkness";
+import { ExecutedActionResult } from "../action";
 
 export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageActionTypes] = typeof ImageActionTypes[keyof typeof ImageActionTypes]>
     extends TypedAction<ImageActionContentType, T, Image> {
@@ -39,7 +40,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
     declare type: T;
     declare contentNode: ContentNode<ImageActionContentType[T]>;
 
-    public executeAction(state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(state: GameState): ExecutedActionResult {
         if (this.type === ImageActionTypes.initWearable) {
             const [wearable] = (this.contentNode as ContentNode<ImageActionContentType["image:initWearable"]>).getContent();
             const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);

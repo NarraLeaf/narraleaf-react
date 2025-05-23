@@ -1,4 +1,4 @@
-import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
+import { Awaitable, EventDispatcher, generateId, MultiLock, Stack } from "@lib/util/data";
 import type { CalledActionResult, SavedGame } from "@core/gameTypes";
 import { Story } from "@core/elements/story";
 import { GameState } from "@player/gameState";
@@ -18,6 +18,7 @@ import { Sentence } from "@core/elements/character/sentence";
 import { RuntimeGameError, RuntimeInternalError } from "@core/common/Utils";
 import { GameHistory } from "../action/gameHistory";
 import { Options } from "html-to-image/lib/types";
+import { ExecutedActionResult } from "../action/action";
 
 /**@internal */
 type LiveGameEvent = {
@@ -65,7 +66,10 @@ export class LiveGame {
     public story: Story | null = null;
     /**@internal */
     currentSavedGame: SavedGame | null = null;
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     lockedAwaiting: Awaitable<CalledActionResult, any> | null = null;
     /**@internal */
     gameState: GameState | undefined = undefined;
@@ -73,13 +77,26 @@ export class LiveGame {
     private readonly storable: Storable;
     /**@internal */
     private _lockedCount = 0;
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     private currentAction: LogicAction.Actions | null = null;
+    /**@internal */
+    private actionStack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>;
+    /**@internal */
+    private waitingAction: LogicAction.Actions | null = null;
+    /**@internal */
+    private asyncStacks: Set<Stack<LogicAction.Actions | Awaitable<CalledActionResult>>> = new Set();
 
     /**@internal */
     constructor(game: Game) {
         this.game = game;
         this.storable = new Storable();
+        this.actionStack = new Stack<LogicAction.Actions | Awaitable<CalledActionResult>>();
+        this.actionStack.addPushValidator(() => {
+            return this.validateStack();
+        });
 
         this.initNamespaces();
     }
@@ -470,6 +487,12 @@ export class LiveGame {
         };
     }
 
+    /**@internal */
+    validateStack(): boolean {
+        // if the stack is empty or the top of the stack is not an awaitable, then the stack is valid
+        return this.actionStack.isEmpty() || !Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(this.actionStack.peek());
+    }
+
     /**
      * Listen to the events of the player element
      */
@@ -516,26 +539,19 @@ export class LiveGame {
         this.assertGameState();
         const gameState = this.gameState;
 
-        if (this.lockedAwaiting) {
-            this.lockedAwaiting.abort();
-        }
-
-        this.currentAction = null;
-        this.lockedAwaiting = null;
+        this.abortStack();
+        this.actionStack.clear();
         this.currentSavedGame = null;
 
         gameState.forceReset();
     }
 
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     getCurrentAction(): LogicAction.Actions | null {
         return this.currentAction;
-    }
-
-    /**@internal */
-    setCurrentAction(action: LogicAction.Actions | null) {
-        this.currentAction = action;
-        return this;
     }
 
     /**@internal */
@@ -548,51 +564,126 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
-        if (this.lockedAwaiting) {
-            if (!this.lockedAwaiting.isSettled()) {
-                this._lockedCount++;
-
-                if (this._lockedCount > 1000) {
-                    // sometimes react will make it stuck and enter a dead cycle
-                    // that's not cool, so it needs to throw an error to break it
-                    throw new Error("LiveGame locked: dead cycle detected\nPlease refresh the page");
-                }
-
-                return this.lockedAwaiting;
-            }
-            const next = this.lockedAwaiting.result;
-            this.currentAction = next?.node?.action || null;
-            this.lockedAwaiting = null;
-            if (!this.currentAction) {
-                state.events.emit(GameState.EventTypes["event:state.end"]);
-            }
-            this._lockedCount = 0;
-
-            state.logger.debug("next action (lockedAwaiting)", next);
-
-            return next || null;
-        }
-
-        if (!this.currentAction) {
-            state.logger.weakWarn("LiveGame", "No current action"); // Congrats, you've reached the end of the story
-
+        // If the action stack is empty
+        if (this.actionStack.isEmpty()) {
+            state.logger.weakWarn("LiveGame", "No current action");
             return null;
         }
 
-        const nextAction = this.currentAction.executeAction(state);
-        if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
-            this.lockedAwaiting = nextAction;
-            this._lockedCount = 0;
+        // If the action stack is waiting for a result
+        const peek = this.actionStack.peek()!;
+        const result = this.rollNext(state, this.actionStack);
+        if (Awaitable.isAwaitable(peek) && result === peek) {
+            this.countLocked();
+        }
+        this.resetLockedCount();
 
-            return nextAction;
+        return result;
+    }
+
+    /**@internal */
+    rollNext(gameState: GameState, stack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>): CalledActionResult | Awaitable<CalledActionResult> | null {
+        // If the action stack is empty
+        if (stack.isEmpty()) {
+            gameState.logger.weakWarn("LiveGame", "No current action");
+            return null;
         }
 
-        state.logger.debug("next action", nextAction);
+        // If the action stack is waiting for a result
+        const peek = stack.peek()!;
+        if (
+            Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(peek)
+            && !peek.isSettled()
+        ) {
+            return peek;
+        }
 
+        const currentAction = stack.pop()!;
+        if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(currentAction)) {
+            const result = currentAction.result;
+            if (result && result.node?.action) {
+                stack.push(result.node.action);
+                gameState.logger.debug("next action (resolved awaitable)", result.node.action);
+                return result;
+            }
+        } else {
+            const executed = this.executeActions(gameState, stack, currentAction);
+            if (executed) return executed;
+        }
+
+        return null;
+    }
+
+    /**@internal */
+    executeActions(gameState: GameState, stack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>, action: LogicAction.Actions): CalledActionResult | Awaitable<CalledActionResult> | null {
+        const executed = this.executeAction(gameState, action);
+
+        const handleActionResult = (result: CalledActionResult | Awaitable<CalledActionResult, CalledActionResult> | null) => {
+            if (!result) return null;
+            
+            if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(result)) {
+                gameState.logger.debug("next action (executed awaitable)", result);
+                stack.push(result);
+                return result;
+            }
+            
+            if (result.node?.action) {
+                gameState.logger.debug("next action (executed)", result);
+                stack.push(result.node.action);
+                return result;
+            }
+            
+            return null;
+        };
+
+        if (Array.isArray(executed)) {
+            // return the last item
+            let last = null;
+            for (const item of executed) {
+                const result = handleActionResult(item);
+                if (result) last = result;
+            }
+            return last;
+        } else {
+            const result = handleActionResult(executed);
+            if (result) return result;
+        }
+
+        return null;
+    }
+
+    /**@internal */
+    requestStack() {
+        const stack = new Stack<LogicAction.Actions | Awaitable<CalledActionResult>>();
+        this.asyncStacks.add(stack);
+        return stack;
+    }
+
+    /**@internal */
+    removeStack(stack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>) {
+        this.asyncStacks.delete(stack);
+    }
+
+    /**@internal */
+    abortStack() {
+        this.actionStack.forEachReverse(action => {
+            if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(action)) {
+                action.abort();
+            }
+        });
+    }
+
+    /**@internal */
+    countLocked() {
+        this._lockedCount++;
+        if (this._lockedCount > 1000) {
+            throw new RuntimeInternalError("LiveGame locked: dead cycle detected. ");
+        }
+    }
+
+    /**@internal */
+    resetLockedCount() {
         this._lockedCount = 0;
-        this.currentAction = nextAction.node?.action || null;
-
-        return nextAction;
     }
 
     /**@internal */
@@ -610,16 +701,16 @@ export class LiveGame {
     }
 
     /**@internal */
-    executeAction(state: GameState, action: LogicAction.Actions): LogicAction.Actions | Awaitable<CalledActionResult, CalledActionResult> | null {
+    executeAction(state: GameState, action: LogicAction.Actions): ExecutedActionResult {
         const nextAction = action.executeAction(state);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             return nextAction;
         }
-        return nextAction?.node?.action || null;
+        return nextAction || null;
     }
 
     /**@internal */
-    executeActionRaw(state: GameState, action: LogicAction.Actions): CalledActionResult | Awaitable<CalledActionResult, any> | null {
+    executeActionRaw(state: GameState, action: LogicAction.Actions): ExecutedActionResult {
         return action.executeAction(state);
     }
 
@@ -680,6 +771,9 @@ export class LiveGame {
 
         return actions;
     }
+
+    /**@internal */
+    
 
     /**@internal */
     private getNewSavedGame(): SavedGame {
