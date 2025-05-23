@@ -8,6 +8,7 @@ import { GuardConfig } from "@player/guard";
 import React from "react";
 import { MenuComponent, NotificationComponent, SayComponent } from "./common/player";
 import { Color } from "./types";
+import { StackModel } from "./action/stackModel";
 
 export interface SavedGame {
     name: string;
@@ -332,10 +333,15 @@ export type GameConfig = {
 export type GameSettings = {
     volume: number;
 };
+export type StackModelWaiting = {
+    type: "any" | "all";
+    stackModels: StackModel[];
+};
 export type CalledActionResult<T extends keyof LogicAction.ActionContents = any> = {
     [K in StringKeyOf<LogicAction.ActionContents>]: {
         type: T extends undefined ? K : T;
         node: ContentNode<LogicAction.ActionContents[T extends undefined ? K : T]> | null;
+        wait?: StackModelWaiting | null;
     }
 }[StringKeyOf<LogicAction.ActionContents>];
 

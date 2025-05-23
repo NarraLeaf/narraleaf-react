@@ -23,6 +23,7 @@ import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 import Video from "@player/elements/video/video";
 import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
 import { RenderEventAnnoucer } from "./player/RenderEventAnnoucer";
+import { StackModel } from "@lib/game/nlcore/action/stackModel";
 function handleAction(state: GameState, action: PlayerAction) {
     return state.handle(action);
 }
@@ -72,10 +73,12 @@ export default function Player(
     function next() {
         let exited = false;
         while (!exited) {
-            const nextResult = game.getLiveGame().next(state);
+            const nextResult = game.getLiveGame().next();
             if (!nextResult) {
                 break;
             }
+
+            // Handle Awaitable
             if (Awaitable.isAwaitable<CalledActionResult>(nextResult)) {
                 if (nextAwaitable.current === nextResult) {
                     break;
@@ -90,6 +93,8 @@ export default function Player(
                 exited = true;
                 break;
             }
+
+            // Handle MultiLock
             if (nextResult instanceof MultiLock) {
                 if (nextMultiLock.current === nextResult) {
                     break;
@@ -104,9 +109,55 @@ export default function Player(
                 exited = true;
                 break;
             }
+
+            // Handle StackModel
+            if (StackModel.isStackModel(nextResult)) {
+                handleStackModel(nextResult);
+                exited = true;
+                break;
+            }
+
+            // Handle regular action result
             dispatch(nextResult);
         }
         state.stage.update();
+    }
+
+    // Helper function to handle StackModel
+    function handleStackModel(stackModel: StackModel) {
+        let exited = false;
+        while (!exited) {
+            const res = stackModel.rollNext();
+            if (!res) {
+                break;
+            }
+
+            // Handle Awaitable in StackModel
+            if (Awaitable.isAwaitable<CalledActionResult>(res)) {
+                if (nextAwaitable.current === res) {
+                    break;
+                }
+                nextAwaitable.current = res;
+                res.onSettled(() => {
+                    state.stage.next();
+                    if (nextAwaitable.current === res) {
+                        nextAwaitable.current = null;
+                    }
+                });
+                exited = true;
+                break;
+            }
+
+            // Handle nested StackModel
+            if (StackModel.isStackModel(res)) {
+                handleStackModel(res);
+                exited = true;
+                break;
+            }
+
+            // Handle regular action result in StackModel
+            dispatch(res);
+        }
     }
 
     useEffect(() => {

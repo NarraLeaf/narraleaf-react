@@ -19,6 +19,7 @@ import { RuntimeGameError, RuntimeInternalError } from "@core/common/Utils";
 import { GameHistory } from "../action/gameHistory";
 import { Options } from "html-to-image/lib/types";
 import { ExecutedActionResult } from "../action/action";
+import { StackModel } from "../action/stackModel";
 
 /**@internal */
 type LiveGameEvent = {
@@ -74,6 +75,8 @@ export class LiveGame {
     /**@internal */
     gameState: GameState | undefined = undefined;
     /**@internal */
+    stackModel: StackModel | null = null;
+    /**@internal */
     private readonly storable: Storable;
     /**@internal */
     private _lockedCount = 0;
@@ -82,11 +85,20 @@ export class LiveGame {
      * @deprecated
      */
     private currentAction: LogicAction.Actions | null = null;
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     private actionStack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>;
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     private waitingAction: LogicAction.Actions | null = null;
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     private asyncStacks: Set<Stack<LogicAction.Actions | Awaitable<CalledActionResult>>> = new Set();
 
     /**@internal */
@@ -555,7 +567,10 @@ export class LiveGame {
     }
 
     /**@internal */
-    next(state: GameState): CalledActionResult | Awaitable<CalledActionResult> | MultiLock | null {
+    next(): CalledActionResult | Awaitable<CalledActionResult> | StackModel | MultiLock | null {
+        this.assertGameState();
+        const gameState = this.gameState;
+
         if (this.gameLock.isLocked()) {
             return this.gameLock;
         }
@@ -565,23 +580,18 @@ export class LiveGame {
         }
 
         // If the action stack is empty
-        if (this.actionStack.isEmpty()) {
-            state.logger.weakWarn("LiveGame", "No current action");
+        if (this.stackModel.isEmpty()) {
+            gameState.logger.weakWarn("LiveGame", "No current action");
             return null;
         }
 
-        // If the action stack is waiting for a result
-        const peek = this.actionStack.peek()!;
-        const result = this.rollNext(state, this.actionStack);
-        if (Awaitable.isAwaitable(peek) && result === peek) {
-            this.countLocked();
-        }
-        this.resetLockedCount();
-
-        return result;
+        return this.stackModel.rollNext();
     }
 
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     rollNext(gameState: GameState, stack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>): CalledActionResult | Awaitable<CalledActionResult> | null {
         // If the action stack is empty
         if (stack.isEmpty()) {
@@ -614,7 +624,10 @@ export class LiveGame {
         return null;
     }
 
-    /**@internal */
+    /**
+     * @internal
+     * @deprecated
+     */
     executeActions(gameState: GameState, stack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>, action: LogicAction.Actions): CalledActionResult | Awaitable<CalledActionResult> | null {
         const executed = this.executeAction(gameState, action);
 
@@ -717,6 +730,9 @@ export class LiveGame {
     /**@internal */
     setGameState(state: GameState | undefined) {
         this.gameState = state;
+        if (state && !this.stackModel) {
+            this.stackModel = new StackModel(state);
+        }
         return this;
     }
 
@@ -805,7 +821,7 @@ export class LiveGame {
      * @internal
      * @throws {RuntimeGameError} - If the game state isn't found
      */
-    private assertGameState(): asserts this is { gameState: GameState } {
+    private assertGameState(): asserts this is { gameState: GameState } & { stackModel: StackModel } {
         if (!this.gameState) {
             throw new RuntimeGameError("No game state found, make sure you call this method in effect hooks or event handlers");
         }

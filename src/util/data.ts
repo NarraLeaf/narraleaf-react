@@ -1389,8 +1389,9 @@ export class Stack<T> {
         }
     }
 
-    addPushValidator(validator: (item: T) => boolean): void {
+    addPushValidator(validator: (item: T) => boolean): this {
         this.pushValidator.push(validator);
+        return this;
     }
 
     removePushValidator(validator: (item: T) => boolean): void {
@@ -1439,4 +1440,10 @@ export class Stack<T> {
             fn(this.items[i]);
         }
     }
+
+    map<U>(fn: (item: T) => U): U[] {
+        return this.items.map(fn);
+    }
 }
+
+export type ArrayValue<T> = T extends Array<infer U> ? U : T
