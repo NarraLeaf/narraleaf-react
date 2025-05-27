@@ -191,6 +191,10 @@ export class GameState {
         }) || null;
     }
 
+    public getLiveGame(): LiveGame {
+        return this.game.getLiveGame();
+    }
+
     public removeElement(element: PlayerStateElement): this {
         const index = this.state.elements.indexOf(element);
         if (index === -1) {

@@ -1,4 +1,4 @@
-import { Awaitable, EventDispatcher, generateId, MultiLock, Stack } from "@lib/util/data";
+import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
 import type { CalledActionResult, SavedGame } from "@core/gameTypes";
 import { Story } from "@core/elements/story";
 import { GameState } from "@player/gameState";
@@ -77,6 +77,8 @@ export class LiveGame {
     /**@internal */
     stackModel: StackModel | null = null;
     /**@internal */
+    asyncStackModels: Set<StackModel> = new Set();
+    /**@internal */
     private readonly storable: Storable;
     /**@internal */
     private _lockedCount = 0;
@@ -85,30 +87,11 @@ export class LiveGame {
      * @deprecated
      */
     private currentAction: LogicAction.Actions | null = null;
-    /**
-     * @internal
-     * @deprecated
-     */
-    private actionStack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>;
-    /**
-     * @internal
-     * @deprecated
-     */
-    private waitingAction: LogicAction.Actions | null = null;
-    /**
-     * @internal
-     * @deprecated
-     */
-    private asyncStacks: Set<Stack<LogicAction.Actions | Awaitable<CalledActionResult>>> = new Set();
 
     /**@internal */
     constructor(game: Game) {
         this.game = game;
         this.storable = new Storable();
-        this.actionStack = new Stack<LogicAction.Actions | Awaitable<CalledActionResult>>();
-        this.actionStack.addPushValidator(() => {
-            return this.validateStack();
-        });
 
         this.initNamespaces();
     }
@@ -499,12 +482,6 @@ export class LiveGame {
         };
     }
 
-    /**@internal */
-    validateStack(): boolean {
-        // if the stack is empty or the top of the stack is not an awaitable, then the stack is valid
-        return this.actionStack.isEmpty() || !Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(this.actionStack.peek());
-    }
-
     /**
      * Listen to the events of the player element
      */
@@ -551,8 +528,7 @@ export class LiveGame {
         this.assertGameState();
         const gameState = this.gameState;
 
-        this.abortStack();
-        this.actionStack.clear();
+        this.resetStackModels();
         this.currentSavedGame = null;
 
         gameState.forceReset();
@@ -567,7 +543,7 @@ export class LiveGame {
     }
 
     /**@internal */
-    next(): CalledActionResult | Awaitable<CalledActionResult> | StackModel | MultiLock | null {
+    next(): CalledActionResult | Awaitable<CalledActionResult> | MultiLock | null {
         this.assertGameState();
         const gameState = this.gameState;
 
@@ -588,102 +564,22 @@ export class LiveGame {
         return this.stackModel.rollNext();
     }
 
-    /**
-     * @internal
-     * @deprecated
-     */
-    rollNext(gameState: GameState, stack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>): CalledActionResult | Awaitable<CalledActionResult> | null {
-        // If the action stack is empty
-        if (stack.isEmpty()) {
-            gameState.logger.weakWarn("LiveGame", "No current action");
-            return null;
-        }
-
-        // If the action stack is waiting for a result
-        const peek = stack.peek()!;
-        if (
-            Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(peek)
-            && !peek.isSettled()
-        ) {
-            return peek;
-        }
-
-        const currentAction = stack.pop()!;
-        if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(currentAction)) {
-            const result = currentAction.result;
-            if (result && result.node?.action) {
-                stack.push(result.node.action);
-                gameState.logger.debug("next action (resolved awaitable)", result.node.action);
-                return result;
-            }
-        } else {
-            const executed = this.executeActions(gameState, stack, currentAction);
-            if (executed) return executed;
-        }
-
-        return null;
-    }
-
-    /**
-     * @internal
-     * @deprecated
-     */
-    executeActions(gameState: GameState, stack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>, action: LogicAction.Actions): CalledActionResult | Awaitable<CalledActionResult> | null {
-        const executed = this.executeAction(gameState, action);
-
-        const handleActionResult = (result: CalledActionResult | Awaitable<CalledActionResult, CalledActionResult> | null) => {
-            if (!result) return null;
-            
-            if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(result)) {
-                gameState.logger.debug("next action (executed awaitable)", result);
-                stack.push(result);
-                return result;
-            }
-            
-            if (result.node?.action) {
-                gameState.logger.debug("next action (executed)", result);
-                stack.push(result.node.action);
-                return result;
-            }
-            
-            return null;
-        };
-
-        if (Array.isArray(executed)) {
-            // return the last item
-            let last = null;
-            for (const item of executed) {
-                const result = handleActionResult(item);
-                if (result) last = result;
-            }
-            return last;
-        } else {
-            const result = handleActionResult(executed);
-            if (result) return result;
-        }
-
-        return null;
-    }
-
     /**@internal */
-    requestStack() {
-        const stack = new Stack<LogicAction.Actions | Awaitable<CalledActionResult>>();
-        this.asyncStacks.add(stack);
+    requestAsyncStackModel(value: (CalledActionResult | Awaitable<CalledActionResult>)[]): StackModel {
+        this.assertGameState();
+        
+        const gameState = this.gameState;
+        const stack = new StackModel(gameState);
+        this.asyncStackModels.add(stack);
+
+        stack.push(...value);
+
         return stack;
     }
 
     /**@internal */
-    removeStack(stack: Stack<LogicAction.Actions | Awaitable<CalledActionResult>>) {
-        this.asyncStacks.delete(stack);
-    }
-
-    /**@internal */
-    abortStack() {
-        this.actionStack.forEachReverse(action => {
-            if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(action)) {
-                action.abort();
-            }
-        });
+    resetStackModels() {
+        this.asyncStackModels.forEach(stackModel => stackModel.reset());
     }
 
     /**@internal */
@@ -789,7 +685,22 @@ export class LiveGame {
     }
 
     /**@internal */
-    
+    clearMainStack(): this {
+        if (!this.stackModel) {
+            throw new RuntimeInternalError("No stack model found");
+        }
+        this.stackModel.reset();
+
+        return this;
+    }
+
+    /**@internal */
+    getStackModelForce() {
+        if (!this.stackModel) {
+            throw new RuntimeInternalError("No stack model found");
+        }
+        return this.stackModel;
+    }
 
     /**@internal */
     private getNewSavedGame(): SavedGame {

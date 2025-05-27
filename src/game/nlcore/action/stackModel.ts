@@ -26,46 +26,45 @@ export type StackModelRawData = (
 )[];
 
 /**
- * @fixme: 不要将这段文字提交
+ * Nested Stack Model is a new concept designed to control serialization/deserialization of complex nested operations
  * 
- * Nested Stack Model 是一个全新的概念，旨在控制复杂的嵌套操作的序列化/反序列化
+ * Core concepts for saving state:
+ * 1. Do not save operations that cannot be immediately resolved, such as Awaitables
+ * 2. If an action returns an Awaitable, to prevent re-execution of the previous operation after deserialization:
+ *    - Store the operation in waitingAction and add it to the tail stack during serialization
+ *    - When restoring data, retrying the tail stack operation will retry this operation
+ *    - Awaitables should not be saved due to their scope and complex behavior, instead save their parent operation
+ * 3. If an action returns a regular child (synchronous operation), add it to the tail stack
+ *    - The child will continue on the next stack operation
+ * 4. If an action returns multiple children, add them sequentially to the tail stack
+ *    - These children are treated as having a call relationship, e.g. in [a,b], a waits for b to complete before continuing
+ *    - This requires all elements except the stack top to be fully synchronous operations
+ * 5. If an action returns a StackAction (not yet implemented), wait according to the StackAction definition
+ *    - This operation is considered semi-synchronous since it contains child information
+ *    - Serialization mechanism: treat as synchronous operation, including async info and stack contents
+ *    - When restored, operation remains at stack top and continues waiting for stack operations to complete
+ *    - This ensures stack operations are not abnormally re-executed or skipped after deserialization
  * 
- * 其保存核心概念是：
- * 1. 不保存无法立即解析的操作，例如Awaitable
- * 2. 如果有一个动作返回了Awaitable，为了防止反序列化后重新执行上一次操作，将该操作存入waitingAction，且在序列化时加入尾栈
- *  - 因此在恢复数据时重新执行尾栈操作会重试这个操作
- *  - Awaitable因为其作用域和复杂的行为，不应该被保存，通过保存其父级操作来代替
- * 3. 如果有一个动作返回了普通子级，也就是同步操作，则加入尾栈
- *  - 在下一次栈操作时会继续这个子级
- * 4. 如果一个动作返回了多个子级，则将这些子级依次加入尾栈
- *  - 这些子级被视为互相调用的关系，例如[a, b]中，a需要等待b执行完毕后继续执行
- *  - 这个操作要求除了栈顶，其他元素**必须**是完全同步操作
- * 5. 如果一个动作返回了StackAction（还未实现），则根据StackAction的定义进行等待
- *  - 这个操作被视为半同步，因为它包含了其子级信息（Awaitable的子级信息只能靠运行后返回）
- *  - 这个操作的序列化机制为：将这个操作视为同步操作，包含其异步信息和栈内的内容
- *  - 当恢复这一个操作时，这个操作依旧在栈顶，并且继续等待其栈内的操作完成
- *  - 这样做，栈内的操作不会在反序列化之后异常重新执行或跳过，而这个栈的保存操作同上
- * 
- * 列举一些情况：
- * 1. 如果一个操作返回了Awaitable
- *  - 这个操作是异步操作，将Awaitable加入尾栈，将这个同步操作设置为waitingAction
- *  - 保存时将Awaitbale排除，将waitingAction加入栈，因此在反序列化时会重试这个操作
- *  - 运行时，这个操作会等待其解析，弹出自身并且将其返回值加入栈
- * 2. 如果一个操作返回了直接子级
- *  - 这个操作是同步操作，将这个操作加入尾栈
- *  - 保存时将这个操作加入栈
- *  - 运行时，这个操作会弹出自身并且将其子级加入栈
- * 3. 如果一个操作返回了多个子级
- *  - 这个操作是否是同步操作基于其返回的最后一个子级决定
- *  - 将所有的子级按照顺序推入栈，确保最后一个子级在栈顶
- *  - 保存时，行为依照上面
- * 4. 如果一个操作返回了StackAction
- *  - 这个操作是半同步操作，将这个操作视为同步操作，包含其异步信息和栈内的内容
- *  - 保存时，该操作包含了其直接子级和等待信息（等待类型例如any, all）和栈
- *  - 运行时，如果栈不为空，则继续等待栈内的操作执行
- *  - 运行时，如果栈为空，则解析该操作，弹出自身并且将其直接子级加入栈
- * 5. 如果一个操作返回了其直接子级，但实际上异步执行了一个StackModel
- *  - 将这个StackModel序列化，并在反序列化时直接执行 
+ * Example scenarios:
+ * 1. Action returns Awaitable:
+ *    - Async operation: add Awaitable to tail stack, set sync operation as waitingAction
+ *    - During save: exclude Awaitable, add waitingAction to stack for retry on deserialize
+ *    - During runtime: wait for resolution, pop self and add return value to stack
+ * 2. Action returns direct child:
+ *    - Sync operation: add operation to tail stack
+ *    - During save: add operation to stack
+ *    - During runtime: pop self and add child to stack
+ * 3. Action returns multiple children:
+ *    - Sync/async nature determined by last child
+ *    - Push all children to stack in order, last child on top
+ *    - Save behavior follows above rules
+ * 4. Action returns StackAction:
+ *    - Semi-sync operation treated as sync, includes async info and stack contents
+ *    - During save: includes direct children, wait info (type e.g. any, all) and stack
+ *    - Runtime with non-empty stack: continue waiting for stack operations
+ *    - Runtime with empty stack: resolve operation, pop self and add direct children
+ * 5. Action returns direct child but async executes StackModel:
+ *    - Serialize StackModel and execute directly on deserialize
  */
 
 export class StackModel {
@@ -79,12 +78,20 @@ export class StackModel {
         return stackModel;
     }
 
-    public static isCalledActionResult(action: CalledActionResult | Awaitable<CalledActionResult> | StackModel | undefined): action is CalledActionResult {
+    public static isCalledActionResult(action: CalledActionResult | Awaitable<CalledActionResult> | StackModel | undefined | null): action is CalledActionResult {
         return !!action
             && !this.isStackModel(action)
             && !Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(action)
             && "node" in action
             && "result" in action;
+    }
+
+    public static executeStackModelGroup(type: StackModelWaiting["type"], stackModels: StackModel[]): Awaitable<void> {
+        if (type === "any") {
+            return Awaitable.any(...stackModels.map(stack => stack.execute()));
+        } else {
+            return Awaitable.all(...stackModels.map(stack => stack.execute()));
+        }
     }
 
     private stack: Stack<CalledActionResult | Awaitable<CalledActionResult>>;
@@ -104,20 +111,44 @@ export class StackModel {
         this.liveGame = gameState.game.getLiveGame();
     }
 
-    rollNext(): CalledActionResult | StackModel | Awaitable<CalledActionResult> | null {
-        // If the action stack is empty
+    /**
+     * Executes the next operation in the stack
+     * 
+     * Main responsibilities:
+     * 1. Check and handle waiting states at the top of the stack
+     * 2. Execute current operation and handle its results
+     * 3. Manage asynchronous operations and nested stack models
+     * 
+     * Execution flow:
+     * 1. If stack is empty, return null
+     * 2. Check top element:
+     *    - If it's an unsettled Awaitable, return the Awaitable
+     *    - If it's a waiting operation (with nested stack models), check nested stack status
+     * 3. Pop and execute current operation:
+     *    - If it's an Awaitable, wait for completion and handle result
+     *    - If it's a regular operation, execute and handle return value
+     * 
+     * @returns One of the following:
+     * - CalledActionResult: Execution result (returned a synchronous operation)
+     * - Awaitable<CalledActionResult>: Asynchronous operation
+     * - null: No more operations if the stack is empty, or the top element is exited
+     */
+    rollNext(): CalledActionResult | Awaitable<CalledActionResult> | null {
+        // Return null if the action stack is empty
         if (this.stack.isEmpty()) {
             return null;
         }
 
-        // If the action stack is waiting for a result
+        // Check the status of the top element
         const peek = this.stack.peek()!;
+        // If top element is an unsettled Awaitable, return it directly
         if (
             Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(peek)
             && !peek.isSettled()
         ) {
             return peek;
         }
+        // If top element is a waiting operation (with nested stack models)
         if (StackModel.isCalledActionResult(peek) && peek.wait) {
             const stackModels = peek.wait.stackModels;
             if (!stackModels.length) {
@@ -125,13 +156,17 @@ export class StackModel {
             }
             if (this.isStackModelsAwaiting(peek.wait.type, stackModels)) {
                 stackModels.forEach(stack => stack.rollNext());
-                return stackModels[0];
+                return peek;
             }
         }
 
+        // Reset waiting action
+        this.waitingAction = null;
+
+        // Pop and execute current operation
         const currentAction = this.stack.pop()!;
+        // Handle Awaitable type result
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(currentAction)) {
-            this.waitingAction = null;
 
             const result = currentAction.result;
             if (result && result.node?.action) {
@@ -141,12 +176,69 @@ export class StackModel {
                 return result;
             }
         } else {
+            // Execute regular operation and handle result
             const executed = this.executeActions(currentAction);
             this.waitingAction = currentAction;
-            return executed;
+
+            if (executed) {
+                this.stack.push(executed);
+                return executed;
+            }
         }
 
         return null;
+    }
+
+    public execute(): Awaitable<void> {
+        const awaitable = new Awaitable<void>();
+
+        let currentWaiting: Awaitable | null = null,
+            exited = false;
+
+        const roll = async () => {
+            let count = 0;
+            while (!exited) {
+                if (count++ > this.gameState.game.config.maxStackModelLoop) {
+                    throw new Error("StackModel: Suspiciously long waiting loop.");
+                }
+
+                if (this.stack.isEmpty()) {
+                    exited = true;
+                    break;
+                }
+
+                const result: CalledActionResult | Awaitable<CalledActionResult> | null = this.rollNext();
+                if (!result) {
+                    continue;
+                }
+                if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(result)) {
+                    if (result.isSettled()) {
+                        continue;
+                    } else {
+                        currentWaiting = result;
+                        await result;
+                    }
+                } else if (StackModel.isCalledActionResult(result)) {
+                    if (result.wait) {
+                        currentWaiting = StackModel.executeStackModelGroup(result.wait.type, result.wait.stackModels);
+                        await currentWaiting;
+                    } else {
+                        continue;
+                    }
+                }
+            }
+        };
+
+        roll().then(() => awaitable.resolve());
+        awaitable.onSkipControllerRegister((skipController) => {
+            skipController.onAbort(() => {
+                if (currentWaiting) {
+                    exited = true;
+                    currentWaiting.abort();
+                }
+            });
+        });
+        return awaitable;
     }
 
     executeActions(result: CalledActionResult): CalledActionResult | Awaitable<CalledActionResult> | null {
@@ -299,6 +391,11 @@ export class StackModel {
 
     isEmpty(): boolean {
         return this.stack.isEmpty();
+    }
+
+    push(...items: (CalledActionResult | Awaitable<CalledActionResult>)[]): this {
+        this.stack.push(...items);
+        return this;
     }
 }
 

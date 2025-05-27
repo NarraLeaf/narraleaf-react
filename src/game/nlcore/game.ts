@@ -181,6 +181,7 @@ export class Game {
         fontFamily: "sans-serif",
         stage: null,
         defaultMenuChoiceColor: "#000",
+        maxStackModelLoop: 1000,
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 

@@ -329,6 +329,11 @@ export type GameConfig = {
      * @default "#000"
      */
     defaultMenuChoiceColor: Color;
+    /**
+     * The maximum number of times a stack model can loop
+     * @default 1000
+     */
+    maxStackModelLoop: number;
 };
 export type GameSettings = {
     volume: number;

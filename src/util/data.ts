@@ -259,6 +259,34 @@ export class Awaitable<T = any, U = T> {
         return newAwaitable;
     }
 
+    /**
+     * Resolves when any of the provided awaitables settles.
+     */
+    static any(...awaitables: Awaitable<void>[]): Awaitable<void> {
+        const result = new Awaitable<void>();
+        awaitables.forEach(awaitable => {
+            awaitable.onSettled(() => result.resolve());
+        });
+        return result;
+    }
+
+    /**
+     * Resolves when all of the provided awaitables settle.
+     */
+    static all(...awaitables: Awaitable<void>[]): Awaitable<void> {
+        const result = new Awaitable<void>();
+        let count = 0;
+        awaitables.forEach(awaitable => {
+            awaitable.onSettled(() => {
+                count++;
+                if (count === awaitables.length) {
+                    result.resolve();
+                }
+            });
+        });
+        return result;
+    }
+
     static maxListeners = 8;
 
     receiver: (value: U) => T;

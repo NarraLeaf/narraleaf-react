@@ -151,19 +151,21 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             return super.executeAction(gameState);
         } else if (this.type === SceneActionTypes.jumpTo) {
             const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
-            const current = this.contentNode;
             const scene = gameState.getStory().getScene(targetScene);
             if (!scene) {
                 throw this._sceneNotFoundError(this.getSceneName(targetScene));
             }
 
             const future = scene.getSceneRoot().contentNode;
-            if (future) current.addChild(future);
+            gameState.getLiveGame()
+                .clearMainStack()
+                .getStackModelForce()
+                .push({
+                    type: this.type,
+                    node: future
+                });
 
-            return {
-                type: this.type,
-                node: future
-            };
+            return null;
         } else if (this.type === SceneActionTypes.setBackgroundMusic) {
             const [sound, fade] = (this.contentNode as ContentNode<SceneActionContentType["scene:setBackgroundMusic"]>).getContent();
             const scene = this.callee;

@@ -16,50 +16,12 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
     static ActionTypes = ControlActionTypes;
 
     public static executeActionsAsync(gameState: GameState, action: LogicAction.Actions): Awaitable<void> {
-        const stack = gameState.game.getLiveGame().requestStack();
-        const awaitable = new Awaitable<void>();
-        stack.push(action);
+        const stackModel = gameState.game.getLiveGame().requestAsyncStackModel([{
+            type: action.type,
+            node: action.contentNode,
+        }]);
 
-        let currentAwaitable: Awaitable<CalledActionResult> | null = null;
-
-        const roll = async () => {
-            while (!stack.isEmpty()) {
-                const result = gameState.game.getLiveGame().rollNext(gameState, stack);
-                if (result && Awaitable.isAwaitable<CalledActionResult>(result)) {
-                    currentAwaitable = result;
-                    result.onSkipControllerRegister((controller) => {
-                        controller.onAbort(() => {
-                            currentAwaitable = null;
-                        });
-                    });
-                    const resolved = await new Promise<CalledActionResult | null>((resolve) => {
-                        result.onSettled(() => {
-                            resolve(result.result || null);
-                        });
-                    });
-                    if (resolved && resolved.node?.action) {
-                        stack.push(resolved.node.action);
-                    }
-                } else if (result && result.node?.action) {
-                    stack.push(result.node.action);
-                }
-            }
-        };
-        roll().then(() => {
-            awaitable.resolve();
-            gameState.game.getLiveGame().removeStack(stack);
-        });
-
-        awaitable.onSkipControllerRegister((controller) => {
-            controller.onAbort(() => {
-                stack.clear();
-                if (currentAwaitable) {
-                    currentAwaitable.abort();
-                }
-            });
-        });
-
-        return awaitable;
+        return stackModel.execute();
     }
 
     checkActionChain(actions: LogicAction.Actions[]): LogicAction.Actions[] {
@@ -84,43 +46,71 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             return super.executeAction(gameState);
         } else if (this.type === ControlActionTypes.any) {
             if (content.length === 0) {
-                return Awaitable.resolve({
+                return {
                     type: this.type,
                     node: this.contentNode.getChild()
-                });
+                };
             }
 
-            const [awaitable, timeline] = Timeline.any(
-                this.checkActionChain(content).map(action => ControlAction.executeActionsAsync(gameState, action))
-            );
-            gameState.timelines.attachTimeline(timeline);
-
-            return Awaitable.forward(awaitable, {
-                type: this.type,
-                node: this.contentNode.getChild()
+            const stackModels = this.checkActionChain(content).map(action => {
+                return gameState.game.getLiveGame().requestAsyncStackModel([{
+                    type: action.type,
+                    node: action.contentNode,
+                }]);
             });
+
+            return {
+                type: this.type,
+                node: this.contentNode.getChild(),
+                wait: {
+                    type: "any",
+                    stackModels
+                }
+            };
         } else if (this.type === ControlActionTypes.all) {
             if (content.length === 0) {
-                return Awaitable.resolve({
+                return {
                     type: this.type,
                     node: this.contentNode.getChild()
-                });
+                };
             }
 
-            const [awaitable, timeline] = Timeline.all(
-                this.checkActionChain(content).map(action => ControlAction.executeActionsAsync(gameState, action))
-            );
-            gameState.timelines.attachTimeline(timeline);
-
-            return Awaitable.forward(awaitable, {
-                type: this.type,
-                node: this.contentNode.getChild()
+            const stackModels = this.checkActionChain(content).map(action => {
+                return gameState.game.getLiveGame().requestAsyncStackModel([{
+                    type: action.type,
+                    node: action.contentNode,
+                }]);
             });
+
+            return {
+                type: this.type,
+                node: this.contentNode.getChild(),
+                wait: {
+                    type: "all",
+                    stackModels
+                }
+            };
         } else if (this.type === ControlActionTypes.allAsync) {
-            const [, timeline] = Timeline.all(
-                this.checkActionChain(content).map(action => ControlAction.executeActionsAsync(gameState, action))
-            );
-            gameState.timelines.attachTimeline(timeline);
+            // const [, timeline] = Timeline.all(
+            //     this.checkActionChain(content).map(action => ControlAction.executeActionsAsync(gameState, action))
+            // );
+            // gameState.timelines.attachTimeline(timeline);
+
+            // return super.executeAction(gameState);
+            if (content.length === 0) {
+                return {
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                };
+            }
+
+            const stackModels = this.checkActionChain(content).map(action => {
+                return gameState.game.getLiveGame().requestAsyncStackModel([{
+                    type: action.type,
+                    node: action.contentNode,
+                }]);
+            });
+            gameState.timelines.attachTimeline(Awaitable.all(...stackModels.map(stackModel => stackModel.execute())));
 
             return super.executeAction(gameState);
         } else if (this.type === ControlActionTypes.repeat) {
