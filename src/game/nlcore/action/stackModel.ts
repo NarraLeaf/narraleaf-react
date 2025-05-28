@@ -3,6 +3,7 @@ import { Awaitable } from "@lib/util/data";
 import { GameState, LiveGame } from "../common/game";
 import { CalledActionResult, StackModelWaiting } from "../gameTypes";
 import { LogicAction } from "./logicAction";
+import { RuntimeInternalError } from "../common/Utils";
 
 
 export enum StackModelItemType {
@@ -86,6 +87,13 @@ export class StackModel {
             && "result" in action;
     }
 
+    public static fromAction(action: LogicAction.Actions): CalledActionResult {
+        return {
+            type: action.type,
+            node: action.contentNode,
+        };
+    }
+
     public static executeStackModelGroup(type: StackModelWaiting["type"], stackModels: StackModel[]): Awaitable<void> {
         if (type === "any") {
             return Awaitable.any(...stackModels.map(stack => stack.execute()));
@@ -98,13 +106,25 @@ export class StackModel {
     private liveGame: LiveGame;
     private waitingAction: CalledActionResult | null = null;
     constructor(public gameState: GameState) {
-        this.stack = new Stack<CalledActionResult | Awaitable<CalledActionResult>>().addPushValidator(() => {
+        this.stack = new Stack<CalledActionResult | Awaitable<CalledActionResult>>().addPushValidator((item) => {
             const peek = this.stack.peek();
             // When pushing new item, the peek should not be a waiting action (awaitable/stackModel)
             if (StackModel.isCalledActionResult(peek)) {
-                return !peek.wait;
+                if (peek.wait) {
+                    throw new RuntimeInternalError("StackModel: Unexpected waiting action in stack. (is calledActionResult: true, wait: true)");
+                }
             } else if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(peek)) {
-                return peek.isSettled();
+                if (!peek.isSettled()) {
+                    throw new RuntimeInternalError("StackModel: Unexpected unsettled Awaitable in stack.");
+                }
+            }
+
+            // When pushing new item, the item should be a CalledActionResult or Awaitable
+            if (
+                !StackModel.isCalledActionResult(item)
+                && !Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(item)
+            ) {
+                throw new RuntimeInternalError("StackModel: Unexpected non-CalledActionResult or Awaitable in stack.");
             }
             return true;
         });
@@ -241,6 +261,38 @@ export class StackModel {
         return awaitable;
     }
 
+    public abortStackTop(): void {
+        if (this.stack.isEmpty()) {
+            return;
+        }
+        const peek = this.stack.peek();
+        if (peek && Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(peek)) {
+            (this.stack.pop() as Awaitable<CalledActionResult>).abort();
+        }
+    }
+
+    public getTopSync(): CalledActionResult | null {
+        if (this.stack.isEmpty()) {
+            return null;
+        }
+        let tried: boolean = false;
+        for (let i = this.stack.size() - 1; i >= 0; i--) {
+            const peek = this.stack.get(i);
+            if (peek) {
+                if (StackModel.isCalledActionResult(peek)) {
+                    return peek;
+                }
+                if (tried) {
+                    throw new RuntimeInternalError("StackModel: Unexpected non-CalledActionResult in stack.");
+                }
+            } else {
+                return null;
+            }
+            tried = true;
+        }
+        return null;
+    }
+
     executeActions(result: CalledActionResult): CalledActionResult | Awaitable<CalledActionResult> | null {
         if (!result.node?.action) return null;
         const executed = this.liveGame.executeAction(this.gameState, result.node.action);
@@ -357,8 +409,9 @@ export class StackModel {
         this.stack.clear();
     }
 
-    deserialize(data: StackModelRawData, actionMap: Map<string, LogicAction.Actions>) {
+    deserialize(data: StackModelRawData, actionMap: Map<string, LogicAction.Actions>): this {
         this.reset();
+
         for (const item of data) {
             if (!item.action) continue;
 
@@ -387,6 +440,8 @@ export class StackModel {
                 });
             }
         }
+        
+        return this;
     }
 
     isEmpty(): boolean {

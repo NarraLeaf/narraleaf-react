@@ -1,5 +1,5 @@
 import type { GameConfig, GameSettings } from "./gameTypes";
-import { deepMerge, DeepPartial, Hooks } from "@lib/util/data";
+import { deepMerge, DeepPartial, filterObjectExcept, Hooks, StringKeyOf } from "@lib/util/data";
 import { LogicAction } from "@core/action/logicAction";
 import { LiveGame } from "@core/game/liveGame";
 import { Preference } from "@core/game/preference";
@@ -182,6 +182,7 @@ export class Game {
         stage: null,
         defaultMenuChoiceColor: "#000",
         maxStackModelLoop: 1000,
+        maxActionHistory: 100,
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 
@@ -192,6 +193,8 @@ export class Game {
     liveGame: LiveGame | null = null;
     /**@internal */
     sideEffect: VoidFunction[] = [];
+    /**@internal */
+    private freezeFields: (StringKeyOf<GameConfig>)[] = [];
     /**
      * Game settings
      */
@@ -214,8 +217,39 @@ export class Game {
      * Configure the game
      */
     public configure(config: DeepPartial<GameConfig>): this {
-        this.config = deepMerge<GameConfig>(this.config, config);
+        const [merged, filtered] = filterObjectExcept(config, this.freezeFields);
+        if (filtered.length > 0) {
+            console.warn(`NarraLeaf-React [Game] The following fields are not allowed to be configured: ${filtered.join(", ")}`);
+        }
+
+        this.config = deepMerge<GameConfig>(this.config, merged);
         this.getLiveGame().getGameState()?.events.emit(GameState.EventTypes["event:state.player.requestFlush"]);
+
+        return this;
+    }
+
+    /**
+     * Configure the game and freeze the fields
+     * 
+     * This method is not recommended to be used without using NarraLeaf Engine or Plugin Environment.
+     * @param config - Game configuration
+     */
+    public configureAndFreeze(config: DeepPartial<GameConfig>): this {
+        this.configure(config);
+        this.freeze(Object.keys(config) as (StringKeyOf<GameConfig>)[]);
+
+        return this;
+    }
+
+    /**
+     * Freeze the fields
+     * 
+     * This method is not recommended to be used without using NarraLeaf Engine or Plugin Environment.
+     * @param fields - The fields to freeze
+     */
+    public freeze(fields: (StringKeyOf<GameConfig>)[]): this {
+        this.freezeFields.push(...fields);
+
         return this;
     }
 

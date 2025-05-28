@@ -6,9 +6,9 @@ import { StringKeyOf } from "@lib/util/data";
 import { PlayerStateData } from "@player/gameState";
 import { GuardConfig } from "@player/guard";
 import React from "react";
+import { StackModel, StackModelRawData } from "./action/stackModel";
 import { MenuComponent, NotificationComponent, SayComponent } from "./common/player";
 import { Color } from "./types";
-import { StackModel } from "./action/stackModel";
 
 export interface SavedGame {
     name: string;
@@ -25,9 +25,10 @@ export interface SavedGame {
          * The current action
          * @deprecated
          */
-        currentAction: string | null;
+        currentAction?: string | null;
         services: { [key: string]: unknown; };
-
+        stackModel: StackModelRawData;
+        asyncStackModels: StackModelRawData[];
     };
 }
 
@@ -334,6 +335,11 @@ export type GameConfig = {
      * @default 1000
      */
     maxStackModelLoop: number;
+    /**
+     * The maximum number of actions to store in the action history
+     * @default 100
+     */
+    maxActionHistory: number;
 };
 export type GameSettings = {
     volume: number;

@@ -144,7 +144,7 @@ export class GameState {
         this.timelines = new Timelines(this.guard);
         this.notificationMgr = new NotificationManager(this, []);
         this.idManager = new IdManager();
-        this.actionHistory = new ActionHistoryManager();
+        this.actionHistory = new ActionHistoryManager(game.config.maxActionHistory);
         this.gameHistory = new GameHistoryManager(this.actionHistory);
     }
 

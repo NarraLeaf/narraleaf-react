@@ -127,6 +127,11 @@ export class ActionHistoryManager {
     }
 
     public reset() {
+        this.history.forEach((h: ActionHistory<any>) => {
+            if (h.timeline && !h.timeline!.isSettled()) {
+                h.timeline!.abort();
+            }
+        });
         this.history = [];
     }
 }

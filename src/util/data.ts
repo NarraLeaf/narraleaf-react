@@ -1472,6 +1472,50 @@ export class Stack<T> {
     map<U>(fn: (item: T) => U): U[] {
         return this.items.map(fn);
     }
+
+    get(index: number): T | undefined {
+        return this.items[index];
+    }
 }
 
-export type ArrayValue<T> = T extends Array<infer U> ? U : T
+export type ArrayValue<T> = T extends Array<infer U> ? U : T;
+
+export function filterObject<T extends Record<string, any>>(obj: T, fields: (keyof T)[]): [o: Partial<T>, filtered: (keyof T)[]] {
+    const result: Partial<T> = {};
+    const filtered: (keyof T)[] = [];
+
+    // Iterate through all keys in the object
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            // If the key is in the fields array, add it to the result
+            if (fields.includes(key as keyof T)) {
+                result[key as keyof T] = obj[key];
+            } else {
+                // Otherwise, add it to the filtered array
+                filtered.push(key as keyof T);
+            }
+        }
+    }
+
+    return [result, filtered];
+}
+
+export function filterObjectExcept<T extends Record<string, any>>(obj: T, fields: (keyof T)[]): [o: Partial<T>, filtered: (keyof T)[]] {
+    const result: Partial<T> = {};
+    const filtered: (keyof T)[] = [];
+
+    // Iterate through all keys in the object
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            // If the key is NOT in the fields array, add it to the result
+            if (!fields.includes(key as keyof T)) {
+                result[key as keyof T] = obj[key];
+            } else {
+                // Otherwise, add it to the filtered array
+                filtered.push(key as keyof T);
+            }
+        }
+    }
+
+    return [result, filtered];
+}

@@ -1,12 +1,12 @@
 import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
 import type { CalledActionResult, SavedGame } from "@core/gameTypes";
-import { Story } from "@core/elements/story";
+import { ElementStateRaw, Story } from "@core/elements/story";
 import { GameState } from "@player/gameState";
 import { Namespace, Storable } from "@core/elements/persistent/storable";
 import { LogicAction } from "@core/action/logicAction";
 import { StorableType } from "@core/elements/persistent/type";
 import { Game } from "@core/game";
-import { ContentNode } from "@core/action/tree/actionTree";
+import { ContentNode, RawData } from "@core/action/tree/actionTree";
 import { ConditionAction } from "@core/action/actions/conditionAction";
 import { SceneAction } from "@core/action/actions/sceneAction";
 import { ControlActionTypes, SceneActionTypes } from "@core/action/actionTypes";
@@ -19,7 +19,7 @@ import { RuntimeGameError, RuntimeInternalError } from "@core/common/Utils";
 import { GameHistory } from "../action/gameHistory";
 import { Options } from "html-to-image/lib/types";
 import { ExecutedActionResult } from "../action/action";
-import { StackModel } from "../action/stackModel";
+import { StackModel, StackModelRawData } from "../action/stackModel";
 
 /**@internal */
 type LiveGameEvent = {
@@ -62,16 +62,13 @@ export class LiveGame {
     } as const;
 
     public game: Game;
-    public gameLock = new MultiLock();
     public events: EventDispatcher<LiveGameEvent> = new EventDispatcher();
-    public story: Story | null = null;
+    /**@internal */
+    story: Story | null = null;
+    /**@internal */
+    gameLock = new MultiLock();
     /**@internal */
     currentSavedGame: SavedGame | null = null;
-    /**
-     * @internal
-     * @deprecated
-     */
-    lockedAwaiting: Awaitable<CalledActionResult, any> | null = null;
     /**@internal */
     gameState: GameState | undefined = undefined;
     /**@internal */
@@ -80,13 +77,6 @@ export class LiveGame {
     asyncStackModels: Set<StackModel> = new Set();
     /**@internal */
     private readonly storable: Storable;
-    /**@internal */
-    private _lockedCount = 0;
-    /**
-     * @internal
-     * @deprecated
-     */
-    private currentAction: LogicAction.Actions | null = null;
 
     /**@internal */
     constructor(game: Game) {
@@ -136,15 +126,16 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
-        if (!this.currentSavedGame) {
+        if (!this.currentSavedGame || !this.stackModel) {
             throw new Error("Failed when trying to serialize the game: The game has not started");
         }
 
         // get all element states
         const store = this.storable.toData();
         const stage = gameState.toData();
-        const currentAction = this.getCurrentAction()?.getId() || null;
-        const elementStates = story.getAllElementStates();
+        const elementStates: RawData<ElementStateRaw>[] = story.getAllElementStates();
+        const stackModel: StackModelRawData = this.stackModel.serialize();
+        const asyncStackModels: StackModelRawData[] = Array.from(this.asyncStackModels).map(stack => stack.serialize());
 
         return {
             name: this.currentSavedGame.name,
@@ -156,8 +147,9 @@ export class LiveGame {
             game: {
                 store,
                 stage,
-                currentAction,
                 elementStates,
+                stackModel,
+                asyncStackModels,
                 services: story.serializeServices(),
             },
         } satisfies SavedGame;
@@ -189,8 +181,9 @@ export class LiveGame {
                 store,
                 stage,
                 elementStates,
-                currentAction,
                 services,
+                stackModel,
+                asyncStackModels,
             }
         } = savedGame;
 
@@ -218,13 +211,11 @@ export class LiveGame {
         // restore game state
         this.currentSavedGame = savedGame;
         gameState.loadData(stage, elementMaps);
-        if (currentAction) {
-            const action = actionMaps.get(currentAction);
-            if (!action) {
-                throw new Error("Action not found, id: " + currentAction + "\nNarraLeaf cannot find the action with the id from the saved game");
-            }
-            this.currentAction = action;
-        }
+
+        // restore stack model
+        this.stackModel.deserialize(stackModel, actionMaps);
+        asyncStackModels.forEach(stack => this.asyncStackModels.add(StackModel.createStackModel(gameState, stack, actionMaps)));
+        this.asyncStackModels.forEach(stack => gameState.timelines.attachTimeline(stack.execute()));
 
         // restore services
         story.deserializeServices(services);
@@ -265,20 +256,15 @@ export class LiveGame {
             return;
         }
 
-        if (this.lockedAwaiting) {
-            this.lockedAwaiting.abort();
-            this.lockedAwaiting = null;
-        }
+        this.stackModel.abortStackTop();
 
-        let action = this.currentAction;
-        if (id) {
-            action = this.gameState.actionHistory.undoUntil(id);
-        } else {
-            action = this.gameState.actionHistory.undo(this.gameState.gameHistory);
-        }
+        const action = id
+            ? this.gameState.actionHistory.undoUntil(id)
+            : this.gameState.actionHistory.undo(this.gameState.gameHistory);
+
         if (action) {
-            this.currentAction = action;
-            this.gameState.logger.info("LiveGame.undo", "Undo until", id, "currentAction", this.currentAction, "action", action);
+            this.stackModel.push(StackModel.fromAction(action));
+            this.gameState.logger.info("LiveGame.undo", "Undo until", id, "action", action);
     
             this.gameState.stage.forceUpdate();
             this.gameState.stage.next();
@@ -384,7 +370,11 @@ export class LiveGame {
         const newGame = this.getNewSavedGame();
         newGame.name = "NewGame-" + Date.now();
         this.currentSavedGame = newGame;
-        this.currentAction = this.story?.entryScene?.getSceneRoot() || null;
+        
+        const sceneRoot = this.story?.entryScene?.getSceneRoot();
+        if (sceneRoot) {
+            this.stackModel.push(StackModel.fromAction(sceneRoot));
+        }
 
         const elements: Map<string, LogicAction.GameElement> | undefined =
             this.story?.getAllElementMap(this.story, this.story?.entryScene?.getSceneRoot() || []);
@@ -529,17 +519,10 @@ export class LiveGame {
         const gameState = this.gameState;
 
         this.resetStackModels();
+        this.stackModel.reset();
         this.currentSavedGame = null;
 
         gameState.forceReset();
-    }
-
-    /**
-     * @internal
-     * @deprecated
-     */
-    getCurrentAction(): LogicAction.Actions | null {
-        return this.currentAction;
     }
 
     /**@internal */
@@ -580,33 +563,12 @@ export class LiveGame {
     /**@internal */
     resetStackModels() {
         this.asyncStackModels.forEach(stackModel => stackModel.reset());
-    }
-
-    /**@internal */
-    countLocked() {
-        this._lockedCount++;
-        if (this._lockedCount > 1000) {
-            throw new RuntimeInternalError("LiveGame locked: dead cycle detected. ");
-        }
-    }
-
-    /**@internal */
-    resetLockedCount() {
-        this._lockedCount = 0;
+        this.asyncStackModels.clear();
     }
 
     /**@internal */
     isPlaying() {
-        return !!this.currentAction;
-    }
-
-    /**@internal */
-    abortAwaiting() {
-        if (this.lockedAwaiting) {
-            const next = this.lockedAwaiting.abort();
-            this.currentAction = next?.node?.action || null;
-            this.lockedAwaiting = null;
-        }
+        return this.stackModel && !this.stackModel.isEmpty();
     }
 
     /**@internal */
@@ -722,8 +684,9 @@ export class LiveGame {
                     videos: [],
                 },
                 elementStates: [],
-                currentAction: this.story?.entryScene?.getSceneRoot().getId() || null,
                 services: {},
+                stackModel: [],
+                asyncStackModels: [],
             }
         };
     }

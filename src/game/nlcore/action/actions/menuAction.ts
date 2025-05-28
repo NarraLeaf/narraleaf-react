@@ -24,18 +24,23 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
         let cleanup: (() => void) | null = null;
 
         const token = gameState.createMenu(menu, (chosen) => {
-            const currentNode = gameState.game.getLiveGame().getCurrentAction()?.contentNode;
-            const lastChild = currentNode?.getChild() || null;
-            if (lastChild) {
-                chosen.action[chosen.action.length - 1]?.contentNode.addChild(lastChild);
-                cleanup = () => {
-                    currentNode?.addChild(lastChild);
-                };
-            }
+            const stackModel = gameState.getLiveGame().requestAsyncStackModel([
+                {
+                    type: this.type as any,
+                    node: chosen.action[0].contentNode
+                }
+            ]);
             awaitable.resolve({
                 type: this.type as any,
-                node: chosen.action[0].contentNode
+                node: chosen.action[0].contentNode,
+                wait: {
+                    type: "all",
+                    stackModels: [stackModel]
+                }
             });
+            cleanup = () => {
+                stackModel.reset();
+            };
 
             gameState.gameHistory.updateByToken(id, (result) => {
                 if (result && result.element.type === "menu") {

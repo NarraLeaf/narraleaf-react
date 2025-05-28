@@ -7,6 +7,7 @@ import {TaskPool} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import { Scene } from "@lib/game/nlcore/elements/scene";
 import { useFlush } from "../../lib/flush";
+import { LogicAction } from "@lib/game/nlcore/action/logicAction";
 
 /**@internal */
 export function Preload(
@@ -22,7 +23,7 @@ export function Preload(
 
     const LogTag = "Preload";
     const lastScene: Scene | null = state.getLastScene() || state.getPreloadingScene();
-    const currentAction = game.getLiveGame().getCurrentAction();
+    const currentAction: LogicAction.Actions | null = game.getLiveGame().stackModel?.getTopSync()?.node?.action || null;
     const story = game.getLiveGame().story;
 
     function onPreloaderUnmount() {
