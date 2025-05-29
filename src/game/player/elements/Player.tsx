@@ -1,32 +1,29 @@
 import "client-only";
 
-import clsx from "clsx";
-import {flushSync} from "react-dom";
-import Cursor from "@player/lib/Cursor";
-import {Story} from "@core/elements/story";
-import Isolated from "@player/lib/isolated";
-import {Preloaded} from "@player/lib/Preloaded";
-import AspectRatio from "@player/lib/AspectRatio";
-import {PlayerProps} from "@player/elements/type";
-import {CalledActionResult} from "@core/gameTypes";
-import {useGame} from "@player/provider/game-state";
-import {ErrorBoundary} from "@player/lib/ErrorBoundary";
-import {usePreloaded} from "@player/provider/preloaded";
-import {Preload} from "@player/elements/preload/Preload";
-import {GameState, PlayerAction} from "@player/gameState";
-import React, {useEffect, useReducer, useState} from "react";
-import {PageRouter} from "@player/lib/PageRouter/PageRouter";
-import {default as StageScene} from "@player/elements/scene/Scene";
-import {Awaitable, createMicroTask, MultiLock} from "@lib/util/data";
-import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
-import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
-import Video from "@player/elements/video/video";
-import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
-import { RenderEventAnnoucer } from "./player/RenderEventAnnoucer";
+import { Story } from "@core/elements/story";
+import { CalledActionResult } from "@core/gameTypes";
 import { StackModel } from "@lib/game/nlcore/action/stackModel";
-function handleAction(state: GameState, action: PlayerAction) {
-    return state.handle(action);
-}
+import { Awaitable, createMicroTask, MultiLock } from "@lib/util/data";
+import { KeyEventAnnouncer } from "@player/elements/player/KeyEventAnnouncer";
+import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
+import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
+import { Preload } from "@player/elements/preload/Preload";
+import { default as StageScene } from "@player/elements/scene/Scene";
+import { PlayerProps } from "@player/elements/type";
+import Video from "@player/elements/video/video";
+import { GameState } from "@player/gameState";
+import AspectRatio from "@player/lib/AspectRatio";
+import Cursor from "@player/lib/Cursor";
+import { ErrorBoundary } from "@player/lib/ErrorBoundary";
+import Isolated from "@player/lib/isolated";
+import { PageRouter } from "@player/lib/PageRouter/PageRouter";
+import { Preloaded } from "@player/lib/Preloaded";
+import { useGame } from "@player/provider/game-state";
+import { usePreloaded } from "@player/provider/preloaded";
+import clsx from "clsx";
+import React, { useEffect, useReducer, useState } from "react";
+import { flushSync } from "react-dom";
+import { RenderEventAnnoucer } from "./player/RenderEventAnnoucer";
 
 export default function Player(
     {
@@ -42,7 +39,7 @@ export default function Player(
     const [flushDep, update] = useReducer((x) => x + 1, 0);
     const [key, setKey] = useState(0);
     const game = useGame();
-    const [state, dispatch] = useReducer(handleAction, new GameState(game, {
+    const [state] = useState<GameState>(() => new GameState(game, {
         update,
         forceUpdate: () => {
             (state as GameState).logger.weakWarn("Player", "force update");
@@ -58,7 +55,6 @@ export default function Player(
             });
         },
         next,
-        dispatch: (action) => dispatch(action),
     }));
     const containerRef = React.createRef<HTMLDivElement>();
     const mainContentRef = React.createRef<HTMLDivElement>();
@@ -118,7 +114,7 @@ export default function Player(
             }
 
             // Handle regular action result
-            dispatch(nextResult);
+            state.handle(nextResult);
         }
         state.stage.update();
     }
@@ -156,7 +152,7 @@ export default function Player(
             }
 
             // Handle regular action result in StackModel
-            dispatch(res);
+            state.handle(res);
         }
     }
 

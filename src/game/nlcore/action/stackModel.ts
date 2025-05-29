@@ -1,9 +1,8 @@
-import { ArrayValue, Stack } from "@lib/util/data";
-import { Awaitable } from "@lib/util/data";
-import { GameState, LiveGame } from "../common/game";
+import { ArrayValue, Awaitable, Stack } from "@lib/util/data";
+import { LiveGame } from "../common/game";
+import { RuntimeInternalError } from "../common/Utils";
 import { CalledActionResult, StackModelWaiting } from "../gameTypes";
 import { LogicAction } from "./logicAction";
-import { RuntimeInternalError } from "../common/Utils";
 
 
 export enum StackModelItemType {
@@ -73,8 +72,8 @@ export class StackModel {
         return action instanceof StackModel;
     }
 
-    public static createStackModel(gameState: GameState, data: StackModelRawData, actionMap: Map<string, LogicAction.Actions>): StackModel {
-        const stackModel = new StackModel(gameState);
+    public static createStackModel(liveGame: LiveGame, data: StackModelRawData, actionMap: Map<string, LogicAction.Actions>): StackModel {
+        const stackModel = new StackModel(liveGame);
         stackModel.deserialize(data, actionMap);
         return stackModel;
     }
@@ -84,7 +83,7 @@ export class StackModel {
             && !this.isStackModel(action)
             && !Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(action)
             && "node" in action
-            && "result" in action;
+            && "type" in action;
     }
 
     public static fromAction(action: LogicAction.Actions): CalledActionResult {
@@ -103,11 +102,16 @@ export class StackModel {
     }
 
     private stack: Stack<CalledActionResult | Awaitable<CalledActionResult>>;
-    private liveGame: LiveGame;
     private waitingAction: CalledActionResult | null = null;
-    constructor(public gameState: GameState) {
+    constructor(private liveGame: LiveGame) {
         this.stack = new Stack<CalledActionResult | Awaitable<CalledActionResult>>().addPushValidator((item) => {
             const peek = this.stack.peek();
+
+            // When pushing new item, the peek should not be the same as the item
+            if (item === peek) {
+                throw new RuntimeInternalError("StackModel: Unexpected self-push in stack.");
+            }
+
             // When pushing new item, the peek should not be a waiting action (awaitable/stackModel)
             if (StackModel.isCalledActionResult(peek)) {
                 if (peek.wait) {
@@ -128,7 +132,6 @@ export class StackModel {
             }
             return true;
         });
-        this.liveGame = gameState.game.getLiveGame();
     }
 
     /**
@@ -192,7 +195,7 @@ export class StackModel {
             if (result && result.node?.action) {
                 // Push the resolved action into the stack
                 this.stack.push(result);
-                this.gameState.logger.debug("next action (resolved awaitable)", result.node.action);
+                this.liveGame.getGameStateForce().logger.debug("next action (resolved awaitable)", result.node.action);
                 return result;
             }
         } else {
@@ -200,10 +203,7 @@ export class StackModel {
             const executed = this.executeActions(currentAction);
             this.waitingAction = currentAction;
 
-            if (executed) {
-                this.stack.push(executed);
-                return executed;
-            }
+            return executed;
         }
 
         return null;
@@ -218,7 +218,7 @@ export class StackModel {
         const roll = async () => {
             let count = 0;
             while (!exited) {
-                if (count++ > this.gameState.game.config.maxStackModelLoop) {
+                if (count++ > this.liveGame.getGameStateForce().game.config.maxStackModelLoop) {
                     throw new Error("StackModel: Suspiciously long waiting loop.");
                 }
 
@@ -295,19 +295,19 @@ export class StackModel {
 
     executeActions(result: CalledActionResult): CalledActionResult | Awaitable<CalledActionResult> | null {
         if (!result.node?.action) return null;
-        const executed = this.liveGame.executeAction(this.gameState, result.node.action);
+        const executed = this.liveGame.executeAction(this.liveGame.getGameStateForce(), result.node.action);
 
         const handleActionResult = (result: CalledActionResult | Awaitable<CalledActionResult, CalledActionResult> | null) => {
             if (!result) return null;
 
             if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(result)) {
-                this.gameState.logger.debug("next action (executed awaitable)", result);
+                this.liveGame.getGameStateForce().logger.debug("next action (executed awaitable)", result);
                 this.stack.push(result);
                 return result;
             }
 
             if (result.node?.action) {
-                this.gameState.logger.debug("next action (executed)", result);
+                this.liveGame.getGameStateForce().logger.debug("next action (executed)", result);
                 this.stack.push(result);
                 return result;
             }
@@ -435,7 +435,7 @@ export class StackModel {
 
                 this.stack.push({
                     type: actionType, node: found.contentNode, wait: {
-                        type: stackWaitType, stackModels: stacks.map(stack => StackModel.createStackModel(this.gameState, stack, actionMap))
+                        type: stackWaitType, stackModels: stacks.map(stack => StackModel.createStackModel(this.liveGame, stack, actionMap))
                     }
                 });
             }

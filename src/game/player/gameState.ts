@@ -82,7 +82,6 @@ interface StageUtils {
     forceUpdate: () => void;
     forceRemount: () => void;
     next: () => void;
-    dispatch: (action: PlayerAction) => void;
 }
 
 
@@ -108,7 +107,7 @@ export class GameState {
         "event:state.onRender": "event:state.onRender",
         "event:state:flushPreloadedScenes": "event:state:flushPreloadedScenes",
     };
-    state: PlayerState = {
+    private state: PlayerState = {
         sounds: [],
         videos: [],
         srcManagers: [],
@@ -201,6 +200,9 @@ export class GameState {
             this.logger.weakWarn("Element not found when removing", element.scene.getId());
             return this;
         }
+
+        this.logger.debug("GameState", "Removing element", element.scene.getId());
+
         this.state.elements.splice(index, 1);
         return this;
     }
@@ -221,6 +223,8 @@ export class GameState {
 
     public addElement(element: PlayerStateElement): this {
         this.state.elements.push(element);
+        this.logger.debug("GameState", "Adding element", element.scene.getId());
+
         return this;
     }
 
@@ -234,6 +238,8 @@ export class GameState {
                 scene.config.layers.map(layer => [layer, [] as LogicAction.DisplayableElements[]])
             ),
         });
+        this.logger.debug("GameState", "Adding scene", scene.getId());
+
         return this;
     }
 
@@ -246,11 +252,15 @@ export class GameState {
         const scene = this.state.elements.pop();
         if (!scene) return this;
         this.removeElements(scene.scene);
+        this.logger.debug("GameState", "Popping scene", scene.scene.getId());
+
         return this;
     }
 
     public removeScene(scene: Scene): this {
         this.removeElements(scene);
+        this.logger.debug("GameState", "Removing scene", scene.getId());
+
         return this;
     }
 
@@ -329,6 +339,8 @@ export class GameState {
             if (afterClick) afterClick();
         });
         texts.push(action);
+
+        this.stage.update();
 
         return {
             cancel: () => {
@@ -427,6 +439,8 @@ export class GameState {
         this.timelines.abortAll();
         this.gameHistory.reset();
         this.actionHistory.reset();
+
+        this.logger.debug("GameState", "Force reset");
     }
 
     getHowl(): typeof Howler.Howl {
@@ -687,6 +701,8 @@ export class GameState {
 
         this.resetLayers(this.state.elements[index].layers);
         this.state.elements.splice(index, 1);
+
+        this.logger.debug("GameState", "Removing elements", scene.getId());
         return this;
     }
 

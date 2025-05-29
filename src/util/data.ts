@@ -489,12 +489,14 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         this.events[event] = this.events[event].filter(l => l !== listener);
     }
 
-    public emit<K extends keyof Type>(event: K, ...args: Type[K]): void {
-        if (!this.events[event]) return;
+    public emit<K extends keyof Type>(event: K, ...args: Type[K]): number {
+        if (!this.events[event]) return 0;
 
+        const length = this.events[event].length;
         this.events[event].forEach(listener => {
             listener(...args);
         });
+        return length;
     }
 
     public once<K extends StringKeyOf<Type>>(event: K, listener: EventListener<Type[K]>): EventToken {

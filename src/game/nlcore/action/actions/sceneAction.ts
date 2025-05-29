@@ -15,6 +15,7 @@ import {ExposedState, ExposedStateType} from "@player/type";
 import { Sound } from "../../elements/sound";
 import { ImageDataRaw } from "../../elements/displayable/image";
 import { ExecutedActionResult } from "../action";
+import { StackModelRawData } from "../stackModel";
 
 type SceneSnapshot = {
     state: SceneDataRaw | null;
@@ -127,10 +128,12 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 this.exit(gameState);
             }, [], timeline);
 
-            return SceneAction.handleSceneInit(this.callee, {
+            const next = {
                 type: this.type,
                 node: this.contentNode.getChild()
-            }, gameState, awaitable);
+            };
+
+            return SceneAction.handleSceneInit(this.callee, next, gameState, Awaitable.forward(awaitable, next));
         } else if (this.type === SceneActionTypes.exit) {
             const originalSnapshot = SceneAction.createSceneSnapshot(this.callee, gameState);
             gameState.actionHistory.push<[SceneSnapshot]>(this, (prevSnapshot) => {
@@ -155,6 +158,13 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             if (!scene) {
                 throw this._sceneNotFoundError(this.getSceneName(targetScene));
             }
+
+            const stackSnapshot = gameState.getLiveGame().getStackModelForce().serialize();
+            gameState.actionHistory.push<[StackModelRawData]>(this, (prevStackSnapshot) => {
+                const [actionMaps] = gameState.getLiveGame().constructMaps();
+
+                gameState.getLiveGame().getStackModelForce().deserialize(prevStackSnapshot, actionMaps);
+            }, [stackSnapshot]);
 
             const future = scene.getSceneRoot().contentNode;
             gameState.getLiveGame()

@@ -1,24 +1,24 @@
-import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
-import type { CalledActionResult, SavedGame } from "@core/gameTypes";
-import { ElementStateRaw, Story } from "@core/elements/story";
-import { GameState } from "@player/gameState";
-import { Namespace, Storable } from "@core/elements/persistent/storable";
-import { LogicAction } from "@core/action/logicAction";
-import { StorableType } from "@core/elements/persistent/type";
-import { Game } from "@core/game";
-import { ContentNode, RawData } from "@core/action/tree/actionTree";
 import { ConditionAction } from "@core/action/actions/conditionAction";
+import { ControlAction } from "@core/action/actions/controlAction";
 import { SceneAction } from "@core/action/actions/sceneAction";
 import { ControlActionTypes, SceneActionTypes } from "@core/action/actionTypes";
-import { Scene } from "@core/elements/scene";
-import { ControlAction } from "@core/action/actions/controlAction";
-import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
+import { LogicAction } from "@core/action/logicAction";
+import { ContentNode, RawData } from "@core/action/tree/actionTree";
+import { RuntimeGameError, RuntimeInternalError } from "@core/common/Utils";
 import { Character } from "@core/elements/character";
 import { Sentence } from "@core/elements/character/sentence";
-import { RuntimeGameError, RuntimeInternalError } from "@core/common/Utils";
-import { GameHistory } from "../action/gameHistory";
+import { Namespace, Storable } from "@core/elements/persistent/storable";
+import { StorableType } from "@core/elements/persistent/type";
+import { Scene } from "@core/elements/scene";
+import { ElementStateRaw, Story } from "@core/elements/story";
+import { Game } from "@core/game";
+import type { CalledActionResult, SavedGame } from "@core/gameTypes";
+import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
+import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
+import { GameState } from "@player/gameState";
 import { Options } from "html-to-image/lib/types";
 import { ExecutedActionResult } from "../action/action";
+import { GameHistory } from "../action/gameHistory";
 import { StackModel, StackModelRawData } from "../action/stackModel";
 
 /**@internal */
@@ -76,12 +76,12 @@ export class LiveGame {
     /**@internal */
     asyncStackModels: Set<StackModel> = new Set();
     /**@internal */
-    private readonly storable: Storable;
+    private readonly _storable: Storable;
 
     /**@internal */
     constructor(game: Game) {
         this.game = game;
-        this.storable = new Storable();
+        this._storable = new Storable();
 
         this.initNamespaces();
     }
@@ -89,17 +89,21 @@ export class LiveGame {
     /* Store */
     /**@internal */
     initNamespaces() {
-        this.storable.clear().addNamespace(new Namespace<Partial<{
+        this._storable.clear().addNamespace(new Namespace<Partial<{
             [key: string]: StorableType | undefined
         }>>(LiveGame.GameSpacesKey.game, LiveGame.DefaultNamespaces.game));
         if (this.story) {
-            this.story.initPersistent(this.storable);
+            this.story.initPersistent(this._storable);
         }
         return this;
     }
 
     public getStorable() {
-        return this.storable;
+        return this._storable;
+    }
+
+    public get storable() {
+        return this._storable;
     }
 
     /* Game */
@@ -131,7 +135,7 @@ export class LiveGame {
         }
 
         // get all element states
-        const store = this.storable.toData();
+        const store = this._storable.toData();
         const stage = gameState.toData();
         const elementStates: RawData<ElementStateRaw>[] = story.getAllElementStates();
         const stackModel: StackModelRawData = this.stackModel.serialize();
@@ -174,8 +178,6 @@ export class LiveGame {
         this.reset();
         gameState.stage.forceRemount();
 
-        const actionMaps = new Map<string, LogicAction.Actions>();
-        const elementMaps = new Map<string, LogicAction.GameElement>();
         const {
             game: {
                 store,
@@ -188,13 +190,10 @@ export class LiveGame {
         } = savedGame;
 
         // construct maps
-        story.forEachChild(story, story.entryScene?.getSceneRoot() || [], action => {
-            actionMaps.set(action.getId(), action);
-            elementMaps.set(action.callee.getId(), action.callee);
-        }, { allowFutureScene: true });
+        const [actionMaps, elementMaps] = this.constructMaps();
 
         // restore storable
-        this.storable.clear().load(store);
+        this._storable.clear().load(store);
 
         // restore elements
         elementStates.forEach(({ id, data }) => {
@@ -214,7 +213,7 @@ export class LiveGame {
 
         // restore stack model
         this.stackModel.deserialize(stackModel, actionMaps);
-        asyncStackModels.forEach(stack => this.asyncStackModels.add(StackModel.createStackModel(gameState, stack, actionMaps)));
+        asyncStackModels.forEach(stack => this.asyncStackModels.add(StackModel.createStackModel(this, stack, actionMaps)));
         this.asyncStackModels.forEach(stack => gameState.timelines.attachTimeline(stack.execute()));
 
         // restore services
@@ -374,6 +373,8 @@ export class LiveGame {
         const sceneRoot = this.story?.entryScene?.getSceneRoot();
         if (sceneRoot) {
             this.stackModel.push(StackModel.fromAction(sceneRoot));
+        } else {
+            gameState.logger.warn("No scene root found");
         }
 
         const elements: Map<string, LogicAction.GameElement> | undefined =
@@ -466,6 +467,25 @@ export class LiveGame {
     }
 
     /**@internal */
+    constructMaps(): [actionMap: Map<string, LogicAction.Actions>, elementMap: Map<string, LogicAction.GameElement>] {
+        const story = this.story;
+        if (!story) {
+            throw new Error("No story loaded");
+        }
+
+        const actionMaps = new Map<string, LogicAction.Actions>();
+        const elementMaps = new Map<string, LogicAction.GameElement>();
+
+        // construct maps
+        story.forEachChild(story, story.entryScene?.getSceneRoot() || [], action => {
+            actionMaps.set(action.getId(), action);
+            elementMaps.set(action.callee.getId(), action.callee);
+        }, { allowFutureScene: true });
+
+        return [actionMaps, elementMaps];
+    }
+
+    /**@internal */
     getScreenshotOptions(): Options {
         return {
             quality: this.game.config.screenshotQuality
@@ -551,8 +571,7 @@ export class LiveGame {
     requestAsyncStackModel(value: (CalledActionResult | Awaitable<CalledActionResult>)[]): StackModel {
         this.assertGameState();
         
-        const gameState = this.gameState;
-        const stack = new StackModel(gameState);
+        const stack = new StackModel(this);
         this.asyncStackModels.add(stack);
 
         stack.push(...value);
@@ -587,14 +606,25 @@ export class LiveGame {
 
     /**@internal */
     setGameState(state: GameState | undefined) {
+        if (state && this.gameState) {
+            throw new RuntimeInternalError("GameState already set");
+        }
+
         this.gameState = state;
         if (state && !this.stackModel) {
-            this.stackModel = new StackModel(state);
+            this.stackModel = new StackModel(this);
         }
         return this;
     }
 
     getGameState() {
+        return this.gameState;
+    }
+
+    getGameStateForce() {
+        if (!this.gameState) {
+            throw new RuntimeInternalError("GameState not set");
+        }
         return this.gameState;
     }
 

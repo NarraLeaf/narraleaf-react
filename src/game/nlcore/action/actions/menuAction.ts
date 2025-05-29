@@ -65,7 +65,13 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             isPending: true,
         });
 
-        return awaitable;
+        return [
+            {
+                type: this.type,
+                node: this.contentNode.getChild(),
+            },
+            awaitable
+        ];
     }
 
     getFutureActions(story: Story, options: ActionSearchOptions): LogicAction.Actions[] {

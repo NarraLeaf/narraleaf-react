@@ -53,7 +53,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             const dialog = gameState.createDialog(dialogId, sentence, () => {
                 if (voice) {
                     const task = gameState.audioManager.stop(voice);
-                    timeline.attachChild(task);
+                    gameState.timelines.attachTimeline(task);
                 }
 
                 gameState.gameHistory.resolvePending(id); // accessing id is technically dangerous, but I think it is impossible to happen

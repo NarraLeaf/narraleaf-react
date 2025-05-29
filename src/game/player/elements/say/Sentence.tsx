@@ -113,7 +113,10 @@ function BaseText(
             dialog.dispatchComplete();
         });
 
-    }, [dialog]);
+        return () => {
+            taskRef.current?.timeline?.abort();
+        };
+    }, []);
 
     /**
      * Listen to:

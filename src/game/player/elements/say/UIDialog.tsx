@@ -78,9 +78,9 @@ export class DialogState {
      */
     public requestComplete() {
         if (this.state === DialogStateType.Ended) {
-            this.events.emit(DialogState.Events.complete);
+            this.safeEmit(DialogState.Events.complete);
         } else {
-            this.events.emit(DialogState.Events.requestComplete);
+            this.safeEmit(DialogState.Events.requestComplete);
         }
     }
 
@@ -94,7 +94,7 @@ export class DialogState {
             this.emitComplete();
         } else {
             this._forceSkipped = true;
-            this.events.emit(DialogState.Events.forceSkip);
+            this.safeEmit(DialogState.Events.forceSkip);
         }
     }
 
@@ -106,6 +106,7 @@ export class DialogState {
      */
     public dispatchComplete() {
         if (this.state === DialogStateType.Ended) {
+            this.config.gameState.logger.weakWarn("DialogState", "Dialog is already ended. Cannot dispatch complete.");
             return;
         }
 
@@ -120,7 +121,7 @@ export class DialogState {
     }
 
     public emitComplete(): this {
-        this.events.emit(DialogState.Events.complete);
+        this.safeEmit(DialogState.Events.complete);
         this.emitFlush();
         return this;
     }
@@ -159,6 +160,13 @@ export class DialogState {
 
     public onFlush(listener: () => void): EventToken {
         return this.events.on(DialogState.Events.onFlush, listener);
+    }
+
+    public safeEmit(event: keyof DialogEvents, ...args: DialogEvents[keyof DialogEvents]): this {
+        if (this.events.emit(event, ...args) === 0) {
+            this.config.gameState.logger.weakWarn("DialogState", `Failed to emit event: ${event}. Target Component is not mounted.`);
+        }
+        return this;
     }
 
     private scheduleAutoForward() {
