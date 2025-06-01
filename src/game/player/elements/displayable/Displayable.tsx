@@ -25,6 +25,7 @@ export type DisplayableHookConfig<TransitionType extends Transition<U>, U extend
     state: TransformState<any>;
     element: EventfulDisplayable;
     onTransform?: (transform: Transform) => void;
+    onTransition?: (transition: TransitionType) => void;
     /**@deprecated */
     transformStyle?: React.CSSProperties;
     transitionsProps?: ElementProp<U>[] | ((task: TransitionTaskWithController<TransitionType, U> | null) => (ElementProp<U>[]));
@@ -61,6 +62,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         skipTransition,
         overwriteDefinition,
         onTransform,
+        onTransition,
         transitionsProps = [],
         propOverwrite,
     }: DisplayableHookConfig<TransitionType, U>): DisplayableHookResult<TransitionType, U> {
@@ -283,6 +285,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             controller.onComplete(() => {
                 resetRefs();
                 setTransitionTask(null);
+                onTransition?.(newTransition);
                 resolve();
                 awaitable.resolve();
             });

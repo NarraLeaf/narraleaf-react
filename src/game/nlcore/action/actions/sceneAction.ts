@@ -42,7 +42,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         state.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
             SceneAction.initBackgroundMusic(scene, exposed);
             awaitable.resolve(next);
-            state.stage.next();
 
             state.logger.debug("Scene Action", "Scene init");
         });
@@ -103,7 +102,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         const exposed = gameState.getExposedStateForce<ExposedStateType.image>(this.callee.background);
         exposed.applyTransition(transition, () => {
             awaitable.resolve(super.executeAction(gameState) as CalledActionResult);
-            gameState.stage.next();
         });
         gameState.timelines.attachTimeline(awaitable);
 

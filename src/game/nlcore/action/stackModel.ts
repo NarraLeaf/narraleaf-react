@@ -101,6 +101,20 @@ export class StackModel {
         }
     }
 
+    public static isStackModelsAwaiting(type: StackModelWaiting["type"], stackModels: StackModel[]): boolean {
+        if (stackModels.length === 0) {
+            throw new Error("StackModel: StackModels are empty.");
+        }
+
+        if (type === "any") {
+            // if every stack is NOT empty, then the stack model is waiting
+            return stackModels.every(stack => !stack.isEmpty());
+        } else {
+            // if any stack is NOT empty, then the stack model is waiting
+            return stackModels.some(stack => !stack.isEmpty());
+        }
+    }
+
     private stack: Stack<CalledActionResult | Awaitable<CalledActionResult>>;
     private waitingAction: CalledActionResult | null = null;
     constructor(private liveGame: LiveGame) {
@@ -177,7 +191,7 @@ export class StackModel {
             if (!stackModels.length) {
                 throw new Error("StackModel: Waiting action contains empty stackModels.");
             }
-            if (this.isStackModelsAwaiting(peek.wait.type, stackModels)) {
+            if (StackModel.isStackModelsAwaiting(peek.wait.type, stackModels)) {
                 stackModels.forEach(stack => stack.rollNext());
                 return peek;
             }
@@ -192,10 +206,10 @@ export class StackModel {
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(currentAction)) {
 
             const result = currentAction.result;
-            if (result && result.node?.action) {
+            if (result) {
                 // Push the resolved action into the stack
                 this.stack.push(result);
-                this.liveGame.getGameStateForce().logger.debug("next action (resolved awaitable)", result.node.action);
+                this.liveGame.getGameStateForce().logger.debug("next action (resolved awaitable)", result.node?.action);
                 return result;
             }
         } else {
@@ -261,14 +275,20 @@ export class StackModel {
         return awaitable;
     }
 
-    public abortStackTop(): void {
+    public abortStackTop(): CalledActionResult | null {
         if (this.stack.isEmpty()) {
-            return;
+            return null;
         }
         const peek = this.stack.peek();
         if (peek && Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(peek)) {
             (this.stack.pop() as Awaitable<CalledActionResult>).abort();
+            this.waitingAction = null;
+        } else if (StackModel.isCalledActionResult(peek) && peek.wait) {
+            peek.wait.stackModels.forEach(stack => stack.abortStackTop());
+            this.waitingAction = null;
         }
+
+        return this.waitingAction;
     }
 
     public getTopSync(): CalledActionResult | null {
@@ -340,25 +360,10 @@ export class StackModel {
         }
 
         if (StackModel.isCalledActionResult(peek) && peek.wait) {
-            return this.isStackModelsAwaiting(peek.wait.type, peek.wait.stackModels);
+            return StackModel.isStackModelsAwaiting(peek.wait.type, peek.wait.stackModels);
         }
 
         return false;
-    }
-
-    isStackModelsAwaiting(type: StackModelWaiting["type"], stackModels: StackModel[]): boolean {
-        if (stackModels.length === 0) {
-            throw new Error("StackModel: StackModels are empty.");
-        }
-
-        // return peek.wait.stackModels.some(stack => stack.isWaiting());
-        if (type === "any") {
-            // if any stack is NOT waiting, then the stack model is NOT waiting
-            return !stackModels.some(stack => !stack.isWaiting());
-        } else {
-            // if any stack is waiting, then the stack model is waiting
-            return stackModels.some(stack => stack.isWaiting());
-        }
     }
 
     serialize(): StackModelRawData {

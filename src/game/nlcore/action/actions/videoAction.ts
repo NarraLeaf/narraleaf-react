@@ -71,7 +71,6 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
 
             await handler(state);
             awaitable.resolve(super.executeAction(gameState) as CalledActionResult);
-            gameState.stage.next();
         });
         awaitable.registerSkipController(new SkipController(token.cancel));
 

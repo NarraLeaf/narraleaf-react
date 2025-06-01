@@ -33,6 +33,8 @@ export function KeyEventAnnouncer({state}: Readonly<{
                     isKeyPressedRef.current = true;
                     // Trigger immediately on first press
                     state.events.emit(GameState.EventTypes["event:state.player.skip"]);
+
+                    state.logger.verbose("KeyEventAnnouncer", "Skipping");
                     
                     // Start interval for continuous triggering
                     keyIntervalRef.current = setInterval(() => {

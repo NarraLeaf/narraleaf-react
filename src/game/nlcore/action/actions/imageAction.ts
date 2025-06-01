@@ -50,7 +50,6 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             state.getExposedStateAsync<ExposedStateType.image>(wearable, (wearableState) => {
                 wearableState.initDisplayable(() => {
                     awaitable.resolve(super.executeAction(state) as CalledActionResult);
-                    state.stage.next();
                 });
             });
             state.actionHistory.push<[Image]>(this, (wearable) => {
@@ -101,12 +100,13 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     ._setTargetSrc(newSrc);
 
                 const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
-                exposed.applyTransition(transition, () => {
+                const task = exposed.applyTransition(transition, () => {
                     this.callee.state.currentSrc = newTags as [];
                     awaitable.resolve(super.executeAction(state) as CalledActionResult);
-                    state.stage.next();
                 });
-                const timeline = state.timelines.attachTimeline(awaitable);
+                const timeline = state.timelines
+                    .attachTimeline(awaitable)
+                    .attachChild(task);
                 state.actionHistory.push(this, handleUndo, [], timeline);
 
                 return awaitable;
@@ -133,7 +133,6 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 const task = exposed.applyTransition(transition, () => {
                     this.callee.state.darkness = darkness;
                     awaitable.resolve(super.executeAction(state) as CalledActionResult);
-                    state.stage.next();
                 });
 
                 const timeline = state.timelines

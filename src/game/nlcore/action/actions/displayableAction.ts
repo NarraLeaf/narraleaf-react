@@ -54,7 +54,6 @@ export class DisplayableAction<
         const task = exposed.applyTransform(transform, () => {
             onFinished?.();
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
-            state.stage.next();
         });
         const timeline = state.timelines
             .attachTimeline(awaitable)
@@ -82,11 +81,11 @@ export class DisplayableAction<
         const task = exposed.applyTransition(transition, () => {
             onFinished?.();
             awaitable.resolve(super.executeAction(state) as CalledActionResult);
-            state.stage.next();
         });
         const timeline = state.timelines
             .attachTimeline(awaitable)
             .attachChild(task);
+            
         state.actionHistory.push<[]>(this, () => {
             if (!awaitable.isSettled()) {
                 awaitable.abort();
@@ -114,7 +113,6 @@ export class DisplayableAction<
         state.getExposedStateAsync<LogicAction.DisplayableExposed>(element, (exposed) => {
             exposed.initDisplayable(() => {
                 awaitable.resolve(super.executeAction(state) as CalledActionResult);
-                state.stage.next();
             });
         });
         const timeline = state.timelines.attachTimeline(awaitable);

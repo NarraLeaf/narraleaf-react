@@ -4,6 +4,8 @@ import { randId } from "@lib/util/data";
 import { LiveGameEventToken } from "../types";
 import { LogicAction } from "../game";
 import { GameHistory, GameHistoryManager } from "./gameHistory";
+import { StackModelRawData } from "./stackModel";
+import type { LiveGame } from "../game/liveGame";
 
 export type ActionHistory<T extends Array<unknown> = any> = {
     action: Action;
@@ -11,6 +13,7 @@ export type ActionHistory<T extends Array<unknown> = any> = {
     args: T;
     id: string;
     undo?: (...args: T) => void;
+    stackSnapshot?: StackModelRawData;
 }
 
 export class ActionHistoryManager {
@@ -24,7 +27,7 @@ export class ActionHistoryManager {
         onHistoryLimit: [],
     };
 
-    constructor(maxHistorySize: number = 100) {
+    constructor(maxHistorySize: number = 100, public readonly liveGame: LiveGame) {
         this.maxHistorySize = maxHistorySize;
     }
 
@@ -33,7 +36,8 @@ export class ActionHistoryManager {
      */
     public push<T extends Array<any> = Array<any>>(action: Action, onUndo?: (...args: T) => void, args?: T, timeline?: Timeline): {id: string} {
         const id = randId(6);
-        this.history.push({action, id, args: args || [], undo: onUndo, timeline});
+        const snapshot = this.liveGame.stackModel?.serialize();
+        this.history.push({action, id, args: args || [], undo: onUndo, timeline, stackSnapshot: snapshot});
         
         // Check if the history size exceeds the limit
         if (this.history.length > this.maxHistorySize) {
@@ -74,6 +78,12 @@ export class ActionHistoryManager {
 
         this.history.length = index;
         this.hooks.onUndo.forEach(cb => cb(affected));
+
+        const snapshot = this.liveGame.stackModel?.serialize();
+        if (snapshot) {
+            const [actionMap] = this.liveGame.constructMaps();
+            this.liveGame.stackModel?.deserialize(snapshot, actionMap);
+        }
         return (affected[affected.length - 1]?.action || null) as LogicAction.Actions | null;
     }
 

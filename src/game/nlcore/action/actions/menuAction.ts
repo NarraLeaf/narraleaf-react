@@ -32,7 +32,7 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             ]);
             awaitable.resolve({
                 type: this.type as any,
-                node: chosen.action[0].contentNode,
+                node: null,
                 wait: {
                     type: "all",
                     stackModels: [stackModel]

@@ -39,6 +39,7 @@ type Legacy_PlayerStateElement = {
 };
 type ScheduleHandle = {
     retry: () => void;
+    onCleanup: (fn: VoidFunction) => void;
 };
 export type PlayerState = {
     sounds: Sound[];
@@ -143,7 +144,7 @@ export class GameState {
         this.timelines = new Timelines(this.guard);
         this.notificationMgr = new NotificationManager(this, []);
         this.idManager = new IdManager();
-        this.actionHistory = new ActionHistoryManager(game.config.maxActionHistory);
+        this.actionHistory = new ActionHistoryManager(game.config.maxActionHistory, this.game.getLiveGame());
         this.gameHistory = new GameHistoryManager(this.actionHistory);
     }
 
@@ -289,14 +290,21 @@ export class GameState {
     }
 
     public schedule(callback: (scheduleHandle: ScheduleHandle) => void, ms: number): () => void {
+        const cleanup: VoidFunction[] = [];
         const timeout = setTimeout(() => {
             callback({
                 retry: () => {
                     this.schedule(callback, 0);
+                },
+                onCleanup: (fn) => {
+                    cleanup.push(fn);
                 }
             });
         }, ms);
-        return () => clearTimeout(timeout);
+        return () => {
+            cleanup.forEach(fn => fn());
+            clearTimeout(timeout);
+        };
     }
 
     public notify(notification: Notification) {

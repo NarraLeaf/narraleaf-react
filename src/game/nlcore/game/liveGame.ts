@@ -255,6 +255,8 @@ export class LiveGame {
             return;
         }
 
+        const lock = this.gameLock.register().lock();
+
         this.stackModel.abortStackTop();
 
         const action = id
@@ -263,6 +265,8 @@ export class LiveGame {
 
         if (action) {
             this.stackModel.push(StackModel.fromAction(action));
+            this.gameLock.off(lock.unlock());
+
             this.gameState.logger.info("LiveGame.undo", "Undo until", id, "action", action);
     
             this.gameState.stage.forceUpdate();
@@ -272,6 +276,7 @@ export class LiveGame {
             }, 0);
         } else {
             this.gameState.logger.warn("LiveGame.undo", "No action found");
+            this.gameLock.off(lock.unlock());
         }
     }
 
@@ -561,6 +566,11 @@ export class LiveGame {
         // If the action stack is empty
         if (this.stackModel.isEmpty()) {
             gameState.logger.weakWarn("LiveGame", "No current action");
+            if (this.currentSavedGame) {
+                gameState.events.emit("event:state.end");
+            } else {
+                this.currentSavedGame = null;
+            }
             return null;
         }
 

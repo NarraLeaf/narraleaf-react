@@ -18,7 +18,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             const awaitable = Awaitable.forward(state.audioManager.play(this.callee, options), {
                 type: this.type,
                 node: this.contentNode?.getChild()
-            }).then(() => state.stage.next());
+            });
 
             state.timelines.attachTimeline(awaitable);
             state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
@@ -33,7 +33,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             const awaitable = Awaitable.forward(state.audioManager.stop(this.callee, options.duration), {
                 type: this.type,
                 node: this.contentNode?.getChild()
-            }).then(() => state.stage.next());
+            });
 
             state.timelines.attachTimeline(awaitable);
             state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
@@ -48,7 +48,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             const awaitable = Awaitable.forward(state.audioManager.setVolume(this.callee, volume, duration), {
                 type: this.type,
                 node: this.contentNode?.getChild()
-            }).then(() => state.stage.next());
+            });
 
             state.timelines.attachTimeline(awaitable);
             state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
@@ -63,7 +63,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             const awaitable = Awaitable.forward(state.audioManager.setRate(this.callee, rate), {
                 type: this.type,
                 node: this.contentNode?.getChild()
-            }).then(() => state.stage.next());
+            });
 
             state.timelines.attachTimeline(awaitable);
             state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
@@ -78,7 +78,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             const awaitable = Awaitable.forward(state.audioManager.pause(this.callee, options.duration), {
                 type: this.type,
                 node: this.contentNode?.getChild()
-            }).then(() => state.stage.next());
+            });
 
             state.timelines.attachTimeline(awaitable);
             state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
@@ -93,7 +93,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             const awaitable = Awaitable.forward(state.audioManager.resume(this.callee, options.duration), {
                 type: this.type ,
                 node: this.contentNode?.getChild()
-            }).then(() => state.stage.next());
+            });
 
             state.timelines.attachTimeline(awaitable);
             state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {

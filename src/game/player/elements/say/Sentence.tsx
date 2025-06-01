@@ -100,22 +100,24 @@ function BaseText(
         }
         gameState.logger.info("Initializing the sentence", dialog, taskRef.current);
 
-        if (!dialog.config.useTypeEffect) {
-            dialog.dispatchComplete();
-            return;
-        }
-        setDisplaying([]);
+        return gameState.schedule(({ onCleanup }) => {
+            if (!dialog.config.useTypeEffect) {
+                dialog.dispatchComplete();
+                return;
+            }
+            setDisplaying([]);
+    
+            taskRef.current = roll();
+            flush();
+    
+            taskRef.current.onComplete(() => {
+                dialog.dispatchComplete();
+            });
 
-        taskRef.current = roll();
-        flush();
-
-        taskRef.current.onComplete(() => {
-            dialog.dispatchComplete();
-        });
-
-        return () => {
-            taskRef.current?.timeline?.abort();
-        };
+            onCleanup(() => {
+                taskRef.current?.timeline?.abort();
+            });
+        }, 0);
     }, []);
 
     /**

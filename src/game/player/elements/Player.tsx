@@ -2,8 +2,7 @@ import "client-only";
 
 import { Story } from "@core/elements/story";
 import { CalledActionResult } from "@core/gameTypes";
-import { StackModel } from "@lib/game/nlcore/action/stackModel";
-import { Awaitable, createMicroTask, MultiLock } from "@lib/util/data";
+import { Awaitable, createMicroTask, EventToken, MultiLock } from "@lib/util/data";
 import { KeyEventAnnouncer } from "@player/elements/player/KeyEventAnnouncer";
 import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
@@ -24,6 +23,8 @@ import clsx from "clsx";
 import React, { useEffect, useReducer, useState } from "react";
 import { flushSync } from "react-dom";
 import { RenderEventAnnoucer } from "./player/RenderEventAnnoucer";
+import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
+import { StackModel } from "@lib/game/nlcore/action/stackModel";
 
 export default function Player(
     {
@@ -60,31 +61,38 @@ export default function Player(
     const mainContentRef = React.createRef<HTMLDivElement>();
     const [ready, setReady] = useState(false);
     const readyHandlerExecuted = React.useRef(false);
-    const nextAwaitable = React.useRef<Awaitable | null>(null);
+    const currentHandlingResult = React.useRef<CalledActionResult | Awaitable<CalledActionResult> | null>(null);
     const nextMultiLock = React.useRef<MultiLock | null>(null);
 
-    const {preloaded} = usePreloaded();
+    const { preloaded } = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
 
     function next() {
-        let exited = false;
+        let exited = false, count = 0;
         while (!exited) {
+            if (count++ > game.config.maxStackModelLoop) {
+                throw new RuntimeGameError("Max stack model loop reached");
+            }
+
             const nextResult = game.getLiveGame().next();
             if (!nextResult) {
-                break;
+                if (game.getLiveGame().stackModel?.isEmpty()) {
+                    break;
+                }
+                continue;
             }
 
             // Handle Awaitable
             if (Awaitable.isAwaitable<CalledActionResult>(nextResult)) {
-                if (nextAwaitable.current === nextResult) {
+                if (currentHandlingResult.current === nextResult) {
                     break;
                 }
-                nextAwaitable.current = nextResult;
+                currentHandlingResult.current = nextResult;
                 nextResult.onSettled(() => {
-                    state.stage.next();
-                    if (nextAwaitable.current === nextResult) {
-                        nextAwaitable.current = null;
+                    if (currentHandlingResult.current === nextResult) {
+                        currentHandlingResult.current = null;
                     }
+                    next();
                 });
                 exited = true;
                 break;
@@ -97,63 +105,83 @@ export default function Player(
                 }
                 nextMultiLock.current = nextResult;
                 nextResult.nextUnlock().then(() => {
-                    next();
                     if (nextMultiLock.current === nextResult) {
                         nextMultiLock.current = null;
                     }
+                    next();
                 });
                 exited = true;
                 break;
             }
 
-            // Handle StackModel
-            if (StackModel.isStackModel(nextResult)) {
-                handleStackModel(nextResult);
-                exited = true;
-                break;
+            // Handle CalledActionResult 
+            if (StackModel.isCalledActionResult(nextResult)) {
+                if (nextResult.wait && StackModel.isStackModelsAwaiting(nextResult.wait.type, nextResult.wait.stackModels)) {
+                    if (currentHandlingResult.current === nextResult) {
+                        break;
+                    }
+                    currentHandlingResult.current = nextResult;
+
+                    const awaitables: Map<Awaitable, EventToken> = new Map();
+
+                    const rollStackModels = (stackModels: StackModel[], type: "all" | "any", depth: number = 0): Promise<void> => {
+                        const create = () => stackModels.map(stackModel => new Promise<void>(resolve => {
+                            if (depth > game.config.maxStackModelLoop) {
+                                throw new RuntimeGameError("Max stack model loop reached");
+                            }
+
+                            const nextResult = stackModel.rollNext();
+
+                            if (!nextResult) {
+                                resolve();
+                                return;
+                            }
+
+                            if (Awaitable.isAwaitable<CalledActionResult>(nextResult)) {
+                                const handler = () => { resolve(); };
+                                const token = nextResult.onSettled(handler);
+
+                                if (awaitables.has(nextResult)) {
+                                    const token = awaitables.get(nextResult)!;
+                                    token.cancel();
+                                }
+                                awaitables.set(nextResult, token);
+                            } else if (nextResult.wait && StackModel.isStackModelsAwaiting(nextResult.wait!.type, nextResult.wait!.stackModels)) {
+                                rollStackModels(nextResult.wait!.stackModels, nextResult.wait!.type, depth + 1).then(() => {
+                                    resolve();
+                                });
+                            }
+                            resolve();
+                        }));
+
+                        const cleanup = () => {
+                            awaitables.forEach((value) => value.cancel());
+                        };
+                        return type === "all" ? Promise.all(create()).then(() => {
+                            cleanup();
+                            return;
+                        }) : Promise.race(create()).then(() => {
+                            cleanup();
+                            return;
+                        });
+                    };
+
+                    rollStackModels(nextResult.wait.stackModels, nextResult.wait.type).then(() => {
+                        if (currentHandlingResult.current === nextResult) {
+                            currentHandlingResult.current = null;
+                        }
+                        next();
+                    });
+
+                    exited = true;
+                    break;
+                }
             }
 
             // Handle regular action result
             state.handle(nextResult);
         }
         state.stage.update();
-    }
-
-    // Helper function to handle StackModel
-    function handleStackModel(stackModel: StackModel) {
-        let exited = false;
-        while (!exited) {
-            const res = stackModel.rollNext();
-            if (!res) {
-                break;
-            }
-
-            // Handle Awaitable in StackModel
-            if (Awaitable.isAwaitable<CalledActionResult>(res)) {
-                if (nextAwaitable.current === res) {
-                    break;
-                }
-                nextAwaitable.current = res;
-                res.onSettled(() => {
-                    state.stage.next();
-                    if (nextAwaitable.current === res) {
-                        nextAwaitable.current = null;
-                    }
-                });
-                exited = true;
-                break;
-            }
-
-            // Handle nested StackModel
-            if (StackModel.isStackModel(res)) {
-                handleStackModel(res);
-                exited = true;
-                break;
-            }
-
-            // Handle regular action result in StackModel
-            state.handle(res);
-        }
     }
 
     useEffect(() => {
@@ -255,9 +283,9 @@ export default function Player(
                 tabIndex={0}
             >
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
-                    <SizeUpdateAnnouncer ref={containerRef}/>
-                    <PreferenceUpdateAnnouncer gameState={state}/>
-                    <RenderEventAnnoucer gameState={state}/>
+                    <SizeUpdateAnnouncer ref={containerRef} />
+                    <PreferenceUpdateAnnouncer gameState={state} />
+                    <RenderEventAnnoucer gameState={state} />
                     <Isolated className={"absolute"} ref={mainContentRef} style={{
                         cursor: state.game.config.cursor ? "none" : "auto",
                         overflow: state.game.config.showOverflow ? "visible" : "hidden",
@@ -270,17 +298,17 @@ export default function Player(
                             />
                         )}
                         <OnlyPreloaded show={preloadedReady && active} key={key}>
-                            <KeyEventAnnouncer state={state}/>
+                            <KeyEventAnnouncer state={state} />
                             {state.getSceneElements().map((elements) => (
-                                <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements}/>
+                                <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
                             ))}
                             {state.getVideos().map((video, index) => (
                                 <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
-                                    <Video gameState={state} video={video}/>
+                                    <Video gameState={state} video={video} />
                                 </div>
                             ))}
                         </OnlyPreloaded>
-                        <Preload state={state}/>
+                        <Preload state={state} />
                         <PageRouter>
                             {children}
                         </PageRouter>
@@ -291,7 +319,7 @@ export default function Player(
     );
 }
 
-function OnlyPreloaded({children, show}: Readonly<{
+function OnlyPreloaded({ children, show }: Readonly<{
     children: React.ReactNode,
     show: boolean,
 }>) {

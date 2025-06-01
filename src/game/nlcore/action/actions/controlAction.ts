@@ -91,12 +91,6 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                 }
             };
         } else if (this.type === ControlActionTypes.allAsync) {
-            // const [, timeline] = Timeline.all(
-            //     this.checkActionChain(content).map(action => ControlAction.executeActionsAsync(gameState, action))
-            // );
-            // gameState.timelines.attachTimeline(timeline);
-
-            // return super.executeAction(gameState);
             if (content.length === 0) {
                 return {
                     type: this.type,
@@ -157,7 +151,6 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                     type: this.type,
                     node: this.contentNode.getChild()
                 });
-                gameState.stage.next();
             });
 
             awaitable.onSkipControllerRegister(controller => {

@@ -1,4 +1,4 @@
-import {HexColor, LiveGameEventToken, NamedColor} from "@core/types";
+import { HexColor, LiveGameEventToken, NamedColor } from "@core/types";
 import { ServiceHandlerCtx } from "@lib/game/nlcore/elements/service";
 import { ServiceHandler } from "@lib/game/nlcore/elements/service";
 
@@ -187,7 +187,7 @@ export class Awaitable<T = any, U = T> {
      */
     static race<T>(awaitables: Awaitable<T>[]): Awaitable<T> {
         const result = new Awaitable<T>();
-        
+
         // If no awaitables provided, resolve immediately
         if (awaitables.length === 0) {
             result.resolve(undefined as T);
@@ -340,25 +340,44 @@ export class Awaitable<T = any, U = T> {
         return this;
     }
 
-    onSettled(callback: () => void): this {
+    onSettled(callback: () => void): EventToken {
         if (this.solved) {
             callback();
         } else {
             this.pushListener(callback);
-            this.onSkipControllerRegister((controller) => {
-                controller.onAbort(() => {
+            const tokens: EventToken[] = [];
+            tokens.push(this.onSkipControllerRegister((controller) => {
+                tokens.push(controller.onAbort(() => {
                     callback();
-                });
-            });
+                }));
+            }));
+            return {
+                cancel: () => {
+                    tokens.forEach(token => token.cancel());
+                    this.offListener(callback);
+                }
+            };
         }
-        return this;
+        return { cancel: () => { } };
     }
 
-    onSkipControllerRegister(callback: (skipController: SkipController<T, []>) => void) {
+    onSkipControllerRegister(callback: (skipController: SkipController<T, []>) => void): EventToken {
         if (this.skipController) {
             callback(this.skipController);
         } else {
             this.onRegisterSkipController.push(callback);
+        }
+        return {
+            cancel: () => {
+                this.offSkipControllerRegister(callback);
+            }
+        };
+    }
+
+    offSkipControllerRegister(callback: (skipController: SkipController<T, []>) => void) {
+        const index = this.onRegisterSkipController.indexOf(callback);
+        if (index !== -1) {
+            this.onRegisterSkipController.splice(index, 1);
         }
         return this;
     }
@@ -381,7 +400,7 @@ export class Awaitable<T = any, U = T> {
     isAborted() {
         return this.aborted;
     }
-    
+
     isSettled() {
         return this.solved || this.aborted;
     }
@@ -391,6 +410,14 @@ export class Awaitable<T = any, U = T> {
             console.warn("NarraLeaf-React: Awaitable has too many listeners, this may cause performance issues.");
         }
         this.listeners.push(listener);
+        return this;
+    }
+
+    private offListener(listener: (value: T) => void) {
+        const index = this.listeners.indexOf(listener);
+        if (index !== -1) {
+            this.listeners.splice(index, 1);
+        }
         return this;
     }
 }
@@ -545,6 +572,10 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         return this;
     }
 
+    public hasListeners(event: keyof T): boolean {
+        return this.events[event]?.length > 0;
+    }
+
     clear() {
         this.events = {} as any;
     }
@@ -646,7 +677,7 @@ export class Lock {
         return this;
     }
 
-    public unlock() {
+    public unlock(): this {
         this.locked = false;
         for (const listener of this.listeners) {
             listener();
@@ -805,28 +836,28 @@ export function crossCombine<T, U>(a: T[], b: U[]): (T | U)[] {
 
 export type SelectElementFromEach<T extends string[][] | null> =
     T extends [infer First, ...infer Rest]
-        ? First extends string[]
-            ? Rest extends string[][]
-                ? {
-                    [K in First[number]]: [K, ...SelectElementFromEach<ExcludeEach<Rest, K>>];
-                }[First[number]]
-                : []
-            : []
-        : [];
+    ? First extends string[]
+    ? Rest extends string[][]
+    ? {
+        [K in First[number]]: [K, ...SelectElementFromEach<ExcludeEach<Rest, K>>];
+    }[First[number]]
+    : []
+    : []
+    : [];
 export type ExcludeEach<T extends string[][], Excluded> =
     T extends [infer First, ...infer Rest]
-        ? First extends string[]
-            ? Rest extends string[][]
-                ? [[Exclude<First[number], Excluded>], ...ExcludeEach<Rest, Excluded>]
-                : []
-            : []
-        : [];
+    ? First extends string[]
+    ? Rest extends string[][]
+    ? [[Exclude<First[number], Excluded>], ...ExcludeEach<Rest, Excluded>]
+    : []
+    : []
+    : [];
 export type FlexibleTuple<T extends any[]> =
     T extends [infer First, ...infer Rest]
-        ? Rest extends any[]
-            ? [First, ...FlexibleTuple<Rest>] | FlexibleTuple<Rest>
-            : [First]
-        : [];
+    ? Rest extends any[]
+    ? [First, ...FlexibleTuple<Rest>] | FlexibleTuple<Rest>
+    : [First]
+    : [];
 
 export function moveElement<T>(arr: T[], element: T, direction: "up" | "down" | "top" | "bottom"): T[] {
     const index = arr.indexOf(element);
@@ -946,8 +977,8 @@ type SerializeHandlers<T> = {
 };
 type DeserializeHandlers<T, SerializeHandler extends SerializeHandlers<T>> = {
     [K in keyof T]?: SerializeHandler[K] extends ((...args: any) => any)
-        ? (value: Exclude<ReturnType<SerializeHandler[K]>, undefined>) => T[K]
-        : never;
+    ? (value: Exclude<ReturnType<SerializeHandler[K]>, undefined>) => T[K]
+    : never;
 }
 
 export class Serializer<
@@ -993,8 +1024,8 @@ export class Serializer<
         newSerializer: NewSerializeHandler,
         newDeserializer: NewDeserializeHandler
     ): Serializer<T & NewFields, SerializeHandler & NewSerializeHandler, DeserializeHandler & NewDeserializeHandler> {
-        const extendedSerializer = {...this.serializer, ...newSerializer} as SerializeHandler & NewSerializeHandler;
-        const extendedDeserializer = {...this.deserializer, ...newDeserializer} as DeserializeHandler & NewDeserializeHandler;
+        const extendedSerializer = { ...this.serializer, ...newSerializer } as SerializeHandler & NewSerializeHandler;
+        const extendedDeserializer = { ...this.deserializer, ...newDeserializer } as DeserializeHandler & NewDeserializeHandler;
 
         return new Serializer(extendedSerializer, extendedDeserializer);
     }
@@ -1334,13 +1365,13 @@ export function generateId(length: number = 16): string {
 }
 
 export const voidFunction: () => VoidFunction = () => {
-    return () => {};
+    return () => { };
 };
 
 export class IdManager {
     private counter = 0;
 
-    constructor(private prefix: string = "") {}
+    constructor(private prefix: string = "") { }
 
     generateId(): string {
         const id = `${this.prefix ? this.prefix + "-" : ""}${this.counter++}`;
@@ -1366,7 +1397,7 @@ export class Hooks<T extends Record<string, Array<any>>> {
     trigger<K extends keyof T>(key: K, value: T[K]): VoidFunction {
         const hooks = this.hooks[key];
         if (!hooks) {
-            return () => {};
+            return () => { };
         }
         const cleanup = hooks.map(h => h(...value));
         return () => {
@@ -1377,7 +1408,7 @@ export class Hooks<T extends Record<string, Array<any>>> {
     rawTrigger<K extends keyof T>(key: K, value: () => T[K]): VoidFunction {
         const hooks = this.hooks[key];
         if (!hooks) {
-            return () => {};
+            return () => { };
         }
         const cleanup = hooks.map(h => h(...value()));
         return () => {

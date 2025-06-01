@@ -5,7 +5,7 @@ import { GameState } from "@lib/game/nlcore/common/game";
 import { Game } from "@lib/game/nlcore/game";
 import { EventDispatcher, EventToken, Scheduler } from "@lib/util/data";
 import { SayComponent } from "@player/type";
-import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import React, { useLayoutEffect, useMemo, useState } from "react";
 import { DialogContext } from "./context";
 import { DialogAction, DialogStateType, SayElementProps } from "./type";
 
@@ -52,6 +52,11 @@ export class DialogState {
         this._state = DialogStateType.Pending;
         this.autoForwardScheduler = new Scheduler();
         this._count = 0;
+
+        // if (!this.config.useTypeEffect) {
+        //     this.setIdle(true);
+        //     this.dispatchComplete();
+        // }
     }
 
     public get state() {
@@ -107,6 +112,11 @@ export class DialogState {
     public dispatchComplete() {
         if (this.state === DialogStateType.Ended) {
             this.config.gameState.logger.weakWarn("DialogState", "Dialog is already ended. Cannot dispatch complete.");
+            return;
+        }
+
+        if (!this.events.hasListeners(DialogState.Events.complete)) {
+            this.config.gameState.logger.weakWarn("DialogState", "No listener for complete event. Cannot dispatch complete.");
             return;
         }
 
@@ -200,22 +210,21 @@ export default function PlayerDialog({
      * Listen to the complete event
      */
     useLayoutEffect(() => {
-        return dialogState.events.depends([
-            dialogState.events.on(DialogState.Events.complete, () => {
-                gameState.logger.log("NarraLeaf-React: Say", "Complete", dialogState.isIdle());
-                if (dialogState.isIdle()) {
-                    onFinished?.(false);
-                } else {
-                    dialogState.setIdle(true);
-                }
-            })
-        ]).cancel;
-    }, []);
+        console.log("dialogState", dialogState); // @debug
+        return dialogState.events.on(DialogState.Events.complete, () => {
+            gameState.logger.log("NarraLeaf-React: Say", "Complete", dialogState.isIdle());
+            if (dialogState.isIdle()) {
+                onFinished?.(false);
+            } else {
+                dialogState.setIdle(true);
+            }
+        }).cancel;
+    }, [dialogState]);
 
     /**
      * Listen to the skip event
      */
-    useEffect(() => {
+    useLayoutEffect(() => {
         return gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
             if (dialogState.isIdle()) {
                 onFinished?.(true);
