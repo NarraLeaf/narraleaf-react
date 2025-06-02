@@ -2,7 +2,7 @@ import "client-only";
 
 import { Story } from "@core/elements/story";
 import { CalledActionResult } from "@core/gameTypes";
-import { Awaitable, createMicroTask, EventToken, MultiLock } from "@lib/util/data";
+import { Awaitable, createMicroTask, EventToken, Lock, MultiLock } from "@lib/util/data";
 import { KeyEventAnnouncer } from "@player/elements/player/KeyEventAnnouncer";
 import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
@@ -63,11 +63,23 @@ export default function Player(
     const readyHandlerExecuted = React.useRef(false);
     const currentHandlingResult = React.useRef<CalledActionResult | Awaitable<CalledActionResult> | null>(null);
     const nextMultiLock = React.useRef<MultiLock | null>(null);
+    const [rollLock] = useState(new Lock());
 
     const { preloaded } = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
+    const [awaitables] = useState<Map<Awaitable<CalledActionResult>, EventToken>>(new Map());
 
     function next() {
+        const cleanup = () => {
+            awaitables.forEach((value) => value.cancel());
+        };
+
+        if (rollLock.isLocked()) {
+            return;
+        }
+
+        cleanup();
+
         let exited = false, count = 0;
         while (!exited) {
             if (count++ > game.config.maxStackModelLoop) {
@@ -122,56 +134,17 @@ export default function Player(
                     }
                     currentHandlingResult.current = nextResult;
 
-                    const awaitables: Map<Awaitable, EventToken> = new Map();
-
-                    const rollStackModels = (stackModels: StackModel[], type: "all" | "any", depth: number = 0): Promise<void> => {
-                        const create = () => stackModels.map(stackModel => new Promise<void>(resolve => {
-                            if (depth > game.config.maxStackModelLoop) {
-                                throw new RuntimeGameError("Max stack model loop reached");
+                    if (nextResult.wait) {
+                        // rollLock.lock();
+                        StackModel.executeStackModelGroup(nextResult.wait.type, nextResult.wait.stackModels).then(() => {
+                            if (currentHandlingResult.current === nextResult) {
+                                currentHandlingResult.current = null;
                             }
-
-                            const nextResult = stackModel.rollNext();
-
-                            if (!nextResult) {
-                                resolve();
-                                return;
-                            }
-
-                            if (Awaitable.isAwaitable<CalledActionResult>(nextResult)) {
-                                const handler = () => { resolve(); };
-                                const token = nextResult.onSettled(handler);
-
-                                if (awaitables.has(nextResult)) {
-                                    const token = awaitables.get(nextResult)!;
-                                    token.cancel();
-                                }
-                                awaitables.set(nextResult, token);
-                            } else if (nextResult.wait && StackModel.isStackModelsAwaiting(nextResult.wait!.type, nextResult.wait!.stackModels)) {
-                                rollStackModels(nextResult.wait!.stackModels, nextResult.wait!.type, depth + 1).then(() => {
-                                    resolve();
-                                });
-                            }
-                            resolve();
-                        }));
-
-                        const cleanup = () => {
-                            awaitables.forEach((value) => value.cancel());
-                        };
-                        return type === "all" ? Promise.all(create()).then(() => {
-                            cleanup();
-                            return;
-                        }) : Promise.race(create()).then(() => {
-                            cleanup();
-                            return;
+    
+                            // rollLock.unlock();
+                            next();
                         });
-                    };
-
-                    rollStackModels(nextResult.wait.stackModels, nextResult.wait.type).then(() => {
-                        if (currentHandlingResult.current === nextResult) {
-                            currentHandlingResult.current = null;
-                        }
-                        next();
-                    });
+                    }
 
                     exited = true;
                     break;
