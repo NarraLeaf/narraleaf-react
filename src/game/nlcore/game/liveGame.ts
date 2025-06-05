@@ -177,6 +177,9 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
+        // Prevent the player from rolling the stack
+        gameState.rollLock.lock();
+
         this.reset();
         gameState.stage.forceRemount();
 
@@ -223,6 +226,7 @@ export class LiveGame {
 
         gameState.events.once(GameState.EventTypes["event:state.onRender"], () => {
             gameState.schedule(() => {
+                gameState.rollLock.unlock();
                 gameState.stage.next();
             }, 0);
         });
@@ -591,13 +595,24 @@ export class LiveGame {
         return this.stackModel.rollNext();
     }
 
-    /**@internal */
+    /**
+     * **IMPORTANT**: Experimental
+     * @internal
+     */
     requestAsyncStackModel(value: (CalledActionResult | Awaitable<CalledActionResult>)[]): StackModel {
         this.assertGameState();
         
         const stack = new StackModel(this);
         this.asyncStackModels.add(stack);
 
+        stack.push(...value);
+
+        return stack;
+    }
+
+    /**@internal */
+    createStackModel(value: (CalledActionResult | Awaitable<CalledActionResult>)[]): StackModel {
+        const stack = new StackModel(this);
         stack.push(...value);
 
         return stack;

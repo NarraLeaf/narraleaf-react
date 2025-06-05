@@ -2,7 +2,7 @@ import "client-only";
 
 import { Story } from "@core/elements/story";
 import { CalledActionResult } from "@core/gameTypes";
-import { Awaitable, createMicroTask, EventToken, Lock, MultiLock } from "@lib/util/data";
+import { Awaitable, createMicroTask, EventToken, MultiLock } from "@lib/util/data";
 import { KeyEventAnnouncer } from "@player/elements/player/KeyEventAnnouncer";
 import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
 import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
@@ -63,7 +63,6 @@ export default function Player(
     const readyHandlerExecuted = React.useRef(false);
     const currentHandlingResult = React.useRef<CalledActionResult | Awaitable<CalledActionResult> | null>(null);
     const nextMultiLock = React.useRef<MultiLock | null>(null);
-    const [rollLock] = useState(new Lock());
 
     const { preloaded } = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
@@ -74,7 +73,7 @@ export default function Player(
             awaitables.forEach((value) => value.cancel());
         };
 
-        if (rollLock.isLocked()) {
+        if (state.rollLock.isLocked()) {
             return;
         }
 
@@ -135,13 +134,11 @@ export default function Player(
                     currentHandlingResult.current = nextResult;
 
                     if (nextResult.wait) {
-                        // rollLock.lock();
                         StackModel.executeStackModelGroup(nextResult.wait.type, nextResult.wait.stackModels).then(() => {
                             if (currentHandlingResult.current === nextResult) {
                                 currentHandlingResult.current = null;
                             }
     
-                            // rollLock.unlock();
                             next();
                         });
                     }

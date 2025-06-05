@@ -24,10 +24,10 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
         let cleanup: (() => void) | null = null;
 
         const token = gameState.createMenu(menu, (chosen) => {
-            const stackModel = gameState.getLiveGame().requestAsyncStackModel([
+            const stackModel = gameState.getLiveGame().createStackModel([
                 {
                     type: this.type as any,
-                    node: chosen.action[0].contentNode
+                    node: chosen.action[0]?.contentNode ?? null
                 }
             ]);
             awaitable.resolve({
@@ -38,6 +38,7 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
                     stackModels: [stackModel]
                 }
             });
+            
             cleanup = () => {
                 stackModel.reset();
             };

@@ -1,5 +1,5 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {Awaitable, EventDispatcher, IdManager, Values} from "@lib/util/data";
+import {Awaitable, EventDispatcher, IdManager, Lock, Values} from "@lib/util/data";
 import {MenuData} from "@core/elements/menu";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
@@ -124,6 +124,7 @@ export class GameState {
     timelines: Timelines;
     preloadingScene: Scene | null = null;
     flushDep: number = 0;
+    rollLock: Lock = new Lock();
     public readonly notificationMgr: NotificationManager;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;

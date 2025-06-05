@@ -82,7 +82,6 @@ export class StackModel {
         return !!action
             && !this.isStackModel(action)
             && !Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(action)
-            && "node" in action
             && "type" in action;
     }
 
@@ -372,8 +371,6 @@ export class StackModel {
                 const actionId = item.node?.action?.getId() ?? null;
                 const actionType = item.node?.action?.type ?? null;
 
-                if (!actionId) return null;
-
                 if (item.wait?.stackModels) {
                     return {
                         type: StackModelItemType.Link,
@@ -418,9 +415,9 @@ export class StackModel {
         this.reset();
 
         for (const item of data) {
-            if (!item.action) continue;
-
             if (item.type === StackModelItemType.Action) {
+                if (!item.action) continue;
+
                 const { actionType, action } = item;
                 const found = actionMap.get(action);
                 if (!found) {
@@ -430,16 +427,14 @@ export class StackModel {
                 this.stack.push({ type: actionType, node: found.contentNode, wait: null });
             } else if (item.type === StackModelItemType.Link) {
                 const { actionType, action, stacks, stackWaitType } = item;
-                const found = actionMap.get(action);
-                if (!found) {
-                    throw new Error(`Action not found: ${action}`);
-                }
                 if (stackWaitType == null) {
                     throw new Error(`Missing stackWaitType for link action: ${action}`);
                 }
 
                 this.stack.push({
-                    type: actionType, node: found.contentNode, wait: {
+                    type: actionType,
+                    node: action ? actionMap.get(action)?.contentNode ?? null : null,
+                    wait: {
                         type: stackWaitType, stackModels: stacks.map(stack => StackModel.createStackModel(this.liveGame, stack, actionMap))
                     }
                 });
