@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0]
+
+### _Incompatible Changes_
+
+- The game has completely transitioned from a single node currentAction to a **StackModel**. The model ensures that: 
+  - Awaitable is handled in an explicit way 
+  - Support for sub-stack model recursive calls 
+  - Full support for serialization/deserialization 
+  - Support for scenario operations to break the call stack 
+  - Better branching/merging operations 
+  - Less prone to state clutter when deserializing and undoing
+  - Is a complete solution for nested operations
+
 ## [0.5.0]
 
 ### _Incompatible Changes_

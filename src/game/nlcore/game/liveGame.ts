@@ -77,6 +77,8 @@ export class LiveGame {
     asyncStackModels: Set<StackModel> = new Set();
     /**@internal */
     private readonly _storable: Storable;
+    /**@internal */
+    private mapCache: [actionMap: Map<string, LogicAction.Actions>, elementMap: Map<string, LogicAction.GameElement>] | null = null;
 
     /**@internal */
     constructor(game: Game) {
@@ -259,15 +261,21 @@ export class LiveGame {
 
         this.stackModel.abortStackTop();
 
-        const action = id
+        const actionHistory = id
             ? this.gameState.actionHistory.undoUntil(id)
             : this.gameState.actionHistory.undo(this.gameState.gameHistory);
 
-        if (action) {
-            this.stackModel.push(StackModel.fromAction(action));
+        if (actionHistory) {
+            const snapshot = actionHistory.stackSnapshot;
+            if (snapshot) {
+                const [actionMaps] = this.constructMaps();
+                this.stackModel.deserialize(snapshot, actionMaps);
+            }
+            this.stackModel.push(StackModel.fromAction(actionHistory.action as LogicAction.Actions));
+
             this.gameLock.off(lock.unlock());
 
-            this.gameState.logger.info("LiveGame.undo", "Undo until", id, "action", action);
+            this.gameState.logger.info("LiveGame.undo", "Undo until", id, "action", actionHistory);
     
             this.gameState.stage.forceUpdate();
             this.gameState.stage.next();
@@ -478,6 +486,10 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
+        if (this.mapCache) {
+            return this.mapCache;
+        }
+
         const actionMaps = new Map<string, LogicAction.Actions>();
         const elementMaps = new Map<string, LogicAction.GameElement>();
 
@@ -487,7 +499,9 @@ export class LiveGame {
             elementMaps.set(action.callee.getId(), action.callee);
         }, { allowFutureScene: true });
 
-        return [actionMaps, elementMaps];
+        this.mapCache = [actionMaps, elementMaps];
+
+        return this.mapCache;
     }
 
     /**@internal */
