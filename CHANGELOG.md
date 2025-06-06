@@ -5,6 +5,8 @@
 ### _Feature_
 
 - Game Preference `skipDelay`
+- Added `liveGame.skipDialog` to skip the current dialog
+- Use a notification with a null duration to create a notification that will not be automatically removed
 
 ### _Incompatible Changes_
 

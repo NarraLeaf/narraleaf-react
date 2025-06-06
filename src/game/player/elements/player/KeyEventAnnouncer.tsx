@@ -50,7 +50,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
                     
                     const startContinuousSkip = () => {
                         keyIntervalRef.current = setInterval(() => {
-                            state.events.emit(GameState.EventTypes["event:state.player.skip"]);
+                            state.events.emit(GameState.EventTypes["event:state.player.skip"], false);
                         }, game.config.skipInterval);
                     };
 
@@ -58,7 +58,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
                     cleanup();
 
                     // Trigger immediately on first press
-                    state.events.emit(GameState.EventTypes["event:state.player.skip"]);
+                    state.events.emit(GameState.EventTypes["event:state.player.skip"], false);
                     isKeyPressedRef.current = true;
 
                     if (skipDelay === 0) {

@@ -12,7 +12,7 @@ import { StorableType } from "@core/elements/persistent/type";
 import { Scene } from "@core/elements/scene";
 import { ElementStateRaw, Story } from "@core/elements/story";
 import { Game } from "@core/game";
-import type { CalledActionResult, SavedGame } from "@core/gameTypes";
+import type { CalledActionResult, NotificationToken, SavedGame } from "@core/gameTypes";
 import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
 import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
 import { GameState } from "@player/gameState";
@@ -305,11 +305,29 @@ export class LiveGame {
      * @param message - The message to notify the player with
      * @param duration - The duration of the notification in milliseconds, default is 3000ms
      */
-    public notify(message: string, duration: number = 3000) {
+    public notify(message: string, duration: number | null = 3000): NotificationToken {
         this.assertGameState();
 
         const id = this.gameState.idManager.generateId();
-        this.gameState.notificationMgr.consume({ id, message, duration });
+        const awaitable = this.gameState.notificationMgr.consume({ id, message, duration });
+
+        const promise = Awaitable.toPromiseForce(awaitable);
+
+        return {
+            cancel: () => {
+                awaitable.abort();
+            },
+            promise,
+        };
+    }
+
+    /**
+     * Skip the current dialog
+     */
+    public skipDialog() {
+        this.assertGameState();
+
+        this.gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
     }
 
     private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {

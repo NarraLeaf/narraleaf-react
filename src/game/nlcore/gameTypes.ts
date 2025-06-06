@@ -8,7 +8,7 @@ import { GuardConfig } from "@player/guard";
 import React from "react";
 import { StackModel, StackModelRawData } from "./action/stackModel";
 import { MenuComponent, NotificationComponent, SayComponent } from "./common/player";
-import { Color } from "./types";
+import { Color, LiveGameEventToken } from "./types";
 
 export interface SavedGame {
     name: string;
@@ -356,5 +356,7 @@ export type CalledActionResult<T extends keyof LogicAction.ActionContents = any>
     }
 }[StringKeyOf<LogicAction.ActionContents>];
 
-
+export interface NotificationToken extends LiveGameEventToken {
+    promise: Promise<void>;
+}
 

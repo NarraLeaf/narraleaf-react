@@ -259,6 +259,18 @@ export class Awaitable<T = any, U = T> {
         return newAwaitable;
     }
 
+    static toPromise<T>(awaitable: Awaitable<T>): Promise<T> {
+        return new Promise((resolve) => {
+            awaitable.then(resolve);
+        });
+    }
+
+    static toPromiseForce<T>(awaitable: Awaitable<T>): Promise<void> {
+        return new Promise((resolve) => {
+            awaitable.onSettled(resolve);
+        });
+    }
+
     /**
      * Resolves when any of the provided awaitables settles.
      */

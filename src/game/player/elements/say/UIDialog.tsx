@@ -11,7 +11,7 @@ import { DialogAction, DialogStateType, SayElementProps } from "./type";
 
 type DialogEvents = {
     "event:dialog.requestComplete": [];
-    "event:dialog.complete": [];
+    "event:dialog.complete": [force: boolean];
     "event:dialog.forceSkip": [];
     "event:dialog.onFlush": [];
     "event:dialog.simulateClick": [];
@@ -52,11 +52,6 @@ export class DialogState {
         this._state = DialogStateType.Pending;
         this.autoForwardScheduler = new Scheduler();
         this._count = 0;
-
-        // if (!this.config.useTypeEffect) {
-        //     this.setIdle(true);
-        //     this.dispatchComplete();
-        // }
     }
 
     public get state() {
@@ -210,10 +205,11 @@ export default function PlayerDialog({
      * Listen to the complete event
      */
     useLayoutEffect(() => {
-        console.log("dialogState", dialogState); // @debug
-        return dialogState.events.on(DialogState.Events.complete, () => {
+        gameState.logger.debug("NarraLeaf-React: Say", "dialogState", dialogState);
+        
+        return dialogState.events.on(DialogState.Events.complete, (force: boolean) => {
             gameState.logger.log("NarraLeaf-React: Say", "Complete", dialogState.isIdle());
-            if (dialogState.isIdle()) {
+            if (dialogState.isIdle() || force) {
                 onFinished?.(false);
             } else {
                 dialogState.setIdle(true);
@@ -225,8 +221,11 @@ export default function PlayerDialog({
      * Listen to the skip event
      */
     useLayoutEffect(() => {
-        return gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
-            if (dialogState.isIdle()) {
+        return gameState.events.on(GameState.EventTypes["event:state.player.skip"], (force?: boolean) => {
+            if (force) {
+                dialogState.setIdle(true);
+                dialogState.forceSkip();
+            } else if (dialogState.isIdle()) {
                 onFinished?.(true);
             } else {
                 dialogState.forceSkip();
