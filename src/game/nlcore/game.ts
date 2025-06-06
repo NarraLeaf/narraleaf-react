@@ -67,7 +67,7 @@ export type GamePreference = {
      * This is used to prevent the game from skipping actions too quickly when the player presses the skip key.
      * 
      * Set to 0 to skip actions immediately when the player presses the skip key.
-     * @default 1000
+     * @default 500
      */
     skipDelay: number;
 };
@@ -106,7 +106,7 @@ export class Game {
         bgmVolume: 1,
         soundVolume: 1,
         globalVolume: 1,
-        skipDelay: 1000,
+        skipDelay: 500,
     };
     /**@internal */
     static Preferences: {

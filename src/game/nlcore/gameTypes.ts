@@ -16,6 +16,8 @@ export interface SavedGame {
         created: number;
         updated: number;
         id: string;
+        lastSentence: string | null;
+        lastSpeaker: string | null;
     };
     game: {
         store: { [key: string]: StorableData; };

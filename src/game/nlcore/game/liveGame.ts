@@ -76,6 +76,11 @@ export class LiveGame {
     /**@internal */
     asyncStackModels: Set<StackModel> = new Set();
     /**@internal */
+    lastDialog: {
+        sentence: string;
+        speaker: string | null;
+    } | null = null;
+    /**@internal */
     private readonly _storable: Storable;
     /**@internal */
     private mapCache: [actionMap: Map<string, LogicAction.Actions>, elementMap: Map<string, LogicAction.GameElement>] | null = null;
@@ -149,6 +154,8 @@ export class LiveGame {
                 created: this.currentSavedGame.meta.created,
                 updated: Date.now(),
                 id: this.currentSavedGame.meta.id,
+                lastSentence: this.lastDialog?.sentence || null,
+                lastSpeaker: this.lastDialog?.speaker || null,
             },
             game: {
                 store,
@@ -583,6 +590,7 @@ export class LiveGame {
         this.resetStackModels();
         this.stackModel.reset();
         this.currentSavedGame = null;
+        this.lastDialog = null;
 
         gameState.forceReset();
     }
@@ -612,6 +620,14 @@ export class LiveGame {
         }
 
         return this.stackModel.rollNext();
+    }
+
+    /**@internal */
+    setLastDialog(sentence: string, speaker: string | null) {
+        this.lastDialog = {
+            sentence,
+            speaker,
+        };
     }
 
     /**
@@ -759,6 +775,8 @@ export class LiveGame {
                 created: Date.now(),
                 updated: Date.now(),
                 id: generateId(),
+                lastSentence: null,
+                lastSpeaker: null,
             },
             game: {
                 store: {},

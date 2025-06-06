@@ -64,6 +64,9 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 });
             });
 
+            // Set last dialog
+            gameState.getLiveGame().setLastDialog(dialog.text, this.callee.state.name);
+
             // Attach timeline
             gameState.timelines.attachTimeline(timeline);
 

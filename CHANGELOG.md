@@ -7,6 +7,7 @@
 - Game Preference `skipDelay`
 - Added `liveGame.skipDialog` to skip the current dialog
 - Use a notification with a null duration to create a notification that will not be automatically removed
+- Added `lastSentence` and `lastSpeaker` to the saved game metadata
 
 ### _Incompatible Changes_
 
