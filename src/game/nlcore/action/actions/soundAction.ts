@@ -4,13 +4,18 @@ import { ContentNode } from "@core/action/tree/actionTree";
 import type { Sound, SoundDataRaw } from "@core/elements/sound";
 import { Awaitable } from "@lib/util/data";
 import { GameState } from "@player/gameState";
-import { ExecutedActionResult } from "../action";
+import { ActionExecutionInjection, ExecutedActionResult } from "../action";
+import { ActionHistoryPushOptions } from "../actionHistory";
 
 export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundActionTypes] = typeof SoundActionTypes[keyof typeof SoundActionTypes]>
     extends TypedAction<SoundActionContentType, T, Sound> {
     static ActionTypes = SoundActionTypes;
 
-    public executeAction(state: GameState): ExecutedActionResult {
+    public executeAction(state: GameState, injection: ActionExecutionInjection): ExecutedActionResult {
+        const historyProps: ActionHistoryPushOptions = {
+            action: this,
+            stackModel: injection.stackModel
+        };
         if (this.type === SoundActionTypes.play) {
             const [options] = (this.contentNode as ContentNode<SoundActionContentType["sound:play"]>).getContent();
             const originalState = this.callee.toData();
@@ -21,7 +26,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             });
 
             state.timelines.attachTimeline(awaitable);
-            state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
+            state.actionHistory.push<[SoundDataRaw | null]>(historyProps, (prevState) => {
                 if (prevState) this.callee.fromData(prevState);
             }, [originalState]);
 
@@ -36,7 +41,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             });
 
             state.timelines.attachTimeline(awaitable);
-            state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
+            state.actionHistory.push<[SoundDataRaw | null]>(historyProps, (prevState) => {
                 if (prevState) this.callee.fromData(prevState);
             }, [originalState]);
 
@@ -51,7 +56,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             });
 
             state.timelines.attachTimeline(awaitable);
-            state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
+            state.actionHistory.push<[SoundDataRaw | null]>(historyProps, (prevState) => {
                 if (prevState) this.callee.fromData(prevState);
             }, [originalState]);
 
@@ -66,7 +71,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             });
 
             state.timelines.attachTimeline(awaitable);
-            state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
+            state.actionHistory.push<[SoundDataRaw | null]>(historyProps, (prevState) => {
                 if (prevState) this.callee.fromData(prevState);
             }, [originalState]);
 
@@ -81,7 +86,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             });
 
             state.timelines.attachTimeline(awaitable);
-            state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
+            state.actionHistory.push<[SoundDataRaw | null]>(historyProps, (prevState) => {
                 if (prevState) this.callee.fromData(prevState);
             }, [originalState]);
 
@@ -96,7 +101,7 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             });
 
             state.timelines.attachTimeline(awaitable);
-            state.actionHistory.push<[SoundDataRaw | null]>(this, (prevState) => {
+            state.actionHistory.push<[SoundDataRaw | null]>(historyProps, (prevState) => {
                 if (prevState) this.callee.fromData(prevState);
             }, [originalState]);
 

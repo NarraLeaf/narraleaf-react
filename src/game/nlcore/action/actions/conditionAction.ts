@@ -14,12 +14,27 @@ export class ConditionAction<T extends typeof ConditionActionTypes[keyof typeof 
         const nodes = this.callee.evaluate(this.contentNode.getContent(), {
             gameState
         });
-        nodes?.[nodes.length - 1]?.contentNode.addChild(this.contentNode.getChild());
-        this.contentNode.addChild(nodes?.[0]?.contentNode || null);
-        return {
-            type: this.type as any,
-            node: this.contentNode.getChild(),
-        };
+
+        const stackModel = gameState.getLiveGame().createStackModel([
+            {
+                type: this.type,
+                node: nodes?.[0]?.contentNode ?? null
+            }
+        ]);
+        return [
+            {
+                type: this.type,
+                node: this.contentNode.getChild(),
+            },
+            {
+                type: this.type,
+                node: null,
+                wait: {
+                    type: "all" as const,
+                    stackModels: [stackModel]
+                }
+            }
+        ];
     }
 
     getFutureActions(story: Story, options: ActionSearchOptions): LogicAction.Actions[] {

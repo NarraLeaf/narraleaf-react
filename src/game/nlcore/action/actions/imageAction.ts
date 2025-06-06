@@ -9,7 +9,7 @@ import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {Color, RGBAColor, StaticImageData} from "@core/types";
 import {ExposedStateType} from "@player/type";
 import { Darkness } from "../../elements/transition/transitions/image/darkness";
-import { ExecutedActionResult } from "../action";
+import { ActionExecutionInjection, ExecutedActionResult } from "../action";
 
 export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageActionTypes] = typeof ImageActionTypes[keyof typeof ImageActionTypes]>
     extends TypedAction<ImageActionContentType, T, Image> {
@@ -40,7 +40,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
     declare type: T;
     declare contentNode: ContentNode<ImageActionContentType[T]>;
 
-    public executeAction(state: GameState): ExecutedActionResult {
+    public executeAction(state: GameState, injection: ActionExecutionInjection): ExecutedActionResult {
         if (this.type === ImageActionTypes.initWearable) {
             const [wearable] = (this.contentNode as ContentNode<ImageActionContentType["image:initWearable"]>).getContent();
             const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
@@ -49,10 +49,13 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             exposed.createWearable(wearable);
             state.getExposedStateAsync<ExposedStateType.image>(wearable, (wearableState) => {
                 wearableState.initDisplayable(() => {
-                    awaitable.resolve(super.executeAction(state) as CalledActionResult);
+                    awaitable.resolve(super.executeAction(state, injection) as CalledActionResult);
                 });
             });
-            state.actionHistory.push<[Image]>(this, (wearable) => {
+            state.actionHistory.push<[Image]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (wearable) => {
                 exposed.disposeWearable(wearable);
             }, [wearable]);
 
@@ -67,14 +70,17 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             this.callee.state.currentSrc = src;
             state.logger.debug("Image Set Src", src);
 
-            state.actionHistory.push<[string | [] | StaticImageData | RGBAColor]>(this, (oldSrc) => {
+            state.actionHistory.push<[string | [] | StaticImageData | RGBAColor]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (oldSrc) => {
                 this.callee.state.currentSrc = oldSrc;
             }, [oldSrc]);
 
             state.stage.update();
-            return super.executeAction(state);
+            return super.executeAction(state, injection);
         } else if (this.type === ImageActionTypes.flush) {
-            return super.executeAction(state);
+            return super.executeAction(state, injection);
         } else if (this.type === ImageActionTypes.setAppearance) {
             const [tags, transition] =
                 (this.contentNode as ContentNode<ImageActionContentType["image:setAppearance"]>).getContent();
@@ -94,7 +100,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
 
             if (transition) {
                 const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
-                    .registerSkipController(new SkipController(() => super.executeAction(state) as CalledActionResult));
+                    .registerSkipController(new SkipController(() => super.executeAction(state, injection) as CalledActionResult));
                 transition
                     ._setPrevSrc(ImageAction.resolveCurrentSrc(this.callee))
                     ._setTargetSrc(newSrc);
@@ -102,19 +108,26 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
                 const task = exposed.applyTransition(transition, () => {
                     this.callee.state.currentSrc = newTags as [];
-                    awaitable.resolve(super.executeAction(state) as CalledActionResult);
+                    awaitable.resolve(super.executeAction(state, injection) as CalledActionResult);
                 });
                 const timeline = state.timelines
                     .attachTimeline(awaitable)
                     .attachChild(task);
-                state.actionHistory.push(this, handleUndo, [], timeline);
+                state.actionHistory.push({
+                    action: this,
+                    stackModel: injection.stackModel,
+                    timeline
+                }, handleUndo, []);
 
                 return awaitable;
             }
             this.callee.state.currentSrc = newTags as [];
-            state.actionHistory.push(this, handleUndo);
+            state.actionHistory.push({
+                action: this,
+                stackModel: injection.stackModel
+            }, handleUndo);
 
-            return super.executeAction(state);
+            return super.executeAction(state, injection);
         } else if (this.type === ImageActionTypes.setDarkness) {
             const [darkness, duration, easing] = (this.contentNode as ContentNode<ImageActionContentType["image:setDarkness"]>).getContent();
             const oldDarkness = this.callee.state.darkness;
@@ -132,28 +145,35 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 
                 const task = exposed.applyTransition(transition, () => {
                     this.callee.state.darkness = darkness;
-                    awaitable.resolve(super.executeAction(state) as CalledActionResult);
+                    awaitable.resolve(super.executeAction(state, injection) as CalledActionResult);
                 });
 
                 const timeline = state.timelines
                     .attachTimeline(awaitable)
                     .attachChild(task);
-                state.actionHistory.push(this, () => {
+                state.actionHistory.push({
+                    action: this,
+                    stackModel: injection.stackModel,
+                    timeline
+                }, () => {
                     if (!awaitable.isSettled()) {
                         awaitable.abort();
                     }
                     task.abort();
                     handleUndo();
-                }, [], timeline);
+                });
 
                 return awaitable;
             }
 
             this.callee.state.darkness = darkness;
-            state.actionHistory.push(this, handleUndo);
+            state.actionHistory.push({
+                action: this,
+                stackModel: injection.stackModel
+            }, handleUndo);
 
             exposed.updateStyleSync();
-            return super.executeAction(state);
+            return super.executeAction(state, injection);
         }
 
         throw super.unknownTypeError();

@@ -3,7 +3,7 @@ import { Action } from "./action";
 import { randId } from "@lib/util/data";
 import { LiveGameEventToken } from "../types";
 import { GameHistory, GameHistoryManager } from "./gameHistory";
-import { StackModelRawData } from "./stackModel";
+import { StackModel, StackModelRawData } from "./stackModel";
 import type { LiveGame } from "../game/liveGame";
 
 export type ActionHistory<T extends Array<unknown> = any> = {
@@ -12,7 +12,14 @@ export type ActionHistory<T extends Array<unknown> = any> = {
     args: T;
     id: string;
     undo?: (...args: T) => void;
-    stackSnapshot?: StackModelRawData;
+    rootStackSnapshot: StackModelRawData;
+    stackModel: StackModel;
+}
+
+export type ActionHistoryPushOptions = {
+    timeline?: Timeline;
+    stackModel: StackModel;
+    action: Action;
 }
 
 export class ActionHistoryManager {
@@ -33,13 +40,11 @@ export class ActionHistoryManager {
     /**
      * Push an action to the history
      */
-    public push<T extends Array<any> = Array<any>>(action: Action, onUndo?: (...args: T) => void, args?: T, timeline?: Timeline): {id: string} {
-        if (!this.liveGame.stackModel) {
-            throw new Error("Stack model is not initialized");
-        }
+    public push<T extends Array<any> = Array<any>>(props: ActionHistoryPushOptions, onUndo?: (...args: T) => void, args?: T): {id: string} {
         const id = randId(6);
-        const snapshot = this.liveGame.stackModel.serialize();
-        this.history.push({action, id, args: args || [], undo: onUndo, timeline, stackSnapshot: snapshot});
+        const { action, timeline, stackModel } = props;
+        const snapshot = this.liveGame.getStackModelForce().serialize();
+        this.history.push({action, id, args: args || [], undo: onUndo, timeline, rootStackSnapshot: snapshot, stackModel});
         
         // Check if the history size exceeds the limit
         if (this.history.length > this.maxHistorySize) {
@@ -81,10 +86,10 @@ export class ActionHistoryManager {
         this.history.length = index;
         this.hooks.onUndo.forEach(cb => cb(affected));
 
-        const snapshot = this.liveGame.stackModel?.serialize();
+        const snapshot = this.liveGame.getStackModelForce().serialize();
         if (snapshot) {
             const [actionMap] = this.liveGame.constructMaps();
-            this.liveGame.stackModel?.deserialize(snapshot, actionMap);
+            this.liveGame.getStackModelForce().deserialize(snapshot, actionMap);
         }
         return affected[affected.length - 1] || null;
     }

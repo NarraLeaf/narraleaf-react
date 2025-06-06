@@ -17,7 +17,7 @@ import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
 import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { Options } from "html-to-image/lib/types";
-import { ExecutedActionResult } from "../action/action";
+import { ActionExecutionInjection, ExecutedActionResult } from "../action/action";
 import { GameHistory } from "../action/gameHistory";
 import { StackModel, StackModelRawData } from "../action/stackModel";
 
@@ -270,12 +270,13 @@ export class LiveGame {
             : this.gameState.actionHistory.undo(this.gameState.gameHistory);
 
         if (actionHistory) {
-            const snapshot = actionHistory.stackSnapshot;
-            if (snapshot) {
-                const [actionMaps] = this.constructMaps();
-                this.stackModel.deserialize(snapshot, actionMaps);
+            const [actionMaps] = this.constructMaps();
+            const { rootStackSnapshot, stackModel } = actionHistory;
+
+            this.stackModel.deserialize(rootStackSnapshot, actionMaps);
+            if (stackModel === this.stackModel) {
+                this.stackModel.push(StackModel.fromAction(actionHistory.action as LogicAction.Actions));
             }
-            this.stackModel.push(StackModel.fromAction(actionHistory.action as LogicAction.Actions));
 
             this.gameLock.off(lock.unlock());
 
@@ -630,17 +631,16 @@ export class LiveGame {
     }
 
     /**@internal */
-    executeAction(state: GameState, action: LogicAction.Actions): ExecutedActionResult {
-        const nextAction = action.executeAction(state);
+    executeAction(state: GameState, action: LogicAction.Actions, injection: ActionExecutionInjection): ExecutedActionResult {
+        if (!this.stackModel) {
+            throw new Error("Stack model is not initialized");
+        }
+
+        const nextAction = action.executeAction(state, injection);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             return nextAction;
         }
         return nextAction || null;
-    }
-
-    /**@internal */
-    executeActionRaw(state: GameState, action: LogicAction.Actions): ExecutedActionResult {
-        return action.executeAction(state);
     }
 
     /**@internal */
@@ -651,7 +651,7 @@ export class LiveGame {
 
         this.gameState = state;
         if (state && !this.stackModel) {
-            this.stackModel = new StackModel(this);
+            this.stackModel = new StackModel(this, "$root");
         }
         return this;
     }

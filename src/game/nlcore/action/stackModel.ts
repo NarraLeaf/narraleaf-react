@@ -68,6 +68,8 @@ export type StackModelRawData = (
  */
 
 export class StackModel {
+    __tag: string | undefined = undefined;
+
     public static isStackModel(action: CalledActionResult | Awaitable<CalledActionResult> | StackModel): action is StackModel {
         return action instanceof StackModel;
     }
@@ -116,7 +118,8 @@ export class StackModel {
 
     private stack: Stack<CalledActionResult | Awaitable<CalledActionResult>>;
     private waitingAction: CalledActionResult | null = null;
-    constructor(private liveGame: LiveGame) {
+    constructor(private liveGame: LiveGame, tag: string | undefined = undefined) {
+        this.__tag = tag;
         this.stack = new Stack<CalledActionResult | Awaitable<CalledActionResult>>().addPushValidator((item) => {
             const peek = this.stack.peek();
 
@@ -127,7 +130,7 @@ export class StackModel {
 
             // When pushing new item, the peek should not be a waiting action (awaitable/stackModel)
             if (StackModel.isCalledActionResult(peek)) {
-                if (peek.wait) {
+                if (peek.wait && StackModel.isStackModelsAwaiting(peek.wait.type, peek.wait.stackModels)) {
                     throw new RuntimeInternalError("StackModel: Unexpected waiting action in stack. (is calledActionResult: true, wait: true)");
                 }
             } else if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(peek)) {
@@ -213,8 +216,8 @@ export class StackModel {
             }
         } else {
             // Execute regular operation and handle result
-            const executed = this.executeActions(currentAction);
             this.waitingAction = currentAction;
+            const executed = this.executeActions(currentAction);
 
             return executed;
         }
@@ -231,7 +234,7 @@ export class StackModel {
         const roll = async () => {
             let count = 0;
             while (!exited) {
-                if (count++ > this.liveGame.getGameStateForce().game.config.maxStackModelLoop) {
+                if (count++ > this.liveGame.game.config.maxStackModelLoop) {
                     throw new Error("StackModel: Suspiciously long waiting loop.");
                 }
 
@@ -314,7 +317,9 @@ export class StackModel {
 
     executeActions(result: CalledActionResult): CalledActionResult | Awaitable<CalledActionResult> | null {
         if (!result.node?.action) return null;
-        const executed = this.liveGame.executeAction(this.liveGame.getGameStateForce(), result.node.action);
+        const executed = this.liveGame.executeAction(this.liveGame.getGameStateForce(), result.node.action, {
+            stackModel: this,
+        });
 
         const handleActionResult = (result: CalledActionResult | Awaitable<CalledActionResult, CalledActionResult> | null) => {
             if (!result) return null;

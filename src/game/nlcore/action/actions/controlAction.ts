@@ -9,7 +9,7 @@ import { ActionSearchOptions } from "@core/types";
 import { Awaitable } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { Timeline } from "@player/Tasks";
-import { ExecutedActionResult } from "../action";
+import { ActionExecutionInjection, ExecutedActionResult } from "../action";
 
 export class ControlAction<T extends typeof ControlActionTypes[keyof typeof ControlActionTypes] = typeof ControlActionTypes[keyof typeof ControlActionTypes]>
     extends TypedAction<ControlActionContentType, T, Control> {
@@ -31,7 +31,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         return actions;
     }
 
-    public executeAction(gameState: GameState): ExecutedActionResult {
+    public executeAction(gameState: GameState, injection: ActionExecutionInjection): ExecutedActionResult {
         const contentNode = this.contentNode as ContentNode<ControlActionContentType[T]>;
         const [content] = contentNode.getContent() as [LogicAction.Actions[]];
         if (this.type === ControlActionTypes.do) {
@@ -43,7 +43,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             const awaitable = ControlAction.executeActionsAsync(gameState, content[0]);
             gameState.timelines.attachTimeline(awaitable);
 
-            return super.executeAction(gameState);
+            return super.executeAction(gameState, injection);
         } else if (this.type === ControlActionTypes.any) {
             if (content.length === 0) {
                 return {
@@ -106,11 +106,11 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             });
             gameState.timelines.attachTimeline(Awaitable.all(...stackModels.map(stackModel => stackModel.execute())));
 
-            return super.executeAction(gameState);
+            return super.executeAction(gameState, injection);
         } else if (this.type === ControlActionTypes.repeat) {
             const [actions, times] = (this.contentNode as ContentNode<ControlActionContentType["control:repeat"]>).getContent();
             if (times <= 0) {
-                return super.executeAction(gameState);
+                return super.executeAction(gameState, injection);
             }
 
             const awaitable = Timeline.sequence<number>((index) => {

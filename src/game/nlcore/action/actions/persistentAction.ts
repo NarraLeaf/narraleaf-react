@@ -5,12 +5,13 @@ import {Values} from "@lib/util/data";
 import {Persistent, PersistentContent} from "@core/elements/persistent";
 import { Namespace } from "../../common/game";
 import { ContentNode } from "../tree/actionTree";
+import { ActionExecutionInjection } from "../action";
 
 export class PersistentAction<T extends Values<typeof PersistentActionTypes> = Values<typeof PersistentActionTypes>>
     extends TypedAction<PersistentActionContentType, T, Persistent<any>> {
     static ActionTypes = PersistentActionTypes;
 
-    executeAction(gameState: GameState) {
+    executeAction(gameState: GameState, injection: ActionExecutionInjection) {
         const action: PersistentAction = this;
         if (action.is<PersistentAction<"persistent:set">>(PersistentAction, "persistent:set")) {
             const [key, value] = (action.contentNode as ContentNode<PersistentActionContentType["persistent:set"]>).getContent();
@@ -26,11 +27,14 @@ export class PersistentAction<T extends Values<typeof PersistentActionTypes> = V
                 namespace.set(key, value);
             }
             
-            gameState.actionHistory.push<[any]>(this, (prevValue) => {
+            gameState.actionHistory.push<[Partial<PersistentContent>]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevValue) => {
                 namespace.set(key, prevValue);
             }, [prevValue]);
 
-            return super.executeAction(gameState);
+            return super.executeAction(gameState, injection);
         } else if (action.is<PersistentAction<"persistent:assign">>(PersistentAction, "persistent:assign")) {
             const [value] = (action.contentNode as ContentNode<PersistentActionContentType["persistent:assign"]>).getContent() as [Partial<PersistentContent>];
             const namespace = gameState.getStorable().getNamespace(
@@ -43,13 +47,16 @@ export class PersistentAction<T extends Values<typeof PersistentActionTypes> = V
                 namespace.set(key, value[key]);
             });
 
-            gameState.actionHistory.push<[any]>(this, (prevValue) => {
+            gameState.actionHistory.push<[Partial<PersistentContent>]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevValue) => {
                 Object.keys(prevValue).forEach(key => {
                     namespace.set(key, prevValue[key]);
                 });
             }, [prevValue]);
             
-            return super.executeAction(gameState);
+            return super.executeAction(gameState, injection);
         }
         throw this.unknownTypeError();
     }

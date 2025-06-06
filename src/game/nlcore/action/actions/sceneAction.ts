@@ -14,7 +14,7 @@ import {ActionSearchOptions} from "@core/types";
 import {ExposedState, ExposedStateType} from "@player/type";
 import { Sound } from "../../elements/sound";
 import { ImageDataRaw } from "../../elements/displayable/image";
-import { ExecutedActionResult } from "../action";
+import { ActionExecutionInjection, ExecutedActionResult } from "../action";
 import { StackModelRawData } from "../stackModel";
 
 type SceneSnapshot = {
@@ -93,15 +93,15 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         }
     }
 
-    applyTransition(gameState: GameState, transition: ImageTransition) {
+    applyTransition(gameState: GameState, transition: ImageTransition, injection: ActionExecutionInjection) {
         const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
             .registerSkipController(new SkipController(() => {
                 gameState.logger.info("Background Transition", "Skipped");
-                return super.executeAction(gameState) as CalledActionResult;
+                return super.executeAction(gameState, injection) as CalledActionResult;
             }));
         const exposed = gameState.getExposedStateForce<ExposedStateType.image>(this.callee.background);
         exposed.applyTransition(transition, () => {
-            awaitable.resolve(super.executeAction(gameState) as CalledActionResult);
+            awaitable.resolve(super.executeAction(gameState, injection) as CalledActionResult);
         });
         gameState.timelines.attachTimeline(awaitable);
 
@@ -115,16 +115,20 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         this.callee.state.backgroundImage.reset();
     }
 
-    public executeAction(gameState: GameState): ExecutedActionResult {
+    public executeAction(gameState: GameState, injection: ActionExecutionInjection): ExecutedActionResult {
         if (this.type === SceneActionTypes.action) {
-            return super.executeAction(gameState);
+            return super.executeAction(gameState, injection);
         } else if (this.is<SceneAction<"scene:init">>(SceneAction, "scene:init")) {
             const awaitable = new Awaitable<CalledActionResult, any>(v => v);
 
             const timeline = gameState.timelines.attachTimeline(awaitable);
-            gameState.actionHistory.push(this, () => {
+            gameState.actionHistory.push({
+                action: this,
+                stackModel: injection.stackModel,
+                timeline
+            }, () => {
                 this.exit(gameState);
-            }, [], timeline);
+            }, []);
 
             const next = {
                 type: this.type,
@@ -134,7 +138,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             return SceneAction.handleSceneInit(this.callee, next, gameState, Awaitable.forward(awaitable, next));
         } else if (this.type === SceneActionTypes.exit) {
             const originalSnapshot = SceneAction.createSceneSnapshot(this.callee, gameState);
-            gameState.actionHistory.push<[SceneSnapshot]>(this, (prevSnapshot) => {
+            gameState.actionHistory.push<[SceneSnapshot]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevSnapshot) => {
                 const awaitable = new Awaitable<CalledActionResult, any>(v => v);
                 gameState.timelines.attachTimeline(awaitable);
 
@@ -149,7 +156,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 .removeNamespace(this.callee.local.getNamespaceName());
 
             this.exit(gameState);
-            return super.executeAction(gameState);
+            return super.executeAction(gameState, injection);
         } else if (this.type === SceneActionTypes.jumpTo) {
             const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
             const scene = gameState.getStory().getScene(targetScene);
@@ -158,7 +165,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             }
 
             const stackSnapshot = gameState.getLiveGame().getStackModelForce().serialize();
-            gameState.actionHistory.push<[StackModelRawData]>(this, (prevStackSnapshot) => {
+            gameState.actionHistory.push<[StackModelRawData]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevStackSnapshot) => {
                 const [actionMaps] = gameState.getLiveGame().constructMaps();
 
                 gameState.getLiveGame().getStackModelForce().deserialize(prevStackSnapshot, actionMaps);
@@ -180,18 +190,21 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             const exposed = gameState.getExposedStateForce<ExposedStateType.scene>(scene);
 
             const originalMusic = scene.state.backgroundMusic;
-            gameState.actionHistory.push<[Sound | null]>(this, (prevMusic) => {
+            gameState.actionHistory.push<[Sound | null]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevMusic) => {
                 if (prevMusic) exposed.setBackgroundMusic(prevMusic, 0);
             }, [originalMusic]);
 
             exposed.setBackgroundMusic(sound, fade || 0);
             this.callee.state.backgroundMusic = sound;
 
-            return super.executeAction(gameState);
+            return super.executeAction(gameState, injection);
         } else if (this.type === SceneActionTypes.preUnmount) {
             this.callee.events.emit("event:scene.preUnmount");
 
-            return super.executeAction(gameState);
+            return super.executeAction(gameState, injection);
         } else if (this.type === SceneActionTypes.transitionToScene) {
             const [transition, scene, src] = (this.contentNode as ContentNode<SceneActionContentType["scene:transitionToScene"]>).getContent();
 
@@ -202,7 +215,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 transition._setTargetSrc(src);
             }
 
-            return this.applyTransition(gameState, transition);
+            return this.applyTransition(gameState, transition, injection);
         }
 
         throw new Error("Unknown scene action type: " + this.type);
