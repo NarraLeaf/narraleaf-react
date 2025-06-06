@@ -2,6 +2,10 @@
 
 ## [0.6.0]
 
+### _Feature_
+
+- Game Preference `skipDelay`
+
 ### _Incompatible Changes_
 
 - The game has completely transitioned from a single node currentAction to a **StackModel**. The model ensures that: 

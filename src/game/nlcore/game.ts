@@ -61,6 +61,15 @@ export type GamePreference = {
      * @default 1
      */
     globalVolume: number;
+    /**
+     * The delay in milliseconds before the game starts skipping actions
+     * 
+     * This is used to prevent the game from skipping actions too quickly when the player presses the skip key.
+     * 
+     * Set to 0 to skip actions immediately when the player presses the skip key.
+     * @default 1000
+     */
+    skipDelay: number;
 };
 
 export type GameHooks = {
@@ -97,6 +106,7 @@ export class Game {
         bgmVolume: 1,
         soundVolume: 1,
         globalVolume: 1,
+        skipDelay: 1000,
     };
     /**@internal */
     static Preferences: {
@@ -110,7 +120,8 @@ export class Game {
             voiceVolume: "voiceVolume",
             bgmVolume: "bgmVolume",
             soundVolume: "soundVolume",
-            globalVolume: "globalVolume",
+            globalVolume: "globalVolume",   
+            skipDelay: "skipDelay",
         };
     /**@internal */
     static DefaultConfig: GameConfig = {
@@ -172,9 +183,7 @@ export class Game {
         notification: DefaultElements.notification,
         menu: DefaultElements.menu,
         dialog: DefaultElements.say,
-        onError: (error: Error) => {
-            console.error(error);
-        },
+        onError: (error: Error) => { console.error(error); },
         fontSize: 16,
         fontWeight: 400,
         fontWeightBold: 700,
