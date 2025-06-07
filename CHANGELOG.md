@@ -8,6 +8,7 @@
 - Added `liveGame.skipDialog` to skip the current dialog
 - Use a notification with a null duration to create a notification that will not be automatically removed
 - Added `lastSentence` and `lastSpeaker` to the saved game metadata
+- Added `liveGame.waitForPageMount` to wait for the page to mount
 
 ### _Incompatible Changes_
 

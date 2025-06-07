@@ -464,6 +464,32 @@ export class LiveGame {
         };
     }
 
+    public waitForPageMount(): {
+        promise: Promise<void>;
+        cancel: VoidFunction;
+    } {
+        let token: LiveGameEventToken | null = null;
+        return {
+            promise: new Promise((resolve, reject) => {
+                this.assertGameState();
+                const gameState = this.gameState;
+                if (!gameState.pageRouter) {
+                    reject(new RuntimeInternalError("Page router is not mounted"));
+                    return;
+                }
+
+                token = gameState.pageRouter.oncePageMount(() => {
+                    resolve();
+                });
+            }),
+            cancel: () => {
+                if (token) {
+                    token.cancel();
+                }
+            }
+        };
+    }
+
     /**
      * Request full screen on Chrome/Safari/Firefox/IE/Edge/Opera, the player element will be full screen
      *

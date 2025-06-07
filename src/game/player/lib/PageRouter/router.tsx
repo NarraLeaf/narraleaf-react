@@ -7,6 +7,7 @@ import { LiveGameEventToken } from "@lib/game/nlcore/types";
 type RouterEvents = {
     "event:router.onChange": [];
     "event:router.onExitComplete": [];
+    "event:router.onPageMount": [];
 };
 
 export class Router {
@@ -99,19 +100,30 @@ export class Router {
         return this;
     }
 
-    /**@internal */
-    onExitComplete(handler: () => void): LiveGameEventToken {
+    public onExitComplete(handler: () => void): LiveGameEventToken {
         return this.events.on("event:router.onExitComplete", handler);
     }
 
-    /**@internal */
-    onceExitComplete(handler: () => void): LiveGameEventToken {
+    public onceExitComplete(handler: () => void): LiveGameEventToken {
         return this.events.once("event:router.onExitComplete", handler);
     }
 
     /**@internal */
     emitOnExitComplete(): void {
         this.events.emit("event:router.onExitComplete");
+    }
+
+    public onPageMount(handler: () => void): LiveGameEventToken {
+        return this.events.on("event:router.onPageMount", handler);
+    }
+
+    public oncePageMount(handler: () => void): LiveGameEventToken {
+        return this.events.once("event:router.onPageMount", handler);
+    }
+
+    /**@internal */
+    emitOnPageMount(): void {
+        this.events.emit("event:router.onPageMount");
     }
 
     /**@internal */
