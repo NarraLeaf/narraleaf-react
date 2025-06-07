@@ -2,7 +2,6 @@ import { GameState } from "@lib/game/nlcore/common/game";
 import React from "react";
 export type Notification = {
     message: string;
-    duration: number;
     id: string;
 }
 

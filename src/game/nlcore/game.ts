@@ -1,5 +1,5 @@
 import type { GameConfig, GameSettings } from "./gameTypes";
-import { deepMerge, DeepPartial, Hooks } from "@lib/util/data";
+import { deepMerge, DeepPartial, filterObjectExcept, Hooks, StringKeyOf } from "@lib/util/data";
 import { LogicAction } from "@core/action/logicAction";
 import { LiveGame } from "@core/game/liveGame";
 import { Preference } from "@core/game/preference";
@@ -61,6 +61,15 @@ export type GamePreference = {
      * @default 1
      */
     globalVolume: number;
+    /**
+     * The delay in milliseconds before the game starts skipping actions
+     * 
+     * This is used to prevent the game from skipping actions too quickly when the player presses the skip key.
+     * 
+     * Set to 0 to skip actions immediately when the player presses the skip key.
+     * @default 500
+     */
+    skipDelay: number;
 };
 
 export type GameHooks = {
@@ -97,6 +106,7 @@ export class Game {
         bgmVolume: 1,
         soundVolume: 1,
         globalVolume: 1,
+        skipDelay: 500,
     };
     /**@internal */
     static Preferences: {
@@ -110,7 +120,8 @@ export class Game {
             voiceVolume: "voiceVolume",
             bgmVolume: "bgmVolume",
             soundVolume: "soundVolume",
-            globalVolume: "globalVolume",
+            globalVolume: "globalVolume",   
+            skipDelay: "skipDelay",
         };
     /**@internal */
     static DefaultConfig: GameConfig = {
@@ -172,15 +183,15 @@ export class Game {
         notification: DefaultElements.notification,
         menu: DefaultElements.menu,
         dialog: DefaultElements.say,
-        onError: (error: Error) => {
-            console.error(error);
-        },
+        onError: (error: Error) => { console.error(error); },
         fontSize: 16,
         fontWeight: 400,
         fontWeightBold: 700,
         fontFamily: "sans-serif",
         stage: null,
         defaultMenuChoiceColor: "#000",
+        maxStackModelLoop: 1000,
+        maxActionHistory: 100,
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 
@@ -191,6 +202,8 @@ export class Game {
     liveGame: LiveGame | null = null;
     /**@internal */
     sideEffect: VoidFunction[] = [];
+    /**@internal */
+    private freezeFields: (StringKeyOf<GameConfig>)[] = [];
     /**
      * Game settings
      */
@@ -213,8 +226,39 @@ export class Game {
      * Configure the game
      */
     public configure(config: DeepPartial<GameConfig>): this {
-        this.config = deepMerge<GameConfig>(this.config, config);
+        const [merged, filtered] = filterObjectExcept(config, this.freezeFields);
+        if (filtered.length > 0) {
+            console.warn(`NarraLeaf-React [Game] The following fields are not allowed to be configured: ${filtered.join(", ")}`);
+        }
+
+        this.config = deepMerge<GameConfig>(this.config, merged);
         this.getLiveGame().getGameState()?.events.emit(GameState.EventTypes["event:state.player.requestFlush"]);
+
+        return this;
+    }
+
+    /**
+     * Configure the game and freeze the fields
+     * 
+     * This method is not recommended to be used without using NarraLeaf Engine or Plugin Environment.
+     * @param config - Game configuration
+     */
+    public configureAndFreeze(config: DeepPartial<GameConfig>): this {
+        this.configure(config);
+        this.freeze(Object.keys(config) as (StringKeyOf<GameConfig>)[]);
+
+        return this;
+    }
+
+    /**
+     * Freeze the fields
+     * 
+     * This method is not recommended to be used without using NarraLeaf Engine or Plugin Environment.
+     * @param fields - The fields to freeze
+     */
+    public freeze(fields: (StringKeyOf<GameConfig>)[]): this {
+        this.freezeFields.push(...fields);
+
         return this;
     }
 

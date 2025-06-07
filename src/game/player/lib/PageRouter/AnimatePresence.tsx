@@ -1,5 +1,5 @@
 import { FirstParam } from "@lib/util/data";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "motion/react";
 import { JSX } from "react";
 
 export type AnimatePresenceComponent =

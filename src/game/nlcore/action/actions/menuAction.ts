@@ -8,12 +8,13 @@ import {TypedAction} from "@core/action/actions";
 import {Story} from "@core/elements/story";
 import {LogicAction} from "@core/action/logicAction";
 import {ActionSearchOptions} from "@core/types";
+import { ActionExecutionInjection } from "../action";
 
 export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuActionTypes] = typeof MenuActionTypes[keyof typeof MenuActionTypes]>
     extends TypedAction<MenuActionContentType, T, Menu> {
     static ActionTypes = MenuActionTypes;
 
-    public executeAction(gameState: GameState) {
+    public executeAction(gameState: GameState, injection: ActionExecutionInjection) {
         const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
             .registerSkipController(new SkipController(() => {
                 token.cancel();
@@ -24,18 +25,24 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
         let cleanup: (() => void) | null = null;
 
         const token = gameState.createMenu(menu, (chosen) => {
-            const currentNode = gameState.game.getLiveGame().getCurrentAction()?.contentNode;
-            const lastChild = currentNode?.getChild() || null;
-            if (lastChild) {
-                chosen.action[chosen.action.length - 1]?.contentNode.addChild(lastChild);
-                cleanup = () => {
-                    currentNode?.addChild(lastChild);
-                };
-            }
+            const stackModel = gameState.getLiveGame().createStackModel([
+                {
+                    type: this.type,
+                    node: chosen.action[0]?.contentNode ?? null
+                }
+            ]);
             awaitable.resolve({
-                type: this.type as any,
-                node: chosen.action[0].contentNode
+                type: this.type,
+                node: null,
+                wait: {
+                    type: "all",
+                    stackModels: [stackModel]
+                }
             });
+            
+            cleanup = () => {
+                stackModel.reset();
+            };
 
             gameState.gameHistory.updateByToken(id, (result) => {
                 if (result && result.element.type === "menu") {
@@ -45,10 +52,14 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             });
         });
         
-        const {id} = gameState.actionHistory.push(this, () => {
+        const {id} = gameState.actionHistory.push({
+            action: this,
+            stackModel: injection.stackModel,
+            timeline
+        }, () => {
             token.cancel();
             cleanup?.();
-        }, [], timeline);
+        });
         gameState.gameHistory.push({
             token: id,
             action: this,
@@ -60,7 +71,13 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             isPending: true,
         });
 
-        return awaitable;
+        return [
+            {
+                type: this.type,
+                node: this.contentNode.getChild(),
+            },
+            awaitable
+        ];
     }
 
     getFutureActions(story: Story, options: ActionSearchOptions): LogicAction.Actions[] {

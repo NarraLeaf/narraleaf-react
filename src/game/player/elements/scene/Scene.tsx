@@ -104,6 +104,8 @@ export default function Scene(
                         prompt={action.prompt}
                         choices={action.choices}
                         afterChoose={(choice) => {
+                            usingSkipRef.current = false;
+                            
                             onClick(choice);
                             state.stage.next();
                         }}

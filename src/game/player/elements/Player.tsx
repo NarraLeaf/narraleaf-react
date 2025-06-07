@@ -1,31 +1,30 @@
 import "client-only";
 
-import clsx from "clsx";
-import {flushSync} from "react-dom";
-import Cursor from "@player/lib/Cursor";
-import {Story} from "@core/elements/story";
-import Isolated from "@player/lib/isolated";
-import {Preloaded} from "@player/lib/Preloaded";
-import AspectRatio from "@player/lib/AspectRatio";
-import {PlayerProps} from "@player/elements/type";
-import {CalledActionResult} from "@core/gameTypes";
-import {useGame} from "@player/provider/game-state";
-import {ErrorBoundary} from "@player/lib/ErrorBoundary";
-import {usePreloaded} from "@player/provider/preloaded";
-import {Preload} from "@player/elements/preload/Preload";
-import {GameState, PlayerAction} from "@player/gameState";
-import React, {useEffect, useReducer, useState} from "react";
-import {PageRouter} from "@player/lib/PageRouter/PageRouter";
-import {default as StageScene} from "@player/elements/scene/Scene";
-import {Awaitable, createMicroTask, MultiLock} from "@lib/util/data";
-import {KeyEventAnnouncer} from "@player/elements/player/KeyEventAnnouncer";
-import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
-import Video from "@player/elements/video/video";
+import { Story } from "@core/elements/story";
+import { CalledActionResult } from "@core/gameTypes";
+import { Awaitable, createMicroTask, EventToken, MultiLock } from "@lib/util/data";
+import { KeyEventAnnouncer } from "@player/elements/player/KeyEventAnnouncer";
 import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
+import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
+import { Preload } from "@player/elements/preload/Preload";
+import { default as StageScene } from "@player/elements/scene/Scene";
+import { PlayerProps } from "@player/elements/type";
+import Video from "@player/elements/video/video";
+import { GameState } from "@player/gameState";
+import AspectRatio from "@player/lib/AspectRatio";
+import Cursor from "@player/lib/Cursor";
+import { ErrorBoundary } from "@player/lib/ErrorBoundary";
+import Isolated from "@player/lib/isolated";
+import { PageRouter } from "@player/lib/PageRouter/PageRouter";
+import { Preloaded } from "@player/lib/Preloaded";
+import { useGame } from "@player/provider/game-state";
+import { usePreloaded } from "@player/provider/preloaded";
+import clsx from "clsx";
+import React, { useEffect, useReducer, useState } from "react";
+import { flushSync } from "react-dom";
 import { RenderEventAnnoucer } from "./player/RenderEventAnnoucer";
-function handleAction(state: GameState, action: PlayerAction) {
-    return state.handle(action);
-}
+import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
+import { StackModel } from "@lib/game/nlcore/action/stackModel";
 
 export default function Player(
     {
@@ -41,7 +40,7 @@ export default function Player(
     const [flushDep, update] = useReducer((x) => x + 1, 0);
     const [key, setKey] = useState(0);
     const game = useGame();
-    const [state, dispatch] = useReducer(handleAction, new GameState(game, {
+    const [state] = useState<GameState>(() => new GameState(game, {
         update,
         forceUpdate: () => {
             (state as GameState).logger.weakWarn("Player", "force update");
@@ -57,54 +56,100 @@ export default function Player(
             });
         },
         next,
-        dispatch: (action) => dispatch(action),
     }));
     const containerRef = React.createRef<HTMLDivElement>();
     const mainContentRef = React.createRef<HTMLDivElement>();
     const [ready, setReady] = useState(false);
     const readyHandlerExecuted = React.useRef(false);
-    const nextAwaitable = React.useRef<Awaitable | null>(null);
+    const currentHandlingResult = React.useRef<CalledActionResult | Awaitable<CalledActionResult> | null>(null);
     const nextMultiLock = React.useRef<MultiLock | null>(null);
 
-    const {preloaded} = usePreloaded();
+    const { preloaded } = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
+    const [awaitables] = useState<Map<Awaitable<CalledActionResult>, EventToken>>(new Map());
 
     function next() {
-        let exited = false;
+        const cleanup = () => {
+            awaitables.forEach((value) => value.cancel());
+        };
+
+        if (state.rollLock.isLocked()) {
+            return;
+        }
+
+        cleanup();
+
+        let exited = false, count = 0;
         while (!exited) {
-            const nextResult = game.getLiveGame().next(state);
-            if (!nextResult) {
-                break;
+            if (count++ > game.config.maxStackModelLoop) {
+                throw new RuntimeGameError("Max stack model loop reached");
             }
-            if (Awaitable.isAwaitable<CalledActionResult>(nextResult)) {
-                if (nextAwaitable.current === nextResult) {
+
+            const nextResult = game.getLiveGame().next();
+            if (!nextResult) {
+                if (game.getLiveGame().stackModel?.isEmpty()) {
                     break;
                 }
-                nextAwaitable.current = nextResult;
+                continue;
+            }
+
+            // Handle Awaitable
+            if (Awaitable.isAwaitable<CalledActionResult>(nextResult)) {
+                if (currentHandlingResult.current === nextResult) {
+                    break;
+                }
+                currentHandlingResult.current = nextResult;
                 nextResult.onSettled(() => {
-                    state.stage.next();
-                    if (nextAwaitable.current === nextResult) {
-                        nextAwaitable.current = null;
+                    if (currentHandlingResult.current === nextResult) {
+                        currentHandlingResult.current = null;
                     }
+                    next();
                 });
                 exited = true;
                 break;
             }
+
+            // Handle MultiLock
             if (nextResult instanceof MultiLock) {
                 if (nextMultiLock.current === nextResult) {
                     break;
                 }
                 nextMultiLock.current = nextResult;
                 nextResult.nextUnlock().then(() => {
-                    next();
                     if (nextMultiLock.current === nextResult) {
                         nextMultiLock.current = null;
                     }
+                    next();
                 });
                 exited = true;
                 break;
             }
-            dispatch(nextResult);
+
+            // Handle CalledActionResult 
+            if (StackModel.isCalledActionResult(nextResult)) {
+                if (nextResult.wait && StackModel.isStackModelsAwaiting(nextResult.wait.type, nextResult.wait.stackModels)) {
+                    if (currentHandlingResult.current === nextResult) {
+                        break;
+                    }
+                    currentHandlingResult.current = nextResult;
+
+                    if (nextResult.wait) {
+                        StackModel.executeStackModelGroup(nextResult.wait.type, nextResult.wait.stackModels).then(() => {
+                            if (currentHandlingResult.current === nextResult) {
+                                currentHandlingResult.current = null;
+                            }
+    
+                            next();
+                        });
+                    }
+
+                    exited = true;
+                    break;
+                }
+            }
+
+            // Handle regular action result
+            state.handle(nextResult);
         }
         state.stage.update();
     }
@@ -208,9 +253,9 @@ export default function Player(
                 tabIndex={0}
             >
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
-                    <SizeUpdateAnnouncer ref={containerRef}/>
-                    <PreferenceUpdateAnnouncer gameState={state}/>
-                    <RenderEventAnnoucer gameState={state}/>
+                    <SizeUpdateAnnouncer ref={containerRef} />
+                    <PreferenceUpdateAnnouncer gameState={state} />
+                    <RenderEventAnnoucer gameState={state} />
                     <Isolated className={"absolute"} ref={mainContentRef} style={{
                         cursor: state.game.config.cursor ? "none" : "auto",
                         overflow: state.game.config.showOverflow ? "visible" : "hidden",
@@ -223,17 +268,17 @@ export default function Player(
                             />
                         )}
                         <OnlyPreloaded show={preloadedReady && active} key={key}>
-                            <KeyEventAnnouncer state={state}/>
+                            <KeyEventAnnouncer state={state} />
                             {state.getSceneElements().map((elements) => (
-                                <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements}/>
+                                <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
                             ))}
                             {state.getVideos().map((video, index) => (
                                 <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
-                                    <Video gameState={state} video={video}/>
+                                    <Video gameState={state} video={video} />
                                 </div>
                             ))}
                         </OnlyPreloaded>
-                        <Preload state={state}/>
+                        <Preload state={state} />
                         <PageRouter>
                             {children}
                         </PageRouter>
@@ -244,7 +289,7 @@ export default function Player(
     );
 }
 
-function OnlyPreloaded({children, show}: Readonly<{
+function OnlyPreloaded({ children, show }: Readonly<{
     children: React.ReactNode,
     show: boolean,
 }>) {

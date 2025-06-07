@@ -6,9 +6,9 @@ import { StringKeyOf } from "@lib/util/data";
 import { PlayerStateData } from "@player/gameState";
 import { GuardConfig } from "@player/guard";
 import React from "react";
+import { StackModel, StackModelRawData } from "./action/stackModel";
 import { MenuComponent, NotificationComponent, SayComponent } from "./common/player";
-import { Color } from "./types";
-
+import { Color, LiveGameEventToken } from "./types";
 
 export interface SavedGame {
     name: string;
@@ -16,13 +16,21 @@ export interface SavedGame {
         created: number;
         updated: number;
         id: string;
+        lastSentence: string | null;
+        lastSpeaker: string | null;
     };
     game: {
         store: { [key: string]: StorableData; };
         elementStates: RawData<ElementStateRaw>[];
         stage: PlayerStateData;
-        currentAction: string | null;
+        /**
+         * The current action
+         * @deprecated
+         */
+        currentAction?: string | null;
         services: { [key: string]: unknown; };
+        stackModel: StackModelRawData;
+        asyncStackModels: StackModelRawData[];
     };
 }
 
@@ -324,16 +332,33 @@ export type GameConfig = {
      * @default "#000"
      */
     defaultMenuChoiceColor: Color;
+    /**
+     * The maximum number of times a stack model can loop
+     * @default 1000
+     */
+    maxStackModelLoop: number;
+    /**
+     * The maximum number of actions to store in the action history
+     * @default 100
+     */
+    maxActionHistory: number;
 };
 export type GameSettings = {
     volume: number;
+};
+export type StackModelWaiting = {
+    type: "any" | "all";
+    stackModels: StackModel[];
 };
 export type CalledActionResult<T extends keyof LogicAction.ActionContents = any> = {
     [K in StringKeyOf<LogicAction.ActionContents>]: {
         type: T extends undefined ? K : T;
         node: ContentNode<LogicAction.ActionContents[T extends undefined ? K : T]> | null;
+        wait?: StackModelWaiting | null;
     }
 }[StringKeyOf<LogicAction.ActionContents>];
 
-
+export interface NotificationToken extends LiveGameEventToken {
+    promise: Promise<void>;
+}
 

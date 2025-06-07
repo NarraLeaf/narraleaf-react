@@ -3,6 +3,7 @@ import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 import {Game} from "@core/common/game";
 import {useRouter} from "@player/lib/PageRouter/router";
+import { usePreference } from "../../libElements";
 
 /**@internal */
 export function KeyEventAnnouncer({state}: Readonly<{
@@ -11,7 +12,10 @@ export function KeyEventAnnouncer({state}: Readonly<{
     const game = useGame();
     const router = useRouter();
     const keyIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isKeyPressedRef = useRef<boolean>(false);
+    
+    const [skipDelay] = usePreference(Game.Preferences.skipDelay);
 
     useEffect(() => {
         const playerElement = game.getLiveGame().gameState!.playerCurrent;
@@ -24,38 +28,51 @@ export function KeyEventAnnouncer({state}: Readonly<{
             return;
         }
 
+        const cleanup = () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+            }
+            if (keyIntervalRef.current) {
+                clearInterval(keyIntervalRef.current);
+                keyIntervalRef.current = null;
+            }
+            isKeyPressedRef.current = false;
+        };
+
         const handleKeyDown = (event: KeyboardEvent) => {
             if (game.config.skipKey.includes(event.key)
                 && game.preference.getPreference(Game.Preferences.skip)
                 && (!router || !router.isActive())
             ) {
                 if (!isKeyPressedRef.current) {
-                    isKeyPressedRef.current = true;
-                    // Trigger immediately on first press
-                    state.events.emit(GameState.EventTypes["event:state.player.skip"]);
+                    state.logger.verbose("KeyEventAnnouncer", "Skipping");
                     
-                    // Start interval for continuous triggering
-                    keyIntervalRef.current = setInterval(() => {
-                        state.events.emit(GameState.EventTypes["event:state.player.skip"]);
-                    }, game.config.skipInterval);
+                    const startContinuousSkip = () => {
+                        keyIntervalRef.current = setInterval(() => {
+                            state.events.emit(GameState.EventTypes["event:state.player.skip"], false);
+                        }, game.config.skipInterval);
+                    };
+
+                    // Clean up any existing timers before starting new ones
+                    cleanup();
+
+                    // Trigger immediately on first press
+                    state.events.emit(GameState.EventTypes["event:state.player.skip"], false);
+                    isKeyPressedRef.current = true;
+
+                    if (skipDelay === 0) {
+                        startContinuousSkip();
+                    } else {
+                        timeoutRef.current = setTimeout(startContinuousSkip, skipDelay);
+                    }
                 }
             }
         };
 
         const handleKeyUp = (event: KeyboardEvent) => {
             if (game.config.skipKey.includes(event.key)) {
-                isKeyPressedRef.current = false;
-                if (keyIntervalRef.current) {
-                    clearInterval(keyIntervalRef.current);
-                    keyIntervalRef.current = null;
-                }
-            }
-        };
-
-        const cleanup = () => {
-            if (keyIntervalRef.current) {
-                clearInterval(keyIntervalRef.current);
-                keyIntervalRef.current = null;
+                cleanup();
             }
         };
 
@@ -76,7 +93,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
                 cancelKeyUp();
             };
         }
-    }, [router]);
+    }, [router, skipDelay]);
 
     return (<></>);
 }

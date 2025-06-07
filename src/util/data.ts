@@ -1,4 +1,4 @@
-import {HexColor, LiveGameEventToken, NamedColor} from "@core/types";
+import { HexColor, LiveGameEventToken, NamedColor } from "@core/types";
 import { ServiceHandlerCtx } from "@lib/game/nlcore/elements/service";
 import { ServiceHandler } from "@lib/game/nlcore/elements/service";
 
@@ -187,7 +187,7 @@ export class Awaitable<T = any, U = T> {
      */
     static race<T>(awaitables: Awaitable<T>[]): Awaitable<T> {
         const result = new Awaitable<T>();
-        
+
         // If no awaitables provided, resolve immediately
         if (awaitables.length === 0) {
             result.resolve(undefined as T);
@@ -259,6 +259,46 @@ export class Awaitable<T = any, U = T> {
         return newAwaitable;
     }
 
+    static toPromise<T>(awaitable: Awaitable<T>): Promise<T> {
+        return new Promise((resolve) => {
+            awaitable.then(resolve);
+        });
+    }
+
+    static toPromiseForce<T>(awaitable: Awaitable<T>): Promise<void> {
+        return new Promise((resolve) => {
+            awaitable.onSettled(resolve);
+        });
+    }
+
+    /**
+     * Resolves when any of the provided awaitables settles.
+     */
+    static any(...awaitables: Awaitable<void>[]): Awaitable<void> {
+        const result = new Awaitable<void>();
+        awaitables.forEach(awaitable => {
+            awaitable.onSettled(() => result.resolve());
+        });
+        return result;
+    }
+
+    /**
+     * Resolves when all of the provided awaitables settle.
+     */
+    static all(...awaitables: Awaitable<void>[]): Awaitable<void> {
+        const result = new Awaitable<void>();
+        let count = 0;
+        awaitables.forEach(awaitable => {
+            awaitable.onSettled(() => {
+                count++;
+                if (count === awaitables.length) {
+                    result.resolve();
+                }
+            });
+        });
+        return result;
+    }
+
     static maxListeners = 8;
 
     receiver: (value: U) => T;
@@ -312,31 +352,50 @@ export class Awaitable<T = any, U = T> {
         return this;
     }
 
-    onSettled(callback: () => void): this {
+    onSettled(callback: () => void): EventToken {
         if (this.solved) {
             callback();
         } else {
             this.pushListener(callback);
-            this.onSkipControllerRegister((controller) => {
-                controller.onAbort(() => {
+            const tokens: EventToken[] = [];
+            tokens.push(this.onSkipControllerRegister((controller) => {
+                tokens.push(controller.onAbort(() => {
                     callback();
-                });
-            });
+                }));
+            }));
+            return {
+                cancel: () => {
+                    tokens.forEach(token => token.cancel());
+                    this.offListener(callback);
+                }
+            };
         }
-        return this;
+        return { cancel: () => { } };
     }
 
-    onSkipControllerRegister(callback: (skipController: SkipController<T, []>) => void) {
+    onSkipControllerRegister(callback: (skipController: SkipController<T, []>) => void): EventToken {
         if (this.skipController) {
             callback(this.skipController);
         } else {
             this.onRegisterSkipController.push(callback);
         }
+        return {
+            cancel: () => {
+                this.offSkipControllerRegister(callback);
+            }
+        };
+    }
+
+    offSkipControllerRegister(callback: (skipController: SkipController<T, []>) => void) {
+        const index = this.onRegisterSkipController.indexOf(callback);
+        if (index !== -1) {
+            this.onRegisterSkipController.splice(index, 1);
+        }
         return this;
     }
 
     /**
-     * **Note**: Calling this method won't trigger the `then` or `onSettled` callbacks.
+     * **Note**: Calling this method won't trigger the `then` callbacks.
      */
     abort() {
         this.aborted = true;
@@ -353,7 +412,7 @@ export class Awaitable<T = any, U = T> {
     isAborted() {
         return this.aborted;
     }
-    
+
     isSettled() {
         return this.solved || this.aborted;
     }
@@ -363,6 +422,14 @@ export class Awaitable<T = any, U = T> {
             console.warn("NarraLeaf-React: Awaitable has too many listeners, this may cause performance issues.");
         }
         this.listeners.push(listener);
+        return this;
+    }
+
+    private offListener(listener: (value: T) => void) {
+        const index = this.listeners.indexOf(listener);
+        if (index !== -1) {
+            this.listeners.splice(index, 1);
+        }
         return this;
     }
 }
@@ -461,12 +528,14 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
         this.events[event] = this.events[event].filter(l => l !== listener);
     }
 
-    public emit<K extends keyof Type>(event: K, ...args: Type[K]): void {
-        if (!this.events[event]) return;
+    public emit<K extends keyof Type>(event: K, ...args: Type[K]): number {
+        if (!this.events[event]) return 0;
 
+        const length = this.events[event].length;
         this.events[event].forEach(listener => {
             listener(...args);
         });
+        return length;
     }
 
     public once<K extends StringKeyOf<Type>>(event: K, listener: EventListener<Type[K]>): EventToken {
@@ -513,6 +582,10 @@ export class EventDispatcher<T extends EventTypes, Type extends T & {
     public setMaxListeners(maxListeners: number): this {
         this.maxListeners = maxListeners;
         return this;
+    }
+
+    public hasListeners(event: keyof T): boolean {
+        return this.events[event]?.length > 0;
     }
 
     clear() {
@@ -616,7 +689,7 @@ export class Lock {
         return this;
     }
 
-    public unlock() {
+    public unlock(): this {
         this.locked = false;
         for (const listener of this.listeners) {
             listener();
@@ -775,28 +848,28 @@ export function crossCombine<T, U>(a: T[], b: U[]): (T | U)[] {
 
 export type SelectElementFromEach<T extends string[][] | null> =
     T extends [infer First, ...infer Rest]
-        ? First extends string[]
-            ? Rest extends string[][]
-                ? {
-                    [K in First[number]]: [K, ...SelectElementFromEach<ExcludeEach<Rest, K>>];
-                }[First[number]]
-                : []
-            : []
-        : [];
+    ? First extends string[]
+    ? Rest extends string[][]
+    ? {
+        [K in First[number]]: [K, ...SelectElementFromEach<ExcludeEach<Rest, K>>];
+    }[First[number]]
+    : []
+    : []
+    : [];
 export type ExcludeEach<T extends string[][], Excluded> =
     T extends [infer First, ...infer Rest]
-        ? First extends string[]
-            ? Rest extends string[][]
-                ? [[Exclude<First[number], Excluded>], ...ExcludeEach<Rest, Excluded>]
-                : []
-            : []
-        : [];
+    ? First extends string[]
+    ? Rest extends string[][]
+    ? [[Exclude<First[number], Excluded>], ...ExcludeEach<Rest, Excluded>]
+    : []
+    : []
+    : [];
 export type FlexibleTuple<T extends any[]> =
     T extends [infer First, ...infer Rest]
-        ? Rest extends any[]
-            ? [First, ...FlexibleTuple<Rest>] | FlexibleTuple<Rest>
-            : [First]
-        : [];
+    ? Rest extends any[]
+    ? [First, ...FlexibleTuple<Rest>] | FlexibleTuple<Rest>
+    : [First]
+    : [];
 
 export function moveElement<T>(arr: T[], element: T, direction: "up" | "down" | "top" | "bottom"): T[] {
     const index = arr.indexOf(element);
@@ -916,8 +989,8 @@ type SerializeHandlers<T> = {
 };
 type DeserializeHandlers<T, SerializeHandler extends SerializeHandlers<T>> = {
     [K in keyof T]?: SerializeHandler[K] extends ((...args: any) => any)
-        ? (value: Exclude<ReturnType<SerializeHandler[K]>, undefined>) => T[K]
-        : never;
+    ? (value: Exclude<ReturnType<SerializeHandler[K]>, undefined>) => T[K]
+    : never;
 }
 
 export class Serializer<
@@ -963,8 +1036,8 @@ export class Serializer<
         newSerializer: NewSerializeHandler,
         newDeserializer: NewDeserializeHandler
     ): Serializer<T & NewFields, SerializeHandler & NewSerializeHandler, DeserializeHandler & NewDeserializeHandler> {
-        const extendedSerializer = {...this.serializer, ...newSerializer} as SerializeHandler & NewSerializeHandler;
-        const extendedDeserializer = {...this.deserializer, ...newDeserializer} as DeserializeHandler & NewDeserializeHandler;
+        const extendedSerializer = { ...this.serializer, ...newSerializer } as SerializeHandler & NewSerializeHandler;
+        const extendedDeserializer = { ...this.deserializer, ...newDeserializer } as DeserializeHandler & NewDeserializeHandler;
 
         return new Serializer(extendedSerializer, extendedDeserializer);
     }
@@ -1304,13 +1377,13 @@ export function generateId(length: number = 16): string {
 }
 
 export const voidFunction: () => VoidFunction = () => {
-    return () => {};
+    return () => { };
 };
 
 export class IdManager {
     private counter = 0;
 
-    constructor(private prefix: string = "") {}
+    constructor(private prefix: string = "") { }
 
     generateId(): string {
         const id = `${this.prefix ? this.prefix + "-" : ""}${this.counter++}`;
@@ -1336,7 +1409,7 @@ export class Hooks<T extends Record<string, Array<any>>> {
     trigger<K extends keyof T>(key: K, value: T[K]): VoidFunction {
         const hooks = this.hooks[key];
         if (!hooks) {
-            return () => {};
+            return () => { };
         }
         const cleanup = hooks.map(h => h(...value));
         return () => {
@@ -1347,7 +1420,7 @@ export class Hooks<T extends Record<string, Array<any>>> {
     rawTrigger<K extends keyof T>(key: K, value: () => T[K]): VoidFunction {
         const hooks = this.hooks[key];
         if (!hooks) {
-            return () => {};
+            return () => { };
         }
         const cleanup = hooks.map(h => h(...value()));
         return () => {
@@ -1378,3 +1451,116 @@ export function abortify<T extends any[]>(fn: ServiceHandler<T>): AbortifyFn<T> 
 }
 
 export type FirstParam<T> = T extends (first: infer P, ...args: any[]) => any ? P : never;
+
+export class Stack<T> {
+    private items: T[] = [];
+    private pushValidator: ((item: T) => boolean)[] = [];
+
+    constructor(initial?: T[]) {
+        if (initial) {
+            this.items = [...initial];
+        }
+    }
+
+    addPushValidator(validator: (item: T) => boolean): this {
+        this.pushValidator.push(validator);
+        return this;
+    }
+
+    removePushValidator(validator: (item: T) => boolean): void {
+        this.pushValidator = this.pushValidator.filter(v => v !== validator);
+    }
+
+    push(...items: T[]): void {
+        for (const item of items) {
+            if (this.pushValidator.some(validator => !validator(item))) {
+                continue;
+            }
+            this.items.push(item);
+        }
+    }
+
+    pop(): T | undefined {
+        return this.items.pop();
+    }
+
+    peek(): T | undefined {
+        return this.items[this.items.length - 1];
+    }
+
+    isEmpty(): boolean {
+        return this.items.length === 0;
+    }
+
+    size(): number {
+        return this.items.length;
+    }
+
+    clear(): void {
+        this.items = [];
+    }
+
+    toArray(): T[] {
+        return [...this.items];
+    }
+
+    forEach(fn: (item: T) => void): void {
+        this.items.forEach(fn);
+    }
+
+    forEachReverse(fn: (item: T) => void): void {
+        for (let i = this.items.length - 1; i >= 0; i--) {
+            fn(this.items[i]);
+        }
+    }
+
+    map<U>(fn: (item: T) => U): U[] {
+        return this.items.map(fn);
+    }
+
+    get(index: number): T | undefined {
+        return this.items[index];
+    }
+}
+
+export type ArrayValue<T> = T extends Array<infer U> ? U : T;
+
+export function filterObject<T extends Record<string, any>>(obj: T, fields: (keyof T)[]): [o: Partial<T>, filtered: (keyof T)[]] {
+    const result: Partial<T> = {};
+    const filtered: (keyof T)[] = [];
+
+    // Iterate through all keys in the object
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            // If the key is in the fields array, add it to the result
+            if (fields.includes(key as keyof T)) {
+                result[key as keyof T] = obj[key];
+            } else {
+                // Otherwise, add it to the filtered array
+                filtered.push(key as keyof T);
+            }
+        }
+    }
+
+    return [result, filtered];
+}
+
+export function filterObjectExcept<T extends Record<string, any>>(obj: T, fields: (keyof T)[]): [o: Partial<T>, filtered: (keyof T)[]] {
+    const result: Partial<T> = {};
+    const filtered: (keyof T)[] = [];
+
+    // Iterate through all keys in the object
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            // If the key is NOT in the fields array, add it to the result
+            if (!fields.includes(key as keyof T)) {
+                result[key as keyof T] = obj[key];
+            } else {
+                // Otherwise, add it to the filtered array
+                filtered.push(key as keyof T);
+            }
+        }
+    }
+
+    return [result, filtered];
+}
