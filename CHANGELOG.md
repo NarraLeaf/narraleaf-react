@@ -21,6 +21,10 @@
   - Less prone to state clutter when deserializing and undoing
   - Is a complete solution for nested operations
 
+### Fixed
+
+- Notification is not scaled correctly
+
 ## [0.5.0]
 
 ### _Incompatible Changes_
