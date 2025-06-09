@@ -94,6 +94,10 @@ export class Character extends Actionable<
      * ```typescript
      * character.say`Hello, ${Word.color("world", "#f00")}!`;
      * ```
+     * @example
+     * ```typescript
+     * character`Hello, ${Word.color("world", "#f00")}!`;
+     * ```
      * @chainable
      */
     public say(content: string, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;

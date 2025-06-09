@@ -1,10 +1,20 @@
-import {LogicAction} from "./logicAction";
-import {ContentNode} from "@core/action/tree/actionTree";
-import type {CalledActionResult} from "@core/gameTypes";
-import {Awaitable, getCallStack} from "@lib/util/data";
-import {GameState} from "@player/gameState";
-import {Story} from "@core/elements/story";
-import {ActionSearchOptions} from "@core/types";
+import { LogicAction } from "./logicAction";
+import { ContentNode } from "@core/action/tree/actionTree";
+import type { CalledActionResult } from "@core/gameTypes";
+import { Awaitable, getCallStack } from "@lib/util/data";
+import { GameState } from "@player/gameState";
+import { Story } from "@core/elements/story";
+import { ActionSearchOptions } from "@core/types";
+import type { StackModel } from "./stackModel";
+
+export type ActionExecutionInjection = {
+    stackModel: StackModel;
+};
+
+export type ExecutedActionResult = CalledActionResult
+    | Awaitable<CalledActionResult, any>
+    | (CalledActionResult | Awaitable<CalledActionResult, any>)[]
+    | null;
 
 export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Type extends string = any> {
     static ActionTypes = {
@@ -25,7 +35,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Typ
         this._id = "";
     }
 
-    public executeAction(_state: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(_state: GameState, _injection: ActionExecutionInjection): ExecutedActionResult {
         return {
             type: this.type as any,
             node: this.contentNode.getChild(),

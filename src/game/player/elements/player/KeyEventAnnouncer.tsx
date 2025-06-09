@@ -1,9 +1,9 @@
-import React, {useEffect} from "react";
+import React, {useEffect, useRef} from "react";
 import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
-import {throttle} from "@lib/util/data";
 import {Game} from "@core/common/game";
 import {useRouter} from "@player/lib/PageRouter/router";
+import { usePreference } from "../../libElements";
 
 /**@internal */
 export function KeyEventAnnouncer({state}: Readonly<{
@@ -11,6 +11,12 @@ export function KeyEventAnnouncer({state}: Readonly<{
 }>) {
     const game = useGame();
     const router = useRouter();
+    const keyIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isKeyPressedRef = useRef<boolean>(false);
+    
+    const [skipDelay] = usePreference(Game.Preferences.skipDelay);
+    const [skipInterval] = usePreference(Game.Preferences.skipInterval);
 
     useEffect(() => {
         const playerElement = game.getLiveGame().gameState!.playerCurrent;
@@ -23,22 +29,72 @@ export function KeyEventAnnouncer({state}: Readonly<{
             return;
         }
 
-        const listener = throttle((event: KeyboardEvent) => {
+        const cleanup = () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+            }
+            if (keyIntervalRef.current) {
+                clearInterval(keyIntervalRef.current);
+                keyIntervalRef.current = null;
+            }
+            isKeyPressedRef.current = false;
+        };
+
+        const handleKeyDown = (event: KeyboardEvent) => {
             if (game.config.skipKey.includes(event.key)
                 && game.preference.getPreference(Game.Preferences.skip)
                 && (!router || !router.isActive())
             ) {
-                state.logger.verbose("KeyEventAnnouncer", "Emitted event: state.player.skip");
-                state.events.emit(GameState.EventTypes["event:state.player.skip"]);
+                if (!isKeyPressedRef.current) {
+                    state.logger.verbose("KeyEventAnnouncer", "Skipping");
+                    
+                    const startContinuousSkip = () => {
+                        keyIntervalRef.current = setInterval(() => {
+                            state.events.emit(GameState.EventTypes["event:state.player.skip"], false);
+                        }, skipInterval);
+                    };
+
+                    // Clean up any existing timers before starting new ones
+                    cleanup();
+
+                    // Trigger immediately on first press
+                    state.events.emit(GameState.EventTypes["event:state.player.skip"], false);
+                    isKeyPressedRef.current = true;
+
+                    if (skipDelay === 0) {
+                        startContinuousSkip();
+                    } else {
+                        timeoutRef.current = setTimeout(startContinuousSkip, skipDelay);
+                    }
+                }
             }
-        }, game.config.skipInterval);
+        };
+
+        const handleKeyUp = (event: KeyboardEvent) => {
+            if (game.config.skipKey.includes(event.key)) {
+                cleanup();
+            }
+        };
 
         if (game.config.useWindowListener) {
-            return game.getLiveGame().onWindowEvent("keydown", listener).cancel;
+            const cancelKeyDown = game.getLiveGame().onWindowEvent("keydown", handleKeyDown).cancel;
+            const cancelKeyUp = game.getLiveGame().onWindowEvent("keyup", handleKeyUp).cancel;
+            return () => {
+                cleanup();
+                cancelKeyDown();
+                cancelKeyUp();
+            };
         } else {
-            return game.getLiveGame().onPlayerEvent("keydown", listener).cancel;
+            const cancelKeyDown = game.getLiveGame().onPlayerEvent("keydown", handleKeyDown).cancel;
+            const cancelKeyUp = game.getLiveGame().onPlayerEvent("keyup", handleKeyUp).cancel;
+            return () => {
+                cleanup();
+                cancelKeyDown();
+                cancelKeyUp();
+            };
         }
-    }, [router]);
+    }, [router, skipDelay, skipInterval]);
 
     return (<></>);
 }

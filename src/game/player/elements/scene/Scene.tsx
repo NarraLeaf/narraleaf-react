@@ -93,9 +93,6 @@ export default function Scene(
                         }
                         onClick();
                         state.stage.next();
-                        setTimeout(() => {
-                            usingSkipRef.current = false;
-                        }, 0);
                     }}
                     useTypeEffect={!usingSkipRef.current}
                 />
@@ -107,6 +104,8 @@ export default function Scene(
                         prompt={action.prompt}
                         choices={action.choices}
                         afterChoose={(choice) => {
+                            usingSkipRef.current = false;
+                            
                             onClick(choice);
                             state.stage.next();
                         }}

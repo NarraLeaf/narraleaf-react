@@ -6,7 +6,7 @@ import { LiveGameEventToken } from "@lib/game/nlcore/types";
 export type Notification = {
     message: string;
     id: string;
-    duration: number;
+    duration: number | null;
 }
 
 export class NotificationArray {
@@ -113,10 +113,14 @@ export class NotificationManager {
             this.removeNotification(notification);
         }));
         this.addNotification(notification);
-        this.gameState.schedule(() => {
-            awaitable.resolve();
-            this.removeNotification(notification);
-        }, notification.duration);
+
+        if (notification.duration) {
+            this.gameState.schedule(() => {
+                awaitable.resolve();
+                this.removeNotification(notification);
+            }, notification.duration);
+        }
+
         this.gameState.timelines.attachTimeline(timeline);
 
         return awaitable;

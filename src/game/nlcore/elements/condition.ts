@@ -47,6 +47,11 @@ export class Lambda<T = any> {
             storable: gameState.game.getLiveGame().getStorable(),
         };
     }
+
+    /**@internal */
+    toString(): string {
+        return `Lambda(${this.handler.toString()})`;
+    }
 }
 
 /**@internal */

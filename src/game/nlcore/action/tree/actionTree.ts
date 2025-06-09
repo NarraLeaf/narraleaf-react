@@ -88,6 +88,13 @@ export class ContentNode<T = any> extends Node<T> {
         if (parent === this) {
             throw new Error("Cannot set parent to itself");
         }
+
+        // unbind the old parent
+        if (this.parent) {
+            this.parent.setChild(null);
+        }
+
+        // bind the new parent
         this.parent = parent;
         return this;
     }
@@ -96,9 +103,17 @@ export class ContentNode<T = any> extends Node<T> {
         if (child === this) {
             throw new Error("Cannot set child to itself");
         }
+
+        // unbind the old child
+        if (this.child) {
+            this.child.parent = null;
+        }
+
+        // bind the new child
         this.child = child;
         if (child && child.parent !== this) {
-            child.remove().setParent(this);
+            child.remove();
+            child.parent = this;
         }
         return this;
     }
@@ -134,7 +149,12 @@ export class ContentNode<T = any> extends Node<T> {
      * Remove this node from the parent's children
      */
     remove() {
-        this.parent?.removeChild(this);
+        if (this.parent) {
+            this.parent.removeChild(this);
+        }
+        if (this.child) {
+            this.child.setParent(null);
+        }
         return this;
     }
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.6.0]
+
+### _Feature_
+
+- Added `skipDelay` to the game preference
+- Added `liveGame.skipDialog` to skip the current dialog
+- Use a notification with a null duration to create a notification that will not be automatically removed
+- Added `lastSentence` and `lastSpeaker` to the saved game metadata
+- Added `liveGame.waitForPageMount` to wait for the page to mount
+- Added `story.hash` to get the hash of the story
+- Added `skipInterval` to the game preference
+
+### _Incompatible Changes_
+
+- The game has completely transitioned from a single node currentAction to a **StackModel**. The model ensures that: 
+  - Awaitable is handled in an explicit way 
+  - Support for sub-stack model recursive calls 
+  - Full support for serialization/deserialization 
+  - Support for scenario operations to break the call stack 
+  - Better branching/merging operations 
+  - Less prone to state clutter when deserializing and undoing
+  - Is a complete solution for nested operations
+- `game.config.skipInterval` is deprecated, use `GamePreference.skipInterval` instead
+
+### Fixed
+
+- Notification is not scaled correctly
+
 ## [0.5.0]
 
 ### _Incompatible Changes_

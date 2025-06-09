@@ -98,7 +98,7 @@ export class Control extends Actionable {
      * @chainable
      */
     public any(actions: ActionStatements): ChainedControl {
-        return this.push(ControlAction.ActionTypes.any, actions);
+        return this.pushUnchained(ControlAction.ActionTypes.any, actions);
     }
 
     /**
@@ -106,7 +106,7 @@ export class Control extends Actionable {
      * @chainable
      */
     public all(actions: ActionStatements): ChainedControl {
-        return this.push(ControlAction.ActionTypes.all, actions);
+        return this.pushUnchained(ControlAction.ActionTypes.all, actions);
     }
 
     /**
@@ -114,7 +114,7 @@ export class Control extends Actionable {
      * @chainable
      */
     public allAsync(actions: ActionStatements): ChainedControl {
-        return this.push(ControlAction.ActionTypes.allAsync, actions);
+        return this.pushUnchained(ControlAction.ActionTypes.allAsync, actions);
     }
 
     /**
@@ -144,6 +144,21 @@ export class Control extends Actionable {
             this.chain(),
             type,
             new ContentNode().setContent([this.construct(flatted), ...args])
+        );
+        return this.chain(action);
+    }
+
+    /**@internal */
+    private pushUnchained(
+        type: Values<typeof ControlAction.ActionTypes>,
+        actions: ActionStatements,
+        ...args: any[]
+    ): ChainedControl {
+        const flatted = this.narrativeToActions(actions);
+        const action = new ControlAction(
+            this.chain(),
+            type,
+            new ContentNode().setContent([flatted, ...args])
         );
         return this.chain(action);
     }

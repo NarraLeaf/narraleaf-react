@@ -77,6 +77,59 @@ export class Timeline {
     }
 
     /**
+     * Creates a new awaitable that resolves when all of the given awaitables resolve.
+     * All input awaitables are attached to a timeline for global tracking and cancellation.
+     *
+     * Behavior:
+     * - The returned `awaitable` resolves with an array of all resolved values in the same order as input.
+     * - If any awaitable is cancelled, the entire timeline is cancelled.
+     * - If the outer awaitable is aborted, the entire timeline and all child awaitables are aborted.
+     * - The `timeline` is returned for centralized management, but does not affect resolution logic.
+     *
+     * This is conceptually similar to `Promise.all`, but built for the Awaitable + Timeline system.
+     *
+     * @template T The resolved type of the input awaitables.
+     * @param {Awaitable<T>[]} awaitables An array of awaitables to monitor.
+     * @returns {[Awaitable<T[]>, Timeline]} A tuple containing:
+     * - an awaitable that resolves with an array of all resolved values
+     * - a timeline that includes all provided awaitables as children
+     */
+    public static all<T>(awaitables: Awaitable<T>[]): [Awaitable<T[]>, Timeline] {
+        if (awaitables.length === 0) {
+            throw new RuntimeGameError("Cannot create an 'all' timeline with no awaitables.");
+        }
+
+        const awaitable = new Awaitable<T[]>();
+        const awaitableProxy: Awaitable<void> = new Awaitable<void>();
+        const timeline = new Timeline(awaitableProxy);
+
+        const results: T[] = new Array(awaitables.length);
+        let resolvedCount = 0;
+
+        for (let i = 0; i < awaitables.length; i++) {
+            const child = awaitables[i];
+            timeline.attachChild(child);
+
+            child.then((value) => {
+                results[i] = value;
+                resolvedCount++;
+                
+                if (resolvedCount === awaitables.length) {
+                    awaitable.resolve(results);
+                }
+            });
+        }
+
+        awaitable.onSkipControllerRegister(controller => {
+            controller.onAbort(() => {
+                timeline.abort();
+            });
+        });
+
+        return [awaitable, timeline];
+    }
+
+    /**
      * Executes a chain of asynchronous steps in sequence using the provided generator function.
      *
      * Each step receives the result of the previous step and returns an `Awaitable<T>`.
@@ -150,6 +203,8 @@ export class Timeline {
 
         return awaitable;
     }
+
+    
 
     private children: Timeline[] = [];
     private _onResolved: (() => void)[] = [];

@@ -1,5 +1,5 @@
 import {Constructable} from "../action/constructable";
-import {deepMerge, isPureObject} from "@lib/util/data";
+import {deepMerge, fnv1a64, isPureObject} from "@lib/util/data";
 import {Scene} from "@core/elements/scene";
 import {RuntimeScriptError, StaticChecker, StaticScriptWarning} from "@core/common/Utils";
 import {RawData} from "@core/action/tree/actionTree";
@@ -32,7 +32,7 @@ export class Story extends Constructable<
         origin: Origins.bottomLeft,
     };
     /**@internal */
-    static MAX_DEPTH = 10000;
+    static MAX_DEPTH = 32767;
 
     /**@internal */
     public static empty(): Story {
@@ -152,6 +152,26 @@ export class Story extends Constructable<
             throw new StaticScriptWarning(`Trying to access service ${name} before it's registered, please use "story.registerService" to register the service`);
         }
         return service as T;
+    }
+
+    /**
+     * Returns a 64-bit hash of the story
+     * 
+     * The hash is calculated by the stringified story.
+     * 
+     * If `strict` is true, the hash will be calculated by the stringified story with strict mode.
+     * 
+     * In strict mode, the hash will be calculated
+     * - With all the Lambda functions stringified (If the lambda function is changed, the hash will be different)
+     * 
+     * However, the hash is **not** calculated with the text content of the story.
+     */
+    public hash(strict: boolean = false): string {
+        return fnv1a64(this.stringify(strict));
+    }
+
+    public stringify(strict: boolean = false): string {
+        return this.entryScene?.stringify(this, new Set(), strict) || "";
     }
 
     /**@internal */

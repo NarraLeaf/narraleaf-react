@@ -119,12 +119,12 @@ export class Menu extends Actionable<any, Menu> {
 
     /**@internal */
     narrativeToActions(statements: ActionStatements): LogicAction.Actions[] {
-        return statements.flatMap(statement => {
+        return this.constructNodes(statements.flatMap(statement => {
             if (typeof statement === "string") {
                 return Narrator.say(statement).getActions();
             }
             return Chained.toActions([statement]);
-        });
+        }));
     }
 
     /**@internal */
