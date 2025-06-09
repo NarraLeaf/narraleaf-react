@@ -6,8 +6,10 @@ import {Awaitable, SkipController, Values} from "@lib/util/data";
 import type {CalledActionResult} from "@core/gameTypes";
 import {ExposedState, ExposedStateType} from "@player/type";
 import {RuntimeGameError} from "@core/common/Utils";
-import { ActionExecutionInjection } from "../action";
-import { ActionHistoryPushOptions } from "../actionHistory";
+import { ActionExecutionInjection } from "@core/action/action";
+import { ActionHistoryPushOptions } from "@core/action/actionHistory";
+import { LogicAction } from "@core/action/logicAction";
+import { Story } from "@core/elements/story";
 
 export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<typeof VideoActionTypes>>
     extends TypedAction<VideoActionContentType, T, Video> {
@@ -90,5 +92,9 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
 
     private changeStateAsync(gameState: GameState, handler: (state: ExposedState[ExposedStateType.video]) => Promise<void>, injection: ActionExecutionInjection) {
         return this.changeStateBase(gameState, handler, injection);
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("VideoAction");
     }
 }

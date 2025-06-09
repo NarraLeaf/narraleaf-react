@@ -3,6 +3,8 @@ import type {Script} from "@core/elements/script";
 import {GameState} from "@player/gameState";
 import {TypedAction} from "@core/action/actions";
 import { ActionExecutionInjection } from "../action";
+import { Story } from "@core/elements/story";
+import { LogicAction } from "@core/action/logicAction";
 
 export class ScriptAction<T extends typeof ScriptActionTypes[keyof typeof ScriptActionTypes] = typeof ScriptActionTypes[keyof typeof ScriptActionTypes]>
     extends TypedAction<ScriptActionContentType, T, Script> {
@@ -21,5 +23,9 @@ export class ScriptAction<T extends typeof ScriptActionTypes[keyof typeof Script
             }, []);
         }
         return super.executeAction(gameState, injection);
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("ScriptAction");
     }
 }

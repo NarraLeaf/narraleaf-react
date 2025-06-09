@@ -4,6 +4,8 @@ import { ServiceSkeleton } from "@core/elements/service";
 import { Awaitable, StringKeyOf } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { ActionExecutionInjection } from "./action";
+import { LogicAction } from "@core/action/logicAction";
+import { Story } from "@core/elements/story";
 
 export type ServiceActionContentType = {
     "service:action": [type: string, args: unknown[]]
@@ -22,6 +24,10 @@ export class ServiceAction extends TypedAction<ServiceActionContentType, StringK
             });
         }
         return super.executeAction(gameState, injection);
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("ServiceAction");
     }
 }
 

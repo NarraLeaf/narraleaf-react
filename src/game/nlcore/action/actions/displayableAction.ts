@@ -10,7 +10,8 @@ import { Transform, TransformState } from "@core/elements/transform/transform";
 import { Transition } from "@core/elements/transition/transition";
 import { Layer } from "@core/elements/layer";
 import { LogicAction } from "@core/action/logicAction";
-import { ActionExecutionInjection, ExecutedActionResult } from "../action";
+import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
+import { Story } from "@core/elements/story";
 
 export class DisplayableAction<
     T extends Values<typeof DisplayableActionTypes> = Values<typeof DisplayableActionTypes>,
@@ -135,5 +136,9 @@ export class DisplayableAction<
         });
 
         return awaitable;
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("DisplayableAction");
     }
 }

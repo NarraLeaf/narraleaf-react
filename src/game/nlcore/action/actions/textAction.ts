@@ -4,8 +4,10 @@ import { ContentNode } from "@core/action/tree/actionTree";
 import { Text } from "@core/elements/displayable/text";
 import { GameState } from "@player/gameState";
 import { ExposedStateType } from "@player/type";
-import { ActionExecutionInjection, ExecutedActionResult } from "../action";
-import { ActionHistoryPushOptions } from "../actionHistory";
+import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
+import { ActionHistoryPushOptions } from "@core/action/actionHistory";
+import { LogicAction } from "@core/action/logicAction";
+import { Story } from "@core/elements/story";
 
 export class TextAction<T extends typeof TextActionTypes[keyof typeof TextActionTypes] = typeof TextActionTypes[keyof typeof TextActionTypes]>
     extends TypedAction<TextActionContentType, T, Text> {
@@ -39,5 +41,9 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
         }
 
         throw super.unknownTypeError();
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("TextAction");
     }
 }

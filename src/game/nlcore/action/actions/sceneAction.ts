@@ -12,8 +12,8 @@ import {ImageTransition} from "@core/elements/transition/transitions/image/image
 import {ImageAction} from "@core/action/actions/imageAction";
 import {ActionSearchOptions} from "@core/types";
 import {ExposedState, ExposedStateType} from "@player/type";
-import { Sound } from "../../elements/sound";
-import { ImageDataRaw } from "../../elements/displayable/image";
+import { Sound } from "@core/elements/sound";
+import { ImageDataRaw } from "@core/elements/displayable/image";
 import { ActionExecutionInjection, ExecutedActionResult } from "../action";
 import { StackModelRawData } from "../stackModel";
 
@@ -248,5 +248,20 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
 
     getSceneName(scene: Scene | string): string {
         return typeof scene === "string" ? scene : scene.config.name;
+    }
+
+    stringify(story: Story, seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        if (this.type === SceneActionTypes.jumpTo) {
+            if (seen.has(this)) {
+                return super.stringifyWithContent("Scene", "[[recursive]]");
+            }
+            seen.add(this);
+
+            const [targetScene] = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent();;
+
+            return super.stringifyWithContent("Scene", `jumpTo {${targetScene.stringify(story, seen, _strict)}}`);
+        }
+
+        return super.stringifyWithName("SceneAction");
     }
 }

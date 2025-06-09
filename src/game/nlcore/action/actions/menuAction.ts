@@ -8,7 +8,7 @@ import {TypedAction} from "@core/action/actions";
 import {Story} from "@core/elements/story";
 import {LogicAction} from "@core/action/logicAction";
 import {ActionSearchOptions} from "@core/types";
-import { ActionExecutionInjection } from "../action";
+import { ActionExecutionInjection } from "@core/action/action";
 
 export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuActionTypes] = typeof MenuActionTypes[keyof typeof MenuActionTypes]>
     extends TypedAction<MenuActionContentType, T, Menu> {
@@ -83,5 +83,14 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
     getFutureActions(story: Story, options: ActionSearchOptions): LogicAction.Actions[] {
         const menu = (this.contentNode as ContentNode<MenuActionContentType["menu:action"]>).getContent();
         return [...this.callee._getFutureActions(menu.choices), ...super.getFutureActions(story, options)];
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        const menu: MenuData = (this.contentNode as ContentNode<MenuActionContentType["menu:action"]>).getContent();
+        const choices = menu.choices.map(choice => {
+            const action = choice.action.map(action => action.stringify(_story, _seen, _strict)).join(";");
+            return `{${action}}`;
+        });
+        return super.stringifyWithContent("Menu", `(${menu.prompt}) {[${choices.join(",")}]}`);
     }
 }

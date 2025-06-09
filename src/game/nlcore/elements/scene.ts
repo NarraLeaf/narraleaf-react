@@ -587,6 +587,15 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
+    stringify(story: Story, seen: Set<LogicAction.Actions>, strict: boolean): string {
+        return super.getAllChildren(
+            story,
+            this.sceneRoot || [],
+            {allowFutureScene: true}
+        ).map(action => action.stringify(story, seen, strict)).join(";");
+    }
+
+    /**@internal */
     override reset() {
         this.state.backgroundImage.reset();
         this.state.backgroundMusic?.reset();

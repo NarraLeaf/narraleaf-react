@@ -9,6 +9,7 @@
 - Use a notification with a null duration to create a notification that will not be automatically removed
 - Added `lastSentence` and `lastSpeaker` to the saved game metadata
 - Added `liveGame.waitForPageMount` to wait for the page to mount
+- Added `story.hash` to get the hash of the story
 
 ### _Incompatible Changes_
 

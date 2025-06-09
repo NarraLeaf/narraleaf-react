@@ -9,7 +9,7 @@ import { ActionSearchOptions } from "@core/types";
 import { Awaitable } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { Timeline } from "@player/Tasks";
-import { ActionExecutionInjection, ExecutedActionResult } from "../action";
+import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
 
 export class ControlAction<T extends typeof ControlActionTypes[keyof typeof ControlActionTypes] = typeof ControlActionTypes[keyof typeof ControlActionTypes]>
     extends TypedAction<ControlActionContentType, T, Control> {
@@ -173,5 +173,12 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         const actions = this.contentNode.getContent()[0];
         const childActions = super.getFutureActions(story, options);
         return [...actions, ...childActions];
+    }
+
+    stringify(story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        const contentNode = this.contentNode as ContentNode<ControlActionContentType[T]>;
+        const [content] = contentNode.getContent() as [LogicAction.Actions[]];
+
+        return super.stringifyWithContent("Control", content.map(action => action.stringify(story, _seen, _strict)).join(";"));
     }
 }

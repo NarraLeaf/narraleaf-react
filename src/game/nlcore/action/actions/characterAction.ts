@@ -8,7 +8,9 @@ import {Sentence} from "@core/elements/character/sentence";
 import {TypedAction} from "@core/action/actions";
 import {Sound} from "@core/elements/sound";
 import { Timeline } from "@lib/game/player/Tasks";
-import { ActionExecutionInjection, ExecutedActionResult } from "../action";
+import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
+import { LogicAction } from "@core/action/logicAction";
+import { Story } from "@core/elements/story";
 
 export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof CharacterActionTypes] = typeof CharacterActionTypes[keyof typeof CharacterActionTypes]>
     extends TypedAction<CharacterActionContentType, T, Character> {
@@ -110,5 +112,9 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
         }
 
         throw super.unknownTypeError();
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("CharacterAction");
     }
 }

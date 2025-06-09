@@ -1564,3 +1564,33 @@ export function filterObjectExcept<T extends Record<string, any>>(obj: T, fields
 
     return [result, filtered];
 }
+
+export function fnv1a64(input: string): string {
+    let hashLo = 0xcbf29ce4 >>> 0; // low 32 bits
+    let hashHi = 0x84222325 >>> 0; // high 32 bits (FNV offset basis: 14695981039346656037n)
+  
+    for (let i = 0; i < input.length; i++) {
+      const code = input.charCodeAt(i);
+  
+      hashLo ^= code;
+  
+      // 64-bit multiplication: hash * FNV_prime (0x100000001b3)
+      const lo = hashLo >>> 0;
+      const hi = hashHi >>> 0;
+  
+      const primeLo = 0x1b3 >>> 0;
+      const primeHi = 0x1000000 >>> 0;
+  
+      const newLo = (lo * primeLo) >>> 0;
+      const cross = ((lo * primeHi) + (hi * primeLo)) >>> 0;
+      const newHi = (hi * primeHi + (cross >>> 0)) >>> 0;
+  
+      hashLo = newLo;
+      hashHi = newHi;
+    }
+  
+    return (
+      ("00000000" + hashHi.toString(16)).slice(-8) +
+      ("00000000" + hashLo.toString(16)).slice(-8)
+    );
+  }

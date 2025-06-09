@@ -8,8 +8,10 @@ import {TypedAction} from "@core/action/actions";
 import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {Color, RGBAColor, StaticImageData} from "@core/types";
 import {ExposedStateType} from "@player/type";
-import { Darkness } from "../../elements/transition/transitions/image/darkness";
-import { ActionExecutionInjection, ExecutedActionResult } from "../action";
+import { Darkness } from "@core/elements/transition/transitions/image/darkness";
+import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
+import { LogicAction } from "@core/action/logicAction";
+import { Story } from "@core/elements/story";
 
 export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageActionTypes] = typeof ImageActionTypes[keyof typeof ImageActionTypes]>
     extends TypedAction<ImageActionContentType, T, Image> {
@@ -177,5 +179,9 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
         }
 
         throw super.unknownTypeError();
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("ImageAction");
     }
 }

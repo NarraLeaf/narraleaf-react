@@ -4,7 +4,7 @@ import {Action} from "@core/action/action";
 import {Chained, Proxied} from "@core/action/chain";
 import {Awaitable} from "@lib/util/data";
 import {CalledActionResult} from "@core/gameTypes";
-
+import type { Story } from "@core/elements/story";
 
 export class TypedAction<
     ContentType extends Record<string, any> = Record<string, any>,
@@ -36,5 +36,20 @@ export class TypedAction<
 
     is<T extends LogicAction.Actions>(parent: new (...args: any[]) => T, type: string): this is T {
         return this instanceof parent && this.type === type;
+    }
+    
+    /**
+     * {Action Name}#{Action ID}(Action Type){{Action Content}}
+     */
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return this.stringifyWithName("Action");
+    }
+
+    stringifyWithName(name: string): string {
+        return `${name}#${this._id}(${this.type})`;
+    }
+
+    stringifyWithContent(name: string, content: string): string {
+        return `${name}#${this._id}(${this.type}){${content}}`;
     }
 }

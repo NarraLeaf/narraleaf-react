@@ -3,9 +3,11 @@ import {GameState} from "@player/gameState";
 import {TypedAction} from "@core/action/actions";
 import {Values} from "@lib/util/data";
 import {Persistent, PersistentContent} from "@core/elements/persistent";
-import { Namespace } from "../../common/game";
-import { ContentNode } from "../tree/actionTree";
-import { ActionExecutionInjection } from "../action";
+import { Namespace } from "@core/common/game";
+import { ContentNode } from "@core/action/tree/actionTree";
+import { ActionExecutionInjection } from "@core/action/action";
+import { LogicAction } from "@core/action/logicAction";
+import { Story } from "@core/elements/story";
 
 export class PersistentAction<T extends Values<typeof PersistentActionTypes> = Values<typeof PersistentActionTypes>>
     extends TypedAction<PersistentActionContentType, T, Persistent<any>> {
@@ -59,5 +61,9 @@ export class PersistentAction<T extends Values<typeof PersistentActionTypes> = V
             return super.executeAction(gameState, injection);
         }
         throw this.unknownTypeError();
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("PersistentAction");
     }
 }

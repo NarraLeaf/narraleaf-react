@@ -4,8 +4,10 @@ import { ContentNode } from "@core/action/tree/actionTree";
 import type { Sound, SoundDataRaw } from "@core/elements/sound";
 import { Awaitable } from "@lib/util/data";
 import { GameState } from "@player/gameState";
-import { ActionExecutionInjection, ExecutedActionResult } from "../action";
-import { ActionHistoryPushOptions } from "../actionHistory";
+import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
+import { ActionHistoryPushOptions } from "@core/action/actionHistory";
+import { LogicAction } from "@core/action/logicAction";
+import { Story } from "@core/elements/story";
 
 export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundActionTypes] = typeof SoundActionTypes[keyof typeof SoundActionTypes]>
     extends TypedAction<SoundActionContentType, T, Sound> {
@@ -109,5 +111,9 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
         }
 
         throw super.unknownTypeError();
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("SoundAction");
     }
 }
