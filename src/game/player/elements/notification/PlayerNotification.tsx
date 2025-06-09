@@ -2,9 +2,11 @@ import React, { useEffect } from "react";
 import { useFlush } from "../../lib/flush";
 import { PlayerNotificationProps, INotificationsProps } from "./type";
 import Notifications from "./Notifications";
+import { useRatio } from "../../provider/ratio";
 
 export default function PlayerNotification({ gameState }: PlayerNotificationProps) {
     const [flush] = useFlush();
+    const {ratio} = useRatio();
     const manager = gameState.notificationMgr;
 
     useEffect(() => {
@@ -16,7 +18,12 @@ export default function PlayerNotification({ gameState }: PlayerNotificationProp
     const NotificationConstructor = gameState.game.config.notification;
 
     return (
-        <div className="absolute top-0 left-0 w-full h-full pointer-events-none" data-element-type="notification">
+        <div
+            style={{
+                transform: `scale(${ratio.state.scale})`,
+                transformOrigin: "left top",
+            }}
+            className="absolute top-0 left-0 w-full h-full pointer-events-none" data-element-type="notification">
             <NotificationConstructor notifications={manager.toArray()} />
         </div>
     );

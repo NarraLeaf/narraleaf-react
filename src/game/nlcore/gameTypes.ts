@@ -6,23 +6,47 @@ import { StringKeyOf } from "@lib/util/data";
 import { PlayerStateData } from "@player/gameState";
 import { GuardConfig } from "@player/guard";
 import React from "react";
+import { StackModel, StackModelRawData } from "./action/stackModel";
 import { MenuComponent, NotificationComponent, SayComponent } from "./common/player";
-import { Color } from "./types";
+import { Color, LiveGameEventToken } from "./types";
 
+export interface SavedGameMetaData {
+    /**
+     * The timestamp of when the game was created
+     */
+    created: number;
+    /**
+     * The timestamp of when the game was last updated
+     */
+    updated: number;
+    /**
+     * The id of the game, unique to each saved game
+     */
+    id: string;
+    /**
+     * The last sentence that was spoken
+     */
+    lastSentence: string | null;
+    /**
+     * The last speaker that spoke
+     */
+    lastSpeaker: string | null;
+    /**
+     * The hash of the story is used to check whether the stories are compatible.
+     */
+    storyHash: string;
+}
 
 export interface SavedGame {
     name: string;
-    meta: {
-        created: number;
-        updated: number;
-        id: string;
-    };
+    meta: SavedGameMetaData;
     game: {
         store: { [key: string]: StorableData; };
         elementStates: RawData<ElementStateRaw>[];
         stage: PlayerStateData;
-        currentAction: string | null;
         services: { [key: string]: unknown; };
+        stackModel: StackModelRawData;
+        asyncStackModels: StackModelRawData[];
     };
 }
 
@@ -70,18 +94,11 @@ export type GameConfig = {
      */
     skipKey: React.KeyboardEvent["key"][];
     /**
-     * The interval in milliseconds between each skip action.
-     * ex: 100 ms means the player can skip 10 actions per second.
-     * higher value means faster skipping.
-     * @default 100
-     */
-    skipInterval: number;
-    /**
      * If true, the game will listen to the window events instead of the player element
      * 
      * Using this will allow the game to listen to the keyboard events even when the player is not focused  
      * Resulting in a better user experience on skipping actions
-     * @default false
+     * @default true
      */
     useWindowListener: boolean;
     /**
@@ -324,16 +341,100 @@ export type GameConfig = {
      * @default "#000"
      */
     defaultMenuChoiceColor: Color;
+    /**
+     * The maximum number of times a stack model can loop
+     * @default 1000
+     */
+    maxStackModelLoop: number;
+    /**
+     * The maximum number of actions to store in the action history
+     * @default 100
+     */
+    maxActionHistory: number;
 };
 export type GameSettings = {
     volume: number;
+};
+export type StackModelWaiting = {
+    type: "any" | "all";
+    stackModels: StackModel[];
 };
 export type CalledActionResult<T extends keyof LogicAction.ActionContents = any> = {
     [K in StringKeyOf<LogicAction.ActionContents>]: {
         type: T extends undefined ? K : T;
         node: ContentNode<LogicAction.ActionContents[T extends undefined ? K : T]> | null;
+        wait?: StackModelWaiting | null;
     }
 }[StringKeyOf<LogicAction.ActionContents>];
 
-
+export interface NotificationToken extends LiveGameEventToken {
+    promise: Promise<void>;
+}
+export type GamePreference = {
+    /**
+     * If true, the game will automatically forward to the next sentence when the player has finished the current sentence
+     * @default false
+     */
+    autoForward: boolean;
+    /**
+     * If true, the game will allow the player to skip the dialog
+     * @default true
+     */
+    skip: boolean;
+    /**
+     * If true, the game will show the dialog
+     * @default true
+     */
+    showDialog: boolean;
+    /**
+     * The multiplier of the dialog speed
+     *
+     * Dialog speed will apply to:
+     * - The text speed
+     * - The auto-forward delay
+     * @default 1.0
+     */
+    gameSpeed: number;
+    /**
+     * The speed of the text effects in characters per second.
+     * @default 10
+     */
+    cps: number;
+    /**
+     * The volume of the voice
+     * @default 1
+     */
+    voiceVolume: number;
+    /**
+     * The volume of the background music
+     * @default 1
+     */
+    bgmVolume: number;
+    /**
+     * The volume of the sound effects
+     * @default 1
+     */
+    soundVolume: number;
+    /**
+     * The volume of the global audio
+     * @default 1
+     */
+    globalVolume: number;
+    /**
+     * The delay in milliseconds before the game starts skipping actions
+     *
+     * This is used to prevent the game from skipping actions too quickly when the player presses the skip key.
+     *
+     * Set to 0 to skip actions immediately when the player presses the skip key.
+     * @default 500
+     */
+    skipDelay: number;
+    /**
+     * The interval in milliseconds between each skip action.
+     * ex: 100 ms means the player can skip 10 actions per second.
+     * higher value means slower skipping.
+     * @default 100
+     */
+    skipInterval: number;
+};
 

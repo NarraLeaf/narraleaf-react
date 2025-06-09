@@ -35,4 +35,5 @@ Thumbs.db
 
 # Project specific
 test/
+dev.json
 

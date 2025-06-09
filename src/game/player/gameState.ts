@@ -1,5 +1,5 @@
 import {CalledActionResult} from "@core/gameTypes";
-import {Awaitable, EventDispatcher, IdManager, Values} from "@lib/util/data";
+import {Awaitable, EventDispatcher, IdManager, Lock, Values} from "@lib/util/data";
 import {MenuData} from "@core/elements/menu";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
@@ -39,6 +39,7 @@ type Legacy_PlayerStateElement = {
 };
 type ScheduleHandle = {
     retry: () => void;
+    onCleanup: (fn: VoidFunction) => void;
 };
 export type PlayerState = {
     sounds: Sound[];
@@ -82,13 +83,12 @@ interface StageUtils {
     forceUpdate: () => void;
     forceRemount: () => void;
     next: () => void;
-    dispatch: (action: PlayerAction) => void;
 }
 
 
 type GameStateEvents = {
     "event:state.end": [];
-    "event:state.player.skip": [];
+    "event:state.player.skip": [force?: boolean];
     "event:state.player.requestFlush": [];
     "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
     "event:state.onRender": [];
@@ -108,7 +108,7 @@ export class GameState {
         "event:state.onRender": "event:state.onRender",
         "event:state:flushPreloadedScenes": "event:state:flushPreloadedScenes",
     };
-    state: PlayerState = {
+    private state: PlayerState = {
         sounds: [],
         videos: [],
         srcManagers: [],
@@ -124,6 +124,7 @@ export class GameState {
     timelines: Timelines;
     preloadingScene: Scene | null = null;
     flushDep: number = 0;
+    rollLock: Lock = new Lock();
     public readonly notificationMgr: NotificationManager;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
@@ -144,7 +145,7 @@ export class GameState {
         this.timelines = new Timelines(this.guard);
         this.notificationMgr = new NotificationManager(this, []);
         this.idManager = new IdManager();
-        this.actionHistory = new ActionHistoryManager();
+        this.actionHistory = new ActionHistoryManager(game.config.maxActionHistory, this.game.getLiveGame());
         this.gameHistory = new GameHistoryManager(this.actionHistory);
     }
 
@@ -191,12 +192,19 @@ export class GameState {
         }) || null;
     }
 
+    public getLiveGame(): LiveGame {
+        return this.game.getLiveGame();
+    }
+
     public removeElement(element: PlayerStateElement): this {
         const index = this.state.elements.indexOf(element);
         if (index === -1) {
             this.logger.weakWarn("Element not found when removing", element.scene.getId());
             return this;
         }
+
+        this.logger.debug("GameState", "Removing element", element.scene.getId());
+
         this.state.elements.splice(index, 1);
         return this;
     }
@@ -217,6 +225,8 @@ export class GameState {
 
     public addElement(element: PlayerStateElement): this {
         this.state.elements.push(element);
+        this.logger.debug("GameState", "Adding element", element.scene.getId());
+
         return this;
     }
 
@@ -230,6 +240,8 @@ export class GameState {
                 scene.config.layers.map(layer => [layer, [] as LogicAction.DisplayableElements[]])
             ),
         });
+        this.logger.debug("GameState", "Adding scene", scene.getId());
+
         return this;
     }
 
@@ -242,11 +254,15 @@ export class GameState {
         const scene = this.state.elements.pop();
         if (!scene) return this;
         this.removeElements(scene.scene);
+        this.logger.debug("GameState", "Popping scene", scene.scene.getId());
+
         return this;
     }
 
     public removeScene(scene: Scene): this {
         this.removeElements(scene);
+        this.logger.debug("GameState", "Removing scene", scene.getId());
+
         return this;
     }
 
@@ -275,14 +291,21 @@ export class GameState {
     }
 
     public schedule(callback: (scheduleHandle: ScheduleHandle) => void, ms: number): () => void {
+        const cleanup: VoidFunction[] = [];
         const timeout = setTimeout(() => {
             callback({
                 retry: () => {
                     this.schedule(callback, 0);
+                },
+                onCleanup: (fn) => {
+                    cleanup.push(fn);
                 }
             });
         }, ms);
-        return () => clearTimeout(timeout);
+        return () => {
+            cleanup.forEach(fn => fn());
+            clearTimeout(timeout);
+        };
     }
 
     public notify(notification: Notification) {
@@ -325,6 +348,8 @@ export class GameState {
             if (afterClick) afterClick();
         });
         texts.push(action);
+
+        this.stage.update();
 
         return {
             cancel: () => {
@@ -423,6 +448,8 @@ export class GameState {
         this.timelines.abortAll();
         this.gameHistory.reset();
         this.actionHistory.reset();
+
+        this.logger.debug("GameState", "Force reset");
     }
 
     getHowl(): typeof Howler.Howl {
@@ -683,6 +710,8 @@ export class GameState {
 
         this.resetLayers(this.state.elements[index].layers);
         this.state.elements.splice(index, 1);
+
+        this.logger.debug("GameState", "Removing elements", scene.getId());
         return this;
     }
 

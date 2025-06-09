@@ -1,16 +1,18 @@
-import {TypedAction} from "@core/action/actions";
-import {Awaitable, StringKeyOf} from "@lib/util/data";
-import {ServiceSkeleton} from "@core/elements/service";
-import {GameState} from "@player/gameState";
-import {CalledActionResult} from "@core/gameTypes";
-import {Script} from "@core/elements/script";
+import { TypedAction } from "@core/action/actions";
+import { Script } from "@core/elements/script";
+import { ServiceSkeleton } from "@core/elements/service";
+import { Awaitable, StringKeyOf } from "@lib/util/data";
+import { GameState } from "@player/gameState";
+import { ActionExecutionInjection } from "./action";
+import { LogicAction } from "@core/action/logicAction";
+import { Story } from "@core/elements/story";
 
 export type ServiceActionContentType = {
     "service:action": [type: string, args: unknown[]]
 };
 
 export class ServiceAction extends TypedAction<ServiceActionContentType, StringKeyOf<ServiceActionContentType>, ServiceSkeleton> {
-    public executeAction(gameState: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(gameState: GameState, injection: ActionExecutionInjection) {
         const [type, args] = (this.contentNode as any).getContent();
         const res = this.callee.triggerAction(Script.getCtx({
             gameState,
@@ -21,7 +23,11 @@ export class ServiceAction extends TypedAction<ServiceActionContentType, StringK
                 node: this.contentNode?.getChild()
             });
         }
-        return super.executeAction(gameState);
+        return super.executeAction(gameState, injection);
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("ServiceAction");
     }
 }
 

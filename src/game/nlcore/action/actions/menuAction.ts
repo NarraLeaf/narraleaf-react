@@ -8,35 +8,43 @@ import {TypedAction} from "@core/action/actions";
 import {Story} from "@core/elements/story";
 import {LogicAction} from "@core/action/logicAction";
 import {ActionSearchOptions} from "@core/types";
+import { ActionExecutionInjection } from "@core/action/action";
 
 export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuActionTypes] = typeof MenuActionTypes[keyof typeof MenuActionTypes]>
     extends TypedAction<MenuActionContentType, T, Menu> {
     static ActionTypes = MenuActionTypes;
 
-    public executeAction(state: GameState) {
+    public executeAction(gameState: GameState, injection: ActionExecutionInjection) {
         const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
             .registerSkipController(new SkipController(() => {
                 token.cancel();
             }));
-        const timeline = state.timelines.attachTimeline(awaitable);
+        const timeline = gameState.timelines.attachTimeline(awaitable);
         const menu = this.contentNode.getContent() as MenuData;
 
         let cleanup: (() => void) | null = null;
 
-        const token = state.createMenu(menu, (chosen) => {
-            const currentNode = state.game.getLiveGame().getCurrentAction()?.contentNode;
-            const lastChild = currentNode?.getChild() || null;
-            if (lastChild) {
-                chosen.action[chosen.action.length - 1]?.contentNode.addChild(lastChild);
-                cleanup = () => {
-                    currentNode?.addChild(lastChild);
-                };
-            }
+        const token = gameState.createMenu(menu, (chosen) => {
+            const stackModel = gameState.getLiveGame().createStackModel([
+                {
+                    type: this.type,
+                    node: chosen.action[0]?.contentNode ?? null
+                }
+            ]);
             awaitable.resolve({
-                type: this.type as any,
-                node: chosen.action[0].contentNode
+                type: this.type,
+                node: null,
+                wait: {
+                    type: "all",
+                    stackModels: [stackModel]
+                }
             });
-            state.gameHistory.updateByToken(id, (result) => {
+            
+            cleanup = () => {
+                stackModel.reset();
+            };
+
+            gameState.gameHistory.updateByToken(id, (result) => {
                 if (result && result.element.type === "menu") {
                     result.element.selected = chosen.evaluated;
                     result.isPending = false;
@@ -44,11 +52,15 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             });
         });
         
-        const {id} = state.actionHistory.push(this, () => {
+        const {id} = gameState.actionHistory.push({
+            action: this,
+            stackModel: injection.stackModel,
+            timeline
+        }, () => {
             token.cancel();
             cleanup?.();
-        }, [], timeline);
-        state.gameHistory.push({
+        });
+        gameState.gameHistory.push({
             token: id,
             action: this,
             element: {
@@ -59,11 +71,26 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             isPending: true,
         });
 
-        return awaitable;
+        return [
+            {
+                type: this.type,
+                node: this.contentNode.getChild(),
+            },
+            awaitable
+        ];
     }
 
     getFutureActions(story: Story, options: ActionSearchOptions): LogicAction.Actions[] {
         const menu = (this.contentNode as ContentNode<MenuActionContentType["menu:action"]>).getContent();
         return [...this.callee._getFutureActions(menu.choices), ...super.getFutureActions(story, options)];
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        const menu: MenuData = (this.contentNode as ContentNode<MenuActionContentType["menu:action"]>).getContent();
+        const choices = menu.choices.map(choice => {
+            const action = choice.action.map(action => action.stringify(_story, _seen, _strict)).join(";");
+            return `{${action}}`;
+        });
+        return super.stringifyWithContent("Menu", `(${menu.prompt}) {[${choices.join(",")}]}`);
     }
 }

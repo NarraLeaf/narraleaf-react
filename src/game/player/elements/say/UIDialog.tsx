@@ -5,13 +5,13 @@ import { GameState } from "@lib/game/nlcore/common/game";
 import { Game } from "@lib/game/nlcore/game";
 import { EventDispatcher, EventToken, Scheduler } from "@lib/util/data";
 import { SayComponent } from "@player/type";
-import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import React, { useLayoutEffect, useMemo, useState } from "react";
 import { DialogContext } from "./context";
 import { DialogAction, DialogStateType, SayElementProps } from "./type";
 
 type DialogEvents = {
     "event:dialog.requestComplete": [];
-    "event:dialog.complete": [];
+    "event:dialog.complete": [force: boolean];
     "event:dialog.forceSkip": [];
     "event:dialog.onFlush": [];
     "event:dialog.simulateClick": [];
@@ -78,9 +78,9 @@ export class DialogState {
      */
     public requestComplete() {
         if (this.state === DialogStateType.Ended) {
-            this.events.emit(DialogState.Events.complete);
+            this.safeEmit(DialogState.Events.complete);
         } else {
-            this.events.emit(DialogState.Events.requestComplete);
+            this.safeEmit(DialogState.Events.requestComplete);
         }
     }
 
@@ -94,7 +94,7 @@ export class DialogState {
             this.emitComplete();
         } else {
             this._forceSkipped = true;
-            this.events.emit(DialogState.Events.forceSkip);
+            this.safeEmit(DialogState.Events.forceSkip);
         }
     }
 
@@ -106,6 +106,12 @@ export class DialogState {
      */
     public dispatchComplete() {
         if (this.state === DialogStateType.Ended) {
+            this.config.gameState.logger.weakWarn("DialogState", "Dialog is already ended. Cannot dispatch complete.");
+            return;
+        }
+
+        if (!this.events.hasListeners(DialogState.Events.complete)) {
+            this.config.gameState.logger.weakWarn("DialogState", "No listener for complete event. Cannot dispatch complete.");
             return;
         }
 
@@ -120,7 +126,7 @@ export class DialogState {
     }
 
     public emitComplete(): this {
-        this.events.emit(DialogState.Events.complete);
+        this.safeEmit(DialogState.Events.complete);
         this.emitFlush();
         return this;
     }
@@ -161,6 +167,13 @@ export class DialogState {
         return this.events.on(DialogState.Events.onFlush, listener);
     }
 
+    public safeEmit(event: keyof DialogEvents, ...args: DialogEvents[keyof DialogEvents]): this {
+        if (this.events.emit(event, ...args) === 0) {
+            this.config.gameState.logger.weakWarn("DialogState", `Failed to emit event: ${event}. Target Component is not mounted.`);
+        }
+        return this;
+    }
+
     private scheduleAutoForward() {
         const preference = this.config.gameState.game.preference;
         if (!preference.getPreference(Game.Preferences.autoForward) || this.state !== DialogStateType.Ended) return;
@@ -192,24 +205,27 @@ export default function PlayerDialog({
      * Listen to the complete event
      */
     useLayoutEffect(() => {
-        return dialogState.events.depends([
-            dialogState.events.on(DialogState.Events.complete, () => {
-                gameState.logger.log("NarraLeaf-React: Say", "Complete", dialogState.isIdle());
-                if (dialogState.isIdle()) {
-                    onFinished?.(false);
-                } else {
-                    dialogState.setIdle(true);
-                }
-            })
-        ]).cancel;
-    }, []);
+        gameState.logger.debug("NarraLeaf-React: Say", "dialogState", dialogState);
+        
+        return dialogState.events.on(DialogState.Events.complete, (force: boolean) => {
+            gameState.logger.log("NarraLeaf-React: Say", "Complete", dialogState.isIdle());
+            if (dialogState.isIdle() || force) {
+                onFinished?.(false);
+            } else {
+                dialogState.setIdle(true);
+            }
+        }).cancel;
+    }, [dialogState]);
 
     /**
      * Listen to the skip event
      */
-    useEffect(() => {
-        return gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
-            if (dialogState.isIdle()) {
+    useLayoutEffect(() => {
+        return gameState.events.on(GameState.EventTypes["event:state.player.skip"], (force?: boolean) => {
+            if (force) {
+                dialogState.setIdle(true);
+                dialogState.forceSkip();
+            } else if (dialogState.isIdle()) {
                 onFinished?.(true);
             } else {
                 dialogState.forceSkip();

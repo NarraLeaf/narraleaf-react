@@ -8,6 +8,9 @@ import {Sentence} from "@core/elements/character/sentence";
 import {TypedAction} from "@core/action/actions";
 import {Sound} from "@core/elements/sound";
 import { Timeline } from "@lib/game/player/Tasks";
+import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
+import { LogicAction } from "@core/action/logicAction";
+import { Story } from "@core/elements/story";
 
 export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof CharacterActionTypes] = typeof CharacterActionTypes[keyof typeof CharacterActionTypes]>
     extends TypedAction<CharacterActionContentType, T, Character> {
@@ -26,7 +29,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
         return Sound.toSound(scene.getVoice(voiceId) || voice);
     }
 
-    public executeAction(gameState: GameState): CalledActionResult | Awaitable<CalledActionResult, any> {
+    public executeAction(gameState: GameState, injection: ActionExecutionInjection): ExecutedActionResult {
         /**
          * {@link Character.say}
          * Create a game dialog and play voice if available
@@ -52,7 +55,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             const dialog = gameState.createDialog(dialogId, sentence, () => {
                 if (voice) {
                     const task = gameState.audioManager.stop(voice);
-                    timeline.attachChild(task);
+                    gameState.timelines.attachTimeline(task);
                 }
 
                 gameState.gameHistory.resolvePending(id); // accessing id is technically dangerous, but I think it is impossible to happen
@@ -63,11 +66,18 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 });
             });
 
+            // Set last dialog
+            gameState.getLiveGame().setLastDialog(dialog.text, this.callee.state.name);
+
             // Attach timeline
             gameState.timelines.attachTimeline(timeline);
 
             // Push action to action history
-            const { id } = gameState.actionHistory.push(this, () => {
+            const { id } = gameState.actionHistory.push({
+                action: this,
+                stackModel: injection.stackModel,
+                timeline
+            }, () => {
                 if (voice && gameState.audioManager.isPlaying(voice)) {
                     const task = gameState.audioManager.stop(voice);
                     timeline.attachChild(task);
@@ -91,13 +101,20 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             const oldName = this.callee.state.name;
             this.callee.state.name = (this.contentNode as ContentNode<CharacterActionContentType["character:setName"]>).getContent()[0];
 
-            gameState.actionHistory.push<[oldName: string]>(this, (oldName) => {
+            gameState.actionHistory.push<[oldName: string]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (oldName) => {
                 this.callee.state.name = oldName;
             }, [oldName]);
 
-            return super.executeAction(gameState);
+            return super.executeAction(gameState, injection);
         }
 
         throw super.unknownTypeError();
+    }
+
+    stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        return super.stringifyWithName("CharacterAction");
     }
 }
