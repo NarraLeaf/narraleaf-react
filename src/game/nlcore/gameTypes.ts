@@ -432,7 +432,7 @@ export type GamePreference = {
     /**
      * The interval in milliseconds between each skip action.
      * ex: 100 ms means the player can skip 10 actions per second.
-     * higher value means faster skipping.
+     * higher value means slower skipping.
      * @default 100
      */
     skipInterval: number;
