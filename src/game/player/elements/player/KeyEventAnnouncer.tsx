@@ -16,6 +16,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
     const isKeyPressedRef = useRef<boolean>(false);
     
     const [skipDelay] = usePreference(Game.Preferences.skipDelay);
+    const [skipInterval] = usePreference(Game.Preferences.skipInterval);
 
     useEffect(() => {
         const playerElement = game.getLiveGame().gameState!.playerCurrent;
@@ -51,7 +52,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
                     const startContinuousSkip = () => {
                         keyIntervalRef.current = setInterval(() => {
                             state.events.emit(GameState.EventTypes["event:state.player.skip"], false);
-                        }, game.config.skipInterval);
+                        }, skipInterval);
                     };
 
                     // Clean up any existing timers before starting new ones
@@ -93,7 +94,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
                 cancelKeyUp();
             };
         }
-    }, [router, skipDelay]);
+    }, [router, skipDelay, skipInterval]);
 
     return (<></>);
 }

@@ -1,5 +1,5 @@
 import {StringKeyOf} from "@lib/util/data";
-import {GamePreference} from "@core/game";
+import { GamePreference } from "@lib/game/nlcore/gameTypes";
 import React, {useEffect} from "react";
 import {useGame} from "@player/provider/game-state";
 

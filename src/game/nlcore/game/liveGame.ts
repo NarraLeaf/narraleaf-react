@@ -156,6 +156,7 @@ export class LiveGame {
                 id: this.currentSavedGame.meta.id,
                 lastSentence: this.lastDialog?.sentence || null,
                 lastSpeaker: this.lastDialog?.speaker || null,
+                storyHash: story.hash(),
             },
             game: {
                 store,
@@ -803,6 +804,7 @@ export class LiveGame {
                 id: generateId(),
                 lastSentence: null,
                 lastSpeaker: null,
+                storyHash: this.story?.hash() || "",
             },
             game: {
                 store: {},

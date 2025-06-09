@@ -4,12 +4,13 @@
 
 ### _Feature_
 
-- Game Preference `skipDelay`
+- Added `skipDelay` to the game preference
 - Added `liveGame.skipDialog` to skip the current dialog
 - Use a notification with a null duration to create a notification that will not be automatically removed
 - Added `lastSentence` and `lastSpeaker` to the saved game metadata
 - Added `liveGame.waitForPageMount` to wait for the page to mount
 - Added `story.hash` to get the hash of the story
+- Added `skipInterval` to the game preference
 
 ### _Incompatible Changes_
 
@@ -21,6 +22,7 @@
   - Better branching/merging operations 
   - Less prone to state clutter when deserializing and undoing
   - Is a complete solution for nested operations
+- `game.config.skipInterval` is deprecated, use `GamePreference.skipInterval` instead
 
 ### Fixed
 

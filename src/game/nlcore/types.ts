@@ -228,4 +228,4 @@ export interface ActionSearchOptions {
 }
 
 
-export type { SavedGame } from "./gameTypes";
+export type { SavedGame, SavedGameMetaData } from "./gameTypes";

@@ -4,7 +4,7 @@ import { TransformDefinitions } from "@core/elements/transform/type";
 import { IGamePluginRegistry } from "@core/game/plugin/plugin";
 import { LiveGameEventToken } from "@core/types";
 import { GameHistory } from "../action/gameHistory";
-import { GameConfig, SavedGame, NotificationToken } from "../gameTypes";
+import { GameConfig, SavedGame, NotificationToken, SavedGameMetaData } from "../gameTypes";
 
 export * from "@core/elements/type";
 export type {
@@ -14,5 +14,6 @@ export type {
     GameConfig,
     SavedGame,
     NotificationToken,
+    SavedGameMetaData,
 };
 

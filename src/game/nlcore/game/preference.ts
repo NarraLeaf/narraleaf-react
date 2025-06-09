@@ -73,6 +73,11 @@ export class Preference<T extends Record<string, string | boolean | number | nul
     }
 
     public togglePreference<K extends BooleanValueKeyOf<T>>(key: K) {
+        if (typeof this.settings[key] !== "boolean") {
+            // Throwing error is better than silently failing here
+            // Silently failing here is frustrating
+            throw new Error(`Preference ${key} is not a boolean`);
+        }
         this.setPreference(key, !this.getPreference(key) as T[K]);
     }
 }

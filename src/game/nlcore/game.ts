@@ -1,4 +1,4 @@
-import type { GameConfig, GameSettings } from "./gameTypes";
+import type { GameConfig, GamePreference, GameSettings } from "./gameTypes";
 import { deepMerge, DeepPartial, filterObjectExcept, Hooks, StringKeyOf } from "@lib/util/data";
 import { LogicAction } from "@core/action/logicAction";
 import { LiveGame } from "@core/game/liveGame";
@@ -10,67 +10,6 @@ import { Plugins, IGamePluginRegistry } from "./game/plugin/plugin";
 enum GameSettingsNamespace {
     game = "game",
 }
-
-export type GamePreference = {
-    /**
-     * If true, the game will automatically forward to the next sentence when the player has finished the current sentence
-     * @default false
-     */
-    autoForward: boolean;
-    /**
-     * If true, the game will allow the player to skip the dialog
-     * @default true
-     */
-    skip: boolean;
-    /**
-     * If true, the game will show the dialog
-     * @default true
-     */
-    showDialog: boolean;
-    /**
-     * The multiplier of the dialog speed
-     * 
-     * Dialog speed will apply to:
-     * - The text speed
-     * - The auto-forward delay
-     * @default 1.0
-     */
-    gameSpeed: number;
-    /**
-     * The speed of the text effects in characters per second.
-     * @default 10
-     */
-    cps: number;
-    /**
-     * The volume of the voice
-     * @default 1
-     */
-    voiceVolume: number;
-    /**
-     * The volume of the background music
-     * @default 1
-     */
-    bgmVolume: number;
-    /**
-     * The volume of the sound effects
-     * @default 1
-     */
-    soundVolume: number;
-    /**
-     * The volume of the global audio
-     * @default 1
-     */
-    globalVolume: number;
-    /**
-     * The delay in milliseconds before the game starts skipping actions
-     * 
-     * This is used to prevent the game from skipping actions too quickly when the player presses the skip key.
-     * 
-     * Set to 0 to skip actions immediately when the player presses the skip key.
-     * @default 500
-     */
-    skipDelay: number;
-};
 
 export type GameHooks = {
     /**
@@ -107,6 +46,7 @@ export class Game {
         soundVolume: 1,
         globalVolume: 1,
         skipDelay: 500,
+        skipInterval: 100,
     };
     /**@internal */
     static Preferences: {
@@ -120,8 +60,9 @@ export class Game {
             voiceVolume: "voiceVolume",
             bgmVolume: "bgmVolume",
             soundVolume: "soundVolume",
-            globalVolume: "globalVolume",   
+            globalVolume: "globalVolume",
             skipDelay: "skipDelay",
+            skipInterval: "skipInterval",
         };
     /**@internal */
     static DefaultConfig: GameConfig = {
@@ -149,7 +90,6 @@ export class Game {
         width: 1920,
         height: 1080,
         skipKey: ["Control"],
-        skipInterval: 100,
         useWindowListener: true,
         ratioUpdateInterval: 50,
         preloadDelay: 100,
