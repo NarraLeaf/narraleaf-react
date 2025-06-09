@@ -98,7 +98,7 @@ export type GameConfig = {
      * 
      * Using this will allow the game to listen to the keyboard events even when the player is not focused  
      * Resulting in a better user experience on skipping actions
-     * @default false
+     * @default true
      */
     useWindowListener: boolean;
     /**
