@@ -7,6 +7,7 @@ import { GameState } from "@player/gameState";
 import { GuardWarningType } from "@player/guard";
 import { DefaultElements } from "../player/elements/elements";
 import { Plugins, IGamePluginRegistry } from "./game/plugin/plugin";
+import { LayoutRouter } from "../player/lib/PageRouter/router";
 enum GameSettingsNamespace {
     game = "game",
 }
@@ -116,6 +117,7 @@ export class Game {
         allowSkipTextTransition: true,
         allowSkipLayersTransform: true,
         allowSkipVideo: false,
+        animationPropagate: false,
         dialogWidth: 1920,
         dialogHeight: 1080 * 0.2,
         defaultTextColor: "#000",
@@ -152,6 +154,7 @@ export class Game {
      * Plugin registry
      */
     public plugins: Plugins;
+    public router: LayoutRouter;
 
     /**
      * Create a new game
@@ -160,6 +163,7 @@ export class Game {
     constructor(config: DeepPartial<GameConfig>) {
         this.config = deepMerge<GameConfig>(Game.DefaultConfig, config);
         this.plugins = new Plugins(this);
+        this.router = new LayoutRouter(this);
     }
 
     /**

@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext } from "react";
 import { EventDispatcher } from "@lib/util/data";
 import { Game } from "@core/game";
 import { useGame } from "@player/provider/game-state";
 import { LiveGameEventToken } from "@lib/game/nlcore/types";
+import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 
 type _RouterEvents = {
     "event:router.onChange": [];
@@ -169,6 +170,8 @@ export class LayoutRouter {
     private history: string[] = [];
     /**@internal */
     private historyIndex: number = -1;
+    /**@internal */
+    private mountedPaths: Set<string> = new Set();
 
     /**@internal */
     constructor(game: Game, defaultPath: string = LayoutRouter.rootPath) {
@@ -183,6 +186,14 @@ export class LayoutRouter {
 
     /**
      * Get current path
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * console.log(router.getCurrentPath()); // "/home"
+     * 
+     * router.navigate("/about");
+     * console.log(router.getCurrentPath()); // "/about"
+     * ```
      */
     public getCurrentPath(): string {
         return this.currentPath;
@@ -190,6 +201,12 @@ export class LayoutRouter {
 
     /**
      * Get pathname (path without query parameters)
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * router.navigate("/settings?tab=general&theme=dark");
+     * console.log(router.getPathname()); // "/settings"
+     * ```
      */
     public getPathname(): string {
         return this.currentPath;
@@ -197,6 +214,12 @@ export class LayoutRouter {
 
     /**
      * Get current query parameters
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * router.navigate("/settings?tab=general&theme=dark");
+     * console.log(router.getCurrentQuery()); // { tab: "general", theme: "dark" }
+     * ```
      */
     public getCurrentQuery(): Record<string, string> {
         return { ...this.currentQuery };
@@ -204,6 +227,12 @@ export class LayoutRouter {
 
     /**
      * Get query parameters (alias for getCurrentQuery)
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * router.navigate("/profile?user=john&tab=info");
+     * console.log(router.getQueryParams()); // { user: "john", tab: "info" }
+     * ```
      */
     public getQueryParams(): Record<string, string> {
         return this.getCurrentQuery();
@@ -211,6 +240,12 @@ export class LayoutRouter {
 
     /**
      * Get current full URL (path + query)
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * router.navigate("/settings", { tab: "general", theme: "dark" });
+     * console.log(router.getCurrentUrl()); // "/settings?tab=general&theme=dark"
+     * ```
      */
     public getCurrentUrl(): string {
         return this.buildUrl(this.currentPath, this.currentQuery);
@@ -220,6 +255,17 @@ export class LayoutRouter {
      * Parse URL into path and query parameters
      * @param url URL string, e.g. "/me/settings?a=1&b=2"
      * @returns Object with path and query
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * const result = router.parseUrl("/me/settings?tab=general&theme=dark");
+     * console.log(result.path); // "/me/settings"
+     * console.log(result.query); // { tab: "general", theme: "dark" }
+     * 
+     * const simple = router.parseUrl("/about");
+     * console.log(simple.path); // "/about"
+     * console.log(simple.query); // {}
+     * ```
      */
     public parseUrl(url: string): { path: string; query: Record<string, string> } {
         const [path, queryString] = url.split("?");
@@ -243,6 +289,19 @@ export class LayoutRouter {
      * @param path Path string
      * @param query Query parameters object
      * @returns Full URL string
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * const url1 = router.buildUrl("/settings", { tab: "general", theme: "dark" });
+     * console.log(url1); // "/settings?tab=general&theme=dark"
+     * 
+     * const url2 = router.buildUrl("/about", {});
+     * console.log(url2); // "/about"
+     * 
+     * const url3 = router.buildUrl("/profile", { user: "john", tab: "info" });
+     * console.log(url3); // "/profile?user=john&tab=info"
+     * ```
      */
     public buildUrl(path: string, query: Record<string, string>): string {
         if (Object.keys(query).length === 0) {
@@ -260,6 +319,15 @@ export class LayoutRouter {
      * Get query parameter value
      * @param key Parameter key
      * @returns Parameter value or undefined if not found
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * router.navigate("/settings?tab=general&theme=dark");
+     * 
+     * console.log(router.getQueryParam("tab")); // "general"
+     * console.log(router.getQueryParam("theme")); // "dark"
+     * console.log(router.getQueryParam("nonexistent")); // undefined
+     * ```
      */
     public getQueryParam(key: string): string | undefined {
         return this.currentQuery[key];
@@ -269,6 +337,16 @@ export class LayoutRouter {
      * Set query parameter
      * @param key Parameter key
      * @param value Parameter value
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/settings");
+     * 
+     * router.setQueryParam("tab", "general");
+     * console.log(router.getCurrentUrl()); // "/settings?tab=general"
+     * 
+     * router.setQueryParam("theme", "dark");
+     * console.log(router.getCurrentUrl()); // "/settings?tab=general&theme=dark"
+     * ```
      */
     public setQueryParam(key: string, value: string): this {
         this.currentQuery[key] = value;
@@ -280,6 +358,17 @@ export class LayoutRouter {
     /**
      * Set multiple query parameters
      * @param params Object with key-value pairs
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/settings");
+     * 
+     * router.setQueryParams({
+     *     tab: "general",
+     *     theme: "dark",
+     *     lang: "en"
+     * });
+     * console.log(router.getCurrentUrl()); // "/settings?tab=general&theme=dark&lang=en"
+     * ```
      */
     public setQueryParams(params: Record<string, string>): this {
         Object.assign(this.currentQuery, params);
@@ -291,6 +380,14 @@ export class LayoutRouter {
     /**
      * Remove query parameter
      * @param key Parameter key to remove
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * router.navigate("/settings?tab=general&theme=dark&lang=en");
+     * 
+     * router.removeQueryParam("theme");
+     * console.log(router.getCurrentUrl()); // "/settings?tab=general&lang=en"
+     * ```
      */
     public removeQueryParam(key: string): this {
         delete this.currentQuery[key];
@@ -301,6 +398,15 @@ export class LayoutRouter {
 
     /**
      * Clear all query parameters
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * router.navigate("/settings?tab=general&theme=dark&lang=en");
+     * 
+     * router.clearQueryParams();
+     * console.log(router.getCurrentUrl()); // "/settings"
+     * console.log(router.getCurrentQuery()); // {}
+     * ```
      */
     public clearQueryParams(): this {
         this.currentQuery = {};
@@ -313,6 +419,15 @@ export class LayoutRouter {
      * Check if query parameter exists
      * @param key Parameter key
      * @returns Whether parameter exists
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * router.navigate("/settings?tab=general&theme=dark");
+     * 
+     * console.log(router.hasQueryParam("tab")); // true
+     * console.log(router.hasQueryParam("theme")); // true
+     * console.log(router.hasQueryParam("nonexistent")); // false
+     * ```
      */
     public hasQueryParam(key: string): boolean {
         return key in this.currentQuery;
@@ -321,6 +436,13 @@ export class LayoutRouter {
     /**
      * Get all query parameter keys
      * @returns Array of parameter keys
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * router.navigate("/settings?tab=general&theme=dark&lang=en");
+     * 
+     * console.log(router.getQueryParamKeys()); // ["tab", "theme", "lang"]
+     * ```
      */
     public getQueryParamKeys(): string[] {
         return Object.keys(this.currentQuery);
@@ -329,6 +451,16 @@ export class LayoutRouter {
     /**
      * Get query parameter count
      * @returns Number of query parameters
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * router.navigate("/settings?tab=general&theme=dark&lang=en");
+     * 
+     * console.log(router.getQueryParamCount()); // 3
+     * 
+     * router.clearQueryParams();
+     * console.log(router.getQueryParamCount()); // 0
+     * ```
      */
     public getQueryParamCount(): number {
         return Object.keys(this.currentQuery).length;
@@ -336,6 +468,14 @@ export class LayoutRouter {
 
     /**
      * Get history records
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * router.navigate("/about");
+     * router.navigate("/contact");
+     * 
+     * console.log(router.getHistory()); // ["/home", "/about", "/contact"]
+     * ```
      */
     public getHistory(): string[] {
         return [...this.history];
@@ -343,6 +483,17 @@ export class LayoutRouter {
 
     /**
      * Get current history index
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * router.navigate("/about");
+     * router.navigate("/contact");
+     * 
+     * console.log(router.getHistoryIndex()); // 2
+     * 
+     * router.back();
+     * console.log(router.getHistoryIndex()); // 1
+     * ```
      */
     public getHistoryIndex(): number {
         return this.historyIndex;
@@ -350,6 +501,17 @@ export class LayoutRouter {
 
     /**
      * Check if can go back
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * console.log(router.canGoBack()); // false
+     * 
+     * router.navigate("/about");
+     * console.log(router.canGoBack()); // true
+     * 
+     * router.back();
+     * console.log(router.canGoBack()); // false
+     * ```
      */
     public canGoBack(): boolean {
         return this.historyIndex > 0;
@@ -357,6 +519,20 @@ export class LayoutRouter {
 
     /**
      * Check if can go forward
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * router.navigate("/about");
+     * router.navigate("/contact");
+     * 
+     * console.log(router.canGoForward()); // false
+     * 
+     * router.back();
+     * console.log(router.canGoForward()); // true
+     * 
+     * router.back();
+     * console.log(router.canGoForward()); // true
+     * ```
      */
     public canGoForward(): boolean {
         return this.historyIndex < this.history.length - 1;
@@ -366,6 +542,26 @@ export class LayoutRouter {
      * Navigate to new path
      * @param path Target path, e.g. "/me/settings?a=1&b=2" or "./settings" or "../parent"
      * @param queryParams Optional query parameters to append to the path
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * 
+     * // Navigate to absolute path
+     * router.navigate("/about");
+     * console.log(router.getCurrentPath()); // "/about"
+     * 
+     * // Navigate with query parameters
+     * router.navigate("/settings", { tab: "general", theme: "dark" });
+     * console.log(router.getCurrentUrl()); // "/settings?tab=general&theme=dark"
+     * 
+     * // Navigate to relative path
+     * router.navigate("./profile");
+     * console.log(router.getCurrentPath()); // "/profile"
+     * 
+     * // Navigate to parent directory
+     * router.navigate("../parent");
+     * console.log(router.getCurrentPath()); // "/parent"
+     * ```
      */
     public navigate(path: string, queryParams?: Record<string, string>): this {
         const { path: resolvedPath, query } = this.parseUrl(this.resolvePath(path));
@@ -397,6 +593,21 @@ export class LayoutRouter {
 
     /**
      * Go back to previous path
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * router.navigate("/about");
+     * router.navigate("/contact");
+     * 
+     * router.back();
+     * console.log(router.getCurrentPath()); // "/about"
+     * 
+     * router.back();
+     * console.log(router.getCurrentPath()); // "/home"
+     * 
+     * router.back(); // No effect, already at the beginning
+     * console.log(router.getCurrentPath()); // "/home"
+     * ```
      */
     public back(): this {
         if (this.canGoBack()) {
@@ -411,6 +622,21 @@ export class LayoutRouter {
 
     /**
      * Go forward to next path
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * router.navigate("/about");
+     * router.navigate("/contact");
+     * 
+     * router.back(); // Go to "/about"
+     * router.back(); // Go to "/home"
+     * 
+     * router.forward(); // Go to "/about"
+     * console.log(router.getCurrentPath()); // "/about"
+     * 
+     * router.forward(); // Go to "/contact"
+     * console.log(router.getCurrentPath()); // "/contact"
+     * ```
      */
     public forward(): this {
         if (this.canGoForward()) {
@@ -427,6 +653,21 @@ export class LayoutRouter {
      * Replace current path (without adding to history)
      * @param path New path, supports relative paths like "./settings" or "../parent"
      * @param queryParams Optional query parameters to append to the path
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * router.navigate("/about");
+     * router.navigate("/contact");
+     * 
+     * // Replace current path without affecting history
+     * router.replace("/settings", { tab: "general" });
+     * console.log(router.getCurrentPath()); // "/settings"
+     * console.log(router.getCurrentUrl()); // "/settings?tab=general"
+     * 
+     * // Can still go back to previous paths
+     * router.back();
+     * console.log(router.getCurrentPath()); // "/about"
+     * ```
      */
     public replace(path: string, queryParams?: Record<string, string>): this {
         const { path: resolvedPath, query } = this.parseUrl(this.resolvePath(path));
@@ -448,6 +689,17 @@ export class LayoutRouter {
 
     /**
      * Clear history records
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * router.navigate("/about");
+     * router.navigate("/contact");
+     * 
+     * router.clear();
+     * console.log(router.getCurrentPath()); // ""
+     * console.log(router.getHistory()); // []
+     * console.log(router.isActive()); // false
+     * ```
      */
     public clear(): this {
         this.currentPath = "";
@@ -460,6 +712,18 @@ export class LayoutRouter {
 
     /**
      * Clean history records, keep only current path
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/home");
+     * router.navigate("/about");
+     * router.navigate("/contact");
+     * 
+     * router.cleanHistory();
+     * console.log(router.getHistory()); // ["/contact"]
+     * 
+     * // Cannot go back anymore
+     * console.log(router.canGoBack()); // false
+     * ```
      */
     public cleanHistory(): this {
         this.history = this.currentPath ? [this.buildUrl(this.currentPath, this.currentQuery)] : [];
@@ -471,6 +735,15 @@ export class LayoutRouter {
      * Parse path into segments
      * @param path Path string, e.g. "/me/settings/a"
      * @returns Path segments array, e.g. ["me", "settings", "a"]
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * console.log(router.parsePath("/me/settings/a")); // ["me", "settings", "a"]
+     * console.log(router.parsePath("/about")); // ["about"]
+     * console.log(router.parsePath("/")); // []
+     * console.log(router.parsePath("")); // []
+     * ```
      */
     public parsePath(path: string): string[] {
         return path.split("/").filter(segment => segment.length > 0);
@@ -480,6 +753,14 @@ export class LayoutRouter {
      * Build path string
      * @param segments Path segments array
      * @returns Path string
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * console.log(router.buildPath(["me", "settings", "a"])); // "/me/settings/a"
+     * console.log(router.buildPath(["about"])); // "/about"
+     * console.log(router.buildPath([])); // "/"
+     * ```
      */
     public buildPath(segments: string[]): string {
         return "/" + segments.join("/");
@@ -489,6 +770,15 @@ export class LayoutRouter {
      * Get parent path of current path
      * @param path Current path
      * @returns Parent path, returns empty string if no parent
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * console.log(router.getParentPath("/me/settings/a")); // "/me/settings"
+     * console.log(router.getParentPath("/me/settings")); // "/me"
+     * console.log(router.getParentPath("/me")); // ""
+     * console.log(router.getParentPath("/")); // ""
+     * ```
      */
     public getParentPath(path: string): string {
         const segments = this.parsePath(path);
@@ -503,6 +793,25 @@ export class LayoutRouter {
      * @param path Path to check
      * @param pattern Match pattern, supports wildcard * and parameters :param
      * @returns Whether matches
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * // Exact match
+     * console.log(router.matchPath("/about", "/about")); // true
+     * console.log(router.matchPath("/about", "/contact")); // false
+     * 
+     * // Wildcard match
+     * console.log(router.matchPath("/user/123/profile", "/user/*" + "/profile")); // true
+     * console.log(router.matchPath("/user/123/settings", "/user/*" + "/profile")); // false
+     * 
+     * // Parameter match
+     * console.log(router.matchPath("/user/123/profile", "/user/:id/profile")); // true
+     * console.log(router.matchPath("/user/abc/profile", "/user/:id/profile")); // true
+     * 
+     * // Mixed pattern
+     * console.log(router.matchPath("/user/123/profile/edit", "/user/:id/*" + "/edit")); // true
+     * ```
      */
     public matchPath(path: string, pattern: string): boolean {
         const pathSegments = this.parsePath(path);
@@ -533,6 +842,19 @@ export class LayoutRouter {
      * @param path Actual path
      * @param pattern Pattern with parameters, e.g. "/user/:id/profile/:tab"
      * @returns Parameter object
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * const params1 = router.extractParams("/user/123/profile", "/user/:id/profile");
+     * console.log(params1); // { id: "123" }
+     * 
+     * const params2 = router.extractParams("/user/456/profile/settings", "/user/:id/profile/:tab");
+     * console.log(params2); // { id: "456", tab: "settings" }
+     * 
+     * const params3 = router.extractParams("/about", "/user/:id/profile");
+     * console.log(params3); // {} (no match)
+     * ```
      */
     public extractParams(path: string, pattern: string): Record<string, string> {
         const params: Record<string, string> = {};
@@ -555,26 +877,90 @@ export class LayoutRouter {
     }
 
     /**
-     * Event listener
+     * Event listener for exit complete
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * const token = router.onExitComplete(() => {
+     *     console.log("Page exit animation completed");
+     *     // Clean up resources, show loading indicator, etc.
+     * });
+     * 
+     * // Later, remove the listener
+     * token.off();
+     * ```
      */
     public onExitComplete(handler: () => void): LiveGameEventToken {
         return this.events.on("event:router.onExitComplete", handler);
     }
 
+    /**
+     * Event listener for exit complete (once)
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * router.onceExitComplete(() => {
+     *     console.log("Page exit completed, this will only fire once");
+     *     // Perform one-time cleanup
+     * });
+     * ```
+     */
     public onceExitComplete(handler: () => void): LiveGameEventToken {
         return this.events.once("event:router.onExitComplete", handler);
     }
 
+    /**
+     * Event listener for page mount
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * const token = router.onPageMount(() => {
+     *     console.log("New page mounted");
+     *     // Initialize page-specific features, load data, etc.
+     * });
+     * 
+     * // Later, remove the listener
+     * token.off();
+     * ```
+     */
     public onPageMount(handler: () => void): LiveGameEventToken {
         return this.events.on("event:router.onPageMount", handler);
     }
 
+    /**
+     * Event listener for page mount (once)
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * router.oncePageMount(() => {
+     *     console.log("Page mounted, this will only fire once");
+     *     // Perform one-time initialization
+     * });
+     * ```
+     */
     public oncePageMount(handler: () => void): LiveGameEventToken {
         return this.events.once("event:router.onPageMount", handler);
     }
 
     /**@internal */
-    emitOnExitComplete(): void {
+    mount(path: string): void {
+        if (this.mountedPaths.has(path)) {
+            throw new RuntimeGameError(`Path ${path} is already mounted. This may be caused by multiple capture segments in the same path.`);
+        }
+        this.mountedPaths.add(path);
+    }
+
+    /**@internal */
+    unmount(path: string): void {
+        this.mountedPaths.delete(path);
+    }
+
+    /**@internal */
+    emitRootExitComplete(): void {
         this.events.emit("event:router.onExitComplete");
     }
 
@@ -584,8 +970,18 @@ export class LayoutRouter {
     }
 
     /**@internal */
+    onRootExitComplete(handler: () => void): LiveGameEventToken {
+        return this.events.on("event:router.onExitComplete", handler);
+    }
+
+    /**@internal */
     isActive(): boolean {
         return this.currentPath !== "";
+    }
+
+    /**@internal */
+    onChange(handler: () => void): LiveGameEventToken {
+        return this.events.on("event:router.onChange", handler);
     }
 
     /**@internal */
@@ -597,6 +993,23 @@ export class LayoutRouter {
      * Resolve relative path to absolute path
      * @param path Path to resolve, can be absolute or relative
      * @returns Resolved absolute path
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game, "/user/settings");
+     * 
+     * // Absolute paths
+     * console.log(router.resolvePath("/about")); // "/about"
+     * console.log(router.resolvePath("/user/profile")); // "/user/profile"
+     * 
+     * // Relative paths
+     * console.log(router.resolvePath("./profile")); // "/user/profile"
+     * console.log(router.resolvePath("../admin")); // "/admin"
+     * console.log(router.resolvePath("../../home")); // "/home"
+     * 
+     * // Complex relative paths
+     * console.log(router.resolvePath("./.././profile")); // "/profile"
+     * console.log(router.resolvePath("../../user/./settings")); // "/user/settings"
+     * ```
      */
     public resolvePath(path: string): string {
         // Extract path part from URL (remove query parameters)
@@ -635,23 +1048,17 @@ export class LayoutRouter {
         return this.buildPath(resolvedSegments);
     }
 
-    /**
-     * Navigate to relative path
-     * @param relativePath Relative path like "./settings" or "../parent"
-     */
-    public navigateRelative(relativePath: string): this {
-        return this.navigate(relativePath);
+    public joinPath(path: string, ...paths: string[]): string {
+        return this.resolvePath(this.normalizePath(path) + "/" + paths.join("/"));
     }
 
-    /**
-     * Replace current path with relative path
-     * @param relativePath Relative path like "./settings" or "../parent"
-     */
-    public replaceRelative(relativePath: string): this {
-        return this.replace(relativePath);
+    public normalizePath(path: string): string {
+        return path.replace(/\/\/+/g, "/")
+            .replace(/\/$/, "")
+            .split("/")
+            .filter(segment => segment.length > 0)
+            .join("/");
     }
-
-
 
     /**
      * Update current history entry with current path and query
@@ -664,31 +1071,26 @@ export class LayoutRouter {
     }
 }
 
+
 type RouterContextType = {
-    router: _Router;
+    router: LayoutRouter;
 };
 
 const RouterContext = createContext<null | RouterContextType>(null);
-
-/**@internal */
 export function RouterProvider({ children }: {
     children: React.ReactNode
 }) {
-    "use client";
     const game = useGame();
-    const [router] = useState(() => new _Router(game));
 
     return (
-        <>
-            <RouterContext value={{ router }}>
-                {children}
-            </RouterContext>
-        </>
+        <RouterContext value={{ router: game.router }}>
+            {children}
+        </RouterContext>
     );
 }
 
-export function useRouter(): _Router {
-    if (!useContext(RouterContext)) throw new Error("usePreloaded must be used within a PreloadedProvider");
+export function useRouter() {
+    if (!useContext(RouterContext)) throw new Error("useRouter must be used within a RouterProvider");
     return (useContext(RouterContext) as RouterContextType).router;
 }
 

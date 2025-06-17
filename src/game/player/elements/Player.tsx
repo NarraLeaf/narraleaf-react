@@ -15,7 +15,7 @@ import AspectRatio from "@player/lib/AspectRatio";
 import Cursor from "@player/lib/Cursor";
 import { ErrorBoundary } from "@player/lib/ErrorBoundary";
 import Isolated from "@player/lib/isolated";
-import { PageRouter } from "@player/lib/PageRouter/PageRouter";
+import { _PageRouter } from "@player/lib/PageRouter/PageRouter";
 import { Preloaded } from "@player/lib/Preloaded";
 import { useGame } from "@player/provider/game-state";
 import { usePreloaded } from "@player/provider/preloaded";
@@ -279,9 +279,9 @@ export default function Player(
                             ))}
                         </OnlyPreloaded>
                         <Preload state={state} />
-                        <PageRouter>
+                        <_PageRouter>
                             {children}
-                        </PageRouter>
+                        </_PageRouter>
                     </Isolated>
                 </AspectRatio>
             </div>

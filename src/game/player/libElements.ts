@@ -1,7 +1,7 @@
 import Isolated from "@player/lib/isolated";
 import {usePreference} from "@player/lib/preferences";
 import {Stage} from "@player/lib/PageRouter/Stage";
-import {Page} from "@player/lib/PageRouter/Page";
+import {_Page} from "@player/lib/PageRouter/Page";
 import GameMenu from "@player/elements/menu/UIMenu/Menu";
 import Item from "@player/elements/menu/UIMenu/Item";
 import Notifications from "@player/elements/notification/Notifications";
@@ -14,7 +14,7 @@ export {
     Isolated,
     usePreference,
     Stage,
-    Page,
+    _Page as Page,
     GameMenu,
     Item,
     Notifications,

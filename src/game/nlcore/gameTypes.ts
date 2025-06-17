@@ -231,6 +231,13 @@ export type GameConfig = {
      */
     allowSkipTextTransition: boolean;
     /**
+     * If true, the animation will propagate to the children
+     * 
+     * This behavior is controlled by [motion](https://motion.dev): `When true, exit animations will be propagated to nested AnimatePresence components.`
+     * @default true
+     */
+    animationPropagate: boolean;
+    /**
      * Base width of the dialog in pixels
      *
      * For 16/9, the recommended value is 1920

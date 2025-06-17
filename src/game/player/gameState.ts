@@ -133,7 +133,7 @@ export class GameState {
     public readonly idManager: IdManager;
     public readonly actionHistory: ActionHistoryManager;
     public readonly gameHistory: GameHistoryManager;
-    public pageRouter: _Router | null = null;
+    public pageRouter: null = null;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;

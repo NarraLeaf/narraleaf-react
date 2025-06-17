@@ -1,11 +1,11 @@
-import React, { useEffect } from "react";
-import { Page } from "@player/lib/PageRouter/Page";
-import { useRouter } from "@player/lib/PageRouter/router";
-import { useFlush } from "@player/lib/flush";
-import { Stage } from "@player/lib/PageRouter/Stage";
-import { useGame } from "../../provider/game-state";
-import { AnimatePresence as OriginalAnimatePresence } from "motion/react";
-import { AnimatePresenceComponent } from "./AnimatePresence";
+import React from "react";
+import { _Page } from "@player/lib/PageRouter/Page";
+// import { useRouter } from "@player/lib/PageRouter/router";
+// import { useFlush } from "@player/lib/flush";
+// import { Stage } from "@player/lib/PageRouter/Stage";
+// import { useGame } from "../../provider/game-state";
+// import { AnimatePresence as OriginalAnimatePresence } from "motion/react";
+// import { AnimatePresenceComponent } from "./AnimatePresence";
 
 type PageRouterProps = Readonly<{
     children?: React.ReactNode;
@@ -32,75 +32,72 @@ type PageRouterProps = Readonly<{
  * </PageRouter>
  * ```
  */
-export function PageRouter(
-    {
-        children,
-    }: PageRouterProps) {
-    const [flush] = useFlush();
-    const router = useRouter();
-    const game = useGame();
+export function _PageRouter(
+    _props: PageRouterProps) {
+    // const [flush] = useFlush();
+    // const router = useRouter();
+    // const game = useGame();
 
-    useEffect(() => {
-        if (!router) {
-            return;
-        }
+    // useEffect(() => {
+    //     if (!router) {
+    //         return;
+    //     }
 
-        return router.events.on("event:router.onChange", flush).cancel;
-    }, []);
+    //     return router.events.on("event:router.onChange", flush).cancel;
+    // }, []);
 
-    useEffect(() => {
-        const gameState = game.getLiveGame().getGameState();
-        if (!gameState) {
-            return;
-        }
+    // useEffect(() => {
+    //     const gameState = game.getLiveGame().getGameState();
+    //     if (!gameState) {
+    //         return;
+    //     }
 
-        gameState.pageRouter = router;
+    //     gameState.pageRouter = router;
 
-        return () => {
-            gameState.pageRouter = null;
-        };
-    }, [game, game.getLiveGame().getGameState()]);
+    //     return () => {
+    //         gameState.pageRouter = null;
+    //     };
+    // }, [game, game.getLiveGame().getGameState()]);
 
-    if (!router) {
-        return null;
-    }
+    // if (!router) {
+    //     return null;
+    // }
 
-    const childrenElements = React.Children.toArray([...(game.config.stage ? [game.config.stage] : []), ...(children ? [children] : [])]);
+    // const childrenElements = React.Children.toArray([...(game.config.stage ? [game.config.stage] : []), ...(children ? [children] : [])]);
 
-    const validConstructor = Page;
-    const validChildren = childrenElements.filter(
-        function (child): child is React.ReactElement<React.ComponentProps<typeof validConstructor>, typeof validConstructor> {
-            return React.isValidElement(child) && child.type === validConstructor;
-        }
-    );
-    const currentPage: React.ReactElement<React.ComponentProps<typeof validConstructor>, typeof validConstructor> | undefined =
-        validChildren.find((child) => {
-            return child.props.id === router.getCurrentId();
-        });
+    // const validConstructor = _Page;
+    // const validChildren = childrenElements.filter(
+    //     function (child): child is React.ReactElement<React.ComponentProps<typeof validConstructor>, typeof validConstructor> {
+    //         return React.isValidElement(child) && child.type === validConstructor;
+    //     }
+    // );
+    // const currentPage: React.ReactElement<React.ComponentProps<typeof validConstructor>, typeof validConstructor> | undefined =
+    //     validChildren.find((child) => {
+    //         return child.props.id === router.getCurrentId();
+    //     });
 
-    const stageConstructor = Stage;
-    const stageChild = childrenElements.find(
-        function (child): child is React.ReactElement<React.ComponentProps<typeof stageConstructor>, typeof stageConstructor> {
-            return React.isValidElement(child) && child.type === stageConstructor;
-        }
-    );
+    // const stageConstructor = Stage;
+    // const stageChild = childrenElements.find(
+    //     function (child): child is React.ReactElement<React.ComponentProps<typeof stageConstructor>, typeof stageConstructor> {
+    //         return React.isValidElement(child) && child.type === stageConstructor;
+    //     }
+    // );
 
-    const handleExitComplete = () => {
-        router.emitOnExitComplete();
-    };
+    // const handleExitComplete = () => {
+    //     router.emitRootExitComplete();
+    // };
 
-    const AnimatePresence = OriginalAnimatePresence as AnimatePresenceComponent;
+    // const AnimatePresence = OriginalAnimatePresence as AnimatePresenceComponent;
 
     return (
         <>
-            {stageChild}
+            {/* {stageChild}
             <AnimatePresence mode="wait" onExitComplete={handleExitComplete}>
                 <React.Fragment key={currentPage?.props.id}>
                     {currentPage}
                 </React.Fragment>
-            </AnimatePresence>
+            </AnimatePresence> */}
         </>
     );
 }
-
 
