@@ -30,7 +30,7 @@ import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
 import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
 import { Displayable } from "../nlcore/elements/displayable/displayable";
 import { Transform } from "../nlcore/common/elements";
-import { Router } from "./lib/PageRouter/router";
+import { _Router } from "./lib/PageRouter/router";
 
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -133,7 +133,7 @@ export class GameState {
     public readonly idManager: IdManager;
     public readonly actionHistory: ActionHistoryManager;
     public readonly gameHistory: GameHistoryManager;
-    public pageRouter: Router | null = null;
+    public pageRouter: _Router | null = null;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
