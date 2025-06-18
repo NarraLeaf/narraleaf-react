@@ -1,44 +1,19 @@
-import React, { createContext, useEffect } from "react";
-import {HTMLMotionProps, motion} from "motion/react";
-import clsx from "clsx";
-import {Full} from "@player/lib/PlayerFrames";
-import { LayoutRouterProvider, useLayout } from "./Layout";
-import { AnimatePresence } from "./AnimatePresence";
 import { useGame } from "@player/provider/game-state";
+import { HTMLMotionProps, motion } from "motion/react";
+import React, { createContext, useEffect } from "react";
 import { useFlush } from "../flush";
-
-export type _PageProps = Readonly<{
-    id: string;
-    children?: React.ReactNode;
-    className?: string;
-    style?: React.CSSProperties;
-} & HTMLMotionProps<"div">>;
-
-export function _Page(
-    {
-        id,
-        children,
-        className,
-        style,
-        ...motionProps
-    }: _PageProps) {
-
-    return (
-        <motion.div className={clsx("w-full h-full")} key={id} {...motionProps}>
-            <Full className={className} style={style}>
-                {children}
-            </Full>
-        </motion.div>
-    );
-}
+import { AnimatePresence } from "./AnimatePresence";
+import { LayoutRouterProvider, useLayout } from "./Layout";
 
 export type PageProps = Readonly<{
     children?: React.ReactNode;
     /**
-     * The name of the page. It can be a dynamic string. 
+     * The name of the page. It can be a dynamic string, null, or undefined.
+     * 
+     * If name is null or undefined, this page becomes the default handler for its parent layout.
+     * It will be rendered whenever the parent layout matches and no specific page name matches.
      * 
      * @example
-     * ```typescript
      * <Page name="home">
      *     // Can be navigated to by "/home"
      *     <div>Home</div>
@@ -48,6 +23,11 @@ export type PageProps = Readonly<{
      *     <Page name="profile">
      *         // Can be navigated to by "/user/profile"
      *         <div>User Profile</div>
+     *     </Page>
+     *     
+     *     <Page name={null}>
+     *         // Default handler for "/user" - renders when no specific page matches
+     *         <div>User Default Page</div>
      *     </Page>
      * </Layout>
      * 
@@ -61,7 +41,7 @@ export type PageProps = Readonly<{
      * </Layout>
      * ```
      */
-    name: string;
+    name: string | null | undefined;
     /**
      * When true, exit animations will be propagated to nested AnimatePresence components.
      */
@@ -70,11 +50,11 @@ export type PageProps = Readonly<{
 
 type PageContextProviderProps = {
     children: React.ReactNode;
-    name: string;
+    name: string | null | undefined;
 };
 
 type PageContextType = {
-    name: string;
+    name: string | null | undefined;
 };
 
 const PageContext = createContext<null | PageContextType>(null);
@@ -94,27 +74,35 @@ export function Page({ children, name, propagate, ...props }: PageProps) {
     const game = useGame();
     const [flush] = useFlush();
     const { path: parentPath, router } = useLayout();
-    const pagePath = router.joinPath(parentPath, name);
-    const display = router.matchPath(router.getCurrentPath(), pagePath);
+    
+    const pagePath = name ? router.joinPath(parentPath, name as string) : parentPath;
+    const mountPath = name ? pagePath : `${parentPath}/__default_handler`;
+    
+    const isDefaultHandler = !name;
+    const parentMatches = router.matchPath(router.getCurrentPath(), parentPath);
+    const specificPageMatches = isDefaultHandler ? false : router.matchPath(router.getCurrentPath(), pagePath);
+    
+    const display = isDefaultHandler ? parentMatches && !specificPageMatches : specificPageMatches;
 
     useEffect(() => {
         return router.onChange(flush).cancel;
     }, []);
 
     useEffect(() => {
-        router.mount(pagePath);
+        const token = isDefaultHandler ? router.mountDefaultHandler(mountPath) : router.mount(mountPath);
         router.emitOnPageMount();
+
         return () => {
-            router.unmount(pagePath);
+            token.cancel();
         };
-    }, [pagePath, router]);
+    }, [mountPath, router, isDefaultHandler]);
 
     return (
         // prevent nested layout in this page
         <LayoutRouterProvider path={null}>
             <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate}>
                 {display && (
-                    <motion.div key={pagePath} {...props}>
+                    <motion.div key={mountPath} {...props}>
                         {children}
                     </motion.div>
                 )}

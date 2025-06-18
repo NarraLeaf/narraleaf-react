@@ -15,7 +15,6 @@ import AspectRatio from "@player/lib/AspectRatio";
 import Cursor from "@player/lib/Cursor";
 import { ErrorBoundary } from "@player/lib/ErrorBoundary";
 import Isolated from "@player/lib/isolated";
-import { _PageRouter } from "@player/lib/PageRouter/PageRouter";
 import { Preloaded } from "@player/lib/Preloaded";
 import { useGame } from "@player/provider/game-state";
 import { usePreloaded } from "@player/provider/preloaded";
@@ -25,6 +24,7 @@ import { flushSync } from "react-dom";
 import { RenderEventAnnoucer } from "./player/RenderEventAnnoucer";
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import { StackModel } from "@lib/game/nlcore/action/stackModel";
+import { RootLayout } from "../lib/PageRouter/Layout";
 
 export default function Player(
     {
@@ -279,9 +279,9 @@ export default function Player(
                             ))}
                         </OnlyPreloaded>
                         <Preload state={state} />
-                        <_PageRouter>
+                        <RootLayout>
                             {children}
-                        </_PageRouter>
+                        </RootLayout>
                     </Isolated>
                 </AspectRatio>
             </div>

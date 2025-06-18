@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0]
+
+### _Feature_
+
+- `LayoutRouter` creates a new way to manage complex page structures and transitions
+- Use `Layout` to create a layout group
+
+### _Incompatible Changes_
+
+- `Router` is deprecated, use `LayoutRouter` as a more powerful router
+- `Page` is refactored
+
 ## [0.6.0]
 
 ### _Feature_

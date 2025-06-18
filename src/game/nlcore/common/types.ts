@@ -5,6 +5,7 @@ import { IGamePluginRegistry } from "@core/game/plugin/plugin";
 import { LiveGameEventToken } from "@core/types";
 import { GameHistory } from "../action/gameHistory";
 import { GameConfig, SavedGame, NotificationToken, SavedGameMetaData } from "../gameTypes";
+import type { LayoutRouter } from "@lib/game/player/lib/PageRouter/router";
 
 export * from "@core/elements/type";
 export type {
@@ -15,5 +16,5 @@ export type {
     SavedGame,
     NotificationToken,
     SavedGameMetaData,
+    LayoutRouter,
 };
-

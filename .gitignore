@@ -38,3 +38,4 @@ test/
 dev.json
 
 *-example.test.tsx
+*-ignore.test.js

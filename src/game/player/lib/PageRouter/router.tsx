@@ -1,151 +1,9 @@
-import React, { createContext, useContext } from "react";
-import { EventDispatcher } from "@lib/util/data";
 import { Game } from "@core/game";
-import { useGame } from "@player/provider/game-state";
-import { LiveGameEventToken } from "@lib/game/nlcore/types";
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
-
-type _RouterEvents = {
-    "event:router.onChange": [];
-    "event:router.onExitComplete": [];
-    "event:router.onPageMount": [];
-};
-
-export class _Router {
-    /**@internal */
-    public readonly events: EventDispatcher<_RouterEvents> = new EventDispatcher();
-    /**@internal */
-    private current: string | null = null;
-    /**@internal */
-    private game: Game;
-    /**@internal */
-    private history: string[] = [];
-    /**@internal */
-    private historyIndex: number = -1;
-
-    /**@internal */
-    constructor(game: Game, defaultId?: string) {
-        this.game = game;
-        if (defaultId) {
-            this.current = defaultId;
-            this.history.push(defaultId);
-            this.historyIndex = 0;
-        }
-    }
-
-    public getCurrentId(): string | null {
-        return this.current;
-    }
-
-    /**
-     * Push a new page id to the router history
-     */
-    public push(id: string): this {
-        if (this.historyIndex < this.history.length - 1) {
-            this.history.length = this.historyIndex + 1;
-        }
-        this.history.push(id);
-
-        if (this.history.length > this.game.config.maxRouterHistory) {
-            this.history.shift();
-            this.historyIndex--;
-        }
-
-        this.historyIndex++;
-        this.current = id;
-        this.emitOnChange();
-        return this;
-    }
-
-    /**
-     * Go back to the previous page id in the router history
-     */
-    public back(): this {
-        if (this.historyIndex >= 0) {
-            this.historyIndex--;
-        }
-        this.syncId();
-        this.emitOnChange();
-
-        return this;
-    }
-
-    /**
-     * Go forward to the next page id in the router history
-     */
-    public forward(): this {
-        if (this.historyIndex < this.history.length - 1) {
-            this.historyIndex++;
-            this.syncId();
-            this.emitOnChange();
-        }
-        return this;
-    }
-
-    /**
-     * Clear the current page id and history
-     *
-     * All pages will be removed from the stage
-     */
-    public clear(): this {
-        this.current = null;
-        this.history = [];
-        this.historyIndex = -1;
-        this.emitOnChange();
-        return this;
-    }
-
-    public cleanHistory(): this {
-        this.history = this.current ? [this.current] : [];
-        this.historyIndex = this.current ? 0 : -1;
-        return this;
-    }
-
-    public onExitComplete(handler: () => void): LiveGameEventToken {
-        return this.events.on("event:router.onExitComplete", handler);
-    }
-
-    public onceExitComplete(handler: () => void): LiveGameEventToken {
-        return this.events.once("event:router.onExitComplete", handler);
-    }
-
-    /**@internal */
-    emitOnExitComplete(): void {
-        this.events.emit("event:router.onExitComplete");
-    }
-
-    public onPageMount(handler: () => void): LiveGameEventToken {
-        return this.events.on("event:router.onPageMount", handler);
-    }
-
-    public oncePageMount(handler: () => void): LiveGameEventToken {
-        return this.events.once("event:router.onPageMount", handler);
-    }
-
-    /**@internal */
-    emitOnPageMount(): void {
-        this.events.emit("event:router.onPageMount");
-    }
-
-    /**@internal */
-    isActive(): boolean {
-        return this.current !== null;
-    }
-
-    /**@internal */
-    private emitOnChange(): void {
-        this.events.emit("event:router.onChange");
-    }
-
-    /**@internal */
-    private syncId(): void {
-        if (this.historyIndex < 0) {
-            this.current = null;
-        } else {
-            this.current = this.history[this.historyIndex];
-        }
-    }
-}
+import { LiveGameEventToken } from "@lib/game/nlcore/types";
+import { EventDispatcher, EventToken } from "@lib/util/data";
+import { useGame } from "@player/provider/game-state";
+import React, { createContext, useContext } from "react";
 
 type LayoutRouterEvents = {
     "event:router.onChange": [];
@@ -172,6 +30,8 @@ export class LayoutRouter {
     private historyIndex: number = -1;
     /**@internal */
     private mountedPaths: Set<string> = new Set();
+    /**@internal */
+    private defaultHandlerPaths: Set<string> = new Set();
 
     /**@internal */
     constructor(game: Game, defaultPath: string = LayoutRouter.rootPath) {
@@ -564,10 +424,10 @@ export class LayoutRouter {
      * ```
      */
     public navigate(path: string, queryParams?: Record<string, string>): this {
-        const { path: resolvedPath, query } = this.parseUrl(this.resolvePath(path));
-
-        // Merge with provided query parameters
-        const finalQuery = { ...query, ...queryParams };
+        const { path: originalPath, query: originalQuery } = this.parseUrl(path);
+        const resolvedPath = this.resolvePath(originalPath);
+        
+        const finalQuery = { ...originalQuery, ...queryParams };
 
         // If not at the end of history, remove records after current position
         if (this.historyIndex < this.history.length - 1) {
@@ -670,10 +530,10 @@ export class LayoutRouter {
      * ```
      */
     public replace(path: string, queryParams?: Record<string, string>): this {
-        const { path: resolvedPath, query } = this.parseUrl(this.resolvePath(path));
-
-        // Merge with provided query parameters
-        const finalQuery = { ...query, ...queryParams };
+        const { path: originalPath, query: originalQuery } = this.parseUrl(path);
+        const resolvedPath = this.resolvePath(originalPath);
+        
+        const finalQuery = { ...originalQuery, ...queryParams };
 
         this.currentPath = resolvedPath;
         this.currentQuery = finalQuery;
@@ -789,7 +649,7 @@ export class LayoutRouter {
     }
 
     /**
-     * Check if path matches pattern
+     * Check if path matches pattern (supports prefix matching for nested layouts)
      * @param path Path to check
      * @param pattern Match pattern, supports wildcard * and parameters :param
      * @returns Whether matches
@@ -800,6 +660,11 @@ export class LayoutRouter {
      * // Exact match
      * console.log(router.matchPath("/about", "/about")); // true
      * console.log(router.matchPath("/about", "/contact")); // false
+     * 
+     * // Prefix match (for nested layouts)
+     * console.log(router.matchPath("/settings/sound", "/settings")); // true
+     * console.log(router.matchPath("/settings/sound/char", "/settings")); // true
+     * console.log(router.matchPath("/settings/sound", "/settings/sound")); // true
      * 
      * // Wildcard match
      * console.log(router.matchPath("/user/123/profile", "/user/*" + "/profile")); // true
@@ -817,11 +682,11 @@ export class LayoutRouter {
         const pathSegments = this.parsePath(path);
         const patternSegments = this.parsePath(pattern);
 
-        if (pathSegments.length !== patternSegments.length) {
+        if (pathSegments.length < patternSegments.length) {
             return false;
         }
 
-        for (let i = 0; i < pathSegments.length; i++) {
+        for (let i = 0; i < patternSegments.length; i++) {
             const pathSegment = pathSegments[i];
             const patternSegment = patternSegments[i];
 
@@ -947,16 +812,46 @@ export class LayoutRouter {
     }
 
     /**@internal */
-    mount(path: string): void {
+    mount(path: string): EventToken {
         if (this.mountedPaths.has(path)) {
             throw new RuntimeGameError(`Path ${path} is already mounted. This may be caused by multiple capture segments in the same path.`);
         }
         this.mountedPaths.add(path);
+
+        return {
+            cancel: () => {
+                this.unmount(path);
+            }
+        };
     }
 
     /**@internal */
     unmount(path: string): void {
         this.mountedPaths.delete(path);
+    }
+
+    /**@internal */
+    mountDefaultHandler(path: string): EventToken {
+        if (this.defaultHandlerPaths.has(path)) {
+            throw new RuntimeGameError(`Default handler path ${path} is already mounted.`);
+        }
+        this.defaultHandlerPaths.add(path);
+
+        return {
+            cancel: () => {
+                this.unmountDefaultHandler(path);
+            }
+        };
+    }
+
+    /**@internal */
+    unmountDefaultHandler(path: string): void {
+        this.defaultHandlerPaths.delete(path);
+    }
+
+    /**@internal */
+    isDefaultHandlerMounted(path: string): boolean {
+        return this.defaultHandlerPaths.has(path);
     }
 
     /**@internal */

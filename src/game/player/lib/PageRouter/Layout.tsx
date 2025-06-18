@@ -36,7 +36,9 @@ export function LayoutRouterProvider({ children, path }: LayoutContextProviderPr
 export function useLayout() {
     const context = useContext(LayoutContext);
     if (!context) throw new Error("useLayout must be used within a LayoutRouterProvider");
-    if (context.path === null) throw new RuntimeGameError("Invalid useLayout call: Trying to access layout without a parent");
+    if (context.path === null) throw new RuntimeGameError("Invalid useLayout call: Trying to access layout without a parent."
+        + "\nThis is likely caused by a nested Layout component or using Page inside a Page. "
+    );
 
     return context as Omit<LayoutContextType, "path"> & {
         path: string;
@@ -116,15 +118,13 @@ export function RootLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <LayoutRouterProvider path={LayoutRouter.rootPath}>
-            <AnimatePresence mode="wait" propagate={game.config.animationPropagate}>
-                <Full></Full>
-                <motion.div 
+            <AnimatePresence mode="wait" propagate={game.config.animationPropagate} onExitComplete={onExitComplete}>
+                <Full
                     id={LayoutRouter.rootPath}
                     key={LayoutRouter.rootPath}
-                    onAnimationComplete={onExitComplete}
                 >
                     {children}
-                </motion.div>
+                </Full>
             </AnimatePresence>
         </LayoutRouterProvider>
     );

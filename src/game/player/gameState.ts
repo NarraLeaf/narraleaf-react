@@ -30,7 +30,6 @@ import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
 import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
 import { Displayable } from "../nlcore/elements/displayable/displayable";
 import { Transform } from "../nlcore/common/elements";
-import { _Router } from "./lib/PageRouter/router";
 
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
