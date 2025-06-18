@@ -1,7 +1,6 @@
 import Isolated from "@player/lib/isolated";
 import {usePreference} from "@player/lib/preferences";
 import {Stage} from "@player/lib/PageRouter/Stage";
-import {_Page} from "@player/lib/PageRouter/Page";
 import GameMenu from "@player/elements/menu/UIMenu/Menu";
 import Item from "@player/elements/menu/UIMenu/Item";
 import Notifications from "@player/elements/notification/Notifications";
@@ -9,12 +8,13 @@ import Texts from "@player/elements/say/Sentence";
 import Nametag from "@player/elements/say/Nametag";
 import Dialog from "@player/elements/say/Dialog";
 import { useDialog } from "@player/elements/say/useDialog";
+import { Page } from "@player/lib/PageRouter/Page";
+import { Layout } from "@player/lib/PageRouter/Layout";
 
 export {
     Isolated,
     usePreference,
     Stage,
-    _Page as Page,
     GameMenu,
     Item,
     Notifications,
@@ -22,4 +22,6 @@ export {
     Nametag,
     Dialog,
     useDialog,
+    Page,
+    Layout,
 };

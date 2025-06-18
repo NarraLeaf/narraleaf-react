@@ -6,6 +6,8 @@ import { HTMLMotionProps, motion } from "motion/react";
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import { AnimatePresence } from "./AnimatePresence";
 import { useGame } from "@player/provider/game-state";
+import { useFlush } from "../flush";
+import { Full } from "../PlayerFrames";
 
 type LayoutContextType = {
     router: LayoutRouter;
@@ -102,9 +104,11 @@ export function Layout({ children, name, propagate, ...props }: LayoutProps) {
 export function RootLayout({ children }: { children: React.ReactNode }) {
     const game = useGame();
     const router = useRouter();
+    const [flush] = useFlush();
 
     useEffect(() => {
-    }, [game, router]);
+        return router.onChange(flush).cancel;
+    }, []);
 
     function onExitComplete() {
         game.router.emitRootExitComplete();
@@ -113,6 +117,7 @@ export function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <LayoutRouterProvider path={LayoutRouter.rootPath}>
             <AnimatePresence mode="wait" propagate={game.config.animationPropagate}>
+                <Full></Full>
                 <motion.div 
                     id={LayoutRouter.rootPath}
                     key={LayoutRouter.rootPath}

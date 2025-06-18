@@ -2,10 +2,10 @@ import React, { createContext, useEffect } from "react";
 import {HTMLMotionProps, motion} from "motion/react";
 import clsx from "clsx";
 import {Full} from "@player/lib/PlayerFrames";
-// import { useRouter } from "./router";
 import { LayoutRouterProvider, useLayout } from "./Layout";
 import { AnimatePresence } from "./AnimatePresence";
 import { useGame } from "@player/provider/game-state";
+import { useFlush } from "../flush";
 
 export type _PageProps = Readonly<{
     id: string;
@@ -92,9 +92,14 @@ export function PageProvider({ children, name }: PageContextProviderProps) {
 
 export function Page({ children, name, propagate, ...props }: PageProps) {
     const game = useGame();
+    const [flush] = useFlush();
     const { path: parentPath, router } = useLayout();
     const pagePath = router.joinPath(parentPath, name);
     const display = router.matchPath(router.getCurrentPath(), pagePath);
+
+    useEffect(() => {
+        return router.onChange(flush).cancel;
+    }, []);
 
     useEffect(() => {
         router.mount(pagePath);
