@@ -1,6 +1,6 @@
+import React, { createContext, useContext, useEffect } from "react";
 import { useGame } from "@player/provider/game-state";
 import { HTMLMotionProps, motion } from "motion/react";
-import React, { createContext, useEffect } from "react";
 import { useFlush } from "../flush";
 import { AnimatePresence } from "./AnimatePresence";
 import { LayoutRouterProvider, useLayout } from "./Layout";
@@ -48,35 +48,23 @@ export type PageProps = Readonly<{
     propagate?: boolean;
 } & HTMLMotionProps<"div"> & React.DetailedHTMLProps<React.HTMLAttributes<HTMLDivElement>, HTMLDivElement>>;
 
-type PageContextProviderProps = {
-    children: React.ReactNode;
+type PageInjectContextType = {
     name: string | null | undefined;
 };
 
-type PageContextType = {
-    name: string | null | undefined;
-};
+export const PageInjectContext = createContext<null | PageInjectContextType>(null);
+export function usePageInject(): PageInjectContextType | null {
+    return useContext(PageInjectContext);
+}
 
-const PageContext = createContext<null | PageContextType>(null);
-export function PageProvider({ children, name }: PageContextProviderProps) {
-    const context: PageContextType = {
-        name,
-    };
-
-    return (
-        <PageContext value={context}>
-            {children}
-        </PageContext>
-    );
-}   
-
-export function Page({ children, name, propagate, ...props }: PageProps) {
+export function Page({ children, name: nameProp, propagate, ...props }: PageProps) {
     const game = useGame();
     const [flush] = useFlush();
     const { path: parentPath, router } = useLayout();
+    const injected = usePageInject();
+    const name = injected?.name ?? nameProp;
     
     const pagePath = name ? router.joinPath(parentPath, name as string) : parentPath;
-    const mountPath = name ? pagePath : `${parentPath}/__default_handler`;
     
     const isDefaultHandler = !name;
     const parentMatches = router.matchPath(router.getCurrentPath(), parentPath);
@@ -89,24 +77,35 @@ export function Page({ children, name, propagate, ...props }: PageProps) {
     }, []);
 
     useEffect(() => {
-        const token = isDefaultHandler ? router.mountDefaultHandler(mountPath) : router.mount(mountPath);
+        const token = isDefaultHandler ? router.mountDefaultHandler(pagePath) : router.mount(pagePath);
         router.emitOnPageMount();
 
         return () => {
             token.cancel();
         };
-    }, [mountPath, router, isDefaultHandler]);
+    }, [pagePath, router, isDefaultHandler]);
 
-    return (
+    const content: React.ReactNode = (
         // prevent nested layout in this page
         <LayoutRouterProvider path={null}>
             <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate}>
                 {display && (
-                    <motion.div key={mountPath} {...props}>
+                    <motion.div key={pagePath} {...props}>
                         {children}
                     </motion.div>
                 )}
             </AnimatePresence>
         </LayoutRouterProvider>
     );
+
+    if (injected) {
+        return (
+            // Prevent children from consuming the injected context
+            <PageInjectContext value={{ name: null }}>
+                {content}
+            </PageInjectContext>
+        );
+    }
+
+    return content;
 }

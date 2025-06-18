@@ -8,7 +8,7 @@ import Texts from "@player/elements/say/Sentence";
 import Nametag from "@player/elements/say/Nametag";
 import Dialog from "@player/elements/say/Dialog";
 import { useDialog } from "@player/elements/say/useDialog";
-import { Page } from "@player/lib/PageRouter/Page";
+import { Page, PageInjectContext } from "@player/lib/PageRouter/Page";
 import { Layout } from "@player/lib/PageRouter/Layout";
 
 export {
@@ -24,4 +24,5 @@ export {
     useDialog,
     Page,
     Layout,
+    PageInjectContext,
 };

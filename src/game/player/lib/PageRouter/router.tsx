@@ -915,6 +915,11 @@ export class LayoutRouter {
             return pathOnly;
         }
 
+        // Handle empty path - should stay at current path
+        if (pathOnly === "") {
+            return this.currentPath;
+        }
+
         // Handle relative paths
         const currentSegments = this.parsePath(this.currentPath);
         const pathSegments = pathOnly.split("/");
