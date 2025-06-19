@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useEffect } from "react";
 import { useGame } from "@player/provider/game-state";
-import { HTMLMotionProps, motion } from "motion/react";
+import React, { createContext, useContext, useEffect } from "react";
 import { useFlush } from "../flush";
 import { AnimatePresence } from "./AnimatePresence";
 import { LayoutRouterProvider, useLayout } from "./Layout";
@@ -46,7 +45,7 @@ export type PageProps = Readonly<{
      * When true, exit animations will be propagated to nested AnimatePresence components.
      */
     propagate?: boolean;
-} & HTMLMotionProps<"div"> & React.DetailedHTMLProps<React.HTMLAttributes<HTMLDivElement>, HTMLDivElement>>;
+}>;
 
 type PageInjectContextType = {
     name: string | null | undefined;
@@ -57,7 +56,7 @@ export function usePageInject(): PageInjectContextType | null {
     return useContext(PageInjectContext);
 }
 
-export function Page({ children, name: nameProp, propagate, ...props }: PageProps) {
+export function Page({ children, name: nameProp, propagate }: PageProps) {
     const game = useGame();
     const [flush] = useFlush();
     const { path: parentPath, router } = useLayout();
@@ -66,11 +65,8 @@ export function Page({ children, name: nameProp, propagate, ...props }: PageProp
     
     const pagePath = name ? router.joinPath(parentPath, name as string) : parentPath;
     
-    const isDefaultHandler = !name;
-    const parentMatches = router.matchPath(router.getCurrentPath(), parentPath);
-    const specificPageMatches = isDefaultHandler ? false : router.matchPath(router.getCurrentPath(), pagePath);
-    
-    const display = isDefaultHandler ? parentMatches && !specificPageMatches : specificPageMatches;
+    const isDefaultHandler = !name;    
+    const display = isDefaultHandler || router.exactMatch(router.getCurrentPath(), pagePath);
 
     useEffect(() => {
         return router.onChange(flush).cancel;
@@ -89,11 +85,7 @@ export function Page({ children, name: nameProp, propagate, ...props }: PageProp
         // prevent nested layout in this page
         <LayoutRouterProvider path={null}>
             <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate}>
-                {display && (
-                    <motion.div key={pagePath} {...props}>
-                        {children}
-                    </motion.div>
-                )}
+                {display && children}
             </AnimatePresence>
         </LayoutRouterProvider>
     );

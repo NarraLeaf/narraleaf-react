@@ -1,13 +1,10 @@
-import React, { useEffect } from "react";
-import { createContext, useContext } from "react";
-import { LayoutRouter } from "./router";
-import { useRouter } from "./router";
-import { HTMLMotionProps, motion } from "motion/react";
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
-import { AnimatePresence } from "./AnimatePresence";
 import { useGame } from "@player/provider/game-state";
+import React, { createContext, useContext, useEffect } from "react";
 import { useFlush } from "../flush";
 import { Full } from "../PlayerFrames";
+import { AnimatePresence } from "./AnimatePresence";
+import { LayoutRouter, useRouter } from "./router";
 
 type LayoutContextType = {
     router: LayoutRouter;
@@ -71,9 +68,9 @@ export type LayoutProps = {
      * When true, exit animations will be propagated to nested AnimatePresence components.
      */
     propagate?: boolean;
-} & HTMLMotionProps<"div"> & React.DetailedHTMLProps<React.HTMLAttributes<HTMLDivElement>, HTMLDivElement>;
+};
 
-export function Layout({ children, name, propagate, ...props }: LayoutProps) {
+export function Layout({ children, name, propagate }: LayoutProps) {
     const game = useGame();
     const { path, router } = useLayout();
     const layoutPath = router.joinPath(path, name);
@@ -89,15 +86,7 @@ export function Layout({ children, name, propagate, ...props }: LayoutProps) {
     return (
         <LayoutRouterProvider path={layoutPath}>
             <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate}>
-                {display && (
-                    <motion.div 
-                        id={name} 
-                        key={layoutPath}
-                        {...props}
-                    >
-                        {children}
-                    </motion.div>
-                )}
+                {display && children}
             </AnimatePresence>
         </LayoutRouterProvider>
     );

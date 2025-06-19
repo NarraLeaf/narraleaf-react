@@ -303,6 +303,31 @@ class LayoutRouter {
         return true;
     }
 
+    exactMatch(path, pattern) {
+        const pathSegments = this.parsePath(path);
+        const patternSegments = this.parsePath(pattern);
+
+        // Exact match requires same number of segments
+        if (pathSegments.length !== patternSegments.length) {
+            return false;
+        }
+
+        for (let i = 0; i < patternSegments.length; i++) {
+            const pathSegment = pathSegments[i];
+            const patternSegment = patternSegments[i];
+
+            if (patternSegment === "*") {
+                continue; // Wildcard matches any segment
+            } else if (patternSegment.startsWith(":")) {
+                continue; // Parameter matches any segment
+            } else if (pathSegment !== patternSegment) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     extractParams(path, pattern) {
         const params = {};
         const pathSegments = this.parsePath(path);

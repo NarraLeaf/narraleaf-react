@@ -275,6 +275,61 @@ describe('LayoutRouter', () => {
         });
     });
 
+    describe('Exact Path Matching', () => {
+        it('should correctly match exact paths', () => {
+            expect(router.exactMatch('/about', '/about')).toBe(true);
+            expect(router.exactMatch('/about', '/contact')).toBe(false);
+        });
+
+        it('should not match prefix paths (unlike matchPath)', () => {
+            // exactMatch requires exact segment count, no prefix matching
+            expect(router.exactMatch('/settings/sound', '/settings')).toBe(false);
+            expect(router.exactMatch('/settings/sound/advanced', '/settings')).toBe(false);
+            expect(router.exactMatch('/settings', '/settings')).toBe(true);
+        });
+
+        it('should correctly match exact wildcards', () => {
+            expect(router.exactMatch('/user/123/profile', '/user/*/profile')).toBe(true);
+            expect(router.exactMatch('/user/123/profile/edit', '/user/*/profile')).toBe(false);
+            expect(router.exactMatch('/user/123/settings', '/user/*/profile')).toBe(false);
+        });
+
+        it('should correctly match exact parameters', () => {
+            expect(router.exactMatch('/user/123/profile', '/user/:id/profile')).toBe(true);
+            expect(router.exactMatch('/user/abc/profile', '/user/:id/profile')).toBe(true);
+            expect(router.exactMatch('/user/123', '/user/:id/profile')).toBe(false);
+            expect(router.exactMatch('/user/123/profile/edit', '/user/:id/profile')).toBe(false);
+        });
+
+        it('should not match when segment counts differ', () => {
+            expect(router.exactMatch('/user', '/user/settings')).toBe(false);
+            expect(router.exactMatch('/user/settings/advanced', '/user/settings')).toBe(false);
+        });
+
+        it('should correctly handle complex patterns', () => {
+            expect(router.exactMatch('/api/v1/users/123', '/api/v1/users/:id')).toBe(true);
+            expect(router.exactMatch('/api/v1/users/123/posts', '/api/v1/users/:id')).toBe(false);
+            expect(router.exactMatch('/api/v2/users/123', '/api/v1/users/:id')).toBe(false);
+        });
+
+        it('should correctly handle root path matching', () => {
+            expect(router.exactMatch('/', '/')).toBe(true);
+            expect(router.exactMatch('/home', '/')).toBe(false);
+            expect(router.exactMatch('/', '/home')).toBe(false);
+        });
+
+        it('should correctly handle multiple wildcards', () => {
+            expect(router.exactMatch('/api/v1/users/123/posts/456', '/api/*/users/*/posts/*')).toBe(true);
+            expect(router.exactMatch('/api/v1/users/123/posts', '/api/*/users/*/posts/*')).toBe(false);
+        });
+
+        it('should correctly handle mixed wildcards and parameters', () => {
+            expect(router.exactMatch('/user/admin/profile/123', '/user/*/profile/:id')).toBe(true);
+            expect(router.exactMatch('/user/admin/settings/123', '/user/*/profile/:id')).toBe(false);
+            expect(router.exactMatch('/user/admin/profile/123/edit', '/user/*/profile/:id')).toBe(false);
+        });
+    });
+
     describe('Parameter Extraction', () => {
         it('should correctly extract path parameters', () => {
             const params = router.extractParams('/user/123/profile', '/user/:id/profile');

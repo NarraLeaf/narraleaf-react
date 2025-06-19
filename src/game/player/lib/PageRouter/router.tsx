@@ -703,6 +703,58 @@ export class LayoutRouter {
     }
 
     /**
+     * Check if path exactly matches pattern (requires exact segment count)
+     * @param path Path to check
+     * @param pattern Match pattern, supports wildcard * and parameters :param
+     * @returns Whether exactly matches
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * // Exact match
+     * console.log(router.exactMatch("/about", "/about")); // true
+     * console.log(router.exactMatch("/about", "/contact")); // false
+     * 
+     * // No prefix matching (unlike matchPath)
+     * console.log(router.exactMatch("/settings/sound", "/settings")); // false
+     * console.log(router.exactMatch("/settings", "/settings")); // true
+     * console.log(router.exactMatch("/settings/sound", "/settings/sound")); // true
+     * 
+     * // Wildcard match (exact segment count required)
+     * console.log(router.exactMatch("/user/123/profile", "/user/*" + "/profile")); // true
+     * console.log(router.exactMatch("/user/123/profile/edit", "/user/*" + "/profile")); // false
+     * 
+     * // Parameter match (exact segment count required)
+     * console.log(router.exactMatch("/user/123/profile", "/user/:id/profile")); // true
+     * console.log(router.exactMatch("/user/123", "/user/:id/profile")); // false
+     * ```
+     */
+    public exactMatch(path: string, pattern: string): boolean {
+        const pathSegments = this.parsePath(path);
+        const patternSegments = this.parsePath(pattern);
+
+        // Exact match requires same number of segments
+        if (pathSegments.length !== patternSegments.length) {
+            return false;
+        }
+
+        for (let i = 0; i < patternSegments.length; i++) {
+            const pathSegment = pathSegments[i];
+            const patternSegment = patternSegments[i];
+
+            if (patternSegment === "*") {
+                continue; // Wildcard matches any segment
+            } else if (patternSegment.startsWith(":")) {
+                continue; // Parameter matches any segment
+            } else if (pathSegment !== patternSegment) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Extract path parameters
      * @param path Actual path
      * @param pattern Pattern with parameters, e.g. "/user/:id/profile/:tab"
