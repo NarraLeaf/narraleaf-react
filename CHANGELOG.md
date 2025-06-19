@@ -6,6 +6,7 @@
 
 - `LayoutRouter` creates a new way to manage complex page structures and transitions
 - Use `Layout` to create a layout group
+- Use Player prop `onError` to handle errors
 
 ### _Incompatible Changes_
 

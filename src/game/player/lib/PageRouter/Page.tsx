@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect } from "react";
 import { useFlush } from "../flush";
 import { AnimatePresence } from "./AnimatePresence";
 import { LayoutRouterProvider, useLayout } from "./Layout";
+import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 
 export type PageProps = Readonly<{
     children?: React.ReactNode;
@@ -40,7 +41,7 @@ export type PageProps = Readonly<{
      * </Layout>
      * ```
      */
-    name: string | null | undefined;
+    name?: string | null;
     /**
      * When true, exit animations will be propagated to nested AnimatePresence components.
      */
@@ -59,14 +60,19 @@ export function usePageInject(): PageInjectContextType | null {
 export function Page({ children, name: nameProp, propagate }: PageProps) {
     const game = useGame();
     const [flush] = useFlush();
-    const { path: parentPath, router } = useLayout();
+    const { path: parentPath, router, consumedBy } = useLayout();
     const injected = usePageInject();
     const name = injected?.name ?? nameProp;
+    const consumerName = name ?? parentPath + "@default";
     
     const pagePath = name ? router.joinPath(parentPath, name as string) : parentPath;
     
     const isDefaultHandler = !name;    
     const display = isDefaultHandler || router.exactMatch(router.getCurrentPath(), pagePath);
+
+    if (consumedBy && consumedBy !== consumerName) {
+        throw new RuntimeGameError("[PageRouter] Layout Context is consumed by a different page. This is likely caused by a nested page/layout inside a page.");
+    }
 
     useEffect(() => {
         return router.onChange(flush).cancel;
@@ -83,7 +89,7 @@ export function Page({ children, name: nameProp, propagate }: PageProps) {
 
     const content: React.ReactNode = (
         // prevent nested layout in this page
-        <LayoutRouterProvider path={null}>
+        <LayoutRouterProvider path={parentPath} consumedBy={consumerName}>
             <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate}>
                 {display && children}
             </AnimatePresence>

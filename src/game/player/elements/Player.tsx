@@ -34,6 +34,7 @@ export default function Player(
         className,
         onReady,
         onEnd,
+        onError,
         children,
         active = true,
     }: Readonly<PlayerProps>) {
@@ -242,7 +243,7 @@ export default function Player(
     const playerHeight = height || game.config.height;
 
     return (
-        <ErrorBoundary>
+        <ErrorBoundary onError={onError}>
             <div
                 style={{
                     width: typeof playerWidth === "number" ? `${playerWidth}px` : playerWidth,

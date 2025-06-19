@@ -9,18 +9,21 @@ import { LayoutRouter, useRouter } from "./router";
 type LayoutContextType = {
     router: LayoutRouter;
     path: string | null;
+    consumedBy?: string;
 };
 type LayoutContextProviderProps = {
     children: React.ReactNode;
     path: string | null;
+    consumedBy?: string;
 };
 
 const LayoutContext = createContext<null | LayoutContextType>(null);
-export function LayoutRouterProvider({ children, path }: LayoutContextProviderProps) {
+export function LayoutRouterProvider({ children, path, consumedBy }: LayoutContextProviderProps) {
     const router = useRouter();
     const context: LayoutContextType = {
         router,
         path,
+        consumedBy,
     };
 
     return (
@@ -72,9 +75,13 @@ export type LayoutProps = {
 
 export function Layout({ children, name, propagate }: LayoutProps) {
     const game = useGame();
-    const { path, router } = useLayout();
+    const { path, router, consumedBy } = useLayout();
     const layoutPath = router.joinPath(path, name);
     const display = router.matchPath(router.getCurrentPath(), layoutPath);
+
+    if (consumedBy) {
+        throw new RuntimeGameError("[PageRouter] Layout is consumed by a different layout. This is likely caused by a nested layout inside a layout.");
+    }
 
     useEffect(() => {
         router.mount(layoutPath);
@@ -109,7 +116,7 @@ export function RootLayout({ children }: { children: React.ReactNode }) {
         <LayoutRouterProvider path={LayoutRouter.rootPath}>
             <AnimatePresence mode="wait" propagate={game.config.animationPropagate} onExitComplete={onExitComplete}>
                 <Full
-                    id={LayoutRouter.rootPath}
+                    data-layout-path={LayoutRouter.rootPath}
                     key={LayoutRouter.rootPath}
                 >
                     {children}
