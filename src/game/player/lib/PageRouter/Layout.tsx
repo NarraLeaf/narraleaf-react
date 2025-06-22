@@ -75,6 +75,7 @@ export type LayoutProps = {
 
 export function Layout({ children, name, propagate }: LayoutProps) {
     const game = useGame();
+    const [flush] = useFlush();
     const { path, router, consumedBy } = useLayout();
     const layoutPath = router.joinPath(path, name);
     const display = router.matchPath(router.getCurrentPath(), layoutPath);
@@ -84,15 +85,24 @@ export function Layout({ children, name, propagate }: LayoutProps) {
     }
 
     useEffect(() => {
-        router.mount(layoutPath);
+        return router.onChange(flush).cancel;
+    }, []);
+
+    useEffect(() => {
+        const token = router.mount(layoutPath);
+        
         return () => {
-            router.unmount(layoutPath);
+            token.cancel();
+            // Notify router that layout unmount is complete
+            router.emitPageUnmountComplete(layoutPath);
         };
     }, [layoutPath, router]);
-    
     return (
         <LayoutRouterProvider path={layoutPath}>
-            <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate}>
+            <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate} onExitComplete={() => {
+                // Notify router that layout unmount is complete when animation finishes
+                router.emitPageUnmountComplete(layoutPath);
+            }}>
                 {display && children}
             </AnimatePresence>
         </LayoutRouterProvider>
@@ -100,7 +110,7 @@ export function Layout({ children, name, propagate }: LayoutProps) {
 }
 
 export function RootLayout({ children }: { children: React.ReactNode }) {
-    const game = useGame();
+    const _game = useGame();
     const router = useRouter();
     const [flush] = useFlush();
 
@@ -108,20 +118,14 @@ export function RootLayout({ children }: { children: React.ReactNode }) {
         return router.onChange(flush).cancel;
     }, []);
 
-    function onExitComplete() {
-        game.router.emitRootExitComplete();
-    }
-
     return (
         <LayoutRouterProvider path={LayoutRouter.rootPath}>
-            <AnimatePresence mode="wait" propagate={game.config.animationPropagate} onExitComplete={onExitComplete}>
-                <Full
-                    data-layout-path={LayoutRouter.rootPath}
-                    key={LayoutRouter.rootPath}
-                >
-                    {children}
-                </Full>
-            </AnimatePresence>
+            <Full
+                data-layout-path={LayoutRouter.rootPath}
+                key={LayoutRouter.rootPath}
+            >
+                {children}
+            </Full>
         </LayoutRouterProvider>
     );
 }

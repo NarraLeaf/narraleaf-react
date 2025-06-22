@@ -9,6 +9,12 @@ type LayoutRouterEvents = {
     "event:router.onChange": [];
     "event:router.onExitComplete": [];
     "event:router.onPageMount": [];
+    "event:router.onPageUnmountStart": [path: string];
+    "event:router.onPageUnmountComplete": [path: string];
+    "event:router.onPageMountStart": [path: string];
+    "event:router.onPageMountComplete": [path: string];
+    "event:router.onPageTransitionStart": [fromPath: string, toPath: string];
+    "event:router.onPageTransitionComplete": [fromPath: string, toPath: string];
 };
 
 
@@ -32,6 +38,14 @@ export class LayoutRouter {
     private mountedPaths: Set<string> = new Set();
     /**@internal */
     private defaultHandlerPaths: Set<string> = new Set();
+    /**@internal */
+    private unmountingPaths: Set<string> = new Set();
+    /**@internal */
+    private mountingPaths: Set<string> = new Set();
+    /**@internal */
+    private isTransitioning: boolean = false;
+    /**@internal */
+    private transitionQueue: Array<() => void> = [];
 
     /**@internal */
     constructor(game: Game, defaultPath: string = LayoutRouter.rootPath) {
@@ -140,8 +154,8 @@ export class LayoutRouter {
                 }
             }
         }
-
-        return { path: path || "", query };
+        // Fix: properly handle root path "/"
+        return { path: path || "/", query };
     }
 
     /**
@@ -429,6 +443,21 @@ export class LayoutRouter {
         
         const finalQuery = { ...originalQuery, ...queryParams };
 
+        // If the path is the same, just update query params
+        if (this.currentPath === resolvedPath) {
+            this.currentQuery = finalQuery;
+            if (this.historyIndex >= 0) {
+                this.history[this.historyIndex] = this.buildUrl(resolvedPath, finalQuery);
+            }
+            this.emitOnChange();
+            return this;
+        }
+
+        const fromPath = this.currentPath;
+
+        // Start page transition
+        this.startPageTransition(fromPath, resolvedPath);
+
         // If not at the end of history, remove records after current position
         if (this.historyIndex < this.history.length - 1) {
             this.history.length = this.historyIndex + 1;
@@ -471,8 +500,14 @@ export class LayoutRouter {
      */
     public back(): this {
         if (this.canGoBack()) {
+            const fromPath = this.currentPath;
             this.historyIndex--;
             const { path, query } = this.parseUrl(this.history[this.historyIndex]);
+            const toPath = path;
+            
+            // Start page transition
+            this.startPageTransition(fromPath, toPath);
+            
             this.currentPath = path;
             this.currentQuery = query;
             this.emitOnChange();
@@ -500,8 +535,14 @@ export class LayoutRouter {
      */
     public forward(): this {
         if (this.canGoForward()) {
+            const fromPath = this.currentPath;
             this.historyIndex++;
             const { path, query } = this.parseUrl(this.history[this.historyIndex]);
+            const toPath = path;
+            
+            // Start page transition
+            this.startPageTransition(fromPath, toPath);
+            
             this.currentPath = path;
             this.currentQuery = query;
             this.emitOnChange();
@@ -1000,16 +1041,69 @@ export class LayoutRouter {
         return this.buildPath(resolvedSegments);
     }
 
-    public joinPath(path: string, ...paths: string[]): string {
-        return this.resolvePath(this.normalizePath(path) + "/" + paths.join("/"));
+    /**
+     * Normalize path by removing duplicate slashes and trailing slashes
+     * @param path Path to normalize
+     * @returns Normalized path
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * console.log(router.normalizePath("/home//about/")); // "/home/about"
+     * console.log(router.normalizePath("//home//about//")); // "/home/about"
+     * console.log(router.normalizePath("/home")); // "/home"
+     * console.log(router.normalizePath("home")); // "home"
+     * ```
+     */
+    public normalizePath(path: string): string {
+        // Remove duplicate slashes and trailing slash
+        const normalized = path.replace(/\/\/+/g, "/").replace(/\/$/, "");
+        // If the path is empty after normalization, return "/"
+        if (normalized === "") return "/";
+        // If the path starts with /, preserve it as absolute path
+        if (normalized.startsWith("/")) {
+            return normalized;
+        }
+        // For relative paths, just return the normalized path without leading slash
+        return normalized;
     }
 
-    public normalizePath(path: string): string {
-        return path.replace(/\/\/+/g, "/")
-            .replace(/\/$/, "")
-            .split("/")
-            .filter(segment => segment.length > 0)
-            .join("/");
+    /**
+     * Join multiple path segments into a single path
+     * @param path Base path
+     * @param paths Additional path segments to join
+     * @returns Joined and normalized path
+     * @example
+     * ```typescript
+     * const router = new LayoutRouter(game);
+     * 
+     * // Basic path joining
+     * console.log(router.joinPath("/home", "about")); // "/home/about"
+     * console.log(router.joinPath("/user", "profile", "settings")); // "/user/profile/settings"
+     * 
+     * // Handle paths without leading slash
+     * console.log(router.joinPath("home", "about")); // "/home/about"
+     * 
+     * // Handle multiple segments
+     * console.log(router.joinPath("/api", "v1", "users", "123")); // "/api/v1/users/123"
+     * 
+     * // Normalize duplicate slashes
+     * console.log(router.joinPath("/home//", "//about")); // "/home/about"
+     * 
+     * // Handle empty segments
+     * console.log(router.joinPath("/home", "", "about")); // "/home/about"
+     * ```
+     */
+    public joinPath(path: string, ...paths: string[]): string {
+        // Normalize the base path
+        const normalizedBase = this.normalizePath(path);
+        // Ensure the base path starts with / for absolute paths
+        const basePath = normalizedBase.startsWith("/") ? normalizedBase : "/" + normalizedBase;
+        // Filter out empty segments and join all paths
+        const allSegments = [basePath, ...paths.filter(p => p.length > 0)];
+        const joinedPath = allSegments.join("/");
+        // Normalize the final path
+        return this.normalizePath(joinedPath);
     }
 
     /**
@@ -1020,6 +1114,147 @@ export class LayoutRouter {
         if (this.historyIndex >= 0) {
             this.history[this.historyIndex] = this.buildUrl(this.currentPath, this.currentQuery);
         }
+    }
+
+    /**@internal */
+    private startPageTransition(fromPath: string, toPath: string): void {
+        if (this.isTransitioning) {
+            // Queue the transition if another one is in progress
+            this.transitionQueue.push(() => this.startPageTransition(fromPath, toPath));
+            return;
+        }
+
+        this.isTransitioning = true;
+        this.events.emit("event:router.onPageTransitionStart", fromPath, toPath);
+
+        // Mark pages that need to be unmounted
+        const pagesToUnmount = Array.from(this.mountedPaths).filter(path => 
+            path !== toPath && !this.isPathChild(path, toPath)
+        );
+
+        if (pagesToUnmount.length === 0) {
+            // No pages to unmount, proceed with mounting
+            this.proceedWithMounting(toPath);
+        } else {
+            // Start unmounting pages
+            this.unmountPages(pagesToUnmount, () => {
+                this.proceedWithMounting(toPath);
+            });
+        }
+    }
+
+    /**@internal */
+    private unmountPages(pages: string[], onComplete: () => void): void {
+        let unmountedCount = 0;
+        const totalPages = pages.length;
+
+        if (totalPages === 0) {
+            onComplete();
+            return;
+        }
+
+        pages.forEach(path => {
+            this.unmountingPaths.add(path);
+            this.events.emit("event:router.onPageUnmountStart", path);
+        });
+
+        // Listen for unmount complete events
+        const unmountCompleteHandler = (unmountedPath: string) => {
+            if (pages.includes(unmountedPath)) {
+                unmountedCount++;
+                this.unmountingPaths.delete(unmountedPath);
+                
+                if (unmountedCount === totalPages) {
+                    this.events.off("event:router.onPageUnmountComplete", unmountCompleteHandler);
+                    onComplete();
+                }
+            }
+        };
+
+        this.events.on("event:router.onPageUnmountComplete", unmountCompleteHandler);
+    }
+
+    /**@internal */
+    private proceedWithMounting(toPath: string): void {
+        this.mountingPaths.add(toPath);
+        this.events.emit("event:router.onPageMountStart", toPath);
+        
+        // The actual mounting will be handled by the Page component
+        // We'll complete the transition when the page is fully mounted
+    }
+
+    /**@internal */
+    private isPathChild(parentPath: string, childPath: string): boolean {
+        if (parentPath === "/") return true;
+        return childPath.startsWith(parentPath + "/");
+    }
+
+    /**@internal */
+    public onPageUnmountStart(handler: (path: string) => void): LiveGameEventToken {
+        return this.events.on("event:router.onPageUnmountStart", handler);
+    }
+
+    /**@internal */
+    public onPageUnmountComplete(handler: (path: string) => void): LiveGameEventToken {
+        return this.events.on("event:router.onPageUnmountComplete", handler);
+    }
+
+    /**@internal */
+    public onPageMountStart(handler: (path: string) => void): LiveGameEventToken {
+        return this.events.on("event:router.onPageMountStart", handler);
+    }
+
+    /**@internal */
+    public onPageMountComplete(handler: (path: string) => void): LiveGameEventToken {
+        return this.events.on("event:router.onPageMountComplete", handler);
+    }
+
+    /**@internal */
+    public onPageTransitionStart(handler: (fromPath: string, toPath: string) => void): LiveGameEventToken {
+        return this.events.on("event:router.onPageTransitionStart", handler);
+    }
+
+    /**@internal */
+    public onPageTransitionComplete(handler: (fromPath: string, toPath: string) => void): LiveGameEventToken {
+        return this.events.on("event:router.onPageTransitionComplete", handler);
+    }
+
+    /**@internal */
+    public emitPageUnmountComplete(path: string): void {
+        this.events.emit("event:router.onPageUnmountComplete", path);
+    }
+
+    /**@internal */
+    public emitPageMountComplete(path: string): void {
+        this.mountingPaths.delete(path);
+        this.events.emit("event:router.onPageMountComplete", path);
+        
+        // Complete the transition
+        this.isTransitioning = false;
+        this.events.emit("event:router.onPageTransitionComplete", "", path);
+        
+        // Process queued transitions
+        if (this.transitionQueue.length > 0) {
+            const nextTransition = this.transitionQueue.shift();
+            if (nextTransition) {
+                setTimeout(nextTransition, 0);
+            }
+        }
+    }
+
+    /**@internal */
+    public isPageUnmounting(path: string): boolean {
+        return this.unmountingPaths.has(path);
+    }
+
+    /**@internal */
+    public isPageMounting(path: string): boolean {
+        return this.mountingPaths.has(path);
+    }
+
+    /**@internal */
+    public getIsTransitioning(): boolean {
+        return this.isTransitioning;
     }
 }
 

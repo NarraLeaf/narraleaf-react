@@ -9,7 +9,7 @@ import Nametag from "@player/elements/say/Nametag";
 import Dialog from "@player/elements/say/Dialog";
 import { useDialog } from "@player/elements/say/useDialog";
 import { Page, PageInjectContext } from "@player/lib/PageRouter/Page";
-import { Layout } from "@player/lib/PageRouter/Layout";
+import { Layout, LayoutRouterProvider } from "@player/lib/PageRouter/Layout";
 
 export {
     Isolated,
@@ -24,5 +24,6 @@ export {
     useDialog,
     Page,
     Layout,
+    LayoutRouterProvider,
     PageInjectContext,
 };
