@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useEffect, Children, isValidElement } from "react";
+import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
+import React, { createContext, useContext, useEffect } from "react";
 import { useFlush } from "../flush";
 import { AnimatePresence } from "./AnimatePresence";
 import { LayoutRouterProvider, useLayout } from "./Layout";
-import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 
 export type PageProps = Readonly<{
     children?: React.ReactNode;
@@ -90,20 +90,12 @@ export function Page({ children: children, name: nameProp }: PageProps) {
         };
     }, [pagePath, router, isDefaultHandler, display]);
 
-    // const fChildren = (
-    //     <TestPage />
-    // );
-
-    
-
     const content: React.ReactNode = (
         // prevent nested layout in this page
         <LayoutRouterProvider path={parentPath} consumedBy={consumerName}>
-            {display && (
-                <div key={pagePath}>
-                    {children}
-                </div>
-            )}
+            <AnimatePresence mode="wait">
+                {display && children}
+            </AnimatePresence>
         </LayoutRouterProvider>
     );
 
@@ -119,101 +111,4 @@ export function Page({ children: children, name: nameProp }: PageProps) {
     return content;
 }
 
-// Utility function to get first child element info
-function getFirstChildInfo(children: React.ReactNode) {
-    const childrenArray = Children.toArray(children);
-    
-    if (childrenArray.length === 0) {
-        return { hasChildren: false, constructor: null, props: null, elementName: null };
-    }
-    
-    const firstChild = childrenArray[0];
-    
-    if (!isValidElement(firstChild)) {
-        return { 
-            hasChildren: true, 
-            constructor: null, 
-            props: null, 
-            elementName: null,
-            type: typeof firstChild,
-            value: firstChild 
-        };
-    }
-    
-    const constructor = firstChild.type;
-    const props = firstChild.props;
-    
-    let elementName: string | null = null;
-    
-    if (typeof constructor === "string") {
-        // HTML element like "div", "span", etc.
-        elementName = constructor;
-    } else if (typeof constructor === "function") {
-        // React component
-        elementName = constructor.name || (constructor as any).displayName || "AnonymousComponent";
-    } else if (constructor && typeof constructor === "object") {
-        // ForwardRef, Memo, etc.
-        elementName = (constructor as any).displayName || "ForwardRef/Memo";
-    }
-    
-    return {
-        hasChildren: true,
-        constructor,
-        props,
-        elementName,
-        type: typeof constructor
-    };
-}
 
-function _Test({display, children}: {display: boolean, children: React.ReactNode}) {
-    const {constructor, props} = getFirstChildInfo(children);
-    
-    // Type guard to ensure constructor is valid
-    if (!constructor || !props) {
-        return (
-            <AnimatePresence>
-                {display && children}
-            </AnimatePresence>
-        );
-    }
-    
-    const Component = constructor as React.ComponentType<any>;
-    Component.displayName = "TestComponent";
-    // const constructed = <Component {...props} />;
-
-    return (
-        <AnimatePresence>
-            {display && (Component as any)(props)}
-        </AnimatePresence>
-    );
-}
-
-// function TestWrapper({children}: {children: React.ReactNode}) {
-//     return (
-//         children
-//     );
-// }
-
-// function TestWrapper2({children}: {children: React.ReactNode}) {
-//     return (
-//         <TestWrapper>
-//             {children}
-//         </TestWrapper>
-//     );
-// }
-
-// function TestPage() {
-
-//     return (
-//         <motion.div
-//             key="test"
-//             initial={{ opacity: 0 }}
-//             animate={{ opacity: 1 }}
-//             exit={{ opacity: 0 }}
-//             transition={{ duration: 3 }}
-//             onAnimationComplete={() => console.log("animation complete")}
-//         >
-//             Hello
-//         </motion.div>
-//     );
-// }
