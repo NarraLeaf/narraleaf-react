@@ -3,6 +3,7 @@ import GameProviders from "@player/provider/providers";
 import {useGame} from "@lib/game/player/provider/game-state";
 import {useRouter} from "@player/lib/PageRouter/router";
 import {usePathname, useParams, useQueryParams} from "@player/lib/PageRouter/routerHooks";
+import { useAnimationProxy } from "@lib/game/player/lib/PageRouter/AnimationProxy";
 
 export * from "@player/type";
 export * from "@player/libElements";
@@ -14,4 +15,5 @@ export {
     usePathname,
     useParams,
     useQueryParams,
+    useAnimationProxy,
 };

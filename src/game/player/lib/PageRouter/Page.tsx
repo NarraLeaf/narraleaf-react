@@ -1,8 +1,10 @@
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
-import React, { createContext, useContext, useEffect } from "react";
+import isEqual from "lodash/isEqual";
+import React, { createContext, Ref, useCallback, useContext, useEffect, useRef } from "react";
 import { useFlush } from "../flush";
-import { AnimatePresence } from "./AnimatePresence";
+import { AnimationProxyContext, AnimationProxyProps } from "./AnimationProxy";
 import { LayoutRouterProvider, useLayout } from "./Layout";
+import { AnimatePresence } from "./MotionPatch/AnimatePresence";
 
 export type PageProps = Readonly<{
     children?: React.ReactNode;
@@ -60,6 +62,7 @@ export function Page({ children: children, name: nameProp }: PageProps) {
     const [flush] = useFlush();
     const { path: parentPath, router, consumedBy } = useLayout();
     const injected = usePageInject();
+    const animationProxyProps: Ref<AnimationProxyProps | null> = useRef(null);
     const name = injected?.name ?? nameProp;
     const consumerName = name ?? parentPath + "@default";
 
@@ -90,25 +93,37 @@ export function Page({ children: children, name: nameProp }: PageProps) {
         };
     }, [pagePath, router, isDefaultHandler, display]);
 
+    const updateAnimationProxy = useCallback((props: AnimationProxyProps) => {
+        if (!isEqual(animationProxyProps.current, props)) {
+            animationProxyProps.current = props;
+            flush();
+        }
+    }, []);
+
     const content: React.ReactNode = (
         // prevent nested layout in this page
         <LayoutRouterProvider path={parentPath} consumedBy={consumerName}>
-            <AnimatePresence mode="wait">
-                {display && children}
-            </AnimatePresence>
+            <AnimationProxyContext value={{ update: updateAnimationProxy }}>
+                <AnimatePresence mode="wait">
+                    {display && children}
+                </AnimatePresence>
+            </AnimationProxyContext>
         </LayoutRouterProvider>
     );
 
-    if (injected) {
-        return (
-            // Prevent children from consuming the injected context
-            <PageInjectContext value={{ name: null }}>
-                {content}
-            </PageInjectContext>
-        );
-    }
+    const inject = (content: React.ReactNode) => {
+        if (injected) {
+            return (
+                <PageInjectContext value={{ name: null }}>
+                    {content}
+                </PageInjectContext>
+            );
+        }
+        return content;
+    };
 
-    return content;
+    return inject(content);
 }
+
 
 
