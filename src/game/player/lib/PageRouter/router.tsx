@@ -1158,6 +1158,9 @@ export class LayoutRouter {
             this.events.emit("event:router.onPageUnmountStart", path);
         });
 
+        // Trigger re-render so components can detect unmounting state
+        this.emitOnChange();
+
         // Listen for unmount complete events
         const unmountCompleteHandler = (unmountedPath: string) => {
             if (pages.includes(unmountedPath)) {
@@ -1178,6 +1181,9 @@ export class LayoutRouter {
     private proceedWithMounting(toPath: string): void {
         this.mountingPaths.add(toPath);
         this.events.emit("event:router.onPageMountStart", toPath);
+        
+        // Trigger re-render so components can detect mounting state
+        this.emitOnChange();
         
         // The actual mounting will be handled by the Page component
         // We'll complete the transition when the page is fully mounted

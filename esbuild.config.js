@@ -50,5 +50,18 @@ esbuild.build({
     ".png": "file",
     ".svg": "file",
   },
-  external: ["react", "react-dom"],
+  external: [
+    // React and React DOM
+    "react", 
+    "react-dom",
+    // Dependencies
+    "client-only",
+    "clsx",
+    "howler",
+    "html-to-image",
+    "prop-types",
+    // Peer Dependencies
+    "@emotion/is-prop-valid",
+    "motion"
+  ],
 }).catch(() => process.exit(1));

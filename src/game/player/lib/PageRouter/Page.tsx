@@ -4,7 +4,6 @@ import React, { createContext, Ref, useCallback, useContext, useEffect, useRef }
 import { useFlush } from "../flush";
 import { AnimationProxyContext, AnimationProxyProps } from "./AnimationProxy";
 import { LayoutRouterProvider, useLayout } from "./Layout";
-import { AnimatePresence } from "./MotionPatch/AnimatePresence";
 
 export type PageProps = Readonly<{
     children?: React.ReactNode;
@@ -69,7 +68,13 @@ export function Page({ children: children, name: nameProp }: PageProps) {
     const pagePath = name ? router.joinPath(parentPath, name as string) : parentPath;
 
     const isDefaultHandler = !name;
-    const display = (isDefaultHandler && router.exactMatch(router.getCurrentPath(), parentPath)) || router.exactMatch(router.getCurrentPath(), pagePath);
+    const currentPath = router.getCurrentPath();
+    const isCurrentPage = (isDefaultHandler && router.exactMatch(currentPath, parentPath)) || router.exactMatch(currentPath, pagePath);
+    
+    // Simplified display logic - let AnimatePresence handle the timing
+    // Show if current page OR if mounting (for enter animation)
+    const isMounting = router.isPageMounting(pagePath);
+    const display = isCurrentPage || isMounting;
 
     if (consumedBy && consumedBy !== consumerName) {
         throw new RuntimeGameError("[PageRouter] Layout Context is consumed by a different page. This is likely caused by a nested page/layout inside a page.");
@@ -104,9 +109,11 @@ export function Page({ children: children, name: nameProp }: PageProps) {
         // prevent nested layout in this page
         <LayoutRouterProvider path={parentPath} consumedBy={consumerName}>
             <AnimationProxyContext value={{ update: updateAnimationProxy }}>
-                <AnimatePresence mode="wait">
-                    {display && children}
-                </AnimatePresence>
+                {display ? (
+                    <div key={pagePath} data-page-path={pagePath}>
+                        {children}
+                    </div>
+                ) : null}
             </AnimationProxyContext>
         </LayoutRouterProvider>
     );

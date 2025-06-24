@@ -23,6 +23,16 @@ class EventDispatcher {
         };
     }
 
+    off(eventName, handler) {
+        const handlers = this.events.get(eventName);
+        if (handlers) {
+            const index = handlers.indexOf(handler);
+            if (index > -1) {
+                handlers.splice(index, 1);
+            }
+        }
+    }
+
     once(eventName, handler) {
         const token = this.on(eventName, (...args) => {
             handler(...args);
@@ -43,7 +53,7 @@ class EventDispatcher {
 class RuntimeGameError extends Error {
     constructor(message) {
         super(message);
-        this.name = 'RuntimeGameError';
+        this.name = "RuntimeGameError";
     }
 }
 
@@ -62,6 +72,11 @@ class LayoutRouter {
         this.historyIndex = -1;
         this.mountedPaths = new Set();
         this.defaultHandlerPaths = new Set();
+        this.unmountingPaths = new Set();
+        this.mountingPaths = new Set();
+        this.isTransitioning = false;
+        this.transitionQueue = [];
+        this.currentTransitionFromPath = "";
 
         const { path, query } = this.parseUrl(defaultPath);
         this.currentPath = path;
@@ -185,6 +200,38 @@ class LayoutRouter {
         
         const finalQuery = { ...originalQuery, ...(queryParams || {}) };
 
+        // If the path is the same, just update query params
+        if (this.currentPath === resolvedPath) {
+            this.currentQuery = finalQuery;
+            if (this.historyIndex >= 0) {
+                this.history[this.historyIndex] = this.buildUrl(resolvedPath, finalQuery);
+            }
+            this.emitOnChange();
+            return this;
+        }
+
+        const fromPath = this.currentPath;
+
+        // Start page transition
+        this.startPageTransition(fromPath, resolvedPath);
+
+        // Listen for transition completion to update state
+        const transitionCompleteHandler = (completedFromPath, completedToPath) => {
+            if (completedFromPath === fromPath && completedToPath === resolvedPath) {
+                // Remove the listener
+                this.events.off("event:router.onPageTransitionComplete", transitionCompleteHandler);
+                
+                // Update state after transition is complete
+                this.updateStateAfterTransition(resolvedPath, finalQuery);
+            }
+        };
+
+        this.events.on("event:router.onPageTransitionComplete", transitionCompleteHandler);
+
+        return this;
+    }
+
+    updateStateAfterTransition(resolvedPath, finalQuery) {
         // If not at the end of history, remove records after current position
         if (this.historyIndex < this.history.length - 1) {
             this.history.length = this.historyIndex + 1;
@@ -205,27 +252,60 @@ class LayoutRouter {
         this.currentPath = resolvedPath;
         this.currentQuery = finalQuery;
         this.emitOnChange();
-        return this;
     }
 
     back() {
         if (this.canGoBack()) {
+            const fromPath = this.currentPath;
             this.historyIndex--;
             const { path, query } = this.parseUrl(this.history[this.historyIndex]);
-            this.currentPath = path;
-            this.currentQuery = query;
-            this.emitOnChange();
+            const toPath = path;
+            
+            // Start page transition
+            this.startPageTransition(fromPath, toPath);
+
+            // Listen for transition completion to update state
+            const transitionCompleteHandler = (completedFromPath, completedToPath) => {
+                if (completedFromPath === fromPath && completedToPath === toPath) {
+                    // Remove the listener
+                    this.events.off("event:router.onPageTransitionComplete", transitionCompleteHandler);
+                    
+                    // Update state after transition is complete
+                    this.currentPath = path;
+                    this.currentQuery = query;
+                    this.emitOnChange();
+                }
+            };
+
+            this.events.on("event:router.onPageTransitionComplete", transitionCompleteHandler);
         }
         return this;
     }
 
     forward() {
         if (this.canGoForward()) {
+            const fromPath = this.currentPath;
             this.historyIndex++;
             const { path, query } = this.parseUrl(this.history[this.historyIndex]);
-            this.currentPath = path;
-            this.currentQuery = query;
-            this.emitOnChange();
+            const toPath = path;
+            
+            // Start page transition
+            this.startPageTransition(fromPath, toPath);
+
+            // Listen for transition completion to update state
+            const transitionCompleteHandler = (completedFromPath, completedToPath) => {
+                if (completedFromPath === fromPath && completedToPath === toPath) {
+                    // Remove the listener
+                    this.events.off("event:router.onPageTransitionComplete", transitionCompleteHandler);
+                    
+                    // Update state after transition is complete
+                    this.currentPath = path;
+                    this.currentQuery = query;
+                    this.emitOnChange();
+                }
+            };
+
+            this.events.on("event:router.onPageTransitionComplete", transitionCompleteHandler);
         }
         return this;
     }
@@ -485,9 +565,140 @@ class LayoutRouter {
             this.history[this.historyIndex] = this.buildUrl(this.currentPath, this.currentQuery);
         }
     }
+
+    // Page transition methods
+    startPageTransition(fromPath, toPath) {
+        if (this.isTransitioning) {
+            // Queue the transition if another one is in progress
+            this.transitionQueue.push(() => this.startPageTransition(fromPath, toPath));
+            return;
+        }
+
+        this.isTransitioning = true;
+        this.currentTransitionFromPath = fromPath;
+        this.events.emit("event:router.onPageTransitionStart", fromPath, toPath);
+
+        // Mark pages that need to be unmounted
+        const pagesToUnmount = Array.from(this.mountedPaths).filter(path => 
+            path !== toPath && !this.isPathChild(path, toPath)
+        );
+
+        if (pagesToUnmount.length === 0) {
+            // No pages to unmount, proceed with mounting
+            this.proceedWithMounting(toPath);
+        } else {
+            // Start unmounting pages
+            this.unmountPages(pagesToUnmount, () => {
+                this.proceedWithMounting(toPath);
+            });
+        }
+    }
+
+    unmountPages(pages, onComplete) {
+        let unmountedCount = 0;
+        const totalPages = pages.length;
+
+        if (totalPages === 0) {
+            onComplete();
+            return;
+        }
+
+        pages.forEach(path => {
+            this.unmountingPaths.add(path);
+            this.events.emit("event:router.onPageUnmountStart", path);
+        });
+
+        // Listen for unmount complete events
+        const unmountCompleteHandler = (unmountedPath) => {
+            if (pages.includes(unmountedPath)) {
+                unmountedCount++;
+                this.unmountingPaths.delete(unmountedPath);
+                
+                if (unmountedCount === totalPages) {
+                    this.events.off("event:router.onPageUnmountComplete", unmountCompleteHandler);
+                    onComplete();
+                }
+            }
+        };
+
+        this.events.on("event:router.onPageUnmountComplete", unmountCompleteHandler);
+    }
+
+    proceedWithMounting(toPath) {
+        this.mountingPaths.add(toPath);
+        this.events.emit("event:router.onPageMountStart", toPath);
+        
+        // The actual mounting will be handled by the Page component
+        // We'll complete the transition when the page is fully mounted
+    }
+
+    isPathChild(parentPath, childPath) {
+        if (parentPath === "/") return true;
+        return childPath.startsWith(parentPath + "/");
+    }
+
+    // Event handlers for page transitions
+    onPageUnmountStart(handler) {
+        return this.events.on("event:router.onPageUnmountStart", handler);
+    }
+
+    onPageUnmountComplete(handler) {
+        return this.events.on("event:router.onPageUnmountComplete", handler);
+    }
+
+    onPageMountStart(handler) {
+        return this.events.on("event:router.onPageMountStart", handler);
+    }
+
+    onPageMountComplete(handler) {
+        return this.events.on("event:router.onPageMountComplete", handler);
+    }
+
+    onPageTransitionStart(handler) {
+        return this.events.on("event:router.onPageTransitionStart", handler);
+    }
+
+    onPageTransitionComplete(handler) {
+        return this.events.on("event:router.onPageTransitionComplete", handler);
+    }
+
+    emitPageUnmountComplete(path) {
+        this.events.emit("event:router.onPageUnmountComplete", path);
+    }
+
+    emitPageMountComplete(path) {
+        this.mountingPaths.delete(path);
+        this.events.emit("event:router.onPageMountComplete", path);
+        
+        // Complete the transition using the saved fromPath
+        this.isTransitioning = false;
+        const fromPath = this.currentTransitionFromPath;
+        this.currentTransitionFromPath = "";
+        this.events.emit("event:router.onPageTransitionComplete", fromPath, path);
+        
+        // Process queued transitions
+        if (this.transitionQueue.length > 0) {
+            const nextTransition = this.transitionQueue.shift();
+            if (nextTransition) {
+                setTimeout(nextTransition, 0);
+            }
+        }
+    }
+
+    isPageUnmounting(path) {
+        return this.unmountingPaths.has(path);
+    }
+
+    isPageMounting(path) {
+        return this.mountingPaths.has(path);
+    }
+
+    getIsTransitioning() {
+        return this.isTransitioning;
+    }
 }
 
 // Export for Node.js module system (if available)
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== "undefined" && module.exports) {
     module.exports = { LayoutRouter, EventDispatcher, RuntimeGameError };
 }

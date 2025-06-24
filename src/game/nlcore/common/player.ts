@@ -17,3 +17,5 @@ export {
     useQueryParams,
     useAnimationProxy,
 };
+
+/* @test */ export {PresenceContext} from "motion/react";

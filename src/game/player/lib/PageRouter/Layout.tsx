@@ -1,6 +1,6 @@
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import { useGame } from "@player/provider/game-state";
-import React, { createContext, useContext, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useCallback } from "react";
 import { useFlush } from "../flush";
 import { Full } from "../PlayerFrames";
 import { AnimatePresence } from "./AnimatePresence";
@@ -78,7 +78,16 @@ export function Layout({ children, name, propagate }: LayoutProps) {
     const [flush] = useFlush();
     const { path, router, consumedBy } = useLayout();
     const layoutPath = router.joinPath(path, name);
-    const display = router.matchPath(router.getCurrentPath(), layoutPath);
+    
+    const currentPath = router.getCurrentPath();
+    const isCurrentLayout = router.matchPath(currentPath, layoutPath);
+    
+    // Enhanced display logic to handle layout transitions properly
+    const isUnmounting = router.isPageUnmounting(layoutPath);
+    const isMounting = router.isPageMounting(layoutPath);
+    
+    // Display rules similar to Page component
+    const display = isCurrentLayout && !isUnmounting || isMounting;
 
     if (consumedBy) {
         throw new RuntimeGameError("[PageRouter] Layout is consumed by a different layout. This is likely caused by a nested layout inside a layout.");
@@ -93,17 +102,37 @@ export function Layout({ children, name, propagate }: LayoutProps) {
         
         return () => {
             token.cancel();
-            // Notify router that layout unmount is complete
-            router.emitPageUnmountComplete(layoutPath);
+            // Remove duplicate emitPageUnmountComplete call - this should only be called when animation completes
         };
     }, [layoutPath, router]);
+
+    // Handle exit animation completion for this layout
+    const handleExitComplete = useCallback(() => {
+        // Notify router that layout unmount is complete when animation finishes
+        router.emitPageUnmountComplete(layoutPath);
+        
+        // Also notify for any child paths that might be unmounting
+        // This helps coordinate page transitions
+        if (router.getIsTransitioning()) {
+            const currentPath = router.getCurrentPath();
+            if (!currentPath.startsWith(layoutPath)) {
+                // If we're transitioning away from this layout completely
+                // Mark all child paths as unmounted
+                setTimeout(() => {
+                    router.emitPageUnmountComplete(currentPath);
+                }, 0);
+            }
+        }
+    }, [router, layoutPath]);
+
     return (
         <LayoutRouterProvider path={layoutPath}>
-            <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate} onExitComplete={() => {
-                // Notify router that layout unmount is complete when animation finishes
-                router.emitPageUnmountComplete(layoutPath);
-            }}>
-                {display && children}
+            <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate} onExitComplete={handleExitComplete}>
+                {display ? (
+                    <div key={layoutPath + ":" + router.getCurrentPath()}>
+                        {children}
+                    </div>
+                ) : null}
             </AnimatePresence>
         </LayoutRouterProvider>
     );
