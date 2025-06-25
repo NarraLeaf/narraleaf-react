@@ -1,9 +1,11 @@
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import isEqual from "lodash/isEqual";
 import React, { createContext, Ref, useCallback, useContext, useEffect, useRef } from "react";
-import { useFlush } from "../flush";
+import { useRouterSnapshot } from "./routerHooks";
 import { AnimationProxyContext, AnimationProxyProps } from "./AnimationProxy";
 import { LayoutRouterProvider, useLayout } from "./Layout";
+import { AnimatePresence } from "./MotionPatch/AnimatePresence";
+import { useGame } from "../../provider/game-state";
 
 export type PageProps = Readonly<{
     children?: React.ReactNode;
@@ -57,8 +59,8 @@ export function usePageInject(): PageInjectContextType | null {
     return useContext(PageInjectContext);
 }
 
-export function Page({ children: children, name: nameProp }: PageProps) {
-    const [flush] = useFlush();
+export function Page({ children, name: nameProp, propagate }: PageProps) {
+    const game = useGame();
     const { path: parentPath, router, consumedBy } = useLayout();
     const injected = usePageInject();
     const animationProxyProps: Ref<AnimationProxyProps | null> = useRef(null);
@@ -68,20 +70,18 @@ export function Page({ children: children, name: nameProp }: PageProps) {
     const pagePath = name ? router.joinPath(parentPath, name as string) : parentPath;
 
     const isDefaultHandler = !name;
-    const currentPath = router.getCurrentPath();
-    const isCurrentPage = (isDefaultHandler && router.exactMatch(currentPath, parentPath)) || router.exactMatch(currentPath, pagePath);
-    
-    // Simplified display logic - let AnimatePresence handle the timing
-    // Show if current page OR if mounting (for enter animation)
-    const isMounting = router.isPageMounting(pagePath);
-    const display = isCurrentPage || isMounting;
+    const currentPath = useRouterSnapshot((r) => r.getCurrentPath());
+    const isUnmounting = useRouterSnapshot((r) => r.isPageUnmounting(pagePath));
+
+    const matchesCurrent = (isDefaultHandler && router.exactMatch(currentPath, parentPath)) || router.exactMatch(currentPath, pagePath);
+    const display = matchesCurrent && !isUnmounting;
 
     if (consumedBy && consumedBy !== consumerName) {
         throw new RuntimeGameError("[PageRouter] Layout Context is consumed by a different page. This is likely caused by a nested page/layout inside a page.");
     }
 
     useEffect(() => {
-        return router.onChange(flush).cancel;
+        // React to router changes via snapshot subscription (no explicit flush)
     }, []);
 
     useEffect(() => {
@@ -98,10 +98,14 @@ export function Page({ children: children, name: nameProp }: PageProps) {
         };
     }, [pagePath, router, isDefaultHandler, display]);
 
+    // local force update util using state
+    const [, setRenderTick] = React.useState(0);
+    const forceUpdate = () => setRenderTick(t => t + 1);
+
     const updateAnimationProxy = useCallback((props: AnimationProxyProps) => {
         if (!isEqual(animationProxyProps.current, props)) {
             animationProxyProps.current = props;
-            flush();
+            forceUpdate();
         }
     }, []);
 
@@ -109,11 +113,14 @@ export function Page({ children: children, name: nameProp }: PageProps) {
         // prevent nested layout in this page
         <LayoutRouterProvider path={parentPath} consumedBy={consumerName}>
             <AnimationProxyContext value={{ update: updateAnimationProxy }}>
-                {display ? (
-                    <div key={pagePath} data-page-path={pagePath}>
-                        {children}
-                    </div>
-                ) : null}
+                <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate}
+                    onExitComplete={() => {
+                        // Notify router that page unmount is complete when animation finishes
+                        router.emitPageUnmountComplete(pagePath);
+                    }}
+                >
+                    {display && children}
+                </AnimatePresence>
             </AnimationProxyContext>
         </LayoutRouterProvider>
     );

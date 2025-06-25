@@ -2,6 +2,8 @@ import { useFlush } from "../flush";
 import { useLayout } from "./Layout";
 import { useRouter } from "./router";
 import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+import type { LayoutRouter } from "./router";
 
 export function usePathname() {
     const router = useRouter();
@@ -199,4 +201,19 @@ export function useTransitionState() {
     }, [router]);
 
     return isTransitioning;
+}
+
+/**
+ * Subscribe to router changes and derive data with selector.
+ * This hook is concurrency-safe (uses React 18 useSyncExternalStore).
+ */
+export function useRouterSnapshot<T>(selector: (router: LayoutRouter) => T): T {
+    const router = useRouter();
+
+    return useSyncExternalStore(
+        // subscribe
+        (callback) => router.onChange(callback).cancel,
+        // get current snapshot
+        () => selector(router)
+    );
 }

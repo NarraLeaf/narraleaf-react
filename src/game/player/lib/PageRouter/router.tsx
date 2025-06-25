@@ -43,6 +43,10 @@ export class LayoutRouter {
     /**@internal */
     private mountingPaths: Set<string> = new Set();
     /**@internal */
+    private pendingPath: string | null = null;
+    /**@internal */
+    private pendingQuery: Record<string, string> = {};
+    /**@internal */
     private isTransitioning: boolean = false;
     /**@internal */
     private transitionQueue: Array<() => void> = [];
@@ -443,39 +447,39 @@ export class LayoutRouter {
         
         const finalQuery = { ...originalQuery, ...queryParams };
 
-        // If the path is the same, just update query params
+        // If the path is the same, only update query parameters
         if (this.currentPath === resolvedPath) {
             this.currentQuery = finalQuery;
-            if (this.historyIndex >= 0) {
-                this.history[this.historyIndex] = this.buildUrl(resolvedPath, finalQuery);
-            }
+            this.updateHistory();
             this.emitOnChange();
             return this;
         }
 
         const fromPath = this.currentPath;
 
-        // Start page transition
+        // Record pending path & query, real update will be executed after exit animation completes
+        this.pendingPath = resolvedPath;
+        this.pendingQuery = finalQuery;
+
+        // Start page transition (will wait for unmount complete)
         this.startPageTransition(fromPath, resolvedPath);
 
-        // If not at the end of history, remove records after current position
+        // Update history immediately to keep navigation state, but keep currentPath unchanged until transition finishes
         if (this.historyIndex < this.history.length - 1) {
             this.history.length = this.historyIndex + 1;
         }
 
-        // Add new path to history
         const fullUrl = this.buildUrl(resolvedPath, finalQuery);
         this.history.push(fullUrl);
 
-        // Limit history length
         if (this.history.length > this.game.config.maxRouterHistory) {
             this.history.shift();
             this.historyIndex--;
         }
 
         this.historyIndex++;
-        this.currentPath = resolvedPath;
-        this.currentQuery = finalQuery;
+
+        // Broadcast a pseudo update so that current pages can start exit animations
         this.emitOnChange();
         return this;
     }
@@ -501,15 +505,21 @@ export class LayoutRouter {
     public back(): this {
         if (this.canGoBack()) {
             const fromPath = this.currentPath;
-            this.historyIndex--;
-            const { path, query } = this.parseUrl(this.history[this.historyIndex]);
+            const targetIndex = this.historyIndex - 1;
+            const { path, query } = this.parseUrl(this.history[targetIndex]);
             const toPath = path;
-            
-            // Start page transition
+
+            // Record pending path & query
+            this.pendingPath = path;
+            this.pendingQuery = query;
+
+            // Move history pointer
+            this.historyIndex = targetIndex;
+
+            // Start transition
             this.startPageTransition(fromPath, toPath);
-            
-            this.currentPath = path;
-            this.currentQuery = query;
+
+            // Broadcast pseudo update for exit animation
             this.emitOnChange();
         }
         return this;
@@ -536,15 +546,21 @@ export class LayoutRouter {
     public forward(): this {
         if (this.canGoForward()) {
             const fromPath = this.currentPath;
-            this.historyIndex++;
-            const { path, query } = this.parseUrl(this.history[this.historyIndex]);
+            const targetIndex = this.historyIndex + 1;
+            const { path, query } = this.parseUrl(this.history[targetIndex]);
             const toPath = path;
-            
-            // Start page transition
+
+            // Record pending path & query
+            this.pendingPath = path;
+            this.pendingQuery = query;
+
+            // Move pointer
+            this.historyIndex = targetIndex;
+
+            // Start transition
             this.startPageTransition(fromPath, toPath);
-            
-            this.currentPath = path;
-            this.currentQuery = query;
+
+            // Broadcast pseudo update
             this.emitOnChange();
         }
         return this;
@@ -1179,14 +1195,19 @@ export class LayoutRouter {
 
     /**@internal */
     private proceedWithMounting(toPath: string): void {
+        // Finalize pending path/query before mounting new page
+        if (this.pendingPath !== null) {
+            this.currentPath = this.pendingPath;
+            this.currentQuery = this.pendingQuery;
+            this.pendingPath = null;
+            this.pendingQuery = {};
+        }
+
         this.mountingPaths.add(toPath);
         this.events.emit("event:router.onPageMountStart", toPath);
-        
-        // Trigger re-render so components can detect mounting state
+
+        // Re-render to mount new page now that currentPath has changed
         this.emitOnChange();
-        
-        // The actual mounting will be handled by the Page component
-        // We'll complete the transition when the page is fully mounted
     }
 
     /**@internal */
