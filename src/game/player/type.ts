@@ -71,4 +71,3 @@ export type ExposedKeys = {
 };
 
 export type { INotificationsProps } from "./elements/notification/type";
-export type { AnimationProxyProps } from "./lib/PageRouter/AnimationProxy";

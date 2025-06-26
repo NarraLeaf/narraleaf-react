@@ -1,11 +1,11 @@
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
-import isEqual from "lodash/isEqual";
-import React, { createContext, Ref, useCallback, useContext, useEffect, useRef } from "react";
-import { useRouterSnapshot } from "./routerHooks";
-import { AnimationProxyContext, AnimationProxyProps } from "./AnimationProxy";
-import { LayoutRouterProvider, useLayout } from "./Layout";
-import { AnimatePresence } from "./MotionPatch/AnimatePresence";
+import React, { createContext, useContext, useEffect, useRef } from "react";
 import { useGame } from "../../provider/game-state";
+import { useFlush } from "../flush";
+import { useConstant } from "../useConstant";
+import { AnimatePresence } from "./AnimatePresence";
+import { LayoutRouterProvider, useLayout } from "./Layout";
+import { useRouterFlush, useRouterSyncHook } from "./routerHooks";
 
 export type PageProps = Readonly<{
     children?: React.ReactNode;
@@ -61,67 +61,73 @@ export function usePageInject(): PageInjectContextType | null {
 
 export function Page({ children, name: nameProp, propagate }: PageProps) {
     const game = useGame();
+    const [flush] = useFlush();
     const { path: parentPath, router, consumedBy } = useLayout();
     const injected = usePageInject();
-    const animationProxyProps: Ref<AnimationProxyProps | null> = useRef(null);
     const name = injected?.name ?? nameProp;
     const consumerName = name ?? parentPath + "@default";
 
     const pagePath = name ? router.joinPath(parentPath, name as string) : parentPath;
-
+    const token = useConstant(() => router.createToken(pagePath + "@page"));
+    const currentPath = router.getCurrentPath();
     const isDefaultHandler = !name;
-    const currentPath = useRouterSnapshot((r) => r.getCurrentPath());
-    const isUnmounting = useRouterSnapshot((r) => r.isPageUnmounting(pagePath));
 
-    const matchesCurrent = (isDefaultHandler && router.exactMatch(currentPath, parentPath)) || router.exactMatch(currentPath, pagePath);
-    const display = matchesCurrent && !isUnmounting;
+    // const [mounted, setMounted] = useState(false);
+    const mountedRef = useRef(false);
+    const setMounted = (mounted: boolean) => {
+        mountedRef.current = mounted;
+        flush();
+    };
+
+    const display = (isDefaultHandler && router.exactMatch(currentPath, parentPath)) || router.exactMatch(currentPath, pagePath);
 
     if (consumedBy && consumedBy !== consumerName) {
         throw new RuntimeGameError("[PageRouter] Layout Context is consumed by a different page. This is likely caused by a nested page/layout inside a page.");
     }
 
-    useEffect(() => {
-        // React to router changes via snapshot subscription (no explicit flush)
-    }, []);
+    useRouterFlush();
+    useRouterSyncHook((router) => {
+        // We don't wait for the component to flush because it needs to respond to the router change immediately
+        // And we need to use the router.getCurrentPath() instead of the component state
+        const display =
+            (isDefaultHandler && router.exactMatch(router.getCurrentPath(), parentPath))
+            || router.exactMatch(router.getCurrentPath(), pagePath);
+
+        if (mountedRef.current && !display) {
+            if (!children) {
+                setMounted(false);
+                return;
+            }
+            router.registerUnmountingPath(token);
+        } else if (display && !mountedRef.current && !router.isTransitioning()) {
+            setMounted(true);
+        }
+    }, [display, children]);
 
     useEffect(() => {
+        if (!display) {
+            return;
+        }
+
         const token = isDefaultHandler ? router.mountDefaultHandler(pagePath) : router.mount(pagePath);
         router.emitOnPageMount();
-
-        // Notify router that page mount is complete
-        if (display) {
-            router.emitPageMountComplete(pagePath);
-        }
 
         return () => {
             token.cancel();
         };
-    }, [pagePath, router, isDefaultHandler, display]);
-
-    // local force update util using state
-    const [, setRenderTick] = React.useState(0);
-    const forceUpdate = () => setRenderTick(t => t + 1);
-
-    const updateAnimationProxy = useCallback((props: AnimationProxyProps) => {
-        if (!isEqual(animationProxyProps.current, props)) {
-            animationProxyProps.current = props;
-            forceUpdate();
-        }
-    }, []);
+    }, [pagePath, display]);
 
     const content: React.ReactNode = (
         // prevent nested layout in this page
         <LayoutRouterProvider path={parentPath} consumedBy={consumerName}>
-            <AnimationProxyContext value={{ update: updateAnimationProxy }}>
-                <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate}
-                    onExitComplete={() => {
-                        // Notify router that page unmount is complete when animation finishes
-                        router.emitPageUnmountComplete(pagePath);
-                    }}
-                >
-                    {display && children}
-                </AnimatePresence>
-            </AnimationProxyContext>
+            <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate}
+                onExitComplete={() => {
+                    router.unregisterUnmountingPath(token);
+                    setMounted(false);
+                }}
+            >
+                {display && mountedRef.current && children}
+            </AnimatePresence>
         </LayoutRouterProvider>
     );
 

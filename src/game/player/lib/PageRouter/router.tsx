@@ -1,7 +1,7 @@
 import { Game } from "@core/game";
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import { LiveGameEventToken } from "@lib/game/nlcore/types";
-import { EventDispatcher, EventToken } from "@lib/util/data";
+import { createMicroTask, EventDispatcher, EventToken } from "@lib/util/data";
 import { useGame } from "@player/provider/game-state";
 import React, { createContext, useContext } from "react";
 
@@ -9,12 +9,8 @@ type LayoutRouterEvents = {
     "event:router.onChange": [];
     "event:router.onExitComplete": [];
     "event:router.onPageMount": [];
-    "event:router.onPageUnmountStart": [path: string];
-    "event:router.onPageUnmountComplete": [path: string];
-    "event:router.onPageMountStart": [path: string];
-    "event:router.onPageMountComplete": [path: string];
-    "event:router.onPageTransitionStart": [fromPath: string, toPath: string];
-    "event:router.onPageTransitionComplete": [fromPath: string, toPath: string];
+    "event:router.onPathUnmount": [];
+    "event:router.onTransitionEnd": [];
 };
 
 
@@ -39,17 +35,11 @@ export class LayoutRouter {
     /**@internal */
     private defaultHandlerPaths: Set<string> = new Set();
     /**@internal */
-    private unmountingPaths: Set<string> = new Set();
+    private unmountingPaths: Set<string | symbol> = new Set();
     /**@internal */
-    private mountingPaths: Set<string> = new Set();
+    private updateSyncHooks: Set<() => void> = new Set();
     /**@internal */
-    private pendingPath: string | null = null;
-    /**@internal */
-    private pendingQuery: Record<string, string> = {};
-    /**@internal */
-    private isTransitioning: boolean = false;
-    /**@internal */
-    private transitionQueue: Array<() => void> = [];
+    private transitioning: boolean = false;
 
     /**@internal */
     constructor(game: Game, defaultPath: string = LayoutRouter.rootPath) {
@@ -444,43 +434,42 @@ export class LayoutRouter {
     public navigate(path: string, queryParams?: Record<string, string>): this {
         const { path: originalPath, query: originalQuery } = this.parseUrl(path);
         const resolvedPath = this.resolvePath(originalPath);
-        
+
         const finalQuery = { ...originalQuery, ...queryParams };
 
-        // If the path is the same, only update query parameters
+        // If the path is the same, just update query params
         if (this.currentPath === resolvedPath) {
             this.currentQuery = finalQuery;
-            this.updateHistory();
+            if (this.historyIndex >= 0) {
+                this.history[this.historyIndex] = this.buildUrl(resolvedPath, finalQuery);
+            }
             this.emitOnChange();
             return this;
         }
 
-        const fromPath = this.currentPath;
-
-        // Record pending path & query, real update will be executed after exit animation completes
-        this.pendingPath = resolvedPath;
-        this.pendingQuery = finalQuery;
-
-        // Start page transition (will wait for unmount complete)
-        this.startPageTransition(fromPath, resolvedPath);
-
-        // Update history immediately to keep navigation state, but keep currentPath unchanged until transition finishes
+        // If not at the end of history, remove records after current position
         if (this.historyIndex < this.history.length - 1) {
             this.history.length = this.historyIndex + 1;
         }
 
+        // Add new path to history
         const fullUrl = this.buildUrl(resolvedPath, finalQuery);
         this.history.push(fullUrl);
 
+        // Limit history length
         if (this.history.length > this.game.config.maxRouterHistory) {
             this.history.shift();
             this.historyIndex--;
         }
 
         this.historyIndex++;
-
-        // Broadcast a pseudo update so that current pages can start exit animations
+        this.currentPath = resolvedPath;
+        this.currentQuery = finalQuery;
         this.emitOnChange();
+
+        // Start page transition
+        this.requestPageTransition();
+
         return this;
     }
 
@@ -504,23 +493,15 @@ export class LayoutRouter {
      */
     public back(): this {
         if (this.canGoBack()) {
-            const fromPath = this.currentPath;
-            const targetIndex = this.historyIndex - 1;
-            const { path, query } = this.parseUrl(this.history[targetIndex]);
-            const toPath = path;
+            this.historyIndex--;
+            const { path, query } = this.parseUrl(this.history[this.historyIndex]);
 
-            // Record pending path & query
-            this.pendingPath = path;
-            this.pendingQuery = query;
-
-            // Move history pointer
-            this.historyIndex = targetIndex;
-
-            // Start transition
-            this.startPageTransition(fromPath, toPath);
-
-            // Broadcast pseudo update for exit animation
+            this.currentPath = path;
+            this.currentQuery = query;
             this.emitOnChange();
+
+            // Start page transition
+            this.requestPageTransition();
         }
         return this;
     }
@@ -545,23 +526,15 @@ export class LayoutRouter {
      */
     public forward(): this {
         if (this.canGoForward()) {
-            const fromPath = this.currentPath;
-            const targetIndex = this.historyIndex + 1;
-            const { path, query } = this.parseUrl(this.history[targetIndex]);
-            const toPath = path;
+            this.historyIndex++;
+            const { path, query } = this.parseUrl(this.history[this.historyIndex]);
 
-            // Record pending path & query
-            this.pendingPath = path;
-            this.pendingQuery = query;
-
-            // Move pointer
-            this.historyIndex = targetIndex;
-
-            // Start transition
-            this.startPageTransition(fromPath, toPath);
-
-            // Broadcast pseudo update
+            this.currentPath = path;
+            this.currentQuery = query;
             this.emitOnChange();
+
+            // Start page transition
+            this.requestPageTransition();
         }
         return this;
     }
@@ -589,7 +562,7 @@ export class LayoutRouter {
     public replace(path: string, queryParams?: Record<string, string>): this {
         const { path: originalPath, query: originalQuery } = this.parseUrl(path);
         const resolvedPath = this.resolvePath(originalPath);
-        
+
         const finalQuery = { ...originalQuery, ...queryParams };
 
         this.currentPath = resolvedPath;
@@ -601,6 +574,7 @@ export class LayoutRouter {
             this.historyIndex = 0;
         }
         this.emitOnChange();
+
         return this;
     }
 
@@ -921,6 +895,21 @@ export class LayoutRouter {
     }
 
     /**@internal */
+    onUpdate(handler: () => void): LiveGameEventToken {
+        this.updateSyncHooks.add(handler);
+        return {
+            cancel: () => {
+                this.updateSyncHooks.delete(handler);
+            }
+        };
+    }
+
+    /**@internal */
+    private emitUpdateSync(): void {
+        this.updateSyncHooks.forEach(handler => handler());
+    }
+
+    /**@internal */
     mount(path: string): EventToken {
         if (this.mountedPaths.has(path)) {
             throw new RuntimeGameError(`Path ${path} is already mounted. This may be caused by multiple capture segments in the same path.`);
@@ -1133,155 +1122,62 @@ export class LayoutRouter {
     }
 
     /**@internal */
-    private startPageTransition(fromPath: string, toPath: string): void {
-        if (this.isTransitioning) {
-            // Queue the transition if another one is in progress
-            this.transitionQueue.push(() => this.startPageTransition(fromPath, toPath));
-            return;
-        }
+    private requestPageTransition(): void {
+        const startTransition = () => {
+            this.transitioning = true;
+            this.emitUpdateSync();
+            this.emitOnChange();
+        };
 
-        this.isTransitioning = true;
-        this.events.emit("event:router.onPageTransitionStart", fromPath, toPath);
+        const onTransitionEnd = () => {
+            this.events.emit("event:router.onTransitionEnd");
 
-        // Mark pages that need to be unmounted
-        const pagesToUnmount = Array.from(this.mountedPaths).filter(path => 
-            path !== toPath && !this.isPathChild(path, toPath)
-        );
+            this.transitioning = false;
+            this.emitUpdateSync();
+            this.emitOnChange();
+        };
 
-        if (pagesToUnmount.length === 0) {
-            // No pages to unmount, proceed with mounting
-            this.proceedWithMounting(toPath);
+        startTransition();
+        if (this.isPathsUnmounting()) {
+            const token = this.events.on("event:router.onPathUnmount", () => {
+                if (!this.isPathsUnmounting()) {
+                    token.cancel();
+                    createMicroTask(() => {
+                        onTransitionEnd();
+                    });
+                }
+            });
         } else {
-            // Start unmounting pages
-            this.unmountPages(pagesToUnmount, () => {
-                this.proceedWithMounting(toPath);
+            createMicroTask(() => {
+                onTransitionEnd();
             });
         }
     }
 
     /**@internal */
-    private unmountPages(pages: string[], onComplete: () => void): void {
-        let unmountedCount = 0;
-        const totalPages = pages.length;
-
-        if (totalPages === 0) {
-            onComplete();
-            return;
-        }
-
-        pages.forEach(path => {
-            this.unmountingPaths.add(path);
-            this.events.emit("event:router.onPageUnmountStart", path);
-        });
-
-        // Trigger re-render so components can detect unmounting state
-        this.emitOnChange();
-
-        // Listen for unmount complete events
-        const unmountCompleteHandler = (unmountedPath: string) => {
-            if (pages.includes(unmountedPath)) {
-                unmountedCount++;
-                this.unmountingPaths.delete(unmountedPath);
-                
-                if (unmountedCount === totalPages) {
-                    this.events.off("event:router.onPageUnmountComplete", unmountCompleteHandler);
-                    onComplete();
-                }
-            }
-        };
-
-        this.events.on("event:router.onPageUnmountComplete", unmountCompleteHandler);
+    public registerUnmountingPath(path: string | symbol): void {
+        this.unmountingPaths.add(path);
     }
 
     /**@internal */
-    private proceedWithMounting(toPath: string): void {
-        // Finalize pending path/query before mounting new page
-        if (this.pendingPath !== null) {
-            this.currentPath = this.pendingPath;
-            this.currentQuery = this.pendingQuery;
-            this.pendingPath = null;
-            this.pendingQuery = {};
-        }
-
-        this.mountingPaths.add(toPath);
-        this.events.emit("event:router.onPageMountStart", toPath);
-
-        // Re-render to mount new page now that currentPath has changed
-        this.emitOnChange();
+    public isPathsUnmounting(): boolean {
+        return this.unmountingPaths.size > 0;
     }
 
     /**@internal */
-    private isPathChild(parentPath: string, childPath: string): boolean {
-        if (parentPath === "/") return true;
-        return childPath.startsWith(parentPath + "/");
+    public unregisterUnmountingPath(path: string | symbol): void {
+        this.unmountingPaths.delete(path);
+        this.events.emit("event:router.onPathUnmount");
     }
 
     /**@internal */
-    public onPageUnmountStart(handler: (path: string) => void): LiveGameEventToken {
-        return this.events.on("event:router.onPageUnmountStart", handler);
+    public isTransitioning(): boolean {
+        return this.transitioning;
     }
 
     /**@internal */
-    public onPageUnmountComplete(handler: (path: string) => void): LiveGameEventToken {
-        return this.events.on("event:router.onPageUnmountComplete", handler);
-    }
-
-    /**@internal */
-    public onPageMountStart(handler: (path: string) => void): LiveGameEventToken {
-        return this.events.on("event:router.onPageMountStart", handler);
-    }
-
-    /**@internal */
-    public onPageMountComplete(handler: (path: string) => void): LiveGameEventToken {
-        return this.events.on("event:router.onPageMountComplete", handler);
-    }
-
-    /**@internal */
-    public onPageTransitionStart(handler: (fromPath: string, toPath: string) => void): LiveGameEventToken {
-        return this.events.on("event:router.onPageTransitionStart", handler);
-    }
-
-    /**@internal */
-    public onPageTransitionComplete(handler: (fromPath: string, toPath: string) => void): LiveGameEventToken {
-        return this.events.on("event:router.onPageTransitionComplete", handler);
-    }
-
-    /**@internal */
-    public emitPageUnmountComplete(path: string): void {
-        this.events.emit("event:router.onPageUnmountComplete", path);
-    }
-
-    /**@internal */
-    public emitPageMountComplete(path: string): void {
-        this.mountingPaths.delete(path);
-        this.events.emit("event:router.onPageMountComplete", path);
-        
-        // Complete the transition
-        this.isTransitioning = false;
-        this.events.emit("event:router.onPageTransitionComplete", "", path);
-        
-        // Process queued transitions
-        if (this.transitionQueue.length > 0) {
-            const nextTransition = this.transitionQueue.shift();
-            if (nextTransition) {
-                setTimeout(nextTransition, 0);
-            }
-        }
-    }
-
-    /**@internal */
-    public isPageUnmounting(path: string): boolean {
-        return this.unmountingPaths.has(path);
-    }
-
-    /**@internal */
-    public isPageMounting(path: string): boolean {
-        return this.mountingPaths.has(path);
-    }
-
-    /**@internal */
-    public getIsTransitioning(): boolean {
-        return this.isTransitioning;
+    public createToken(info: string): symbol {
+        return Symbol(info);
     }
 }
 

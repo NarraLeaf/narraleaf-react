@@ -1,10 +1,12 @@
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import { useGame } from "@player/provider/game-state";
-import React, { createContext, useContext, useEffect } from "react";
-import { useRouterSnapshot } from "./routerHooks";
+import React, { createContext, useContext, useEffect, useRef } from "react";
 import { Full } from "../PlayerFrames";
 import { AnimatePresence } from "./AnimatePresence";
 import { LayoutRouter, useRouter } from "./router";
+import { useRouterFlush, useRouterSyncHook } from "./routerHooks";
+import { useConstant } from "../useConstant";
+import { useFlush } from "../flush";
 
 type LayoutContextType = {
     router: LayoutRouter;
@@ -75,21 +77,39 @@ export type LayoutProps = {
 
 export function Layout({ children, name, propagate }: LayoutProps) {
     const game = useGame();
+    const [flush] = useFlush();
     const { path, router, consumedBy } = useLayout();
     const layoutPath = router.joinPath(path, name);
 
-    // derive reactive values from router state
-    const currentPath = useRouterSnapshot((r) => r.getCurrentPath());
-    const isUnmounting = useRouterSnapshot((r) => r.isPageUnmounting(layoutPath));
+    const token = useConstant(() => router.createToken(layoutPath + "@layout"));
+    const currentPath = router.getCurrentPath();
+    const mountedRef = useRef(false);
+    const setMounted = (mounted: boolean) => {
+        mountedRef.current = mounted;
+        flush();
+    };
 
-    const display = router.matchPath(currentPath, layoutPath) && !isUnmounting;
+    const display = router.matchPath(currentPath, layoutPath);
 
-    // Mount/unmount this layout in router lifecycle
+    useRouterFlush();
+    useRouterSyncHook((router) => {
+        const display = router.matchPath(router.getCurrentPath(), layoutPath);
+
+        if (mountedRef.current && !display) {
+            if (!children) {
+                setMounted(false);
+                return;
+            }
+            router.registerUnmountingPath(token);
+        } else if (display && !mountedRef.current && !router.isTransitioning()) {
+            setMounted(true);
+        }
+    }, [display, children]);
+
     useEffect(() => {
         const token = router.mount(layoutPath);
         return () => {
             token.cancel();
-            router.emitPageUnmountComplete(layoutPath);
         };
     }, [layoutPath, router]);
 
@@ -100,18 +120,17 @@ export function Layout({ children, name, propagate }: LayoutProps) {
     return (
         <LayoutRouterProvider path={layoutPath}>
             <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate} onExitComplete={() => {
-                // Notify router that layout unmount is complete when animation finishes
-                router.emitPageUnmountComplete(layoutPath);
+                router.unregisterUnmountingPath(token);
+                setMounted(false);
             }}>
-                {display && children}
+                {display && mountedRef.current && children}
             </AnimatePresence>
         </LayoutRouterProvider>
     );
 }
 
 export function RootLayout({ children }: { children: React.ReactNode }) {
-    const _game = useGame();
-    const _router = useRouter();
+    useRouterFlush();
 
     return (
         <LayoutRouterProvider path={LayoutRouter.rootPath}>

@@ -38,10 +38,6 @@ describe("LayoutRouter", () => {
     describe("Path Navigation", () => {
         it("should be able to navigate to new path", () => {
             router.navigate("/about");
-            // Complete the transition
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            
             expect(router.getCurrentPath()).toBe("/about");
             expect(router.getHistory()).toEqual(["/home", "/about"]);
             expect(router.getHistoryIndex()).toBe(1);
@@ -49,10 +45,6 @@ describe("LayoutRouter", () => {
 
         it("should be able to navigate to path with query parameters", () => {
             router.navigate("/settings", { tab: "general", theme: "dark" });
-            // Complete the transition
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/settings");
-            
             expect(router.getCurrentPath()).toBe("/settings");
             expect(router.getCurrentQuery()).toEqual({ tab: "general", theme: "dark" });
             expect(router.getCurrentUrl()).toBe("/settings?tab=general&theme=dark");
@@ -60,99 +52,73 @@ describe("LayoutRouter", () => {
 
         it("should handle relative path navigation", () => {
             router.navigate("/user/settings");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/user/settings");
+            expect(router.getCurrentPath()).toBe("/user/settings");
             
             router.navigate("./profile");
-            router.emitPageUnmountComplete("/user/settings");
-            router.emitPageMountComplete("/user/settings/profile");
-            
             expect(router.getCurrentPath()).toBe("/user/settings/profile");
         });
 
         it("should handle parent directory navigation", () => {
             router.navigate("/user/settings/advanced");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/user/settings/advanced");
+            expect(router.getCurrentPath()).toBe("/user/settings/advanced");
             
             router.navigate("../general");
-            router.emitPageUnmountComplete("/user/settings/advanced");
-            router.emitPageMountComplete("/user/settings/general");
-            
             expect(router.getCurrentPath()).toBe("/user/settings/general");
         });
 
         it("should correctly handle complex relative paths", () => {
             router.navigate("/user/settings");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/user/settings");
+            expect(router.getCurrentPath()).toBe("/user/settings");
             
             router.navigate("./../admin/./users");
-            router.emitPageUnmountComplete("/user/settings");
-            router.emitPageMountComplete("/user/admin/users");
-            
             expect(router.getCurrentPath()).toBe("/user/admin/users");
+        });
+
+        it("should update query parameters only when navigating to same path", () => {
+            router.navigate("/settings", { tab: "general" });
+            expect(router.getCurrentPath()).toBe("/settings");
+            expect(router.getCurrentQuery()).toEqual({ tab: "general" });
+            
+            // Navigate to same path with different query
+            router.navigate("/settings", { tab: "advanced", theme: "dark" });
+            expect(router.getCurrentPath()).toBe("/settings");
+            expect(router.getCurrentQuery()).toEqual({ tab: "advanced", theme: "dark" });
+            expect(router.getHistory().length).toBe(2); // Should not add new history entry
         });
     });
 
     describe("History Management", () => {
         it("should be able to go back", () => {
             router.navigate("/about");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            
             router.navigate("/contact");
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/contact");
             
             expect(router.canGoBack()).toBe(true);
             router.back();
-            router.emitPageUnmountComplete("/contact");
-            router.emitPageMountComplete("/about");
             expect(router.getCurrentPath()).toBe("/about");
             
             router.back();
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/home");
             expect(router.getCurrentPath()).toBe("/home");
             expect(router.canGoBack()).toBe(false);
         });
 
         it("should be able to go forward", () => {
             router.navigate("/about");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            
             router.navigate("/contact");
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/contact");
             
             router.back();
-            router.emitPageUnmountComplete("/contact");
-            router.emitPageMountComplete("/about");
-            
             router.back();
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/home");
             
             expect(router.canGoForward()).toBe(true);
             router.forward();
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
             expect(router.getCurrentPath()).toBe("/about");
             
             router.forward();
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/contact");
             expect(router.getCurrentPath()).toBe("/contact");
             expect(router.canGoForward()).toBe(false);
         });
 
         it("should be able to replace current path", () => {
             router.navigate("/about");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            
             router.replace("/settings");
             expect(router.getCurrentPath()).toBe("/settings");
             expect(router.getHistory()).toEqual(["/home", "/settings"]);
@@ -160,12 +126,7 @@ describe("LayoutRouter", () => {
 
         it("should be able to clear history", () => {
             router.navigate("/about");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            
             router.navigate("/contact");
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/contact");
             
             router.clear();
             
@@ -177,12 +138,7 @@ describe("LayoutRouter", () => {
 
         it("should be able to clean history keeping only current", () => {
             router.navigate("/about");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            
             router.navigate("/contact");
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/contact");
             
             router.cleanHistory();
             
@@ -193,20 +149,11 @@ describe("LayoutRouter", () => {
 
         it("should remove subsequent history when navigating to new path", () => {
             router.navigate("/about");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            
             router.navigate("/contact");
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/contact");
             
             router.back();
-            router.emitPageUnmountComplete("/contact");
-            router.emitPageMountComplete("/about");
             
             router.navigate("/settings");
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/settings");
             
             expect(router.getHistory()).toEqual(["/home", "/about", "/settings"]);
             expect(router.canGoForward()).toBe(false);
@@ -216,8 +163,6 @@ describe("LayoutRouter", () => {
     describe("Query Parameter Handling", () => {
         beforeEach(() => {
             router.navigate("/settings?tab=general&theme=dark");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/settings");
         });
 
         it("should be able to get query parameters", () => {
@@ -281,6 +226,12 @@ describe("LayoutRouter", () => {
             expect(result.query).toEqual({});
         });
 
+        it("should correctly handle root path parsing", () => {
+            const result = router.parseUrl("/");
+            expect(result.path).toBe("/");
+            expect(result.query).toEqual({});
+        });
+
         it("should correctly build URL", () => {
             const url = router.buildUrl("/settings", { tab: "general", theme: "dark" });
             expect(url).toBe("/settings?tab=general&theme=dark");
@@ -316,13 +267,23 @@ describe("LayoutRouter", () => {
         });
 
         it("should correctly normalize path", () => {
-            expect(router.normalizePath("/user//settings///advanced/")).toBe("user/settings/advanced");
-            expect(router.normalizePath("///")).toBe("");
+            expect(router.normalizePath("/user//settings///advanced/")).toBe("/user/settings/advanced");
+            expect(router.normalizePath("///")).toBe("/");
         });
 
         it("should correctly join paths", () => {
-            // joinPath uses resolvePath, so it resolves based on current path
-            expect(router.joinPath("user", "settings", "advanced")).toBe("/home/user/settings/advanced");
+            expect(router.joinPath("/user", "settings", "advanced")).toBe("/user/settings/advanced");
+            expect(router.joinPath("/user//", "//settings")).toBe("/user/settings");
+            expect(router.joinPath("/user", "", "settings")).toBe("/user/settings");
+        });
+
+        it("should correctly resolve relative paths", () => {
+            router.navigate("/user/settings");
+            
+            expect(router.resolvePath("./profile")).toBe("/user/settings/profile");
+            expect(router.resolvePath("../admin")).toBe("/user/admin");
+            expect(router.resolvePath("../../home")).toBe("/home");
+            expect(router.resolvePath("./.././profile")).toBe("/user/profile");
         });
     });
 
@@ -359,7 +320,6 @@ describe("LayoutRouter", () => {
         });
 
         it("should not match prefix paths (unlike matchPath)", () => {
-            // exactMatch requires exact segment count, no prefix matching
             expect(router.exactMatch("/settings/sound", "/settings")).toBe(false);
             expect(router.exactMatch("/settings/sound/advanced", "/settings")).toBe(false);
             expect(router.exactMatch("/settings", "/settings")).toBe(true);
@@ -430,16 +390,12 @@ describe("LayoutRouter", () => {
             const token = router.onChange(handler);
             
             router.navigate("/about");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
             expect(handler).toHaveBeenCalledTimes(1);
             
             router.navigate("/contact");
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/contact");
             expect(handler).toHaveBeenCalledTimes(2);
             
-            token.off();
+            token.cancel();
             router.navigate("/settings");
             expect(handler).toHaveBeenCalledTimes(2);
         });
@@ -451,7 +407,7 @@ describe("LayoutRouter", () => {
             router.emitOnPageMount();
             expect(handler).toHaveBeenCalledTimes(1);
             
-            token.off();
+            token.cancel();
         });
 
         it("should be able to listen to exit complete events", () => {
@@ -461,7 +417,7 @@ describe("LayoutRouter", () => {
             router.emitRootExitComplete();
             expect(handler).toHaveBeenCalledTimes(1);
             
-            token.off();
+            token.cancel();
         });
 
         it("should support one-time event listening", () => {
@@ -500,20 +456,9 @@ describe("LayoutRouter", () => {
             const limitedRouter = new LayoutRouter(limitedGame, "/");
             
             limitedRouter.navigate("/1");
-            limitedRouter.emitPageUnmountComplete("/");
-            limitedRouter.emitPageMountComplete("/1");
-            
             limitedRouter.navigate("/2");
-            limitedRouter.emitPageUnmountComplete("/1");
-            limitedRouter.emitPageMountComplete("/2");
-            
             limitedRouter.navigate("/3");
-            limitedRouter.emitPageUnmountComplete("/2");
-            limitedRouter.emitPageMountComplete("/3");
-            
             limitedRouter.navigate("/4");
-            limitedRouter.emitPageUnmountComplete("/3");
-            limitedRouter.emitPageMountComplete("/4");
             
             expect(limitedRouter.getHistory().length).toBe(3);
             expect(limitedRouter.getHistory()).toEqual(["/2", "/3", "/4"]);
@@ -523,20 +468,16 @@ describe("LayoutRouter", () => {
     describe("Edge Cases", () => {
         it("should correctly handle empty paths", () => {
             router.navigate("");
-            expect(router.getCurrentPath()).toBe("/home"); // Empty path maintains current path
+            expect(router.getCurrentPath()).toBe("/"); // Empty path resolves to root
         });
 
         it("should correctly handle root path navigation", () => {
             router.navigate("/");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/");
             expect(router.getCurrentPath()).toBe("/");
         });
 
         it("should correctly handle special characters in query parameters", () => {
             router.navigate("/search?q=a%20b&type=c%26d");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/search");
             expect(router.getQueryParam("q")).toBe("a b");
             expect(router.getQueryParam("type")).toBe("c&d");
         });
@@ -555,206 +496,20 @@ describe("LayoutRouter", () => {
         });
     });
 
-    describe("Page Transition Logic", () => {
-        it("should start page transition when navigating to different path", () => {
-            const transitionStartHandler = vi.fn();
-            router.onPageTransitionStart(transitionStartHandler);
+    describe("Page Transition State Management", () => {
+        it("should track mounting and unmounting paths", () => {
+            router.registerUnmountingPath("/home");
+            expect(router.isPathsUnmounting()).toBe(true);
             
-            router.navigate("/about");
-            
-            expect(transitionStartHandler).toHaveBeenCalledWith("/home", "/about");
-            expect(router.getIsTransitioning()).toBe(true);
+            router.unregisterUnmountingPath("/home");
+            expect(router.isPathsUnmounting()).toBe(false);
         });
 
-        it("should not start transition when navigating to same path", () => {
-            const transitionStartHandler = vi.fn();
-            router.onPageTransitionStart(transitionStartHandler);
+        it("should handle transition state correctly", () => {
+            expect(router.isActive()).toBe(true);
             
-            router.navigate("/home");
-            
-            expect(transitionStartHandler).not.toHaveBeenCalled();
-            expect(router.getIsTransitioning()).toBe(false);
-        });
-
-        it("should queue transitions when one is already in progress", () => {
-            const transitionStartHandler = vi.fn();
-            router.onPageTransitionStart(transitionStartHandler);
-            
-            // Start first transition
-            router.navigate("/about");
-            expect(transitionStartHandler).toHaveBeenCalledTimes(1);
-            
-            // Start second transition while first is still in progress
-            router.navigate("/contact");
-            expect(transitionStartHandler).toHaveBeenCalledTimes(1); // Still only 1 call
-            
-            // Complete first transition (need to complete unmount first)
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            expect(transitionStartHandler).toHaveBeenCalledTimes(2); // Now second transition starts
-        });
-
-        it("should emit unmount events for pages that need to be unmounted", () => {
-            const unmountStartHandler = vi.fn();
-            router.onPageUnmountStart(unmountStartHandler);
-            
-            // Mount some pages
-            router.mount("/home");
-            router.mount("/about");
-            
-            // Navigate to a different path
-            router.navigate("/contact");
-            
-            expect(unmountStartHandler).toHaveBeenCalledWith("/home");
-            expect(unmountStartHandler).toHaveBeenCalledWith("/about");
-        });
-
-        it("should not unmount child pages", () => {
-            const unmountStartHandler = vi.fn();
-            router.onPageUnmountStart(unmountStartHandler);
-            
-            // Mount parent and child pages
-            router.mount("/user");
-            router.mount("/user/profile");
-            
-            // Navigate to child path
-            router.navigate("/user/profile");
-            
-            expect(unmountStartHandler).not.toHaveBeenCalled();
-        });
-
-        it("should complete transition when all pages are unmounted", () => {
-            const transitionCompleteHandler = vi.fn();
-            router.onPageTransitionComplete(transitionCompleteHandler);
-            
-            // Mount a page
-            router.mount("/home");
-            
-            // Navigate to different path
-            router.navigate("/about");
-            
-            // Simulate page unmount complete
-            router.emitPageUnmountComplete("/home");
-            
-            // Simulate page mount complete
-            router.emitPageMountComplete("/about");
-            
-            expect(transitionCompleteHandler).toHaveBeenCalledWith("/home", "/about");
-            expect(router.getIsTransitioning()).toBe(false);
-        });
-
-        it("should update state only after transition is complete", () => {
-            // Mount a page
-            router.mount("/home");
-            
-            // Navigate to different path
-            router.navigate("/about");
-            
-            // State should not be updated yet
-            expect(router.getCurrentPath()).toBe("/home");
-            
-            // Complete the transition
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            
-            // Now state should be updated
-            expect(router.getCurrentPath()).toBe("/about");
-        });
-
-        it("should handle back navigation with transitions", () => {
-            const transitionCompleteHandler = vi.fn();
-            router.onPageTransitionComplete(transitionCompleteHandler);
-            
-            // Navigate to some pages
-            router.navigate("/about");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            
-            router.navigate("/contact");
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/contact");
-            
-            // Go back
-            router.back();
-            
-            // Complete the back transition
-            router.emitPageUnmountComplete("/contact");
-            router.emitPageMountComplete("/about");
-            
-            expect(transitionCompleteHandler).toHaveBeenCalledWith("/contact", "/about");
-            expect(router.getCurrentPath()).toBe("/about");
-        });
-
-        it("should handle forward navigation with transitions", () => {
-            const transitionCompleteHandler = vi.fn();
-            router.onPageTransitionComplete(transitionCompleteHandler);
-            
-            // Navigate to some pages
-            router.navigate("/about");
-            router.emitPageUnmountComplete("/home");
-            router.emitPageMountComplete("/about");
-            
-            router.navigate("/contact");
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/contact");
-            
-            // Go back
-            router.back();
-            router.emitPageUnmountComplete("/contact");
-            router.emitPageMountComplete("/about");
-            
-            // Go forward
-            router.forward();
-            
-            // Complete the forward transition
-            router.emitPageUnmountComplete("/about");
-            router.emitPageMountComplete("/contact");
-            
-            expect(transitionCompleteHandler).toHaveBeenCalledWith("/about", "/contact");
-            expect(router.getCurrentPath()).toBe("/contact");
-        });
-
-        it("should track mounting and unmounting states correctly", () => {
-            // Mount a page
-            router.mount("/home");
-            
-            // Navigate to different path
-            router.navigate("/about");
-            
-            expect(router.isPageUnmounting("/home")).toBe(true);
-            expect(router.isPageMounting("/about")).toBe(true);
-            
-            // Complete unmount
-            router.emitPageUnmountComplete("/home");
-            expect(router.isPageUnmounting("/home")).toBe(false);
-            
-            // Complete mount
-            router.emitPageMountComplete("/about");
-            expect(router.isPageMounting("/about")).toBe(false);
-        });
-
-        it("should handle multiple pages unmounting simultaneously", () => {
-            const unmountCompleteHandler = vi.fn();
-            router.onPageUnmountComplete(unmountCompleteHandler);
-            
-            // Mount multiple pages
-            router.mount("/home");
-            router.mount("/about");
-            router.mount("/contact");
-            
-            // Navigate to different path
-            router.navigate("/settings");
-            
-            // Complete unmounts one by one
-            router.emitPageUnmountComplete("/home");
-            expect(router.getIsTransitioning()).toBe(true);
-            
-            router.emitPageUnmountComplete("/about");
-            expect(router.getIsTransitioning()).toBe(true);
-            
-            router.emitPageUnmountComplete("/contact");
-            // Now all pages are unmounted, should proceed to mounting
-            expect(router.isPageMounting("/settings")).toBe(true);
+            router.clear();
+            expect(router.isActive()).toBe(false);
         });
     });
 });

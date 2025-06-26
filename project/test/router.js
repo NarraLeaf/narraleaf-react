@@ -11,7 +11,7 @@ class EventDispatcher {
         this.events.get(eventName).push(handler);
         
         return {
-            off: () => {
+            cancel: () => {
                 const handlers = this.events.get(eventName);
                 if (handlers) {
                     const index = handlers.indexOf(handler);
@@ -36,7 +36,7 @@ class EventDispatcher {
     once(eventName, handler) {
         const token = this.on(eventName, (...args) => {
             handler(...args);
-            token.off();
+            token.cancel();
         });
         return token;
     }
@@ -73,10 +73,7 @@ class LayoutRouter {
         this.mountedPaths = new Set();
         this.defaultHandlerPaths = new Set();
         this.unmountingPaths = new Set();
-        this.mountingPaths = new Set();
-        this.isTransitioning = false;
-        this.transitionQueue = [];
-        this.currentTransitionFromPath = "";
+        this.updateSyncHooks = new Set();
 
         const { path, query } = this.parseUrl(defaultPath);
         this.currentPath = path;
@@ -118,8 +115,8 @@ class LayoutRouter {
                 }
             }
         }
-
-        return { path: path || "", query };
+        // Fix: properly handle root path "/"
+        return { path: path || "/", query };
     }
 
     buildUrl(path, query) {
@@ -210,28 +207,9 @@ class LayoutRouter {
             return this;
         }
 
-        const fromPath = this.currentPath;
-
         // Start page transition
-        this.startPageTransition(fromPath, resolvedPath);
+        this.startPageTransition();
 
-        // Listen for transition completion to update state
-        const transitionCompleteHandler = (completedFromPath, completedToPath) => {
-            if (completedFromPath === fromPath && completedToPath === resolvedPath) {
-                // Remove the listener
-                this.events.off("event:router.onPageTransitionComplete", transitionCompleteHandler);
-                
-                // Update state after transition is complete
-                this.updateStateAfterTransition(resolvedPath, finalQuery);
-            }
-        };
-
-        this.events.on("event:router.onPageTransitionComplete", transitionCompleteHandler);
-
-        return this;
-    }
-
-    updateStateAfterTransition(resolvedPath, finalQuery) {
         // If not at the end of history, remove records after current position
         if (this.historyIndex < this.history.length - 1) {
             this.history.length = this.historyIndex + 1;
@@ -252,60 +230,35 @@ class LayoutRouter {
         this.currentPath = resolvedPath;
         this.currentQuery = finalQuery;
         this.emitOnChange();
+        return this;
     }
 
     back() {
         if (this.canGoBack()) {
-            const fromPath = this.currentPath;
             this.historyIndex--;
             const { path, query } = this.parseUrl(this.history[this.historyIndex]);
-            const toPath = path;
             
             // Start page transition
-            this.startPageTransition(fromPath, toPath);
-
-            // Listen for transition completion to update state
-            const transitionCompleteHandler = (completedFromPath, completedToPath) => {
-                if (completedFromPath === fromPath && completedToPath === toPath) {
-                    // Remove the listener
-                    this.events.off("event:router.onPageTransitionComplete", transitionCompleteHandler);
-                    
-                    // Update state after transition is complete
-                    this.currentPath = path;
-                    this.currentQuery = query;
-                    this.emitOnChange();
-                }
-            };
-
-            this.events.on("event:router.onPageTransitionComplete", transitionCompleteHandler);
+            this.startPageTransition();
+            
+            this.currentPath = path;
+            this.currentQuery = query;
+            this.emitOnChange();
         }
         return this;
     }
 
     forward() {
         if (this.canGoForward()) {
-            const fromPath = this.currentPath;
             this.historyIndex++;
             const { path, query } = this.parseUrl(this.history[this.historyIndex]);
-            const toPath = path;
             
             // Start page transition
-            this.startPageTransition(fromPath, toPath);
-
-            // Listen for transition completion to update state
-            const transitionCompleteHandler = (completedFromPath, completedToPath) => {
-                if (completedFromPath === fromPath && completedToPath === toPath) {
-                    // Remove the listener
-                    this.events.off("event:router.onPageTransitionComplete", transitionCompleteHandler);
-                    
-                    // Update state after transition is complete
-                    this.currentPath = path;
-                    this.currentQuery = query;
-                    this.emitOnChange();
-                }
-            };
-
-            this.events.on("event:router.onPageTransitionComplete", transitionCompleteHandler);
+            this.startPageTransition();
+            
+            this.currentPath = path;
+            this.currentQuery = query;
+            this.emitOnChange();
         }
         return this;
     }
@@ -444,6 +397,19 @@ class LayoutRouter {
         return this.events.once("event:router.onPageMount", handler);
     }
 
+    onUpdate(handler) {
+        this.updateSyncHooks.add(handler);
+        return {
+            cancel: () => {
+                this.updateSyncHooks.delete(handler);
+            }
+        };
+    }
+
+    emitUpdate() {
+        this.updateSyncHooks.forEach(handler => handler());
+    }
+
     mount(path) {
         if (this.mountedPaths.has(path)) {
             throw new RuntimeGameError(`Path ${path} is already mounted. This may be caused by multiple capture segments in the same path.`);
@@ -504,8 +470,12 @@ class LayoutRouter {
 
     emitOnChange() {
         this.events.emit("event:router.onChange");
+        this.emitUpdate();
     }
 
+    /**
+     * Resolve relative path to absolute path
+     */
     resolvePath(path) {
         // Extract path part from URL (remove query parameters)
         const pathOnly = path.split("?")[0];
@@ -548,153 +518,66 @@ class LayoutRouter {
         return this.buildPath(resolvedSegments);
     }
 
-    joinPath(path, ...paths) {
-        return this.resolvePath(this.normalizePath(path) + "/" + paths.join("/"));
-    }
-
+    /**
+     * Normalize path by removing duplicate slashes and trailing slashes
+     */
     normalizePath(path) {
-        return path.replace(/\/\/+/g, "/")
-            .replace(/\/$/, "")
-            .split("/")
-            .filter(segment => segment.length > 0)
-            .join("/");
+        // Remove duplicate slashes and trailing slash
+        const normalized = path.replace(/\/\/+/g, "/").replace(/\/$/, "");
+        // If the path is empty after normalization, return "/"
+        if (normalized === "") return "/";
+        // If the path starts with /, preserve it as absolute path
+        if (normalized.startsWith("/")) {
+            return normalized;
+        }
+        // For relative paths, just return the normalized path without leading slash
+        return normalized;
     }
 
+    /**
+     * Join multiple path segments into a single path
+     */
+    joinPath(path, ...paths) {
+        // Normalize the base path
+        const normalizedBase = this.normalizePath(path);
+        // Ensure the base path starts with / for absolute paths
+        const basePath = normalizedBase.startsWith("/") ? normalizedBase : "/" + normalizedBase;
+        // Filter out empty segments and join all paths
+        const allSegments = [basePath, ...paths.filter(p => p.length > 0)];
+        const joinedPath = allSegments.join("/");
+        // Normalize the final path
+        return this.normalizePath(joinedPath);
+    }
+
+    /**
+     * Update current history entry with current path and query
+     */
     updateHistory() {
         if (this.historyIndex >= 0) {
             this.history[this.historyIndex] = this.buildUrl(this.currentPath, this.currentQuery);
         }
     }
 
-    // Page transition methods
-    startPageTransition(fromPath, toPath) {
-        if (this.isTransitioning) {
-            // Queue the transition if another one is in progress
-            this.transitionQueue.push(() => this.startPageTransition(fromPath, toPath));
-            return;
-        }
-
-        this.isTransitioning = true;
-        this.currentTransitionFromPath = fromPath;
-        this.events.emit("event:router.onPageTransitionStart", fromPath, toPath);
-
-        // Mark pages that need to be unmounted
-        const pagesToUnmount = Array.from(this.mountedPaths).filter(path => 
-            path !== toPath && !this.isPathChild(path, toPath)
-        );
-
-        if (pagesToUnmount.length === 0) {
-            // No pages to unmount, proceed with mounting
-            this.proceedWithMounting(toPath);
-        } else {
-            // Start unmounting pages
-            this.unmountPages(pagesToUnmount, () => {
-                this.proceedWithMounting(toPath);
-            });
-        }
-    }
-
-    unmountPages(pages, onComplete) {
-        let unmountedCount = 0;
-        const totalPages = pages.length;
-
-        if (totalPages === 0) {
-            onComplete();
-            return;
-        }
-
-        pages.forEach(path => {
-            this.unmountingPaths.add(path);
-            this.events.emit("event:router.onPageUnmountStart", path);
+    startPageTransition() {
+        const token = this.events.on("event:router.onPathUnmount", () => {
+            if (!this.isPathsUnmounting()) {
+                token.cancel();
+                this.events.emit("event:router.onTransitionEnd");
+            }
         });
-
-        // Listen for unmount complete events
-        const unmountCompleteHandler = (unmountedPath) => {
-            if (pages.includes(unmountedPath)) {
-                unmountedCount++;
-                this.unmountingPaths.delete(unmountedPath);
-                
-                if (unmountedCount === totalPages) {
-                    this.events.off("event:router.onPageUnmountComplete", unmountCompleteHandler);
-                    onComplete();
-                }
-            }
-        };
-
-        this.events.on("event:router.onPageUnmountComplete", unmountCompleteHandler);
     }
 
-    proceedWithMounting(toPath) {
-        this.mountingPaths.add(toPath);
-        this.events.emit("event:router.onPageMountStart", toPath);
-        
-        // The actual mounting will be handled by the Page component
-        // We'll complete the transition when the page is fully mounted
+    registerUnmountingPath(path) {
+        this.unmountingPaths.add(path);
     }
 
-    isPathChild(parentPath, childPath) {
-        if (parentPath === "/") return true;
-        return childPath.startsWith(parentPath + "/");
+    isPathsUnmounting() {
+        return this.unmountingPaths.size > 0;
     }
 
-    // Event handlers for page transitions
-    onPageUnmountStart(handler) {
-        return this.events.on("event:router.onPageUnmountStart", handler);
-    }
-
-    onPageUnmountComplete(handler) {
-        return this.events.on("event:router.onPageUnmountComplete", handler);
-    }
-
-    onPageMountStart(handler) {
-        return this.events.on("event:router.onPageMountStart", handler);
-    }
-
-    onPageMountComplete(handler) {
-        return this.events.on("event:router.onPageMountComplete", handler);
-    }
-
-    onPageTransitionStart(handler) {
-        return this.events.on("event:router.onPageTransitionStart", handler);
-    }
-
-    onPageTransitionComplete(handler) {
-        return this.events.on("event:router.onPageTransitionComplete", handler);
-    }
-
-    emitPageUnmountComplete(path) {
-        this.events.emit("event:router.onPageUnmountComplete", path);
-    }
-
-    emitPageMountComplete(path) {
-        this.mountingPaths.delete(path);
-        this.events.emit("event:router.onPageMountComplete", path);
-        
-        // Complete the transition using the saved fromPath
-        this.isTransitioning = false;
-        const fromPath = this.currentTransitionFromPath;
-        this.currentTransitionFromPath = "";
-        this.events.emit("event:router.onPageTransitionComplete", fromPath, path);
-        
-        // Process queued transitions
-        if (this.transitionQueue.length > 0) {
-            const nextTransition = this.transitionQueue.shift();
-            if (nextTransition) {
-                setTimeout(nextTransition, 0);
-            }
-        }
-    }
-
-    isPageUnmounting(path) {
-        return this.unmountingPaths.has(path);
-    }
-
-    isPageMounting(path) {
-        return this.mountingPaths.has(path);
-    }
-
-    getIsTransitioning() {
-        return this.isTransitioning;
+    unregisterUnmountingPath(path) {
+        this.unmountingPaths.delete(path);
+        this.events.emit("event:router.onPathUnmount");
     }
 }
 

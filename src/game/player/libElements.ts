@@ -10,7 +10,6 @@ import Dialog from "@player/elements/say/Dialog";
 import { useDialog } from "@player/elements/say/useDialog";
 import { Page, PageInjectContext } from "@player/lib/PageRouter/Page";
 import { Layout, LayoutRouterProvider } from "@player/lib/PageRouter/Layout";
-import { AnimationProxyContext } from "@player/lib/PageRouter/AnimationProxy";
 
 export {
     Isolated,
@@ -27,5 +26,4 @@ export {
     Layout,
     LayoutRouterProvider,
     PageInjectContext,
-    AnimationProxyContext,
 };
