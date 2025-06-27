@@ -1,6 +1,5 @@
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import React, { createContext, useContext, useEffect, useRef } from "react";
-import { useGame } from "../../provider/game-state";
 import { useFlush } from "../flush";
 import { useConstant } from "../useConstant";
 import { AnimatePresence } from "./AnimatePresence";
@@ -44,10 +43,6 @@ export type PageProps = Readonly<{
      * ```
      */
     name?: string | null;
-    /**
-     * When true, exit animations will be propagated to nested AnimatePresence components.
-     */
-    propagate?: boolean;
 }>;
 
 type PageInjectContextType = {
@@ -59,8 +54,7 @@ export function usePageInject(): PageInjectContextType | null {
     return useContext(PageInjectContext);
 }
 
-export function Page({ children, name: nameProp, propagate }: PageProps) {
-    const game = useGame();
+export function Page({ children, name: nameProp }: PageProps) {
     const [flush] = useFlush();
     const { path: parentPath, router, consumedBy } = useLayout();
     const injected = usePageInject();
@@ -68,11 +62,10 @@ export function Page({ children, name: nameProp, propagate }: PageProps) {
     const consumerName = name ?? parentPath + "@default";
 
     const pagePath = name ? router.joinPath(parentPath, name as string) : parentPath;
-    const token = useConstant(() => router.createToken(pagePath + "@page"));
+    const unmountToken = useConstant(() => router.createToken(pagePath + "@page"));
     const currentPath = router.getCurrentPath();
     const isDefaultHandler = !name;
 
-    // const [mounted, setMounted] = useState(false);
     const mountedRef = useRef(false);
     const setMounted = (mounted: boolean) => {
         mountedRef.current = mounted;
@@ -89,17 +82,31 @@ export function Page({ children, name: nameProp, propagate }: PageProps) {
     useRouterSyncHook((router) => {
         // We don't wait for the component to flush because it needs to respond to the router change immediately
         // And we need to use the router.getCurrentPath() instead of the component state
-        const display =
+        const displayNow =
             (isDefaultHandler && router.exactMatch(router.getCurrentPath(), parentPath))
             || router.exactMatch(router.getCurrentPath(), pagePath);
 
-        if (mountedRef.current && !display) {
+        // Case 1: Unmount
+        if (mountedRef.current && !displayNow) {
             if (!children) {
                 setMounted(false);
                 return;
             }
-            router.registerUnmountingPath(token);
-        } else if (display && !mountedRef.current && !router.isTransitioning()) {
+            router.registerUnmountingPath(unmountToken);
+            // Fallback: If the child component does not trigger the exit animation, it also ensures that the hanging state can be released in time
+            // createMicroTask(() => {
+            //     router.unregisterUnmountingPath(unmountToken);
+            //     setMounted(false);
+            // });
+        }
+
+        // Case 2: The path matches again, cancel the previous unmount request
+        if (displayNow && router.isPathsUnmounting()) {
+            router.unregisterUnmountingPath(unmountToken);
+        }
+
+        // Case 3: Normal mount
+        if (displayNow && !mountedRef.current && !router.isTransitioning()) {
             setMounted(true);
         }
     }, [display, children]);
@@ -109,20 +116,27 @@ export function Page({ children, name: nameProp, propagate }: PageProps) {
             return;
         }
 
-        const token = isDefaultHandler ? router.mountDefaultHandler(pagePath) : router.mount(pagePath);
+        const eventToken = isDefaultHandler ? router.mountDefaultHandler(pagePath) : router.mount(pagePath);
         router.emitOnPageMount();
 
         return () => {
-            token.cancel();
+            eventToken.cancel();
         };
     }, [pagePath, display]);
+
+    useEffect(() => {
+        return () => {
+            router.unregisterUnmountingPath(unmountToken);
+            setMounted(false);
+        };
+    }, []);
 
     const content: React.ReactNode = (
         // prevent nested layout in this page
         <LayoutRouterProvider path={parentPath} consumedBy={consumerName}>
-            <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate}
+            <AnimatePresence mode="wait"
                 onExitComplete={() => {
-                    router.unregisterUnmountingPath(token);
+                    router.unregisterUnmountingPath(unmountToken);
                     setMounted(false);
                 }}
             >

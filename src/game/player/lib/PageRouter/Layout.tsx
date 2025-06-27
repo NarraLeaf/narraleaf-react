@@ -1,12 +1,12 @@
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import { useGame } from "@player/provider/game-state";
 import React, { createContext, useContext, useEffect, useRef } from "react";
+import { useFlush } from "../flush";
 import { Full } from "../PlayerFrames";
+import { useConstant } from "../useConstant";
 import { AnimatePresence } from "./AnimatePresence";
 import { LayoutRouter, useRouter } from "./router";
 import { useRouterFlush, useRouterSyncHook } from "./routerHooks";
-import { useConstant } from "../useConstant";
-import { useFlush } from "../flush";
 
 type LayoutContextType = {
     router: LayoutRouter;
@@ -81,7 +81,7 @@ export function Layout({ children, name, propagate }: LayoutProps) {
     const { path, router, consumedBy } = useLayout();
     const layoutPath = router.joinPath(path, name);
 
-    const token = useConstant(() => router.createToken(layoutPath + "@layout"));
+    const unmountToken = useConstant(() => router.createToken(layoutPath + "@layout"));
     const currentPath = router.getCurrentPath();
     const mountedRef = useRef(false);
     const setMounted = (mounted: boolean) => {
@@ -93,25 +93,38 @@ export function Layout({ children, name, propagate }: LayoutProps) {
 
     useRouterFlush();
     useRouterSyncHook((router) => {
-        const display = router.matchPath(router.getCurrentPath(), layoutPath);
+        const displayNow = router.matchPath(router.getCurrentPath(), layoutPath);
 
-        if (mountedRef.current && !display) {
+        // Case 1: Unmount
+        if (mountedRef.current && !displayNow) {
             if (!children) {
                 setMounted(false);
                 return;
             }
-            router.registerUnmountingPath(token);
-        } else if (display && !mountedRef.current && !router.isTransitioning()) {
+            router.registerUnmountingPath(unmountToken);
+        }
+
+        // Case 2: The path matches again, cancel the previous unmount request
+        if (displayNow && router.isPathsUnmounting()) {
+            router.unregisterUnmountingPath(unmountToken);
+        }
+
+        // Case 3: Normal mount
+        if (displayNow && !mountedRef.current && !router.isTransitioning()) {
             setMounted(true);
         }
     }, [display, children]);
 
     useEffect(() => {
+        if (!display) {
+            return;
+        }
+
         const token = router.mount(layoutPath);
         return () => {
             token.cancel();
         };
-    }, [layoutPath, router]);
+    }, [layoutPath, router, display]);
 
     if (consumedBy) {
         throw new RuntimeGameError("[PageRouter] Layout is consumed by a different layout. This is likely caused by a nested layout inside a layout.");
@@ -120,7 +133,7 @@ export function Layout({ children, name, propagate }: LayoutProps) {
     return (
         <LayoutRouterProvider path={layoutPath}>
             <AnimatePresence mode="wait" propagate={propagate ?? game.config.animationPropagate} onExitComplete={() => {
-                router.unregisterUnmountingPath(token);
+                router.unregisterUnmountingPath(unmountToken);
                 setMounted(false);
             }}>
                 {display && mountedRef.current && children}
