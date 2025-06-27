@@ -13,10 +13,10 @@ type LayoutRouterEvents = {
     "event:router.onTransitionEnd": [];
 };
 
-
+export const RootPath = "/";
 export class LayoutRouter {
     /**@internal */
-    public static readonly rootPath: string = "/";
+    public static readonly rootPath: string = RootPath;
 
     /**@internal */
     public readonly events: EventDispatcher<LayoutRouterEvents> = new EventDispatcher();
@@ -598,6 +598,9 @@ export class LayoutRouter {
         this.history = [];
         this.historyIndex = -1;
         this.emitOnChange();
+
+        this.requestPageTransition();
+        
         return this;
     }
 
@@ -948,16 +951,6 @@ export class LayoutRouter {
     }
 
     /**@internal */
-    isDefaultHandlerMounted(path: string): boolean {
-        return this.defaultHandlerPaths.has(path);
-    }
-
-    /**@internal */
-    emitRootExitComplete(): void {
-        this.events.emit("event:router.onExitComplete");
-    }
-
-    /**@internal */
     emitOnPageMount(): void {
         this.events.emit("event:router.onPageMount");
     }
@@ -1135,6 +1128,8 @@ export class LayoutRouter {
             this.transitioning = false;
             this.emitUpdateSync();
             this.emitOnChange();
+            
+            this.events.emit("event:router.onExitComplete");
         };
 
         startTransition();
@@ -1203,4 +1198,3 @@ export function useRouter() {
     if (!useContext(RouterContext)) throw new Error("useRouter must be used within a RouterProvider");
     return (useContext(RouterContext) as RouterContextType).router;
 }
-
