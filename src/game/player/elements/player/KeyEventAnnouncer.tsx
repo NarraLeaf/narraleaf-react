@@ -44,7 +44,6 @@ export function KeyEventAnnouncer({state}: Readonly<{
         const handleKeyDown = (event: KeyboardEvent) => {
             if (game.config.skipKey.includes(event.key)
                 && game.preference.getPreference(Game.Preferences.skip)
-                && (!router || !router.isActive())
             ) {
                 if (!isKeyPressedRef.current) {
                     state.logger.verbose("KeyEventAnnouncer", "Skipping");
