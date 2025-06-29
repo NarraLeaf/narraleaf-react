@@ -25,6 +25,7 @@ import { RenderEventAnnoucer } from "./player/RenderEventAnnoucer";
 import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import { StackModel } from "@lib/game/nlcore/action/stackModel";
 import { RootLayout } from "../lib/PageRouter/Layout";
+import PlayerNotification from "./notification/PlayerNotification";
 
 export default function Player(
     {
@@ -283,6 +284,7 @@ export default function Player(
                         <RootLayout>
                             {children}
                         </RootLayout>
+                        <PlayerNotification gameState={state} />
                     </Isolated>
                 </AspectRatio>
             </div>
