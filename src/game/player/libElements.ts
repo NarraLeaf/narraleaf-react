@@ -11,6 +11,7 @@ import { useDialog } from "@player/elements/say/useDialog";
 import { Page, PageInjectContext } from "@player/lib/PageRouter/Page";
 import { Layout, LayoutRouterProvider } from "@player/lib/PageRouter/Layout";
 import { RootPath } from "@player/lib/PageRouter/router";
+import { useKeyBinding } from "./lib/keyMap";
 
 export {
     Isolated,
@@ -28,4 +29,5 @@ export {
     LayoutRouterProvider,
     PageInjectContext,
     RootPath,
+    useKeyBinding,
 };

@@ -6,6 +6,8 @@ import { LiveGameEventToken } from "@core/types";
 import { GameHistory } from "../action/gameHistory";
 import { GameConfig, SavedGame, NotificationToken, SavedGameMetaData } from "../gameTypes";
 import type { LayoutRouter } from "@lib/game/player/lib/PageRouter/router";
+import { KeyBindingType, WebKeyboardKey } from "../game/types";
+import { KeyBindingValue } from "../game/keyMap";
 
 export * from "@core/elements/type";
 export type {
@@ -17,4 +19,10 @@ export type {
     NotificationToken,
     SavedGameMetaData,
     LayoutRouter,
+    KeyBindingValue,
+    WebKeyboardKey,
+};
+
+export {
+    KeyBindingType,
 };

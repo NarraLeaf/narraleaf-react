@@ -87,13 +87,6 @@ export type GameConfig = {
      */
     height: number;
     /**
-     * When the player presses one of these keys, the game will skip the current action
-     *
-     * See [Key_Values](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values)
-     * @default ["Control"]
-     */
-    skipKey: React.KeyboardEvent["key"][];
-    /**
      * If true, the game will listen to the window events instead of the player element
      * 
      * Using this will allow the game to listen to the keyboard events even when the player is not focused  
@@ -172,13 +165,6 @@ export type GameConfig = {
      * @default 1
      */
     screenshotQuality: number;
-    /**
-     * When the player presses one of these keys, the game will show the next sentence
-     *
-     * See [Key_Values](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values)
-     * @default [" "]
-     */
-    nextKey: React.KeyboardEvent["key"][];
     /**
      * If true, the game will scale the dialog to fit the screen
      *

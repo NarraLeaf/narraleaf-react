@@ -9,6 +9,8 @@ import React, { useEffect, useRef } from "react";
 import { useDialogContext } from "./context";
 import { Texts } from "./Sentence";
 import { DialogState } from "./UIDialog";
+import { KeyBindingType } from "@lib/game/nlcore/game/types";
+import { useKeyBinding } from "../../lib/keyMap";
 
 function BaseDialog({
     children,
@@ -19,6 +21,7 @@ function BaseDialog({
     const { ratio } = useRatio();
     const [showDialog] = usePreference(Game.Preferences.showDialog);
     const dialogRef = useRef<HTMLDivElement>(null);
+    const [nextKeyBinding] = useKeyBinding(KeyBindingType.nextAction);
 
     function onElementClick() {
         dialog.requestComplete();
@@ -31,7 +34,7 @@ function BaseDialog({
         }
 
         const handleKeyUp = (e: KeyboardEvent) => {
-            if (game.config.nextKey.includes(e.key)) {
+            if (game.keyMap.match(KeyBindingType.nextAction, e.key)) {
                 dialog.requestComplete();
             }
         };
@@ -47,7 +50,7 @@ function BaseDialog({
             window.removeEventListener("keyup", handleKeyUp);
             token.cancel();
         };
-    }, [dialog]);
+    }, [dialog, nextKeyBinding]);
 
     useEffect(() => {
         const event = game.preference.onPreferenceChange(Game.Preferences.autoForward, (autoForward) => {
