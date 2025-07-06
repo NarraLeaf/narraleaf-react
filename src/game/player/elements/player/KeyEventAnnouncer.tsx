@@ -4,6 +4,8 @@ import {GameState} from "@player/gameState";
 import {Game} from "@core/common/game";
 import {useRouter} from "@player/lib/PageRouter/router";
 import { usePreference } from "../../libElements";
+import { KeyBindingType } from "@lib/game/nlcore/game/types";
+import { useKeyBinding } from "../../lib/keyMap";
 
 /**@internal */
 export function KeyEventAnnouncer({state}: Readonly<{
@@ -17,6 +19,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
     
     const [skipDelay] = usePreference(Game.Preferences.skipDelay);
     const [skipInterval] = usePreference(Game.Preferences.skipInterval);
+    const [skipKeyBinding] = useKeyBinding(KeyBindingType.skipAction);
 
     useEffect(() => {
         const playerElement = game.getLiveGame().gameState!.playerCurrent;
@@ -42,9 +45,8 @@ export function KeyEventAnnouncer({state}: Readonly<{
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (game.config.skipKey.includes(event.key)
+            if (game.keyMap.match(KeyBindingType.skipAction, event.key)
                 && game.preference.getPreference(Game.Preferences.skip)
-                && (!router || !router.isActive())
             ) {
                 if (!isKeyPressedRef.current) {
                     state.logger.verbose("KeyEventAnnouncer", "Skipping");
@@ -72,7 +74,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
         };
 
         const handleKeyUp = (event: KeyboardEvent) => {
-            if (game.config.skipKey.includes(event.key)) {
+            if (game.keyMap.match(KeyBindingType.skipAction, event.key)) {
                 cleanup();
             }
         };
@@ -94,7 +96,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
                 cancelKeyUp();
             };
         }
-    }, [router, skipDelay, skipInterval]);
+    }, [router, skipDelay, skipInterval, skipKeyBinding]);
 
     return (<></>);
 }

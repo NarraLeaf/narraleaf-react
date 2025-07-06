@@ -1,4 +1,4 @@
-import React from "react";
+import React, { ErrorInfo } from "react";
 import { IDialogProps, SayElementProps } from "@player/elements/say/type";
 import { IUserMenuProps, MenuElementProps } from "@player/elements/menu/type";
 import { Story } from "@core/elements/story";
@@ -49,6 +49,12 @@ export interface PlayerProps {
      * only called each lifecycle once
      */
     onEnd?: (ctx: PlayerEventContext) => void;
+    /**
+     * Once the game encounters an error
+     *
+     * only called each lifecycle once
+     */
+    onError?: (error: Error, errorInfo: ErrorInfo) => void;
     children?: React.ReactNode;
     /**
      * Whether to show the player

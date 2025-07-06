@@ -4,6 +4,7 @@ import {Storable, Namespace} from "../elements/persistent/storable";
 import {LiveGame} from "@core/game/liveGame";
 import {Preference} from "@core/game/preference";
 import type {SavedGame} from "@core/gameTypes";
+import { KeyMap } from "../game/keyMap";
 
 export {
     LiveGame,
@@ -12,6 +13,7 @@ export {
     Storable,
     Namespace,
     Preference,
+    KeyMap,
 };
 export type {
     SavedGame,

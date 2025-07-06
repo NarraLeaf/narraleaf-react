@@ -3,6 +3,7 @@ import ErrorFallback from "@player/lib/ErrorFallback";
 
 interface ErrorBoundaryProps {
     children: ReactNode;
+    onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
 interface ErrorBoundaryState {
@@ -20,6 +21,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         this.setState({error, errorInfo});
+        this.props.onError?.(error, errorInfo);
         console.error(error, errorInfo);
     }
 

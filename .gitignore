@@ -34,6 +34,8 @@ yarn.lock
 Thumbs.db
 
 # Project specific
-test/
+./test/
 dev.json
 
+*-example.test.tsx
+*-ignore.test.js

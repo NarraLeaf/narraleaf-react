@@ -4,14 +4,23 @@ const process = require("process");
 const fs = require("fs-extra");
 const path = require("path");
 
-// Read target directory from dev config
+// Read target directories from dev config
 const devConfigPath = path.resolve(__dirname, "../dev.json");
-let targetRoot;
+let targetDirs = [];
 try {
     const devConfig = JSON.parse(fs.readFileSync(devConfigPath, "utf8"));
-    targetRoot = devConfig.targetDir;
-    if (!targetRoot) {
-        throw new Error("targetDir not found in dev.json");
+    
+    // Support both single targetDir and multiple targetDirs
+    if (devConfig.targetDirs && Array.isArray(devConfig.targetDirs)) {
+        targetDirs = devConfig.targetDirs;
+    } else if (devConfig.targetDir) {
+        targetDirs = [devConfig.targetDir];
+    } else {
+        throw new Error("Neither targetDir nor targetDirs found in dev.json");
+    }
+    
+    if (targetDirs.length === 0) {
+        throw new Error("No target directories specified in dev.json");
     }
 } catch (err) {
     console.error(`Error reading dev.json: ${err}`);
@@ -19,17 +28,33 @@ try {
 }
 
 const sourceDir = path.resolve(__dirname, "../dist");
-const targetDir = path.join(targetRoot, "dist");
 
-// Ensure target directory exists
-fs.ensureDirSync(targetDir);
+// Copy files to all target directories
+let successCount = 0;
+let errorCount = 0;
 
-// Copy files from source to target, overwriting if exists
-try {
-    fs.copySync(sourceDir, targetDir, { overwrite: true });
-    console.log(`Successfully copied build files from ${sourceDir} to ${targetDir}`);
-} catch (err) {
-    console.error(`Error copying build files: ${err}`);
+for (const targetDir of targetDirs) {
+    const fullTargetDir = path.join(targetDir, "dist");
+    
+    // Ensure target directory exists
+    fs.ensureDirSync(fullTargetDir);
+    
+    // Copy files from source to target, overwriting if exists
+    try {
+        fs.copySync(sourceDir, fullTargetDir, { overwrite: true });
+        console.log(`✓ Successfully copied build files to ${fullTargetDir}`);
+        successCount++;
+    } catch (err) {
+        console.error(`✗ Error copying build files to ${fullTargetDir}: ${err}`);
+        errorCount++;
+    }
+}
+
+// Summary
+console.log(`\nCopy operation completed:`);
+console.log(`  Success: ${successCount} directories`);
+if (errorCount > 0) {
+    console.log(`  Errors: ${errorCount} directories`);
     process.exit(1);
 }
 
