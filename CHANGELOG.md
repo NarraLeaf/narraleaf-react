@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.0]
+
+### _Feature_
+
+- `LayoutRouter` creates a new way to manage complex page structures and transitions
+- Use `Layout` to create a layout group
+- Use Player prop `onError` to handle errors
+- `game.keyMap` allows you to manage key bindings and announce key changes across the player
+
+### _Incompatible Changes_
+
+- `Router` is deprecated, use `LayoutRouter` as a more powerful router
+- `Page` is refactored
+- `game.config.skipKey` and `game.config.nextKey` are deprecated, use `game.keyMap` instead
+
 ## [0.6.0]
 
 ### _Feature_

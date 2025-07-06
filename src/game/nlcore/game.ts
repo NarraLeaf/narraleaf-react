@@ -7,6 +7,9 @@ import { GameState } from "@player/gameState";
 import { GuardWarningType } from "@player/guard";
 import { DefaultElements } from "../player/elements/elements";
 import { Plugins, IGamePluginRegistry } from "./game/plugin/plugin";
+import { LayoutRouter } from "../player/lib/PageRouter/router";
+import { KeyMap } from "./game/keyMap";
+import { KeyBindingType } from "./game/types";
 enum GameSettingsNamespace {
     game = "game",
 }
@@ -68,15 +71,7 @@ export class Game {
     static DefaultConfig: GameConfig = {
         app: {
             debug: false,
-            logger: {
-                log: false,
-                info: false,
-                warn: true,
-                error: true,
-                debug: false,
-                trace: false,
-                verbose: false,
-            },
+            logger: { log: false, info: false, warn: true, error: true, debug: false, trace: false, verbose: false, },
             inspector: false,
             guard: {
                 [GuardWarningType.invalidExposedStateUnmounting]: true,
@@ -89,7 +84,6 @@ export class Game {
         minHeight: 450,
         width: 1920,
         height: 1080,
-        skipKey: ["Control"],
         useWindowListener: true,
         ratioUpdateInterval: 50,
         preloadDelay: 100,
@@ -104,7 +98,6 @@ export class Game {
         showOverflow: false,
         maxRouterHistory: 10,
         screenshotQuality: 1,
-        nextKey: [" "],
         useAspectScale: true,
         autoForwardDelay: 3 * 1000,
         autoForwardDefaultPause: 1000,
@@ -116,6 +109,7 @@ export class Game {
         allowSkipTextTransition: true,
         allowSkipLayersTransform: true,
         allowSkipVideo: false,
+        animationPropagate: false,
         dialogWidth: 1920,
         dialogHeight: 1080 * 0.2,
         defaultTextColor: "#000",
@@ -149,9 +143,17 @@ export class Game {
      */
     public preference: Preference<GamePreference> = new Preference<GamePreference>(Game.DefaultPreference);
     /**
+     * Game key bindings
+     */
+    public keyMap: KeyMap = new KeyMap({
+        [KeyBindingType.skipAction]: ["Control"],
+        [KeyBindingType.nextAction]: [" "],
+    });
+    /**
      * Plugin registry
      */
     public plugins: Plugins;
+    public router: LayoutRouter;
 
     /**
      * Create a new game
@@ -160,6 +162,7 @@ export class Game {
     constructor(config: DeepPartial<GameConfig>) {
         this.config = deepMerge<GameConfig>(Game.DefaultConfig, config);
         this.plugins = new Plugins(this);
+        this.router = new LayoutRouter(this);
     }
 
     /**

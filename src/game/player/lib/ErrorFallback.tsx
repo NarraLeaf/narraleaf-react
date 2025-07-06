@@ -4,10 +4,6 @@ import {useGame} from "@player/provider/game-state";
 export default function ErrorFallback({error, errorInfo}: { error: Error, errorInfo: ErrorInfo }) {
     const game = useGame();
 
-    if (game.config.onError) {
-        game.config.onError(error);
-    }
-
     if (game.config.app.debug) {
         return (
             <div className={"text-left"}>

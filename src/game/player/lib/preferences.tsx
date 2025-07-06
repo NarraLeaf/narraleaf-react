@@ -21,7 +21,7 @@ export function usePreference<K extends StringKeyOf<GamePreference>>(
 
     useEffect(() => {
         return game.preference.onPreferenceChange(key, setCurrentValue).cancel;
-    }, []);
+    }, [key, game.preference, setCurrentValue]);
 
     return [currentValue, setPreference];
 }

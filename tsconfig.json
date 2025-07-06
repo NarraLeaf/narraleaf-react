@@ -42,5 +42,5 @@
   },
   "include": [
     "src/**/*"
-  ]
+, "project/test/router.js", "project/test/router.test.js"  ]
 }

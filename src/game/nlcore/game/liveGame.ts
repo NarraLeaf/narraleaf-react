@@ -445,15 +445,8 @@ export class LiveGame {
     } {
         let token: LiveGameEventToken | null = null;
         return {
-            promise: new Promise((resolve, reject) => {
-                this.assertGameState();
-                const gameState = this.gameState;
-                if (!gameState.pageRouter) {
-                    reject(new RuntimeInternalError("Page router is not mounted"));
-                    return;
-                }
-
-                token = gameState.pageRouter.onceExitComplete(() => {
+            promise: new Promise((resolve) => {
+                token = this.game.router.onceExitComplete(() => {
                     resolve();
                 });
             }),
@@ -471,15 +464,8 @@ export class LiveGame {
     } {
         let token: LiveGameEventToken | null = null;
         return {
-            promise: new Promise((resolve, reject) => {
-                this.assertGameState();
-                const gameState = this.gameState;
-                if (!gameState.pageRouter) {
-                    reject(new RuntimeInternalError("Page router is not mounted"));
-                    return;
-                }
-
-                token = gameState.pageRouter.oncePageMount(() => {
+            promise: new Promise((resolve) => {
+                token = this.game.router.oncePageMount(() => {
                     resolve();
                 });
             }),
