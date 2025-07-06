@@ -446,8 +446,6 @@ export class LiveGame {
         let token: LiveGameEventToken | null = null;
         return {
             promise: new Promise((resolve) => {
-                this.assertGameState();
-
                 token = this.game.router.onceExitComplete(() => {
                     resolve();
                 });
