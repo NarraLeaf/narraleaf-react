@@ -309,20 +309,30 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
     static propToCSSTransform(
         state: GameState,
         prop: Partial<TransformDefinitions.Types>,
-        {
-            translate = [],
-            scale = 1,
-        }: {
-            translate?: [string?, string?];
-            scale?: number;
-        } = {}): string {
-        const propScale = (prop["scale"] !== undefined) ? prop["scale"] : 1;
-
+        options?: { translate?: [string?, string?] }
+    ): string {
         const { invertY, invertX } = state.getStory().getInversionConfig();
+        const { translate = [] }: { translate?: [string?, string?] } = options || {};
+        const zoom = prop.zoom ?? 1;
+
+        const optional = function<T>(
+            value: T | undefined,
+            transformer: (value: T) => string,
+            defaultValue?: T | undefined
+        ): string {
+            if (typeof value === "undefined") {
+                return defaultValue ? transformer(defaultValue) : "";
+            }
+            return transformer(value);
+        };
+
+        const translateX = translate[0] || ((invertX ? "" : "-") + "50%");
+        const translateY = translate[1] || ((invertY ? "" : "-") + "50%");
         const Transforms = [
-            `translate(${translate[0] || ((invertX ? "" : "-") + "50%")}, ${translate[1] || ((invertY ? "" : "-") + "50%")})`,
-            (prop["rotation"] !== undefined) && `rotate(${prop["rotation"]}deg)`,
-            `scale(${propScale * scale})`,
+            `translate(${translateX}, ${translateY})`,
+            optional(prop["rotation"], (value) => `rotate(${value}deg)`, 0),
+            optional(prop["scaleX"], (value) => `scaleX(${value * zoom})`, 1),
+            optional(prop["scaleY"], (value) => `scaleY(${value * zoom})`, 1),
         ];
         return Transforms.filter(Boolean).join(" ");
     }
@@ -336,7 +346,6 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
             opacity: props.opacity,
             color: ("fontColor" in props && props.fontColor) ? toHex((props as TransformDefinitions.TextTransformProps).fontColor!) : undefined,
             transform: Transform.propToCSSTransform(state, props),
-            scale: props.scale,
             ...(overwrite ? overwrite(props) : {}),
         } satisfies DOMKeyframesDefinition;
     }
@@ -576,14 +585,50 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
     }
 
     /**
-     * Scale the current staging sequence.
-     * @param {number} scale - The scale of the transform.
-     * @returns {this} The current Transform instance for method chaining.
+     * Set the zoom of the current staging sequence.
+     * @param zoom - The zoom of the transform. use `1` to keep the original size
      */
-    public scale(scale: TransformDefinitions.Types["scale"]): this {
+    public zoom(zoom: TransformDefinitions.Types["zoom"]): this {
         return this.pushChange({
-            key: "scale",
-            props: scale,
+            key: "zoom",
+            props: zoom,
+        });
+    }
+
+    /**
+     * Set the scale of the current staging sequence on x axis.
+     * @param scaleX - The scale of the transform on x axis.
+     */
+    public scaleX(scaleX: TransformDefinitions.Types["scaleX"]): this {
+        return this.pushChange({
+            key: "scaleX",
+            props: scaleX,
+        });
+    }
+    
+    /**
+     * Set the scale of the current staging sequence on y axis.
+     * @param scaleY - The scale of the transform on y axis.
+     */
+    public scaleY(scaleY: TransformDefinitions.Types["scaleY"]): this {
+        return this.pushChange({
+            key: "scaleY",
+            props: scaleY,
+        });
+    }
+
+    /**
+     * Set the scale of the current staging sequence.
+     * @param scaleX - The scale of the transform on x axis. use negative value to invert the scale
+     * @param scaleY - The scale of the transform on y axis. use negative value to invert the scale
+     */
+    public scale(scaleX: TransformDefinitions.Types["scaleX"], scaleY: TransformDefinitions.Types["scaleY"]): this {
+        return this.pushChange({
+            key: "scaleX",
+            props: scaleX,
+        }).pushChange({
+            key: "scaleY",
+            props: scaleY,
         });
     }
 

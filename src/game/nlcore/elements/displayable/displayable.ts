@@ -44,20 +44,91 @@ export abstract class Displayable<
         }));
     }
 
+    // /**
+    //  * Set Image Scale
+    //  * @param scale - The scale of the image, between 0 and 1
+    //  * @param duration - The duration of the scale animation
+    //  * @param easing - The easing of the scale animation
+    //  * @chainable
+    //  */
+    // public scale(
+    //     scale: number,
+    //     duration?: number,
+    //     easing?: TransformDefinitions.EasingDefinition
+    // ): Proxied<Self, Chained<LogicAction.Actions>> {
+    //     return this.transform(new Transform<TransformType>({
+    //         scale,
+    //     } as TransformType, {
+    //         duration,
+    //         ease: easing,
+    //     }));
+    // }
+
     /**
-     * Set Image Scale
-     * @param scale - The scale of the image, between 0 and 1
-     * @param duration - The duration of the scale animation
-     * @param easing - The easing of the scale animation
-     * @chainable
+     * Set the zoom of the current staging sequence.
+     * @param zoom - The zoom of the transform. use `1` to keep the original size
      */
-    public scale(
-        scale: number,
+    public zoom(
+        zoom: number,
         duration?: number,
         easing?: TransformDefinitions.EasingDefinition
     ): Proxied<Self, Chained<LogicAction.Actions>> {
         return this.transform(new Transform<TransformType>({
-            scale,
+            zoom,
+        } as TransformType, {
+            duration,
+            ease: easing,
+        }));
+    }
+
+    /**
+     * Set the scale of the current staging sequence on x axis.
+     * @param scaleX - The scale of the transform on x axis.
+     */
+    public scaleX(
+        scaleX: number,
+        duration?: number,
+        easing?: TransformDefinitions.EasingDefinition
+    ): Proxied<Self, Chained<LogicAction.Actions>> {
+        return this.transform(new Transform<TransformType>({
+            scaleX,
+        } as TransformType, {
+            duration,
+            ease: easing,
+        }));
+    }
+
+    /**
+     * Set the scale of the current staging sequence on y axis.
+     * @param scaleY - The scale of the transform on y axis.
+     */
+    public scaleY(
+        scaleY: number,
+        duration?: number,
+        easing?: TransformDefinitions.EasingDefinition
+    ): Proxied<Self, Chained<LogicAction.Actions>> {
+        return this.transform(new Transform<TransformType>({
+            scaleY,
+        } as TransformType, {
+            duration,
+            ease: easing,
+        }));
+    }
+
+    /**
+     * Set the scale of the current staging sequence.
+     * @param scaleX - The scale of the transform on x axis. use negative value to invert the scale
+     * @param scaleY - The scale of the transform on y axis. use negative value to invert the scale
+     */
+    public scale(
+        scaleX: number,
+        scaleY: number,
+        duration?: number,
+        easing?: TransformDefinitions.EasingDefinition
+    ): Proxied<Self, Chained<LogicAction.Actions>> {
+        return this.transform(new Transform<TransformType>({
+            scaleX,
+            scaleY,
         } as TransformType, {
             duration,
             ease: easing,
