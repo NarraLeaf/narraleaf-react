@@ -26,18 +26,6 @@ import { CSSProps } from "@core/elements/transition/type";
 import { ConfigConstructor } from "@lib/util/config";
 import { RuntimeScriptError } from "@core/common/Utils";
 
-export type Transformers =
-    "position"
-    | "opacity"
-    | "scale"
-    | "rotation"
-    | "display"
-    | "src"
-    | "backgroundColor"
-    | "backgroundOpacity"
-    | "transform"
-    | "fontColor";
-export type TransformHandler<T> = (value: T) => DOMKeyframesDefinition;
 /**@internal */
 export type TransformStateProps = TransformDefinitions.Types;
 
@@ -53,8 +41,6 @@ const CommonImagePositionMap = {
 } as const;
 
 type OverwriteMap = {
-    transform: React.CSSProperties["transform"];
-    scale: React.CSSProperties["scale"];
     overwrite: CSSProps;
 };
 export type OverwriteDefinition = {
@@ -65,7 +51,9 @@ type OverwriteHandler<T> = (value: Partial<TransformDefinitions.Types>) => T;
 /**@internal */
 export class TransformState<T extends TransformDefinitions.Types> {
     static DefaultTransformState = new ConfigConstructor<CommonDisplayableConfig>({
-        scale: 1,
+        scaleX: 1,
+        scaleY: 1,
+        zoom: 1,
         rotation: 0,
         position: new CommonPosition(CommonPositionType.Center),
         opacity: 0,
@@ -320,7 +308,7 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
     /**@internal */
     static propToCSSTransform(
         state: GameState,
-        prop: Record<string, any>,
+        prop: Partial<TransformDefinitions.Types>,
         {
             translate = [],
             scale = 1,
@@ -342,13 +330,13 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
     /**@internal */
     static constructStyle<T extends TransformDefinitions.Types>(state: GameState, props: Partial<T>, overwrites?: OverwriteDefinition): DOMKeyframesDefinition {
         const { invertY, invertX } = state.getStory().getInversionConfig();
-        const { transform, scale, overwrite } = overwrites || {};
+        const { overwrite } = overwrites || {};
         return {
             ...Transform.positionToCSS(props.position, invertY, invertX),
             opacity: props.opacity,
             color: ("fontColor" in props && props.fontColor) ? toHex((props as TransformDefinitions.TextTransformProps).fontColor!) : undefined,
-            transform: transform ? transform(props) : Transform.propToCSSTransform(state, props),
-            scale: scale ? scale(props) : undefined,
+            transform: Transform.propToCSSTransform(state, props),
+            scale: props.scale,
             ...(overwrite ? overwrite(props) : {}),
         } satisfies DOMKeyframesDefinition;
     }

@@ -38,6 +38,7 @@ export type CommonDisplayableConfig = {
     /**
      * Scale of the element, between 0 and 1
      * @default 1
+     * @deprecated use `scaleX`, `scaleY` and `zoom` instead
      */
     scale?: number;
     /**
@@ -59,6 +60,21 @@ export type CommonDisplayableConfig = {
      * Alt text of the element
      */
     alt?: string;
+    /**
+     * Scale of the element on x axis, use negative value to invert the scale
+     * @default 1
+     */
+    scaleX?: number;
+    /**
+     * Scale of the element on y axis, use negative value to invert the scale
+     * @default 1
+     */
+    scaleY?: number;
+    /**
+     * Zoom of the element, use `1` to keep the original size
+     * @default 1
+     */
+    zoom?: number;
 }
 export const ImagePosition: {
     [K in CommonImagePosition]: K;
