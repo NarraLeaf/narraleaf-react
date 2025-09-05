@@ -36,12 +36,6 @@ export type RelativeLength = Length | "100%";
 export type CommonImagePosition = "left" | "center" | "right";
 export type CommonDisplayableConfig = {
     /**
-     * Scale of the element, between 0 and 1
-     * @default 1
-     * @deprecated use `scaleX`, `scaleY` and `zoom` instead
-     */
-    scale?: number;
-    /**
      * Rotation of the element, in degrees
      * @default 0
      */

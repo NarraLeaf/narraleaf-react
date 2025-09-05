@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.0]
+
+### _Feature_
+
+- Added `Displayable.scaleXY`, `Displayable.scaleX`, `Displayable.scaleY`, `Displayable.zoom`
+
+### _Incompatible Changes_
+
+- `Displayable.scale` is changed. The scale now is separated into `scaleX` and `scaleY`. To zoom the image, use `Displayable.zoom` instead
+
 ## [0.7.0]
 
 ### _Feature_
