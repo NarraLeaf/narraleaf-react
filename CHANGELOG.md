@@ -10,6 +10,10 @@
 
 - `Displayable.scale` is changed. The scale now is separated into `scaleX` and `scaleY`. To zoom the image, use `Displayable.zoom` instead
 
+### Fixed
+
+- Background image using hex color is not showing
+
 ## [0.7.0]
 
 ### _Feature_
