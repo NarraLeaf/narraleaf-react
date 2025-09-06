@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1]
+
+### Fixed
+
+- Default value of `Transform.propToCSSTransform#optional` is not respected
+- Fixed an issue where the top-of-stack action might be executed repeatedly during undo operations.
+
 ## [0.8.0]
 
 ### _Feature_
