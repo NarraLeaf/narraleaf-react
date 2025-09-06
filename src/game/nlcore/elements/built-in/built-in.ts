@@ -1,1 +1,1 @@
-export {};
+export { Gallery } from "./Gallery";
