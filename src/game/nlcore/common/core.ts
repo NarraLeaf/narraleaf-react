@@ -6,4 +6,5 @@ export * from "./player";
 export * from "./types";
 export * from "./position";
 export * from "./transition";
+export * from "./interface";
 export { i, c, b };

@@ -63,8 +63,7 @@ export class LiveGame {
 
     public game: Game;
     public events: EventDispatcher<LiveGameEvent> = new EventDispatcher();
-    /**@internal */
-    story: Story | null = null;
+    public story: Story | null = null;
     /**@internal */
     gameLock = new MultiLock();
     /**@internal */

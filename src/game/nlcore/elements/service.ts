@@ -123,9 +123,4 @@ export abstract class Service<
      * @param data data exported from toData
      */
     abstract deserialize?(data: RawData): void;
-
-    /**
-     * Called when the service is initialized
-     */
-    abstract init?(): void;
 }
