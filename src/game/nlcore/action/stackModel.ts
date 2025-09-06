@@ -370,7 +370,22 @@ export class StackModel {
         return false;
     }
 
-    serialize(): StackModelRawData {
+    /**
+     * Serialize current StackModel into a plain JSON-serialisable structure.
+     *
+     * @param frozen - When true (default), the snapshot also contains the
+     *                 action currently executing at the top of the stack
+     *                 (waitingAction). This is required by save/load so that
+     *                 reloading a save resumes exactly at the current dialog or
+     *                 async node, keeping the runtime state self-consistent.
+     *                 When false, waitingAction is excluded and the snapshot
+     *                 reflects the state *before* the current action started.
+     *                 The undo/history system will then re-insert the action
+     *                 manually (see LiveGame.undo) to avoid having two copies
+     *                 of the same action after deserialisation.
+     * @returns Snapshot that can be passed to {@link StackModel.deserialize}.
+     */
+    serialize(frozen: boolean = true): StackModelRawData {
         const toData = (item: CalledActionResult | Awaitable<CalledActionResult>): ArrayValue<StackModelRawData> | null => {
             if (StackModel.isCalledActionResult(item)) {
                 const actionId = item.node?.action?.getId() ?? null;
@@ -392,7 +407,7 @@ export class StackModel {
         const data = this.stack.map(toData).filter(function (item): item is Exclude<ArrayValue<StackModelRawData> | null, null> {
             return item !== null;
         });
-        if (this.waitingAction) {
+        if (frozen && this.waitingAction) {
             const actionData = toData(this.waitingAction);
             if (actionData) {
                 data.push(actionData);

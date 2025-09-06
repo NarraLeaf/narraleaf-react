@@ -176,6 +176,11 @@ export class LiveGame {
      * After calling this method, the current game state will be lost, and the stage will trigger force reset
      */
     public deserialize(savedGame: SavedGame) {
+        // This check is to prevent invalid usage
+        if (!savedGame) {
+            throw new Error("No saved game provided when trying to deserialize game state");
+        }
+
         this.assertGameState();
         const gameState = this.gameState;
 

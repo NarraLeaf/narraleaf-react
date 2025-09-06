@@ -43,7 +43,7 @@ export class ActionHistoryManager {
     public push<T extends Array<any> = Array<any>>(props: ActionHistoryPushOptions, onUndo?: (...args: T) => void, args?: T): {id: string} {
         const id = randId(6);
         const { action, timeline, stackModel } = props;
-        const snapshot = this.liveGame.getStackModelForce().serialize();
+        const snapshot = this.liveGame.getStackModelForce().serialize(false);
         this.history.push({action, id, args: args || [], undo: onUndo, timeline, rootStackSnapshot: snapshot, stackModel});
         
         // Check if the history size exceeds the limit
