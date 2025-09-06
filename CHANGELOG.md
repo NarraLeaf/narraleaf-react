@@ -5,6 +5,7 @@
 ### _Feature_
 
 - Added `Displayable.scaleXY`, `Displayable.scaleX`, `Displayable.scaleY`, `Displayable.zoom`
+- Built-in Gallery Service
 
 ### _Incompatible Changes_
 
