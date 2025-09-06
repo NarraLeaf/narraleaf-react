@@ -321,7 +321,7 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
             defaultValue?: T | undefined
         ): string {
             if (typeof value === "undefined") {
-                return defaultValue ? transformer(defaultValue) : "";
+                return typeof defaultValue !== "undefined" ? transformer(defaultValue) : "";
             }
             return transformer(value);
         };

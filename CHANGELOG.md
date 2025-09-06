@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.1]
+
+### Fixed
+
+- Default value of `Transform.propToCSSTransform#optional` is not respected
+
 ## [0.8.0]
 
 ### _Feature_
