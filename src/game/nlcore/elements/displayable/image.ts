@@ -93,7 +93,7 @@ export class Image<
     implements EventfulDisplayable {
 
     /**@internal */
-    public static DefaultImagePlaceholder = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAwAB/6Vf9WYAAAAASUVORK5CYII=";
+    public static DefaultImagePlaceholder = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'></svg>";
 
     /**@internal */
     static StateSerializer = new Serializer<ImageState>();
