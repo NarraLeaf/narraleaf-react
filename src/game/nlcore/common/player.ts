@@ -15,3 +15,5 @@ export {
     useParams,
     useQueryParams,
 };
+
+/* @test */ export {PresenceContext} from "motion/react";
