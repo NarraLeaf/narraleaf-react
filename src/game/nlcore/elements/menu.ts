@@ -127,7 +127,7 @@ export class Menu extends Actionable<any, Menu> {
      * 
      * **Note**: This method will override the last choice's config.hidden
      */
-    public hideIf(condition: Lambda<boolean>): Proxied<Menu, Chained<LogicAction.Actions>> {
+    public hideIf(condition: Lambda<boolean> | LambdaHandler<boolean>): Proxied<Menu, Chained<LogicAction.Actions>> {
         const lastChoice = this.choices[this.choices.length - 1];
         if (!lastChoice) {
             throw new StaticScriptWarning("Trying to configure the last choice of a menu, but no choice added. This may be caused by calling `menu.hideIf` before `menu.choose`");
@@ -145,7 +145,7 @@ export class Menu extends Actionable<any, Menu> {
      * ).disableIf(persis.isTrue("flag"));
      * ```
      */
-    public disableIf(condition: Lambda<boolean>): Proxied<Menu, Chained<LogicAction.Actions>> {
+    public disableIf(condition: Lambda<boolean> | LambdaHandler<boolean>): Proxied<Menu, Chained<LogicAction.Actions>> {
         const lastChoice = this.choices[this.choices.length - 1];
         if (!lastChoice) {
             throw new StaticScriptWarning("Trying to configure the last choice of a menu, but no choice added. This may be caused by calling `menu.disableIf` before `menu.choose`");
@@ -163,7 +163,7 @@ export class Menu extends Actionable<any, Menu> {
      * ]);
      * ```
      */
-    public enableWhen(condition: Lambda<boolean>, prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
+    public enableWhen(condition: Lambda<boolean> | LambdaHandler<boolean>, prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
         return this.choose({
             prompt,
             action,
@@ -182,7 +182,7 @@ export class Menu extends Actionable<any, Menu> {
      * ]);
      * ```
      */
-    public showWhen(condition: Lambda<boolean>, prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
+    public showWhen(condition: Lambda<boolean> | LambdaHandler<boolean>, prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
         return this.choose({
             prompt,
             action,

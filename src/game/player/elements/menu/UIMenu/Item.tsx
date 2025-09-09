@@ -63,7 +63,7 @@ export default function Item({ className, style, bindKey }: ItemProps) {
     }, [bindKey]);
 
     function handleClick() {
-        if (index === -1 || !evaluated[index]) return;
+        if (index === -1 || !evaluated[index] || hidden || disabled) return;
         const currentChoice = evaluated[index];
         choose({
             ...currentChoice,
@@ -71,18 +71,21 @@ export default function Item({ className, style, bindKey }: ItemProps) {
         });
     }
 
-    if (!choice || hidden) return null;
+    const visibility = choice && !hidden;
 
     return (
         <>
             <button
                 className={className}
-                style={style}
+                style={{
+                    ...style,
+                    display: visibility ? (style?.display ?? undefined) : "none",
+                }}
                 onClick={handleClick}
                 ref={ref}
                 disabled={disabled}
             >
-                {(<RawTexts
+                {(visibility && <RawTexts
                     dialog={new DialogState({
                         useTypeEffect: false,
                         action: {
