@@ -7,7 +7,7 @@ import {Sentence, SentencePrompt} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
 import {MenuAction} from "@core/action/actions/menuAction";
 import Actions = LogicAction.Actions;
-import { ActionStatements } from "./type";
+import { ActionStatements, LambdaHandler } from "./type";
 import { Narrator } from "./character";
 import { Lambda } from "./condition";
 import { StaticScriptWarning } from "../common/Utils";
@@ -17,7 +17,10 @@ export type MenuConfig = {};
 export type MenuChoice = {
     action: ActionStatements;
     prompt: SentencePrompt | Sentence;
-    config?: ChoiceConfig;
+    config?: {
+        disabled?: Lambda<boolean> | LambdaHandler<boolean>;
+        hidden?: Lambda<boolean> | LambdaHandler<boolean>;
+    };
 };
 
 export type Choice = {
@@ -99,7 +102,10 @@ export class Menu extends Actionable<any, Menu> {
             chained.choices.push({
                 prompt: Sentence.toSentence(arg0.prompt),
                 action: this.narrativeToActions(arg0.action),
-                config: arg0.config ?? {}
+                config: {
+                    disabled: arg0.config?.disabled ? Lambda.from(arg0.config.disabled) : undefined,
+                    hidden: arg0.config?.hidden ? Lambda.from(arg0.config.hidden) : undefined
+                }
             });
         } else {
             console.warn("No valid choice added to menu, ", {
@@ -146,6 +152,44 @@ export class Menu extends Actionable<any, Menu> {
         }
         lastChoice.config.disabled = Lambda.from(condition);
         return this.chain();
+    }
+
+    /**
+     * Add a choice, only enable when the condition is true
+     * @example
+     * ```ts
+     * menu.enableWhen(persis.isTrue("flag"), "Go left", [
+     *     character.say("I went left")
+     * ]);
+     * ```
+     */
+    public enableWhen(condition: Lambda<boolean>, prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
+        return this.choose({
+            prompt,
+            action,
+            config: {
+                disabled: Lambda.from(condition)
+            }
+        });
+    }
+
+    /**
+     * Add a choice, only show when the condition is true
+     * @example
+     * ```ts
+     * menu.showWhen(persis.isTrue("flag"), "Go left", [
+     *     character.say("I went left")
+     * ]);
+     * ```
+     */
+    public showWhen(condition: Lambda<boolean>, prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
+        return this.choose({
+            prompt,
+            action,
+            config: {
+                hidden: Lambda.from(condition)
+            }
+        });
     }
 
     /**@internal */
