@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2]
+
+### Fixed
+
+- Incorrect behavior of `Scene.setBackground`
+- Removed deprecated method `Story.registerScene`
+
 ## [0.8.1]
 
 ### Fixed
