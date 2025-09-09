@@ -627,7 +627,7 @@ export class LiveGame {
 
         // If the action stack is empty
         if (this.stackModel.isEmpty()) {
-            gameState.logger.weakWarn("LiveGame", "No current action");
+            gameState.logger.weakWarn("Game Actions", "Action stack is empty");
             if (this.currentSavedGame) {
                 gameState.events.emit("event:state.end");
             } else {
