@@ -73,35 +73,6 @@ export class Story extends Constructable<
     }
 
     /**
-     * Register a scene to the story
-     * @example
-     * ```typescript
-     * // register a scene
-     * const story = new Story("story");
-     * const scene1 = new Scene("scene1");
-     * const scene2 = new Scene("scene2");
-     *
-     * story.register(scene1); // Register scene1
-     *
-     * scene2.action([
-     *   scene2.jump("scene1") // Jump to scene1
-     * ]);
-     * ```
-     */
-    public registerScene(name: string, scene: Scene): this;
-    public registerScene(scene: Scene): this;
-    public registerScene(arg0: string | Scene, arg1?: Scene): this {
-        const name = typeof arg0 === "string" ? arg0 : arg0.config.name;
-        const scene = typeof arg0 === "string" ? arg1! : arg0;
-
-        if (this.scenes.has(name) && this.scenes.get(name) !== scene) {
-            throw new Error(`Scene with name ${name} already exists when registering scene`);
-        }
-        this.scenes.set(name, scene);
-        return this;
-    }
-
-    /**
      * Register a Persistent to the story
      *
      * You can't use a Persistent that isn't registered to the story

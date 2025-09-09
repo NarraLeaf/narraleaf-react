@@ -165,7 +165,7 @@ export class Gallery<Metadata extends Record<string, any>> extends Service<Galle
      * @param name - The name of the item to get the metadata of
      * @returns The metadata of the item
      */
-    public $get(name: string): Metadata {
+    public $get(name: string): Metadata | undefined {
         return this.unlocked[name];
     }
 

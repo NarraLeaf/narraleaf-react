@@ -6,22 +6,21 @@ import {TypedAction} from "@core/action/actions";
 import {Story} from "@core/elements/story";
 import {ActionSearchOptions} from "@core/types";
 import { ContentNode } from "@core/action/tree/actionTree";
+import { ActionExecutionInjection } from "../action";
 
 export class ConditionAction<T extends typeof ConditionActionTypes[keyof typeof ConditionActionTypes] = typeof ConditionActionTypes[keyof typeof ConditionActionTypes]>
     extends TypedAction<ConditionActionContentType, T, Condition> {
     static ActionTypes = ConditionActionTypes;
 
-    executeAction(gameState: GameState) {
+    executeAction(gameState: GameState, injection: ActionExecutionInjection) {
         const nodes = this.callee.evaluate(this.contentNode.getContent(), {
             gameState
         });
 
-        const stackModel = gameState.getLiveGame().createStackModel([
-            {
-                type: this.type,
-                node: nodes?.[0]?.contentNode ?? null
-            }
-        ]);
+        if (!nodes?.length) {
+            return super.executeAction(gameState, injection);
+        }
+
         return [
             {
                 type: this.type,
@@ -29,11 +28,7 @@ export class ConditionAction<T extends typeof ConditionActionTypes[keyof typeof 
             },
             {
                 type: this.type,
-                node: null,
-                wait: {
-                    type: "all" as const,
-                    stackModels: [stackModel]
-                }
+                node: nodes[0].contentNode,
             }
         ];
     }

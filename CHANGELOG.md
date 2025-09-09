@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.2]
+
+### Fixed
+
+- Incorrect behavior of `Scene.setBackground`
+- Removed deprecated method `Story.registerScene`
+- Condition actions are not executed correctly
+- Null action execution can cause infinite loop
+
 ## [0.8.1]
 
 ### Fixed
