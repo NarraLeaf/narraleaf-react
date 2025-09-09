@@ -16,3 +16,7 @@ export interface MenuElementProps {
 export interface IUserMenuProps {
     items: number[];
 }
+
+export type ChoiceEvaluated = Choice & {
+    words: Word<Pausing | string>[];
+};

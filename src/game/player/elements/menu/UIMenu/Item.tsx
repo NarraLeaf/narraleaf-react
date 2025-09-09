@@ -1,11 +1,10 @@
 import { Word } from "@core/elements/character/word";
-import { Choice } from "@core/elements/menu";
-import clsx from "clsx";
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useUIListContext, useUIMenuContext } from "./context";
-import { Pausing } from "@lib/game/nlcore/elements/character/pause";
+import { Script } from "@lib/game/nlcore/elements/script";
 import { RawTexts } from "@player/elements/say/Sentence";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DialogState } from "../../say/UIDialog";
+import { ChoiceEvaluated } from "../type";
+import { useUIListContext, useUIMenuContext } from "./context";
 
 export interface ItemProps {
     className?: string;
@@ -22,21 +21,28 @@ export default function Item({ className, style, bindKey }: ItemProps) {
     const ref = useRef<HTMLButtonElement>(null);
     const { register, unregister, getIndex } = useUIListContext();
     const [index, setIndex] = useState(-1);
-    const {choose, evaluated, gameState} = useUIMenuContext();
+    const { choose, evaluated, gameState } = useUIMenuContext();
 
-    const choice: Choice & {
-        words: Word<Pausing | string>[];
-    } | null = index === -1 ? null : evaluated[index];
+    const choice: ChoiceEvaluated | null = index === -1 ? null : evaluated[index];
+    const ctx = useMemo(() => Script.getCtx({ gameState }), [gameState]);
+    const { hidden, disabled } = useMemo(() => {
+        if (!choice) return { hidden: false, disabled: false };
+
+        const hidden = choice.config.hidden?.evaluate(ctx)?.value ?? false;
+        const disabled = !hidden && (choice.config.disabled?.evaluate(ctx)?.value ?? false);
+
+        return { hidden, disabled };
+    }, [choice, ctx]);
 
     useLayoutEffect(() => {
         if (!ref.current) return;
         const elementRef = ref as React.RefObject<HTMLButtonElement>;
-    
+
         register(elementRef);
         const currentIndex = getIndex(elementRef);
         setIndex(currentIndex);
         ref.current.dataset.index = currentIndex.toString();
-    
+
         return () => unregister(elementRef);
     }, [register, unregister, getIndex]);
 
@@ -65,30 +71,29 @@ export default function Item({ className, style, bindKey }: ItemProps) {
         });
     }
 
+    if (!choice || hidden) return null;
+
     return (
         <>
             <button
-                className={clsx(
-                    className,
-                )}
+                className={className}
                 style={style}
                 onClick={handleClick}
                 ref={ref}
+                disabled={disabled}
             >
-                {choice && (
-                    <RawTexts
-                        dialog={new DialogState({
-                            useTypeEffect: false,
-                            action: {
-                                sentence: choice.prompt,
-                                words: choice.words,
-                                character: null,
-                            },
-                            gameState,
-                            evaluatedWords: choice.words,
-                        })}
-                    />
-                )}
+                {(<RawTexts
+                    dialog={new DialogState({
+                        useTypeEffect: false,
+                        action: {
+                            sentence: choice.prompt,
+                            words: choice.words,
+                            character: null,
+                        },
+                        gameState,
+                        evaluatedWords: choice.words,
+                    })}
+                />)}
             </button>
         </>
     );

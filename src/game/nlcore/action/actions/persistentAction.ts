@@ -38,12 +38,13 @@ export class PersistentAction<T extends Values<typeof PersistentActionTypes> = V
 
             return super.executeAction(gameState, injection);
         } else if (action.is<PersistentAction<"persistent:assign">>(PersistentAction, "persistent:assign")) {
-            const [value] = (action.contentNode as ContentNode<PersistentActionContentType["persistent:assign"]>).getContent() as [Partial<PersistentContent>];
+            const [arg0] = (action.contentNode as ContentNode<PersistentActionContentType["persistent:assign"]>).getContent() as [Partial<PersistentContent> | ((value: PersistentContent) => Partial<PersistentContent>)];
             const namespace = gameState.getStorable().getNamespace(
                 action.callee.getNamespaceName()
             ) as Namespace<PersistentContent>;
             const prevValue: Partial<PersistentContent> = {};
 
+            const value = typeof arg0 === "function" ? arg0(namespace.getContent()) : arg0;
             Object.keys(value).forEach((key: string) => {
                 prevValue[key] = namespace.get(key);
                 namespace.set(key, value[key]);

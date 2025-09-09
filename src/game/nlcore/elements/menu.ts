@@ -9,23 +9,32 @@ import {MenuAction} from "@core/action/actions/menuAction";
 import Actions = LogicAction.Actions;
 import { ActionStatements } from "./type";
 import { Narrator } from "./character";
+import { Lambda } from "./condition";
+import { StaticScriptWarning } from "../common/Utils";
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type MenuConfig = {};
 export type MenuChoice = {
     action: ActionStatements;
     prompt: SentencePrompt | Sentence;
+    config?: ChoiceConfig;
 };
 
 export type Choice = {
     action: Actions[];
     prompt: Sentence;
+    config: ChoiceConfig;
 };
 
 export type MenuData = {
     prompt: Sentence | null;
     choices: Choice[];
-}
+};
+
+export type ChoiceConfig = {
+    disabled?: Lambda<boolean>;
+    hidden?: Lambda<boolean>;
+};
 
 export class Menu extends Actionable<any, Menu> {
     /**@internal */
@@ -83,11 +92,15 @@ export class Menu extends Actionable<any, Menu> {
     public choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
         const chained = this.chain();
         if (Sentence.isSentence(arg0) && arg1) {
-            chained.choices.push({prompt: Sentence.toSentence(arg0), action: this.narrativeToActions(arg1)});
+            chained.choices.push({prompt: Sentence.toSentence(arg0), action: this.narrativeToActions(arg1), config: {}});
         } else if ((Word.isWord(arg0) || Array.isArray(arg0) || typeof arg0 === "string") && arg1) {
-            chained.choices.push({prompt: Sentence.toSentence(arg0), action: this.narrativeToActions(arg1)});
+            chained.choices.push({prompt: Sentence.toSentence(arg0), action: this.narrativeToActions(arg1), config: {}});
         } else if (typeof arg0 === "object" && "prompt" in arg0 && "action" in arg0) {
-            chained.choices.push({prompt: Sentence.toSentence(arg0.prompt), action: this.narrativeToActions(arg0.action)});
+            chained.choices.push({
+                prompt: Sentence.toSentence(arg0.prompt),
+                action: this.narrativeToActions(arg0.action),
+                config: arg0.config ?? {}
+            });
         } else {
             console.warn("No valid choice added to menu, ", {
                 arg0,
@@ -95,6 +108,44 @@ export class Menu extends Actionable<any, Menu> {
             });
         }
         return chained;
+    }
+
+    /**
+     * Magic method to hide the last choice if the condition is true
+     * @example
+     * ```ts
+     * menu.choose(
+     *   // ...
+     * ).hideIf(persis.isTrue("flag"));
+     * ```
+     * 
+     * **Note**: This method will override the last choice's config.hidden
+     */
+    public hideIf(condition: Lambda<boolean>): Proxied<Menu, Chained<LogicAction.Actions>> {
+        const lastChoice = this.choices[this.choices.length - 1];
+        if (!lastChoice) {
+            throw new StaticScriptWarning("Trying to configure the last choice of a menu, but no choice added. This may be caused by calling `menu.hideIf` before `menu.choose`");
+        }
+        lastChoice.config.hidden = Lambda.from(condition);
+        return this.chain();
+    }
+
+    /**
+     * Magic method to disable the last choice if the condition is true
+     * @example
+     * ```ts
+     * menu.choose(
+     *   // ...
+     * ).disableIf(persis.isTrue("flag"));
+     * ```
+     */
+    public disableIf(condition: Lambda<boolean>): Proxied<Menu, Chained<LogicAction.Actions>> {
+        const lastChoice = this.choices[this.choices.length - 1];
+        if (!lastChoice) {
+            throw new StaticScriptWarning("Trying to configure the last choice of a menu, but no choice added. This may be caused by calling `menu.disableIf` before `menu.choose`");
+        }
+        lastChoice.config.disabled = Lambda.from(condition);
+        return this.chain();
     }
 
     /**@internal */
@@ -150,7 +201,8 @@ export class Menu extends Actionable<any, Menu> {
         return this.choices.map(choice => {
             return {
                 action: this.constructNodes(choice.action),
-                prompt: choice.prompt
+                prompt: choice.prompt,
+                config: choice.config ?? {}
             };
         });
     }

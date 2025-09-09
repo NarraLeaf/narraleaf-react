@@ -76,6 +76,11 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
     }
 
     /**@internal */
+    getContent(): T {
+        return this.content as T;
+    }
+
+    /**@internal */
     toData(): { [key: string]: WrappedStorableData } {
         return this.serialize();
     }
