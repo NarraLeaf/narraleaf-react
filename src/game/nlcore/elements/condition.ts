@@ -16,6 +16,11 @@ export class Lambda<T = any> {
     }
 
     /**@internal */
+    public static isLambdaHandler(value: any): value is LambdaHandler {
+        return typeof value === "function";
+    }
+
+    /**@internal */
     public static from<T>(obj: Lambda<T> | LambdaHandler<T>): Lambda<T> {
         return Lambda.isLambda(obj) ? obj : new Lambda(obj);
     }

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.4]
+
+### _Feature_
+
+- `Persistent.equals`, `Persistent.notEquals` now support lambda or lambda handler as argument
+
 ## [0.8.3]
 
 ### _Feature_

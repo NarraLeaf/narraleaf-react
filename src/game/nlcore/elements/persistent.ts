@@ -84,11 +84,21 @@ export class Persistent<T extends PersistentContent>
 
     /**
      * Determine whether the values are equal, can be used in {@link Condition}
+     * @example
+     * ```typescript
+     * persis.equals("id", persis.get("player_id"));
+     * 
+     * // or
+     * 
+     * persis.equals("id", (ctx) => ctx.storable.getNamespace("player").get("player_id"));
+     * ```
      */
-    public equals<K extends StringKeyOf<T>>(key: K, value: T[K] | ((value: T[K]) => T[K])): Lambda<boolean> {
-        return new Lambda(({ storable }) => {
-            const namespace = storable.getNamespace<T>(this.namespace);
-            const evaluatedValue = typeof value === "function" ? value(namespace.get<K>(key)) : value;
+    public equals<K extends StringKeyOf<T>>(key: K, value: T[K] | Lambda<T[K]> | LambdaHandler<T[K]>): Lambda<boolean> {
+        return new Lambda((ctx) => {
+            const namespace = ctx.storable.getNamespace<T>(this.namespace);
+            const evaluatedValue = (
+                Lambda.isLambda(value) || Lambda.isLambdaHandler(value)
+            ) ? Lambda.from(value).evaluate(ctx).value : value;
 
             return namespace.equals<K>(key, evaluatedValue);
         });
@@ -96,11 +106,21 @@ export class Persistent<T extends PersistentContent>
 
     /**
      * Determine whether the values aren't equal, can be used in {@link Condition}
+     * @example
+     * ```typescript
+     * persis.notEquals("id", persis.get("player_id"));
+     * 
+     * // or
+     * 
+     * persis.notEquals("id", (ctx) => ctx.storable.getNamespace("player").get("player_id"));
+     * ```
      */
-    public notEquals<K extends StringKeyOf<T>>(key: K, value: T[K] | ((value: T[K]) => T[K])): Lambda<boolean> {
-        return new Lambda(({ storable }) => {
-            const namespace = storable.getNamespace<T>(this.namespace);
-            const evaluatedValue = typeof value === "function" ? value(namespace.get<K>(key)) : value;
+    public notEquals<K extends StringKeyOf<T>>(key: K, value: T[K] | Lambda<T[K]> | LambdaHandler<T[K]>): Lambda<boolean> {
+        return new Lambda((ctx) => {
+            const namespace = ctx.storable.getNamespace<T>(this.namespace);
+            const evaluatedValue = (
+                Lambda.isLambda(value) || Lambda.isLambdaHandler(value)
+            ) ? Lambda.from(value).evaluate(ctx).value : value;
 
             return !namespace.equals<K>(key, evaluatedValue);
         });
