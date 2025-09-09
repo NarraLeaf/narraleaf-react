@@ -89,10 +89,10 @@ export default function Player(
 
             const nextResult = game.getLiveGame().next();
             if (!nextResult) {
-                if (game.getLiveGame().stackModel?.isEmpty()) {
-                    break;
+                if (game.getLiveGame().stackModel && !game.getLiveGame().stackModel!.isEmpty()) {
+                    continue;
                 }
-                continue;
+                break;
             }
 
             // Handle Awaitable

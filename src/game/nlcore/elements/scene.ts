@@ -273,7 +273,7 @@ export class Scene extends Constructable<
      */
     public setBackground(background: Color | ImageSrc, transition?: ImageTransition): ChainedScene {
         const chain = this.chain();
-        return chain.chain(this.state.backgroundImage._setSrc(chain, background, transition));
+        return chain.chain(Control.do([this.background.char(background, transition)]));
     }
 
     /**

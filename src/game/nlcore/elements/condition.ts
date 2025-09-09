@@ -1,11 +1,11 @@
-import {ContentNode, RenderableNode} from "@core/action/tree/actionTree";
-import {LogicAction} from "@core/action/logicAction";
-import {Actionable} from "@core/action/actionable";
-import {GameState} from "@player/gameState";
-import {Chained, Proxied} from "@core/action/chain";
-import {StaticScriptWarning} from "@core/common/Utils";
-import {ConditionAction} from "@core/action/actions/conditionAction";
-import {LambdaCtx, LambdaHandler, ActionStatements} from "@core/elements/type";
+import { ContentNode, RenderableNode } from "@core/action/tree/actionTree";
+import { LogicAction } from "@core/action/logicAction";
+import { Actionable } from "@core/action/actionable";
+import { GameState } from "@player/gameState";
+import { Chained, Proxied } from "@core/action/chain";
+import { StaticScriptWarning } from "@core/common/Utils";
+import { ConditionAction } from "@core/action/actions/conditionAction";
+import { LambdaCtx, LambdaHandler, ActionStatements } from "@core/elements/type";
 import Actions = LogicAction.Actions;
 import { Narrator } from "./character";
 
@@ -29,17 +29,17 @@ export class Lambda<T = any> {
     }
 
     /**@internal */
-    evaluate({gameState}: { gameState: GameState }): {
+    evaluate({ gameState }: { gameState: GameState }): {
         value: T;
     } {
-        const value = this.handler(this.getCtx({gameState}));
+        const value = this.handler(this.getCtx({ gameState }));
         return {
             value,
         };
     }
 
     /**@internal */
-    getCtx({gameState}: { gameState: GameState }): LambdaCtx {
+    getCtx({ gameState }: { gameState: GameState }): LambdaCtx {
         return {
             gameState,
             game: gameState.game,
@@ -69,7 +69,7 @@ export type ConditionData = {
     }
 };
 
-export class Condition<Closed extends true | false = false> extends Actionable {
+export class Condition<Closed extends true | false = false> extends Actionable<null, Condition<true | false>> {
     /**@internal */
     static getInitialState(): ConditionData {
         return {
@@ -126,7 +126,7 @@ export class Condition<Closed extends true | false = false> extends Actionable {
             condition: Lambda.isLambda(condition) ? condition : new Lambda(condition),
             action: this.construct(Array.isArray(action) ? action : [action])
         });
-        return this.chain();
+        return this.chain() as Closed extends false ? Proxied<Condition<true>, Chained<LogicAction.Actions>> : never;
     }
 
     /**
@@ -141,12 +141,12 @@ export class Condition<Closed extends true | false = false> extends Actionable {
         }
 
         this.conditions.Else.action = this.construct(Array.isArray(action) ? action : [action]);
-        return this.chain();
+        return this.chain() as Closed extends false ? Proxied<Condition<true>, Chained<LogicAction.Actions>> : never;
     }
 
     /**@internal */
-    evaluate(conditions: ConditionData, {gameState}: { gameState: GameState }): LogicAction.Actions[] | null {
-        const ctx = {gameState};
+    evaluate(conditions: ConditionData, { gameState }: { gameState: GameState }): LogicAction.Actions[] | null {
+        const ctx = { gameState };
 
         const _if = conditions.If.condition?.evaluate(ctx);
         if (_if?.value) {
@@ -208,7 +208,14 @@ export class Condition<Closed extends true | false = false> extends Actionable {
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
         this.conditions.If.condition = condition instanceof Lambda ? condition : new Lambda(condition);
         this.conditions.If.action = this.construct(action);
-        return this.chain();
+
+        const chained = this.chain();
+        const conditionAction = new ConditionAction(
+            chained,
+            ConditionAction.ActionTypes.action,
+            new ContentNode<ConditionData>().setContent(this.conditions)
+        );
+        return chained.chain(conditionAction);
     }
 
     /**@internal */
