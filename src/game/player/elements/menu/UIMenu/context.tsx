@@ -1,13 +1,11 @@
-import { Pausing } from "@core/elements/character/pause";
-import { Word } from "@core/elements/character/word";
-import { Choice } from "@core/elements/menu";
 import { GameState } from "@lib/game/player/gameState";
-import {Chosen} from "@player/type";
+import { Chosen } from "@player/type";
 import React from "react";
+import { ChoiceEvaluated } from "../type";
 
 /* Ui Menu Context */
 interface UIMenuContext {
-    evaluated: (Choice & { words: Word<Pausing | string>[] })[];
+    evaluated: ChoiceEvaluated[];
     choose: (choice: Chosen) => void;
     gameState: GameState;
 }

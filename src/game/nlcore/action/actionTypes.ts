@@ -183,7 +183,7 @@ export type PersistentActionContentType = {
     [K in typeof PersistentActionTypes[keyof typeof PersistentActionTypes]]:
     K extends "persistent:action" ? any :
     K extends "persistent:set" ? [string, unknown | ((value: unknown) => unknown)] :
-    K extends "persistent:assign" ? [Partial<unknown>] :
+    K extends "persistent:assign" ? [Partial<unknown> | ((value: unknown) => Partial<unknown>)] :
     any;
 }
 /* Layer */

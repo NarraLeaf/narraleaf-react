@@ -7,25 +7,37 @@ import {Sentence, SentencePrompt} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
 import {MenuAction} from "@core/action/actions/menuAction";
 import Actions = LogicAction.Actions;
-import { ActionStatements } from "./type";
+import { ActionStatements, LambdaHandler } from "./type";
 import { Narrator } from "./character";
+import { Lambda } from "./condition";
+import { StaticScriptWarning } from "../common/Utils";
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export type MenuConfig = {};
 export type MenuChoice = {
     action: ActionStatements;
     prompt: SentencePrompt | Sentence;
+    config?: {
+        disabled?: Lambda<boolean> | LambdaHandler<boolean>;
+        hidden?: Lambda<boolean> | LambdaHandler<boolean>;
+    };
 };
 
 export type Choice = {
     action: Actions[];
     prompt: Sentence;
+    config: ChoiceConfig;
 };
 
 export type MenuData = {
     prompt: Sentence | null;
     choices: Choice[];
-}
+};
+
+export type ChoiceConfig = {
+    disabled?: Lambda<boolean>;
+    hidden?: Lambda<boolean>;
+};
 
 export class Menu extends Actionable<any, Menu> {
     /**@internal */
@@ -83,11 +95,18 @@ export class Menu extends Actionable<any, Menu> {
     public choose(arg0: Sentence | MenuChoice | SentencePrompt, arg1?: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
         const chained = this.chain();
         if (Sentence.isSentence(arg0) && arg1) {
-            chained.choices.push({prompt: Sentence.toSentence(arg0), action: this.narrativeToActions(arg1)});
+            chained.choices.push({prompt: Sentence.toSentence(arg0), action: this.narrativeToActions(arg1), config: {}});
         } else if ((Word.isWord(arg0) || Array.isArray(arg0) || typeof arg0 === "string") && arg1) {
-            chained.choices.push({prompt: Sentence.toSentence(arg0), action: this.narrativeToActions(arg1)});
+            chained.choices.push({prompt: Sentence.toSentence(arg0), action: this.narrativeToActions(arg1), config: {}});
         } else if (typeof arg0 === "object" && "prompt" in arg0 && "action" in arg0) {
-            chained.choices.push({prompt: Sentence.toSentence(arg0.prompt), action: this.narrativeToActions(arg0.action)});
+            chained.choices.push({
+                prompt: Sentence.toSentence(arg0.prompt),
+                action: this.narrativeToActions(arg0.action),
+                config: {
+                    disabled: arg0.config?.disabled ? Lambda.from(arg0.config.disabled) : undefined,
+                    hidden: arg0.config?.hidden ? Lambda.from(arg0.config.hidden) : undefined
+                }
+            });
         } else {
             console.warn("No valid choice added to menu, ", {
                 arg0,
@@ -95,6 +114,82 @@ export class Menu extends Actionable<any, Menu> {
             });
         }
         return chained;
+    }
+
+    /**
+     * Magic method to hide the last choice if the condition is true
+     * @example
+     * ```ts
+     * menu.choose(
+     *   // ...
+     * ).hideIf(persis.isTrue("flag"));
+     * ```
+     * 
+     * **Note**: This method will override the last choice's config.hidden
+     */
+    public hideIf(condition: Lambda<boolean> | LambdaHandler<boolean>): Proxied<Menu, Chained<LogicAction.Actions>> {
+        const lastChoice = this.choices[this.choices.length - 1];
+        if (!lastChoice) {
+            throw new StaticScriptWarning("Trying to configure the last choice of a menu, but no choice added. This may be caused by calling `menu.hideIf` before `menu.choose`");
+        }
+        lastChoice.config.hidden = Lambda.from(condition);
+        return this.chain();
+    }
+
+    /**
+     * Magic method to disable the last choice if the condition is true
+     * @example
+     * ```ts
+     * menu.choose(
+     *   // ...
+     * ).disableIf(persis.isTrue("flag"));
+     * ```
+     */
+    public disableIf(condition: Lambda<boolean> | LambdaHandler<boolean>): Proxied<Menu, Chained<LogicAction.Actions>> {
+        const lastChoice = this.choices[this.choices.length - 1];
+        if (!lastChoice) {
+            throw new StaticScriptWarning("Trying to configure the last choice of a menu, but no choice added. This may be caused by calling `menu.disableIf` before `menu.choose`");
+        }
+        lastChoice.config.disabled = Lambda.from(condition);
+        return this.chain();
+    }
+
+    /**
+     * Add a choice, only enable when the condition is true
+     * @example
+     * ```ts
+     * menu.enableWhen(persis.isTrue("flag"), "Go left", [
+     *     character.say("I went left")
+     * ]);
+     * ```
+     */
+    public enableWhen(condition: Lambda<boolean> | LambdaHandler<boolean>, prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
+        return this.choose({
+            prompt,
+            action,
+            config: {
+                disabled: Lambda.from(condition)
+            }
+        });
+    }
+
+    /**
+     * Add a choice, only show when the condition is true
+     * @example
+     * ```ts
+     * menu.showWhen(persis.isTrue("flag"), "Go left", [
+     *     character.say("I went left")
+     * ]);
+     * ```
+     */
+    public showWhen(condition: Lambda<boolean> | LambdaHandler<boolean>, prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
+        return this.choose({
+            prompt,
+            action,
+            config: {
+                hidden: Lambda.from(condition)
+            }
+        });
     }
 
     /**@internal */
@@ -150,7 +245,8 @@ export class Menu extends Actionable<any, Menu> {
         return this.choices.map(choice => {
             return {
                 action: this.constructNodes(choice.action),
-                prompt: choice.prompt
+                prompt: choice.prompt,
+                config: choice.config ?? {}
             };
         });
     }

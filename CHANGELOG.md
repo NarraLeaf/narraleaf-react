@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.3]
+
+### _Feature_
+
+- `Persistent.equals`, `Persistent.notEquals`, `Persistent.assign` now support function evaluator as argument
+- Added `hidden` and `disabled` config to `Menu` choice
+- Added `Menu.hideIf` and `Menu.disableIf` magic methods
+- Added `Menu.enableWhen` and `Menu.showWhen`
+
 ## [0.8.2]
 
 ### Fixed
