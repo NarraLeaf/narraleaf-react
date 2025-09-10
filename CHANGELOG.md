@@ -5,6 +5,11 @@
 ### _Feature_
 
 - `Persistent.equals`, `Persistent.notEquals` now support lambda or lambda handler as argument
+- Added `ScriptCtx.$` to get the namespace
+
+### Fixed
+
+- Script element is not executed correctly
 
 ## [0.8.3]
 

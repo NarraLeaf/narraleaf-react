@@ -45,11 +45,14 @@ export class Lambda<T = any> {
 
     /**@internal */
     getCtx({ gameState }: { gameState: GameState }): LambdaCtx {
+        const liveGame = gameState.game.getLiveGame();
+        const storable = liveGame.getStorable();
         return {
             gameState,
             game: gameState.game,
-            liveGame: gameState.game.getLiveGame(),
-            storable: gameState.game.getLiveGame().getStorable(),
+            liveGame,
+            storable,
+            $: (namespace: string) => storable.getNamespace(namespace),
         };
     }
 
