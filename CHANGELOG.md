@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.4]
+
+### _Feature_
+
+- `Persistent.equals`, `Persistent.notEquals` now support lambda or lambda handler as argument
+- Added `ScriptCtx.$` to get the namespace
+- Added `Script.execute` to execute a script
+
+### Fixed
+
+- Script element is not executed correctly
+
 ## [0.8.3]
 
 ### _Feature_

@@ -203,6 +203,7 @@ export class Gallery<Metadata extends Record<string, any>> extends Service<Galle
                 game: ctx.game,
                 liveGame: ctx.liveGame,
                 storable: ctx.storable,
+                $: ctx.$,
             };
             const parsedMetadata = typeof metadata === "function" ? metadata(context) : metadata;
             this.unlocked[name] = parsedMetadata;
