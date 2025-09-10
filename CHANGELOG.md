@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.8.4]
+
+### _Feature_
+
+- `Persistent.equals`, `Persistent.notEquals` now support lambda or lambda handler as argument
+- Added `ScriptCtx.$` to get the namespace
+- Added `Script.execute` to execute a script
+
+### Fixed
+
+- Script element is not executed correctly
+
+## [0.8.3]
+
+### _Feature_
+
+- `Persistent.equals`, `Persistent.notEquals`, `Persistent.assign` now support function evaluator as argument
+- Added `hidden` and `disabled` config to `Menu` choice
+- Added `Menu.hideIf` and `Menu.disableIf` magic methods
+- Added `Menu.enableWhen` and `Menu.showWhen`
+
 ## [0.8.2]
 
 ### Fixed

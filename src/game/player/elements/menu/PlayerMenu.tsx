@@ -1,19 +1,15 @@
-import React, { useMemo, useCallback, useRef } from "react";
-import clsx from "clsx";
-import { IUserMenuProps, MenuElementProps } from "@player/elements/menu/type";
+import { Script } from "@core/elements/script";
+import { ChoiceEvaluated, IUserMenuProps, MenuElementProps } from "@player/elements/menu/type";
+import Inspect from "@player/lib/Inspect";
 import Isolated from "@player/lib/isolated";
 import { useGame } from "@player/provider/game-state";
-import Inspect from "@player/lib/Inspect";
 import { Chosen } from "@player/type";
-import { Choice } from "@core/elements/menu";
-import { Word } from "@core/elements/character/word";
-import { Pausing } from "@core/elements/character/pause";
-import { Script } from "@core/elements/script";
-import { UIMenuContext } from "./UIMenu/context";
-import { UIListContext } from "./UIMenu/context";
-import GameMenu from "./UIMenu/Menu";
-import Item from "./UIMenu/Item";
+import clsx from "clsx";
+import React, { useCallback, useMemo, useRef } from "react";
 import PlayerDialog from "../say/UIDialog";
+import { UIListContext, UIMenuContext } from "./UIMenu/context";
+import Item from "./UIMenu/Item";
+import GameMenu from "./UIMenu/Menu";
 
 /**@internal */
 export default function PlayerMenu(
@@ -44,7 +40,7 @@ export default function PlayerMenu(
     }, []);
 
     const MenuConstructor = game.config.menu;
-    const evaluated: (Choice & { words: Word<Pausing | string>[] })[] =
+    const evaluated: ChoiceEvaluated[] =
         useMemo(
             () =>
                 choices.map(choice => ({

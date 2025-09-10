@@ -1,16 +1,16 @@
-import {Actionable} from "@core/action/actionable";
-import {StorableType} from "@core/elements/persistent/type";
-import {Chained, Proxied} from "@core/action/chain";
-import {LogicAction} from "@core/game";
-import {PersistentActionContentType, PersistentActionTypes} from "@core/action/actionTypes";
-import {PersistentAction} from "@core/action/actions/persistentAction";
-import {BooleanValueKeyOf, StringKeyOf, Values} from "@lib/util/data";
-import {ContentNode} from "@core/action/tree/actionTree";
-import {Lambda} from "@core/elements/condition";
-import {Word} from "@core/elements/character/word";
-import {DynamicWord, DynamicWordResult} from "@core/elements/character/sentence";
-import {LambdaHandler} from "@core/elements/type";
-import {Namespace, Storable} from "@core/elements/persistent/storable";
+import { Actionable } from "@core/action/actionable";
+import { StorableType } from "@core/elements/persistent/type";
+import { Chained, Proxied } from "@core/action/chain";
+import { LogicAction } from "@core/game";
+import { PersistentActionContentType, PersistentActionTypes } from "@core/action/actionTypes";
+import { PersistentAction } from "@core/action/actions/persistentAction";
+import { BooleanValueKeyOf, StringKeyOf, Values } from "@lib/util/data";
+import { ContentNode } from "@core/action/tree/actionTree";
+import { Lambda } from "@core/elements/condition";
+import { Word } from "@core/elements/character/word";
+import { DynamicWord, DynamicWordResult } from "@core/elements/character/sentence";
+import { LambdaHandler } from "@core/elements/type";
+import { Namespace, Storable } from "@core/elements/persistent/storable";
 
 /**@internal */
 export type PersistentContent = {
@@ -74,7 +74,7 @@ export class Persistent<T extends PersistentContent>
      * @param value - The value to assign
      * @returns A chainable persistent action
      */
-    public assign(value: Partial<T>): ChainedPersistent<T> {
+    public assign(value: Partial<T> | ((value: T) => Partial<T>)): ChainedPersistent<T> {
         return this.chain(this.createAction(
             PersistentActionTypes.assign,
             [value]
@@ -84,19 +84,45 @@ export class Persistent<T extends PersistentContent>
 
     /**
      * Determine whether the values are equal, can be used in {@link Condition}
+     * @example
+     * ```typescript
+     * persis.equals("id", persis.get("player_id"));
+     * 
+     * // or
+     * 
+     * persis.equals("id", (ctx) => ctx.storable.getNamespace("player").get("player_id"));
+     * ```
      */
-    public equals<K extends StringKeyOf<T>>(key: K, value: T[K]): Lambda<boolean> {
-        return new Lambda(({storable}) => {
-            return storable.getNamespace<T>(this.namespace).equals<K>(key, value);
+    public equals<K extends StringKeyOf<T>>(key: K, value: T[K] | Lambda<T[K]> | LambdaHandler<T[K]>): Lambda<boolean> {
+        return new Lambda((ctx) => {
+            const namespace = ctx.storable.getNamespace<T>(this.namespace);
+            const evaluatedValue = (
+                Lambda.isLambda(value) || Lambda.isLambdaHandler(value)
+            ) ? Lambda.from(value).evaluate(ctx).value : value;
+
+            return namespace.equals<K>(key, evaluatedValue);
         });
     }
 
     /**
      * Determine whether the values aren't equal, can be used in {@link Condition}
+     * @example
+     * ```typescript
+     * persis.notEquals("id", persis.get("player_id"));
+     * 
+     * // or
+     * 
+     * persis.notEquals("id", (ctx) => ctx.storable.getNamespace("player").get("player_id"));
+     * ```
      */
-    public notEquals<K extends StringKeyOf<T>>(key: K, value: T[K]): Lambda<boolean> {
-        return new Lambda(({storable}) => {
-            return !storable.getNamespace<T>(this.namespace).equals<K>(key, value);
+    public notEquals<K extends StringKeyOf<T>>(key: K, value: T[K] | Lambda<T[K]> | LambdaHandler<T[K]>): Lambda<boolean> {
+        return new Lambda((ctx) => {
+            const namespace = ctx.storable.getNamespace<T>(this.namespace);
+            const evaluatedValue = (
+                Lambda.isLambda(value) || Lambda.isLambdaHandler(value)
+            ) ? Lambda.from(value).evaluate(ctx).value : value;
+
+            return !namespace.equals<K>(key, evaluatedValue);
         });
     }
 
@@ -104,7 +130,7 @@ export class Persistent<T extends PersistentContent>
      * Determine whether the value is true, can be used in {@link Condition}
      */
     public isTrue<K extends Extract<keyof T, BooleanValueKeyOf<T>>>(key: K): Lambda<boolean> {
-        return new Lambda(({storable}) => {
+        return new Lambda(({ storable }) => {
             return storable.getNamespace(this.namespace).equals(key, true);
         });
     }
@@ -113,7 +139,7 @@ export class Persistent<T extends PersistentContent>
      * Determine whether the value is false, can be used in {@link Condition}
      */
     public isFalse<K extends Extract<keyof T, BooleanValueKeyOf<T>>>(key: K): Lambda<boolean> {
-        return new Lambda(({storable}) => {
+        return new Lambda(({ storable }) => {
             return storable.getNamespace(this.namespace).equals(key, false);
         });
     }
@@ -122,7 +148,7 @@ export class Persistent<T extends PersistentContent>
      * Determine whether the value isn't null or undefined, can be used in {@link Condition}
      */
     public isNotNull<K extends StringKeyOf<T>>(key: K): Lambda<boolean> {
-        return new Lambda(({storable}) => {
+        return new Lambda(({ storable }) => {
             const value = storable.getNamespace(this.namespace).get(key);
             return value !== null && value !== undefined;
         });
@@ -140,7 +166,7 @@ export class Persistent<T extends PersistentContent>
      * ```
      */
     public toWord<K extends StringKeyOf<T>>(key: K): Word<DynamicWord> {
-        return new Word<DynamicWord>(({storable}) => {
+        return new Word<DynamicWord>(({ storable }) => {
             return [String(storable.getNamespace<T>(this.namespace).get<K>(key))];
         });
     }
@@ -182,7 +208,7 @@ export class Persistent<T extends PersistentContent>
      * Evaluate the JavaScript function and determine whether the result is true
      */
     public evaluate<K extends StringKeyOf<T>>(key: K, fn: (value: T[K]) => boolean): Lambda<boolean> {
-        return new Lambda(({storable}) => {
+        return new Lambda(({ storable }) => {
             return fn(storable.getNamespace<T>(this.namespace).get<K>(key));
         });
     }

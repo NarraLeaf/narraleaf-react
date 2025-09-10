@@ -16,6 +16,11 @@ export class Lambda<T = any> {
     }
 
     /**@internal */
+    public static isLambdaHandler(value: any): value is LambdaHandler {
+        return typeof value === "function";
+    }
+
+    /**@internal */
     public static from<T>(obj: Lambda<T> | LambdaHandler<T>): Lambda<T> {
         return Lambda.isLambda(obj) ? obj : new Lambda(obj);
     }
@@ -40,11 +45,14 @@ export class Lambda<T = any> {
 
     /**@internal */
     getCtx({ gameState }: { gameState: GameState }): LambdaCtx {
+        const liveGame = gameState.game.getLiveGame();
+        const storable = liveGame.getStorable();
         return {
             gameState,
             game: gameState.game,
-            liveGame: gameState.game.getLiveGame(),
-            storable: gameState.game.getLiveGame().getStorable(),
+            liveGame,
+            storable,
+            $: (namespace: string) => storable.getNamespace(namespace),
         };
     }
 
@@ -123,7 +131,7 @@ export class Condition<Closed extends true | false = false> extends Actionable<n
         }
 
         this.conditions.ElseIf.push({
-            condition: Lambda.isLambda(condition) ? condition : new Lambda(condition),
+            condition: Lambda.from(condition),
             action: this.construct(Array.isArray(action) ? action : [action])
         });
         return this.chain() as Closed extends false ? Proxied<Condition<true>, Chained<LogicAction.Actions>> : never;
@@ -206,7 +214,7 @@ export class Condition<Closed extends true | false = false> extends Actionable<n
     private createIfCondition(
         condition: Lambda | LambdaHandler<boolean>, action: ActionStatements
     ): Proxied<Condition, Chained<LogicAction.Actions>> {
-        this.conditions.If.condition = condition instanceof Lambda ? condition : new Lambda(condition);
+        this.conditions.If.condition = Lambda.from(condition);
         this.conditions.If.action = this.construct(action);
 
         const chained = this.chain();
