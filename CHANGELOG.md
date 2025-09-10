@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.5]
+
+### Fixed
+
+- Incorrect signature of `Menu.enableWhen` and `Menu.showWhen`
+
 ## [0.8.4]
 
 ### _Feature_
