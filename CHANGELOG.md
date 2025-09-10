@@ -6,6 +6,7 @@
 
 - `Persistent.equals`, `Persistent.notEquals` now support lambda or lambda handler as argument
 - Added `ScriptCtx.$` to get the namespace
+- Added `Script.execute` to execute a script
 
 ### Fixed
 
