@@ -26,6 +26,13 @@ export class Lambda<T = any> {
     }
 
     /**@internal */
+    public static not(lambda: Lambda<boolean>): Lambda<boolean> {
+        return new Lambda((ctx) => {
+            return !lambda.evaluate(ctx).value;
+        });
+    }
+
+    /**@internal */
     handler: LambdaHandler<T>;
 
     /**@internal */

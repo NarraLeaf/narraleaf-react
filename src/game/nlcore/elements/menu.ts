@@ -168,7 +168,7 @@ export class Menu extends Actionable<any, Menu> {
             prompt,
             action,
             config: {
-                disabled: Lambda.from(condition)
+                disabled: Lambda.not(Lambda.from(condition))
             }
         });
     }
@@ -187,7 +187,7 @@ export class Menu extends Actionable<any, Menu> {
             prompt,
             action,
             config: {
-                hidden: Lambda.from(condition)
+                hidden: Lambda.not(Lambda.from(condition))
             }
         });
     }

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.6]
+
+### Fixed
+
+- Incorrect behavior of `Menu.enableWhen` and `Menu.showWhen`
+
 ## [0.8.5]
 
 ### Fixed
