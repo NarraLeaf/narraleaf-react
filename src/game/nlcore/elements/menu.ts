@@ -163,12 +163,12 @@ export class Menu extends Actionable<any, Menu> {
      * ]);
      * ```
      */
-    public enableWhen(condition: Lambda<boolean> | LambdaHandler<boolean>, prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
+    public enableWhen(condition: Lambda<boolean> | LambdaHandler<boolean>, prompt: Sentence | SentencePrompt, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
         return this.choose({
             prompt,
             action,
             config: {
-                disabled: Lambda.from(condition)
+                disabled: Lambda.not(Lambda.from(condition))
             }
         });
     }
@@ -182,12 +182,12 @@ export class Menu extends Actionable<any, Menu> {
      * ]);
      * ```
      */
-    public showWhen(condition: Lambda<boolean> | LambdaHandler<boolean>, prompt: Sentence, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
+    public showWhen(condition: Lambda<boolean> | LambdaHandler<boolean>, prompt: Sentence | SentencePrompt, action: ActionStatements): Proxied<Menu, Chained<LogicAction.Actions>> {
         return this.choose({
             prompt,
             action,
             config: {
-                hidden: Lambda.from(condition)
+                hidden: Lambda.not(Lambda.from(condition))
             }
         });
     }

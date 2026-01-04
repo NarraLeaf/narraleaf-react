@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.7]
+
+### Fixed
+
+- Refactored Sound System: fixed offset handling and playback management.
+
+## [0.8.6]
+
+### Fixed
+
+- Incorrect behavior of `Menu.enableWhen` and `Menu.showWhen`
+
+## [0.8.5]
+
+### Fixed
+
+- Incorrect signature of `Menu.enableWhen` and `Menu.showWhen`
+
 ## [0.8.4]
 
 ### _Feature_

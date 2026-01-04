@@ -29,9 +29,7 @@ export default function Scene(
         return scene.events.depends([
             scene.events.on(GameScene.EventTypes["event:scene.preUnmount"], () => {
                 if (scene.state.backgroundMusic) {
-                    return state.audioManager.stop(scene.state.backgroundMusic).then(() => {
-                        scene.state.backgroundMusic = null;
-                    });
+                    return state.audioManager.stop(scene.state.backgroundMusic, scene.config.backgroundMusicFade);
                 }
             }),
         ]).cancel;
@@ -50,10 +48,6 @@ export default function Scene(
     useExposeState<ExposedStateType.scene>(scene, {
         setBackgroundMusic(music: Sound | null, fade: number) {
             return new Promise<void>((resolve) => {
-                if (!scene.state.backgroundMusic) {
-                    return;
-                }
-
                 (async function () {
                     if (scene.state.backgroundMusic && state.audioManager.isManaged(scene.state.backgroundMusic)) {
                         await state.audioManager.stop(scene.state.backgroundMusic, fade);

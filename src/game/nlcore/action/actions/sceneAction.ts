@@ -39,8 +39,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             .flush();
         scene.local.init(state.getStorable());
 
-        state.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
-            SceneAction.initBackgroundMusic(scene, exposed);
+        state.getExposedStateAsync<ExposedStateType.scene>(scene, async (exposed) => {
+            await SceneAction.initBackgroundMusic(scene, exposed);
             awaitable.resolve(next);
 
             state.logger.debug("Scene Action", "Scene init");
@@ -49,10 +49,19 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         return awaitable;
     }
 
-    static initBackgroundMusic(scene: Scene, exposed: ExposedState[ExposedStateType.scene]) {
-        if (scene.state.backgroundMusic) {
-            exposed.setBackgroundMusic(scene.state.backgroundMusic, scene.config.backgroundMusicFade);
+    /**
+     * Initialize background music for the target scene.
+     * Waits until the previous BGM has completely faded out (if any) before
+     * resolving, ensuring seamless audio transition when jumping between scenes.
+     */
+    static async initBackgroundMusic(scene: Scene, exposed: ExposedState[ExposedStateType.scene]): Promise<void> {
+        if (!scene.state.backgroundMusic) {
+            return;
         }
+        // `setBackgroundMusic` already handles fade-out of the previous track and
+        // fade-in of the new track. We simply await it so that the caller can
+        // chain subsequent actions after the transition finishes.
+        await exposed.setBackgroundMusic(scene.state.backgroundMusic, scene.config.backgroundMusicFade);
     }
 
     static createSceneSnapshot(scene: Scene, state: GameState): SceneSnapshot {
