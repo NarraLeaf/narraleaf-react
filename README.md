@@ -123,11 +123,7 @@ npm install narraleaf-react
   - [Player](https://react.narraleaf.com/documentation/player/player)
   - [GameProviders](https://react.narraleaf.com/documentation/player/game-providers)
   - Hooks
-    - [useGame](https://react.narraleaf.com/documentation/player/hooks/useGame)
-    - [usePreferences](https://react.narraleaf.com/documentation/player/hooks/usePreferences)
-    - [useRouter](https://react.narraleaf.com/documentation/player/hooks/useRouter)
-    - [useDialog](https://react.narraleaf.com/documentation/player/hooks/useDialog)
-  - [Page Router](https://react.narraleaf.com/documentation/player/page-router)
+  - [LayoutRouter](https://react.narraleaf.com/documentation/player/page-router)
   - [Dialog](https://react.narraleaf.com/documentation/player/dialog)
   - [Notification](https://react.narraleaf.com/documentation/player/notification)
   - [Menu](https://react.narraleaf.com/documentation/player/menu)
