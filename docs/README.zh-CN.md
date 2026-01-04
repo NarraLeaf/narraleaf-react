@@ -123,11 +123,7 @@ npm install narraleaf-react
     - [Player](https://react.narraleaf.com/documentation/player/player)
     - [GameProviders](https://react.narraleaf.com/documentation/player/game-providers)
     - 钩子
-        - [useGame](https://react.narraleaf.com/documentation/player/hooks/useGame)
-        - [usePreferences](https://react.narraleaf.com/documentation/player/hooks/usePreferences)
-        - [useRouter](https://react.narraleaf.com/documentation/player/hooks/useRouter)
-        - [useDialog](https://react.narraleaf.com/documentation/player/hooks/useDialog)
-    - [页面路由](https://react.narraleaf.com/documentation/player/page-router)
+    - [布局路由](https://react.narraleaf.com/documentation/player/page-router)
     - [对话框](https://react.narraleaf.com/documentation/player/dialog)
     - [通知](https://react.narraleaf.com/documentation/player/notification)
     - [选项框](https://react.narraleaf.com/documentation/player/menu)
