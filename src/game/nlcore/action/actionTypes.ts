@@ -130,7 +130,7 @@ export type SoundActionContentType = {
     [K in typeof SoundActionTypes[keyof typeof SoundActionTypes]]:
     K extends "sound:play" ? [FadeOptions] :
     K extends "sound:stop" ? [FadeOptions] :
-    K extends "sound:setVolume" ? [volumn: number, duration: number] :
+    K extends "sound:setVolume" ? [volume: number, duration: number] :
     K extends "sound:setRate" ? [number] :
     K extends "sound:pause" ? [FadeOptions] :
     K extends "sound:resume" ? [FadeOptions] :

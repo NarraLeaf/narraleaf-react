@@ -1,6 +1,6 @@
 {
   "name": "narraleaf-react",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "description": "A React visual novel player framework",
   "main": "./dist/main.js",
   "types": "./dist/index.d.ts",
@@ -96,6 +96,7 @@
   "author": "helloyork@icloud.com",
   "license": "MPL-2.0",
   "dependencies": {
+    "@narraleaf/sound": "0.1.0",
     "client-only": "^0.0.1",
     "clsx": "^2.1.1",
     "howler": "^2.2.4",

@@ -8,6 +8,7 @@ import { GameConfig, SavedGame, NotificationToken, SavedGameMetaData } from "../
 import type { LayoutRouter } from "@lib/game/player/lib/PageRouter/router";
 import { KeyBindingType, WebKeyboardKey } from "../game/types";
 import { KeyBindingValue } from "../game/keyMap";
+import { SoundType } from "@core/elements/sound";
 import { StorableType } from "@core/elements/persistent/type";
 
 export * from "@core/elements/type";
@@ -27,4 +28,5 @@ export type {
 
 export {
     KeyBindingType,
+    SoundType,
 };

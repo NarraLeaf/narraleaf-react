@@ -157,6 +157,10 @@ export default function Player(
     }
 
     useEffect(() => {
+        state.audioManager.initialize();
+    }, []);
+
+    useEffect(() => {
         game.getLiveGame().setGameState(state);
         if (story && !game.getLiveGame().isPlaying()) {
             game.getLiveGame().loadStory(story);
