@@ -2,6 +2,7 @@ import { ControlAction } from "../../action/actions/controlAction";
 import { Chained, Proxied } from "../../action/chain";
 import { LogicAction } from "../../game";
 import { Control } from "../control";
+import { DynamicPersistent } from "../persistent";
 
 
 export class DevTools {
@@ -22,4 +23,6 @@ export class DevTools {
         const actions = Chained.isChained(action) ? action.getActions() : action;
         return Control.do(actions);
     }
+
+    public static DynamicPersistent = DynamicPersistent;
 }
