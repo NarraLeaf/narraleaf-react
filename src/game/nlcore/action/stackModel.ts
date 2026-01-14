@@ -460,7 +460,7 @@ export class StackModel {
                 });
             }
         }
-        
+
         return this;
     }
 

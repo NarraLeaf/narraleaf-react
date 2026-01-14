@@ -8,7 +8,6 @@ export type BaseStorableType = number | boolean | string | undefined | null | Da
 export type UnserializableStorableType = Date;
 /**@internal */
 export type BaseStorableTypeName = "any" | "date";
-/**@internal */
 export type StorableType = BaseStorableType | Record<string, BaseStorableType> | Array<BaseStorableType>;
 /**@internal */
 export type WrappedStorableData<T extends StorableType = any> = {
