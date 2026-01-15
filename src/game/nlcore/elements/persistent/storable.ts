@@ -70,6 +70,22 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return this;
     }
 
+    public has(key: keyof T): boolean {
+        return this.content[key] !== undefined;
+    }
+
+    public keys(): (keyof T)[] {
+        return Object.keys(this.content) as (keyof T)[];
+    }
+
+    public values(): T[keyof T][] {
+        return Object.values(this.content) as T[keyof T][];
+    }
+
+    public entries(): [keyof T, T[keyof T]][] {
+        return Object.entries(this.content) as [keyof T, T[keyof T]][];
+    }
+
     public reset(): this {
         this.content = deepMerge({}, this.defaultContent);
         return this;
@@ -147,6 +163,10 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
 }
 
 export class Storable {
+    public static createNamespace<T extends NameSpaceContent<keyof T>>(name: string, initContent: T, key?: string): Namespace<T> {
+        return new Namespace<T>(name, initContent, key);
+    }
+
     /**@internal */
     namespaces: { [key: string]: Namespace<any> } = {};
 
