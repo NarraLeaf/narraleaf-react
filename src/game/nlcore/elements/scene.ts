@@ -63,7 +63,6 @@ export interface ISceneUserConfig {
 
 export type JumpConfig = {
     transition: ImageTransition;
-    unloadScene: boolean;
 }
 
 type ChainableAction = Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>> | LogicAction.Actions;
@@ -289,7 +288,7 @@ export class Scene extends Constructable<
         return this.combineActions(new Control({
             allowFutureScene: false,
         }), chain => {
-            const defaultJumpConfig: Partial<JumpConfig> = {unloadScene: true};
+            const defaultJumpConfig: Partial<JumpConfig> = {};
             const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig,
                 config instanceof Transition
                     ? {transition: config} satisfies Partial<JumpConfig>
@@ -302,10 +301,8 @@ export class Scene extends Constructable<
                     new ContentNode<SceneActionContentType["scene:preUnmount"]>().setContent([])
                 ))
                 .chain(this._initScene(scene))
-                ._transitionToScene(jumpConfig.transition, scene.state.backgroundImage.state.currentSrc);
-            if (jumpConfig.unloadScene) {
-                chain.chain(this._exit());
-            }
+                ._transitionToScene(jumpConfig.transition, scene.state.backgroundImage.state.currentSrc)
+                .chain(this._exit());
             return chain;
         })._jumpTo(scene);
     }

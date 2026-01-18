@@ -1,8 +1,10 @@
 import { ControlAction } from "../../action/actions/controlAction";
 import { Chained, Proxied } from "../../action/chain";
+import { GameState } from "../../common/game";
 import { LogicAction } from "../../game";
 import { Control } from "../control";
-import { DynamicPersistent } from "../persistent";
+import { DynamicPersistent, Persistent } from "../persistent";
+import { Scene } from "../scene";
 
 
 export class DevTools {
@@ -22,6 +24,14 @@ export class DevTools {
     public static wrapAction(action: LogicAction.Actions[] | Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>>): ControlAction {
         const actions = Chained.isChained(action) ? action.getActions() : action;
         return Control.do(actions);
+    }
+
+    public static getNamespaceName(persistent: Persistent<any>): string {
+        return persistent.getNamespaceName();
+    }
+
+    public static getCurrentScene(gameState: GameState): Scene | null {
+        return gameState.getCurrentScene();
     }
 
     public static DynamicPersistent = DynamicPersistent;

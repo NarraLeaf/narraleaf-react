@@ -10,6 +10,8 @@ import { KeyBindingType, WebKeyboardKey } from "../game/types";
 import { KeyBindingValue } from "../game/keyMap";
 import { SoundType } from "@core/elements/sound";
 import { StorableType } from "@core/elements/persistent/type";
+import { ScriptCtx } from "../elements/script";
+import { IStoryConfig } from "../elements/story";
 
 export * from "@core/elements/type";
 export type {
@@ -24,6 +26,8 @@ export type {
     KeyBindingValue,
     WebKeyboardKey,
     StorableType,
+    ScriptCtx,
+    IStoryConfig
 };
 
 export {

@@ -30,6 +30,14 @@ export type GameHooks = {
      * - **Note**: "signal" is preserved from the original options
      */
     "preloadImage": [src: string, set: (src: string, options?: RequestInit) => void];
+    /**
+     * Hook before deserializing the game state
+     */
+    "beforeRestore": [];
+    /**
+     * Hook after deserializing the game state
+     */
+    "afterRestore": [];
 };
 
 export class Game {

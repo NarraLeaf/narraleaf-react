@@ -1,12 +1,18 @@
 # Changelog
 
-## [0.8.8]
+## [0.9.0]
+
+### _Incompatible Changes_
+
+- `JumpConfig.unloadScene` is removed
 
 ### Update
 
 - Added `DevTools` interface to access the internal state of the game
 - Added `Namespace.has`, `Namespace.keys`, `Namespace.values`, `Namespace.entries`
 - Added `Storable.createNamespace`
+- Fixed some type exports
+- Added `beforeRestore` and `afterRestore` hooks for plugin system
 
 ## [0.8.7]
 

@@ -273,6 +273,10 @@ export class GameState {
         return this.state.elements[this.state.elements.length - 1]?.scene || null;
     }
 
+    public getCurrentScene(): Scene | null {
+        return this.state.elements[0]?.scene || null;
+    }
+
     public sceneExists(scene?: Scene): boolean {
         if (!scene) return !!this.getLastScene();
         return this.state.elements.some(s => s.scene === scene);

@@ -189,6 +189,8 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
+        this.game.hooks.trigger("beforeRestore", []);
+
         // Prevent the player from rolling the stack
         gameState.rollLock.lock();
 
@@ -235,6 +237,8 @@ export class LiveGame {
 
         // restore services
         story.deserializeServices(services);
+
+        this.game.hooks.trigger("afterRestore", []);
 
         gameState.events.once(GameState.EventTypes["event:state.onRender"], () => {
             gameState.schedule(() => {
