@@ -812,7 +812,7 @@ export class LiveGame {
                 },
                 elementStates: [],
                 services: {},
-                stackModel: [],
+                stackModel: { items: [] },
                 asyncStackModels: [],
             }
         };

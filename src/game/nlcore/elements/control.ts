@@ -4,8 +4,9 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {Awaitable, Values} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {ControlAction} from "@core/action/actions/controlAction";
-import { ActionStatements } from "./type";
+import { ActionStatements, LambdaHandler } from "./type";
 import { Narrator } from "./character";
+import { Lambda } from "./condition";
 
 
 /**@internal */
@@ -63,6 +64,23 @@ export class Control extends Actionable {
      */
     public static repeat(times: number, actions: ActionStatements): ChainedControl {
         return new Control().repeat(times, actions);
+    }
+
+    /**
+     * Execute actions while condition is true
+     * @chainable
+     */
+    public static whileLoop(condition: Lambda<boolean> | LambdaHandler<boolean>, actions: ActionStatements): ChainedControl {
+        return new Control().whileLoop(condition, actions);
+    }
+
+    /**
+     * Break the current loop (repeat/while)
+     * Can only be used inside a loop body
+     * @chainable
+     */
+    public static breakLoop(): ChainedControl {
+        return new Control().breakLoop();
     }
 
     /**
@@ -126,6 +144,29 @@ export class Control extends Actionable {
     }
 
     /**
+     * Execute actions while condition is true
+     * @chainable
+     */
+    public whileLoop(condition: Lambda<boolean> | LambdaHandler<boolean>, actions: ActionStatements): ChainedControl {
+        const lambda = Lambda.from(condition);
+        return this.pushWithLambda(ControlAction.ActionTypes.while, actions, lambda);
+    }
+
+    /**
+     * Break the current loop (repeat/while)
+     * Can only be used inside a loop body
+     * @chainable
+     */
+    public breakLoop(): ChainedControl {
+        const action = new ControlAction(
+            this.chain(),
+            ControlAction.ActionTypes.break,
+            new ContentNode().setContent([])
+        );
+        return this.chain(action);
+    }
+
+    /**
      * Sleep for a duration
      * @chainable
      */
@@ -159,6 +200,21 @@ export class Control extends Actionable {
             this.chain(),
             type,
             new ContentNode().setContent([flatted, ...args])
+        );
+        return this.chain(action);
+    }
+
+    /**@internal */
+    private pushWithLambda(
+        type: Values<typeof ControlAction.ActionTypes>,
+        actions: ActionStatements,
+        lambda: Lambda<boolean>
+    ): ChainedControl {
+        const flatted = this.narrativeToActions(actions);
+        const action = new ControlAction(
+            this.chain(),
+            type,
+            new ContentNode().setContent([this.construct(flatted), lambda])
         );
         return this.chain(action);
     }

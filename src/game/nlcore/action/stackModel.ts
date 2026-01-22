@@ -1,8 +1,10 @@
 import { ArrayValue, Awaitable, Stack } from "@lib/util/data";
 import { LiveGame } from "../common/game";
-import { RuntimeInternalError } from "../common/Utils";
+import { RuntimeInternalError, RuntimeGameError } from "../common/Utils";
 import { CalledActionResult, StackModelWaiting } from "../gameTypes";
 import { LogicAction } from "./logicAction";
+import { Lambda } from "@core/elements/condition";
+import { GameState } from "@player/gameState";
 
 
 export enum StackModelItemType {
@@ -10,8 +12,47 @@ export enum StackModelItemType {
     Link = "link",
 }
 
-export type StackModelRawData = (
-    {
+/**
+ * Loop type for StackModel
+ * - count: repeat N times
+ * - condition: while condition is true
+ */
+export type StackModelLoopType = "count" | "condition";
+
+/**
+ * Loop configuration for StackModel
+ */
+export type StackModelLoopConfig = {
+    type: StackModelLoopType;
+    /** Current iteration count (0-based) */
+    counter: number;
+    /** Max iterations (count loop only) */
+    limit?: number;
+    /** Action ID containing the condition Lambda (condition loop only, for deserialization) */
+    conditionActionId?: string;
+    /** Action IDs for the loop body (for deserialization) */
+    bodyActionIds: string[];
+    /** Whether the loop has been broken */
+    broken: boolean;
+};
+
+/**
+ * Serialized loop configuration
+ */
+export type StackModelLoopRawData = {
+    type: StackModelLoopType;
+    counter: number;
+    limit?: number;
+    conditionActionId?: string;
+    bodyActionIds: string[];
+    broken: boolean;
+};
+
+/**
+ * Stack item data for serialization
+ */
+export type StackModelItemData =
+    | {
         type: StackModelItemType.Action;
         actionType: string | null;
         action: string | null;
@@ -22,8 +63,15 @@ export type StackModelRawData = (
         action: string | null;
         stacks: StackModelRawData[];
         stackWaitType: StackModelWaiting["type"] | null;
-    }
-)[];
+    };
+
+/**
+ * Serialized StackModel data with loop support
+ */
+export type StackModelRawData = {
+    items: StackModelItemData[];
+    loop?: StackModelLoopRawData;
+};
 
 /**
  * Nested Stack Model is a new concept designed to control serialization/deserialization of complex nested operations
@@ -67,6 +115,11 @@ export type StackModelRawData = (
  *    - Serialize StackModel and execute directly on deserialize
  */
 
+/** Threshold for infinite loop detection in debug mode */
+const LOOP_DEBUG_THRESHOLD = 32767;
+/** Minimum time in ms that LOOP_DEBUG_THRESHOLD iterations should take to not be considered suspicious */
+const LOOP_DEBUG_MIN_TIME_MS = 1000;
+
 export class StackModel {
     __tag: string | undefined = undefined;
 
@@ -77,6 +130,45 @@ export class StackModel {
     public static createStackModel(liveGame: LiveGame, data: StackModelRawData, actionMap: Map<string, LogicAction.Actions>): StackModel {
         const stackModel = new StackModel(liveGame);
         stackModel.deserialize(data, actionMap);
+        return stackModel;
+    }
+
+    /**
+     * Create a count-based loop StackModel (repeat N times)
+     */
+    public static createCountLoop(
+        liveGame: LiveGame,
+        times: number,
+        bodyActions: LogicAction.Actions[]
+    ): StackModel {
+        const stackModel = new StackModel(liveGame, "loop:count");
+        stackModel.initLoop({
+            type: "count",
+            counter: 0,
+            limit: times,
+            bodyActionIds: bodyActions.map(a => a.getId()),
+            broken: false,
+        }, bodyActions, null);
+        return stackModel;
+    }
+
+    /**
+     * Create a condition-based loop StackModel (while condition is true)
+     */
+    public static createConditionLoop(
+        liveGame: LiveGame,
+        condition: Lambda<boolean>,
+        conditionActionId: string,
+        bodyActions: LogicAction.Actions[]
+    ): StackModel {
+        const stackModel = new StackModel(liveGame, "loop:condition");
+        stackModel.initLoop({
+            type: "condition",
+            counter: 0,
+            conditionActionId,
+            bodyActionIds: bodyActions.map(a => a.getId()),
+            broken: false,
+        }, bodyActions, condition);
         return stackModel;
     }
 
@@ -118,6 +210,14 @@ export class StackModel {
 
     private stack: Stack<CalledActionResult | Awaitable<CalledActionResult>>;
     private waitingAction: CalledActionResult | null = null;
+
+    // Loop-related fields
+    private loopConfig: StackModelLoopConfig | null = null;
+    private loopBodyActions: LogicAction.Actions[] = [];
+    private loopCondition: Lambda<boolean> | null = null;
+    private loopStartTime: number = 0;
+    private loopDebugCheckpoint: number = 0;
+
     constructor(private liveGame: LiveGame, tag: string | undefined = undefined) {
         this.__tag = tag;
         this.stack = new Stack<CalledActionResult | Awaitable<CalledActionResult>>().addPushValidator((item) => {
@@ -148,6 +248,128 @@ export class StackModel {
             }
             return true;
         });
+    }
+
+    /**
+     * Initialize loop configuration
+     */
+    private initLoop(
+        config: StackModelLoopConfig,
+        bodyActions: LogicAction.Actions[],
+        condition: Lambda<boolean> | null
+    ): void {
+        this.loopConfig = config;
+        this.loopBodyActions = bodyActions;
+        this.loopCondition = condition;
+        this.loopStartTime = Date.now();
+        this.loopDebugCheckpoint = 0;
+
+        // Push the first iteration body actions to stack
+        if (this.shouldContinueLoop(this.liveGame.getGameStateForce())) {
+            this.pushLoopBody();
+        }
+    }
+
+    /**
+     * Check if the loop should continue
+     */
+    private shouldContinueLoop(gameState: GameState): boolean {
+        if (!this.loopConfig || this.loopConfig.broken) {
+            return false;
+        }
+
+        if (this.loopConfig.type === "count") {
+            return this.loopConfig.counter < (this.loopConfig.limit ?? 0);
+        } else {
+            // condition loop
+            if (!this.loopCondition) {
+                return false;
+            }
+            return this.loopCondition.evaluate({ gameState }).value;
+        }
+    }
+
+    /**
+     * Push loop body actions to stack for next iteration
+     */
+    private pushLoopBody(): void {
+        if (this.loopBodyActions.length === 0) {
+            return;
+        }
+
+        // Push actions in reverse order so they execute in correct order
+        for (let i = this.loopBodyActions.length - 1; i >= 0; i--) {
+            this.stack.push(StackModel.fromAction(this.loopBodyActions[i]));
+        }
+    }
+
+    /**
+     * Called when an iteration completes, checks if loop should continue
+     */
+    private onIterationComplete(): void {
+        if (!this.loopConfig || this.loopConfig.broken) {
+            return;
+        }
+
+        this.loopConfig.counter++;
+
+        // Debug mode: check for potential infinite loops
+        if (this.liveGame.game.config.app.debug) {
+            this.checkInfiniteLoop();
+        }
+
+        // Check if loop should continue
+        if (this.shouldContinueLoop(this.liveGame.getGameStateForce())) {
+            this.pushLoopBody();
+        }
+    }
+
+    /**
+     * Check for potential infinite loops in debug mode
+     */
+    private checkInfiniteLoop(): void {
+        if (!this.loopConfig) return;
+
+        const currentCount = this.loopConfig.counter;
+        if (currentCount > 0 && currentCount % LOOP_DEBUG_THRESHOLD === 0) {
+            const elapsed = Date.now() - this.loopStartTime;
+            const iterationsSinceCheckpoint = currentCount - this.loopDebugCheckpoint;
+
+            // If we've done LOOP_DEBUG_THRESHOLD iterations too quickly, it's likely an infinite loop
+            if (iterationsSinceCheckpoint >= LOOP_DEBUG_THRESHOLD && elapsed < LOOP_DEBUG_MIN_TIME_MS) {
+                const error = new RuntimeGameError(
+                    `[NarraLeaf] Potential infinite loop detected!\n` +
+                    `Loop has executed ${currentCount} iterations in ${elapsed}ms.\n` +
+                    `This is likely a bug in your game script. Check your loop conditions.\n` +
+                    `Loop type: ${this.loopConfig.type}, broken: ${this.loopConfig.broken}`
+                );
+                this.liveGame.getGameStateForce().logger.error("StackModel", error.message);
+                throw error;
+            }
+
+            // Update checkpoint
+            this.loopDebugCheckpoint = currentCount;
+            this.loopStartTime = Date.now();
+        }
+    }
+
+    /**
+     * Break the current loop
+     */
+    public breakLoop(): void {
+        if (!this.loopConfig) {
+            throw new RuntimeGameError("Cannot break: StackModel is not a loop");
+        }
+        this.loopConfig.broken = true;
+        // Clear the stack to exit the loop immediately
+        this.stack.clear();
+    }
+
+    /**
+     * Check if this StackModel is a loop
+     */
+    public isLoop(): boolean {
+        return this.loopConfig !== null;
     }
 
     /**
@@ -238,7 +460,16 @@ export class StackModel {
                     throw new Error("StackModel: Suspiciously long waiting loop.");
                 }
 
+                // Check if stack is empty
                 if (this.stack.isEmpty()) {
+                    // If this is a loop, check if we should continue
+                    if (this.loopConfig && !this.loopConfig.broken) {
+                        this.onIterationComplete();
+                        // If loop pushed new actions, continue
+                        if (!this.stack.isEmpty()) {
+                            continue;
+                        }
+                    }
                     exited = true;
                     break;
                 }
@@ -386,7 +617,7 @@ export class StackModel {
      * @returns Snapshot that can be passed to {@link StackModel.deserialize}.
      */
     serialize(frozen: boolean = true): StackModelRawData {
-        const toData = (item: CalledActionResult | Awaitable<CalledActionResult>): ArrayValue<StackModelRawData> | null => {
+        const toData = (item: CalledActionResult | Awaitable<CalledActionResult>): StackModelItemData | null => {
             if (StackModel.isCalledActionResult(item)) {
                 const actionId = item.node?.action?.getId() ?? null;
                 const actionType = item.node?.action?.type ?? null;
@@ -404,16 +635,31 @@ export class StackModel {
             }
             return null;
         };
-        const data = this.stack.map(toData).filter(function (item): item is Exclude<ArrayValue<StackModelRawData> | null, null> {
+        const items = this.stack.map(toData).filter(function (item): item is Exclude<StackModelItemData | null, null> {
             return item !== null;
         });
         if (frozen && this.waitingAction) {
             const actionData = toData(this.waitingAction);
             if (actionData) {
-                data.push(actionData);
+                items.push(actionData);
             }
         }
-        return data;
+
+        const result: StackModelRawData = { items };
+
+        // Serialize loop configuration if present
+        if (this.loopConfig) {
+            result.loop = {
+                type: this.loopConfig.type,
+                counter: this.loopConfig.counter,
+                limit: this.loopConfig.limit,
+                conditionActionId: this.loopConfig.conditionActionId,
+                bodyActionIds: this.loopConfig.bodyActionIds,
+                broken: this.loopConfig.broken,
+            };
+        }
+
+        return result;
     }
 
     reset() {
@@ -429,12 +675,20 @@ export class StackModel {
         }
         this.waitingAction = null;
         this.stack.clear();
+        // Reset loop state
+        this.loopConfig = null;
+        this.loopBodyActions = [];
+        this.loopCondition = null;
+        this.loopStartTime = 0;
+        this.loopDebugCheckpoint = 0;
     }
 
     deserialize(data: StackModelRawData, actionMap: Map<string, LogicAction.Actions>): this {
         this.reset();
 
-        for (const item of data) {
+        const items = data.items;
+
+        for (const item of items) {
             if (item.type === StackModelItemType.Action) {
                 if (!item.action) continue;
 
@@ -459,6 +713,47 @@ export class StackModel {
                     }
                 });
             }
+        }
+
+        // Deserialize loop configuration if present
+        if (data.loop) {
+            const loopData = data.loop;
+            const bodyActions: LogicAction.Actions[] = [];
+
+            // Restore body actions from IDs
+            for (const actionId of loopData.bodyActionIds) {
+                const action = actionMap.get(actionId);
+                if (!action) {
+                    throw new Error(`Loop body action not found: ${actionId}`);
+                }
+                bodyActions.push(action);
+            }
+
+            // Restore condition for condition loops
+            let condition: Lambda<boolean> | null = null;
+            if (loopData.type === "condition" && loopData.conditionActionId) {
+                const conditionAction = actionMap.get(loopData.conditionActionId);
+                if (conditionAction) {
+                    // The condition Lambda is stored in the action's ContentNode
+                    const content = conditionAction.contentNode.getContent();
+                    if (Array.isArray(content) && content.length >= 2 && Lambda.isLambda(content[1])) {
+                        condition = content[1];
+                    }
+                }
+            }
+
+            this.loopConfig = {
+                type: loopData.type,
+                counter: loopData.counter,
+                limit: loopData.limit,
+                conditionActionId: loopData.conditionActionId,
+                bodyActionIds: loopData.bodyActionIds,
+                broken: loopData.broken,
+            };
+            this.loopBodyActions = bodyActions;
+            this.loopCondition = condition;
+            this.loopStartTime = Date.now();
+            this.loopDebugCheckpoint = loopData.counter;
         }
 
         return this;

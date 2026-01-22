@@ -1,6 +1,6 @@
 import { LogicAction } from "@core/action/logicAction";
 import type { Story } from "@core/elements/story";
-import type { ConditionData } from "@core/elements/condition";
+import type { ConditionData, Lambda } from "@core/elements/condition";
 import { Color, ImageSrc } from "@core/types";
 import { Transform } from "@core/elements/transform/transform";
 import type { Scene } from "@core/elements/scene";
@@ -144,6 +144,8 @@ export const ControlActionTypes = {
     all: "control:all",
     allAsync: "control:allAsync",
     repeat: "control:repeat",
+    while: "control:while",
+    break: "control:break",
     sleep: "control:sleep",
 } as const;
 export type ControlActionContentType = {
@@ -155,6 +157,8 @@ export type ControlActionContentType = {
     K extends "control:parallel" ? [LogicAction.Actions[]] :
     K extends "control:allAsync" ? [LogicAction.Actions[]] :
     K extends "control:repeat" ? [LogicAction.Actions[], number] :
+    K extends "control:while" ? [LogicAction.Actions[], Lambda<boolean>] :
+    K extends "control:break" ? [] :
     K extends "control:sleep" ? [LogicAction.Actions[], number | Awaitable<any> | Promise<any>] :
     any;
 }

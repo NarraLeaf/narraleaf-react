@@ -10,6 +10,7 @@ import { Awaitable } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { Timeline } from "@player/Tasks";
 import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
+import { StackModel } from "@core/action/stackModel";
 
 export class ControlAction<T extends typeof ControlActionTypes[keyof typeof ControlActionTypes] = typeof ControlActionTypes[keyof typeof ControlActionTypes]>
     extends TypedAction<ControlActionContentType, T, Control> {
@@ -109,27 +110,68 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             return super.executeAction(gameState, injection);
         } else if (this.type === ControlActionTypes.repeat) {
             const [actions, times] = (this.contentNode as ContentNode<ControlActionContentType["control:repeat"]>).getContent();
-            if (times <= 0) {
+            if (times <= 0 || actions.length === 0) {
                 return super.executeAction(gameState, injection);
             }
 
-            const awaitable = Timeline.sequence<number>((index) => {
-                if (index >= times) {
-                    return null;
-                }
-
-                const awaitable = ControlAction.executeActionsAsync(gameState, actions[0]);
-                gameState.timelines.attachTimeline(awaitable);
-
-                return Awaitable.forward(awaitable, index + 1);
-            }, 0);
+            // Use the new StackModel-based loop
+            const loopStackModel = StackModel.createCountLoop(
+                gameState.game.getLiveGame(),
+                times,
+                this.checkActionChain(actions)
+            );
 
             gameState.logger.debug("ControlAction", "repeat", actions, times);
 
-            return Awaitable.forward<CalledActionResult>(awaitable, {
+            return {
                 type: this.type,
                 node: this.contentNode.getChild(),
-            });
+                wait: {
+                    type: "all",
+                    stackModels: [loopStackModel]
+                }
+            };
+        } else if (this.type === ControlActionTypes.while) {
+            const [actions, condition] = (this.contentNode as ContentNode<ControlActionContentType["control:while"]>).getContent();
+            if (actions.length === 0) {
+                return super.executeAction(gameState, injection);
+            }
+
+            // Check condition before starting
+            if (!condition.evaluate({ gameState }).value) {
+                return super.executeAction(gameState, injection);
+            }
+
+            // Use the new StackModel-based condition loop
+            const loopStackModel = StackModel.createConditionLoop(
+                gameState.game.getLiveGame(),
+                condition,
+                this.getId(),
+                this.checkActionChain(actions)
+            );
+
+            gameState.logger.debug("ControlAction", "while", actions);
+
+            return {
+                type: this.type,
+                node: this.contentNode.getChild(),
+                wait: {
+                    type: "all",
+                    stackModels: [loopStackModel]
+                }
+            };
+        } else if (this.type === ControlActionTypes.break) {
+            // Break the current loop in the StackModel
+            if (!injection.stackModel.isLoop()) {
+                throw new Error("Control.breakLoop() can only be used inside a loop (repeat/while)");
+            }
+            injection.stackModel.breakLoop();
+
+            // Return immediately without continuing to the child
+            return {
+                type: this.type,
+                node: null
+            };
         } else if (this.type === ControlActionTypes.sleep) {
             const [, content] = (this.contentNode as ContentNode<ControlActionContentType["control:sleep"]>).getContent();
             let sleepAwaitable: Awaitable<void>;
@@ -170,12 +212,22 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             return [...super.getFutureActions(story, options)];
         }
 
-        const actions = this.contentNode.getContent()[0];
+        // break has no body actions
+        if (this.type === ControlActionTypes.break) {
+            return super.getFutureActions(story, options);
+        }
+
+        const actions = this.contentNode.getContent()[0] as LogicAction.Actions[] | undefined;
         const childActions = super.getFutureActions(story, options);
-        return [...actions, ...childActions];
+        return [...(actions ?? []), ...childActions];
     }
 
     stringify(story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        // break has no body actions
+        if (this.type === ControlActionTypes.break) {
+            return super.stringifyWithContent("Control", "break");
+        }
+
         const contentNode = this.contentNode as ContentNode<ControlActionContentType[T]>;
         const [content] = contentNode.getContent() as [LogicAction.Actions[]];
 

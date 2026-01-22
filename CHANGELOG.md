@@ -2,6 +2,14 @@
 
 ## [0.9.0]
 
+### _Feature_
+
+- Enhanced StackModel to support loop state serialization, replacing the previous repeat implementation
+- Added `Control.whileLoop(condition, actions)` for condition-based loops
+- Added `Control.breakLoop()` to exit loops prematurely
+- Repeat loops now save their execution state in save files
+- Added infinite loop detection in debug mode (throws error when loops exceed 32767 iterations within 1 second)
+
 ### _Incompatible Changes_
 
 - `JumpConfig.unloadScene` is removed
@@ -13,26 +21,28 @@
 - Added `Storable.createNamespace`
 - Fixed some type exports
 - Added `beforeRestore` and `afterRestore` hooks for plugin system
+- `Control.repeat` now uses StackModel-based implementation with full serialization support
+- Loop conditions (Lambda) are now automatically restored during deserialization
 
-## [0.8.7]
+## [0.8.7] - 2026/1/4
 
 ### Fixed
 
 - Refactored Sound System: fixed offset handling and playback management.
 
-## [0.8.6]
+## [0.8.6] - 2025/9/10
 
 ### Fixed
 
 - Incorrect behavior of `Menu.enableWhen` and `Menu.showWhen`
 
-## [0.8.5]
+## [0.8.5] - 2025/9/10
 
 ### Fixed
 
 - Incorrect signature of `Menu.enableWhen` and `Menu.showWhen`
 
-## [0.8.4]
+## [0.8.4] - 2025/9/10
 
 ### _Feature_
 
@@ -44,7 +54,7 @@
 
 - Script element is not executed correctly
 
-## [0.8.3]
+## [0.8.3] - 2025/9/9
 
 ### _Feature_
 
@@ -53,7 +63,7 @@
 - Added `Menu.hideIf` and `Menu.disableIf` magic methods
 - Added `Menu.enableWhen` and `Menu.showWhen`
 
-## [0.8.2]
+## [0.8.2] - 2025/9/9
 
 ### Fixed
 
@@ -62,14 +72,14 @@
 - Condition actions are not executed correctly
 - Null action execution can cause infinite loop
 
-## [0.8.1]
+## [0.8.1] - 2025/9/6
 
 ### Fixed
 
 - Default value of `Transform.propToCSSTransform#optional` is not respected
 - Fixed an issue where the top-of-stack action might be executed repeatedly during undo operations.
 
-## [0.8.0]
+## [0.8.0] - 2025/9/6
 
 ### _Feature_
 
@@ -84,7 +94,7 @@
 
 - Background image using hex color is not showing
 
-## [0.7.0]
+## [0.7.0] - 2025/7/6
 
 ### _Feature_
 
@@ -99,7 +109,7 @@
 - `Page` is refactored
 - `game.config.skipKey` and `game.config.nextKey` are deprecated, use `game.keyMap` instead
 
-## [0.6.0]
+## [0.6.0] - 2025/6/9
 
 ### _Feature_
 
@@ -127,7 +137,7 @@
 
 - Notification is not scaled correctly
 
-## [0.5.0]
+## [0.5.0] - 2025/5/21
 
 ### _Incompatible Changes_
 
