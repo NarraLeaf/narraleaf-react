@@ -1,4 +1,4 @@
-import { ArrayValue, Awaitable, Stack } from "@lib/util/data";
+import { Awaitable, Stack } from "@lib/util/data";
 import { LiveGame } from "../common/game";
 import { RuntimeInternalError, RuntimeGameError } from "../common/Utils";
 import { CalledActionResult, StackModelWaiting } from "../gameTypes";
@@ -338,9 +338,9 @@ export class StackModel {
             // If we've done LOOP_DEBUG_THRESHOLD iterations too quickly, it's likely an infinite loop
             if (iterationsSinceCheckpoint >= LOOP_DEBUG_THRESHOLD && elapsed < LOOP_DEBUG_MIN_TIME_MS) {
                 const error = new RuntimeGameError(
-                    `[NarraLeaf] Potential infinite loop detected!\n` +
+                    "[NarraLeaf] Potential infinite loop detected!\n" +
                     `Loop has executed ${currentCount} iterations in ${elapsed}ms.\n` +
-                    `This is likely a bug in your game script. Check your loop conditions.\n` +
+                    "This is likely a bug in your game script. Check your loop conditions.\n" +
                     `Loop type: ${this.loopConfig.type}, broken: ${this.loopConfig.broken}`
                 );
                 this.liveGame.getGameStateForce().logger.error("StackModel", error.message);
