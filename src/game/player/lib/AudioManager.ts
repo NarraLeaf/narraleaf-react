@@ -87,6 +87,10 @@ export class AudioManager {
                     rate: 1,
                 });
 
+                const isMuted = sound.state.muted ?? false;
+                token.mute(isMuted);
+                sound.state.muted = isMuted;
+
                 this.state.set(sound, { token, cachedAudio, originalVolume: options.end });
 
                 // Apply fade in
@@ -164,6 +168,22 @@ export class AudioManager {
             });
         }
 
+        return awaitable;
+    }
+
+    public mute(sound: SoundElement, muted: boolean = true): Awaitable<void> {
+        const awaitable = new Awaitable<void>();
+
+        sound.state.muted = muted;
+
+        if (!this.state.has(sound)) {
+            awaitable.resolve();
+            return awaitable;
+        }
+
+        const state = this.state.get(sound)!;
+        state.token.mute(muted);
+        awaitable.resolve();
         return awaitable;
     }
 
@@ -305,6 +325,9 @@ export class AudioManager {
                 });
 
                 this.state.set(sound, { token, cachedAudio, originalVolume: sound.state.volume });
+                const isMuted = sound.state.muted ?? false;
+                token.mute(isMuted);
+                sound.state.muted = isMuted;
 
                 if (sound.state.paused) {
                     token.pause();

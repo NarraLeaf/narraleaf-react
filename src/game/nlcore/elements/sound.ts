@@ -73,6 +73,7 @@ type SoundState = {
     volume: number;
     rate: number;
     paused: boolean;
+    muted: boolean;
 };
 
 export class Sound extends Actionable<SoundDataRaw, Sound> {
@@ -104,6 +105,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         volume: 1,
         rate: 1,
         paused: false,
+        muted: false,
     });
 
     /**@internal */
@@ -199,6 +201,21 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
             volume,
             duration || 0
         ]);
+    }
+
+    /**
+     * @chainable
+     */
+    public mute(muted: boolean = true): ChainedSound {
+        return this.pushAction<SoundActionContentType["sound:mute"]>(SoundAction.ActionTypes.mute, [muted]);
+    }
+
+    /**
+     * @chainable
+     * An alias for `Sound.mute(false)`
+     */
+    public unmute(): ChainedSound {
+        return this.mute(false);
     }
 
     /**

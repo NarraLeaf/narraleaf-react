@@ -29,6 +29,15 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
         return Sound.toSound(scene.getVoice(voiceId) || voice);
     }
 
+    private static endVoiceWithPreference(gameState: GameState, voice: Sound): Awaitable<void> | null {
+        const {voiceEndMode, voiceFadeDuration} = gameState.game.preference.getPreferences();
+        if (voiceEndMode === "none") {
+            return null;
+        }
+        const duration = voiceEndMode === "fade" ? Math.max(0, voiceFadeDuration) : 0;
+        return gameState.audioManager.stop(voice, duration);
+    }
+
     public executeAction(gameState: GameState, injection: ActionExecutionInjection): ExecutedActionResult {
         /**
          * {@link Character.say}
@@ -49,15 +58,19 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 const task = gameState.audioManager.play(voice);
                 timeline.attachChild(task);
             }
+            const voiceEndToken = voice
+                ? gameState.events.on(GameState.EventTypes["event:state.player.lineEnd"], () => {
+                    const task = CharacterAction.endVoiceWithPreference(gameState, voice);
+                    if (task) {
+                        gameState.timelines.attachTimeline(task);
+                    }
+                    voiceEndToken?.cancel();
+                })
+                : null;
 
             // Create dialog
             const dialogId = gameState.idManager.generateId();
             const dialog = gameState.createDialog(dialogId, sentence, () => {
-                if (voice) {
-                    const task = gameState.audioManager.stop(voice);
-                    gameState.timelines.attachTimeline(task);
-                }
-
                 gameState.gameHistory.resolvePending(id); // accessing id is technically dangerous, but I think it is impossible to happen
 
                 awaitable.resolve({
@@ -78,9 +91,12 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 stackModel: injection.stackModel,
                 timeline
             }, () => {
+                voiceEndToken?.cancel();
                 if (voice && gameState.audioManager.isPlaying(voice)) {
-                    const task = gameState.audioManager.stop(voice);
-                    timeline.attachChild(task);
+                    const task = CharacterAction.endVoiceWithPreference(gameState, voice);
+                    if (task) {
+                        timeline.attachChild(task);
+                    }
                 }
                 dialog.cancel();
             });

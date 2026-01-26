@@ -399,6 +399,16 @@ export type GamePreference = {
      */
     voiceVolume: number;
     /**
+     * Fade duration in milliseconds when ending voice in fade mode
+     * @default 0
+     */
+    voiceFadeDuration: number;
+    /**
+     * How to end voice playback at the end of a sentence
+     * @default "stop"
+     */
+    voiceEndMode: "fade" | "stop" | "none";
+    /**
      * The volume of the background music
      * @default 1
      */

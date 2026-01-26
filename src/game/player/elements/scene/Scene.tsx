@@ -86,6 +86,7 @@ export default function Scene(
                             usingSkipRef.current = skiped;
                         }
                         onClick();
+                        state.events.emit(GameState.EventTypes["event:state.player.lineEnd"]);
                         state.stage.next();
                     }}
                     useTypeEffect={!usingSkipRef.current}

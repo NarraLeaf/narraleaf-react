@@ -88,6 +88,7 @@ interface StageUtils {
 type GameStateEvents = {
     "event:state.end": [];
     "event:state.player.skip": [force?: boolean];
+    "event:state.player.lineEnd": [];
     "event:state.player.requestFlush": [];
     "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
     "event:state.onRender": [];
@@ -102,6 +103,7 @@ export class GameState {
     static EventTypes: { [K in keyof GameStateEvents]: K } = {
         "event:state.end": "event:state.end",
         "event:state.player.skip": "event:state.player.skip",
+        "event:state.player.lineEnd": "event:state.player.lineEnd",
         "event:state.player.requestFlush": "event:state.player.requestFlush",
         "event.state.onExpose": "event.state.onExpose",
         "event:state.onRender": "event:state.onRender",

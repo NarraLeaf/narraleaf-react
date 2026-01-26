@@ -565,12 +565,16 @@ export class Scene extends Constructable<
             if (typeof voices === "function") {
                 const voice = voices(id);
                 if (typeof voice === "string") {
-                    return voice;
+                    return Sound.voice(voice);
                 }
                 Scene.validateVoice(voice);
                 return voice;
             }
-            return voices[id] || null;
+            const voice = voices[id];
+            if (typeof voice === "string") {
+                return Sound.voice(voice);
+            }
+            return voice || null;
         }
         return null;
     }

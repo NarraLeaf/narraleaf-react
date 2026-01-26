@@ -118,7 +118,9 @@ export class Sentence {
         this.text = Sentence.format(text);
         this.config = deepMerge<SentenceConfig>(Sentence.defaultConfig, {
             ...config,
-            voice: Sound.toSound(config.voice),
+            voice: typeof config.voice === "string"
+                ? Sound.voice(config.voice)
+                : Sound.toSound(config.voice),
         });
         this.state = safeClone(Sentence.defaultState);
     }

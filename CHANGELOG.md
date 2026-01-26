@@ -8,7 +8,8 @@
 - Added `Control.whileLoop(condition, actions)` for condition-based loops
 - Added `Control.breakLoop()` to exit loops prematurely
 - Repeat loops now save their execution state in save files
-- Added infinite loop detection in debug mode (throws error when loops exceed 32767 iterations within 1 second)
+- Added `Sound.mute` and `Sound.unmute` to mute and unmute a sound
+- Added `GamePreference.voiceEndMode` to control how to end voice playback at the end of a sentence
 
 ### _Incompatible Changes_
 
@@ -23,6 +24,10 @@
 - Added `beforeRestore` and `afterRestore` hooks for plugin system
 - `Control.repeat` now uses StackModel-based implementation with full serialization support
 - Loop conditions (Lambda) are now automatically restored during deserialization
+
+### Fixed
+
+- Voice is not configured correctly when using `character.say`
 
 ## [0.8.7] - 2026/1/4
 
