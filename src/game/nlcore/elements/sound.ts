@@ -127,16 +127,36 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         return v instanceof Sound;
     }
 
+    /**
+     * Create a voice sound for dialog lines.
+     * @param arg0 - Source or config for the voice clip.
+     * @example
+     * ```ts
+     * Sound.voice({ src: "voice.mp3" });
+     * ```
+     */
     public static voice(arg0: Partial<ISoundUserConfig> | string) {
         const config = typeof arg0 === "string" ? {src: arg0} : arg0;
         return new Sound({...config, type: SoundType.Voice});
     }
 
+    /**
+     * Create background music that cannot be played via `play()`.
+     * @param arg0 - Source or config for the bgm clip.
+     * @example
+     * ```ts
+     * Sound.bgm("theme.mp3");
+     * ```
+     */
     public static bgm(arg0: Partial<ISoundUserConfig> | string) {
         const config = typeof arg0 === "string" ? {src: arg0} : arg0;
         return new Sound({...config, type: SoundType.Bgm});
     }
 
+    /**
+     * Create a one-off sound effect.
+     * @param arg0 - Source or config for the sound effect.
+     */
     public static sound(arg0: Partial<ISoundUserConfig> | string) {
         const config = typeof arg0 === "string" ? {src: arg0} : arg0;
         return new Sound({...config, type: SoundType.Sound});
@@ -164,10 +184,13 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**
-     * Start playing the sound and **wait for it to finish**
-     *
-     * This action will be resolved when the sound reaches the end
+     * Start playing the sound and wait for it to finish.
+     * @param duration - Optional fade duration in milliseconds.
      * @chainable
+     * @example
+     * ```ts
+     * sound.play(1000);
+     * ```
      */
     public play(duration?: number): ChainedSound {
         if (this.config.type === SoundType.Bgm) {
@@ -184,6 +207,8 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**
+     * Stop the sound and optionally fade out.
+     * @param duration - Fade duration in milliseconds.
      * @chainable
      */
     public stop(duration?: number): ChainedSound {
@@ -194,7 +219,14 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**
+     * Change the sound volume gradually.
+     * @param volume - Target volume (0-1).
+     * @param duration - Fade duration in milliseconds.
      * @chainable
+     * @example
+     * ```ts
+     * sound.setVolume(0.5, 500);
+     * ```
      */
     public setVolume(volume: number, duration?: number): ChainedSound {
         return this.pushAction<SoundActionContentType["sound:setVolume"]>(SoundAction.ActionTypes.setVolume, [
@@ -204,6 +236,8 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**
+     * Mute or unmute the sound.
+     * @param muted - `true` to mute, `false` to restore volume.
      * @chainable
      */
     public mute(muted: boolean = true): ChainedSound {
@@ -211,14 +245,16 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**
+     * Alias of `mute(false)` to restore audio.
      * @chainable
-     * An alias for `Sound.mute(false)`
      */
     public unmute(): ChainedSound {
         return this.mute(false);
     }
 
     /**
+     * Change the playback rate.
+     * @param rate - Playback multiplier (1 is normal speed).
      * @chainable
      */
     public setRate(rate: number): ChainedSound {
@@ -226,6 +262,8 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**
+     * Pause the sound, optionally fading out.
+     * @param duration - Fade duration in milliseconds.
      * @chainable
      */
     public pause(duration?: number): ChainedSound {
@@ -236,6 +274,8 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     }
 
     /**
+     * Resume playback, optionally fading in.
+     * @param duration - Fade duration in milliseconds.
      * @chainable
      */
     public resume(duration?: number): ChainedSound {

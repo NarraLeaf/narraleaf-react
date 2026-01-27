@@ -111,6 +111,17 @@ export class Sentence {
     /**@internal */
     state: SentenceState;
 
+    /**
+     * Build a new sentence from a prompt or mix of words, pauses, and dynamic data.
+     * @param text - The sentence prompt used to render the dialogue.
+     * @param config - Optional styling, voice, or character overrides.
+     * @example
+     * ```ts
+     * new Sentence(["Hello, ", Word.color("world", "#f00")], {
+     *     character,
+     * });
+     * ```
+     */
     constructor(
         text: SentencePrompt,
         config: SentenceUserConfig = {}
@@ -157,6 +168,14 @@ export class Sentence {
         return words;
     }
 
+    /**
+     * Clone the sentence and reuse its configuration.
+     * @example
+     * ```ts
+     * const sentence = new Sentence("Hello, world");
+     * const sentence2 = sentence.copy();
+     * ```
+     */
     copy(): Sentence {
         return new Sentence([...this.text], this.config);
     }

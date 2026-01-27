@@ -8,6 +8,7 @@ import Texts from "@player/elements/say/Sentence";
 import Nametag from "@player/elements/say/Nametag";
 import Dialog from "@player/elements/say/Dialog";
 import { useDialog } from "@player/elements/say/useDialog";
+import { useVoiceState } from "@player/elements/say/useVoiceState";
 import { Page, PageInjectContext } from "@player/lib/PageRouter/Page";
 import { Layout, LayoutRouterProvider } from "@player/lib/PageRouter/Layout";
 import { RootPath } from "@player/lib/PageRouter/router";
@@ -25,6 +26,7 @@ export {
     Nametag,
     Dialog,
     useDialog,
+    useVoiceState,
     Page,
     Layout,
     LayoutRouterProvider,

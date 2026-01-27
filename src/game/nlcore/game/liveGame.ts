@@ -12,6 +12,8 @@ import { StorableType } from "@core/elements/persistent/type";
 import { Scene } from "@core/elements/scene";
 import { ElementStateRaw, Story } from "@core/elements/story";
 import { Game } from "@core/game";
+import { Sound } from "@core/elements/sound";
+import { SoundToken } from "@narraleaf/sound";
 import type { CalledActionResult, NotificationToken, SavedGame } from "@core/gameTypes";
 import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
 import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
@@ -335,6 +337,16 @@ export class LiveGame {
             },
             promise,
         };
+    }
+
+    /**
+     * Play a sound immediately and return the SoundToken.
+     */
+    public playSound(sound: Sound | string | URL): Promise<SoundToken> {
+        this.assertGameState();
+        const resolved = sound instanceof URL ? sound.toString() : sound;
+        const target = typeof resolved === "string" ? new Sound({ src: resolved }) : resolved;
+        return this.gameState.audioManager.playSoundToken(target);
     }
 
     /**

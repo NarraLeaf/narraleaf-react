@@ -19,39 +19,60 @@ type ControlConfig = {
 
 export class Control extends Actionable {
     /**
-     * Execute actions in order, waiting for each action to complete
+     * Execute actions in order, waiting for each action to complete.
+     * @param actions - The sequence of actions to run.
      * @chainable
+     * @example
+     * ```ts
+     * Control.do([character.say("hello"), image.char("path.png")]);
+     * ```
      */
     public static do(actions: ActionStatements): ChainedControl {
         return new Control().do(actions);
     }
 
     /**
-     * Execute actions in order, do not wait for this action to complete
+     * Execute actions in order without waiting for completion.
+     * @param actions - Actions to run sequentially.
      * @chainable
+     * @example
+     * ```ts
+     * Control.doAsync([sound.play(), image.char("path.png")]);
+     * ```
      */
     public static doAsync(actions: ActionStatements): ChainedControl {
         return new Control().doAsync(actions);
     }
 
     /**
-     * Execute all actions at the same time, waiting for any one action to complete
+     * Execute actions concurrently, resolving once any finishes.
+     * @param actions - Actions to run in parallel.
      * @chainable
+     * @example
+     * ```ts
+     * Control.any([sound.play(), image.char("happy.png")]);
+     * ```
      */
     public static any(actions: ActionStatements): ChainedControl {
         return new Control().any(actions);
     }
 
     /**
-     * Execute all actions at the same time, waiting for all actions to complete
+     * Execute actions concurrently and wait until all finish.
+     * @param actions - Actions to run at the same time.
      * @chainable
+     * @example
+     * ```ts
+     * Control.all([sound.play(), dialog.show()]);
+     * ```
      */
     public static all(actions: ActionStatements): ChainedControl {
         return new Control().all(actions);
     }
 
     /**
-     * Execute all actions at the same time, do not wait for all actions to complete
+     * Execute actions concurrently and continue without waiting.
+     * @param actions - Actions to fire simultaneously.
      * @chainable
      */
     public static allAsync(actions: ActionStatements): ChainedControl {
@@ -59,15 +80,23 @@ export class Control extends Actionable {
     }
 
     /**
-     * Execute actions multiple times
+     * Execute actions multiple times.
+     * @param times - How many times to repeat.
+     * @param actions - The actions to repeat.
      * @chainable
+     * @example
+     * ```ts
+     * Control.repeat(3, [character.say("Again!")]);
+     * ```
      */
     public static repeat(times: number, actions: ActionStatements): ChainedControl {
         return new Control().repeat(times, actions);
     }
 
     /**
-     * Execute actions while condition is true
+     * Repeat actions while a condition stays true.
+     * @param condition - Lambda to guard the loop.
+     * @param actions - Body actions to run each iteration.
      * @chainable
      */
     public static whileLoop(condition: Lambda<boolean> | LambdaHandler<boolean>, actions: ActionStatements): ChainedControl {
@@ -75,8 +104,8 @@ export class Control extends Actionable {
     }
 
     /**
-     * Break the current loop (repeat/while)
-     * Can only be used inside a loop body
+     * Break out of the nearest repeating loop (repeat or while).
+     * Can only be used inside a loop body.
      * @chainable
      */
     public static breakLoop(): ChainedControl {
@@ -84,7 +113,8 @@ export class Control extends Actionable {
     }
 
     /**
-     * Sleep for a duration
+     * Pause execution for a duration or until an `Awaitable` resolves.
+     * @param duration - Milliseconds or awaitable controlling the pause length.
      * @chainable
      */
     public static sleep(duration: number | Awaitable<any> | Promise<any>): ChainedControl {

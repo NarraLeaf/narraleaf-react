@@ -24,6 +24,8 @@
 - Added `beforeRestore` and `afterRestore` hooks for plugin system
 - `Control.repeat` now uses StackModel-based implementation with full serialization support
 - Loop conditions (Lambda) are now automatically restored during deserialization
+- Added `LiveGame.playSound` to play a sound immediately and return the SoundToken
+- Added `useVoiceState` hook to access the voice state
 
 ### Fixed
 

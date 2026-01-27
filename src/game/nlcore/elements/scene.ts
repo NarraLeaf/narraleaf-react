@@ -267,8 +267,16 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Set background, if {@link transition} is provided, it'll be applied
+     * Update the scene background immediately or via transition.
+     * @param background - Color or image source to render.
+     * @param transition - Optional animation applied while swapping backgrounds.
      * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     scene.setBackground("#000", new FadeIn(1000))
+     * ]);
+     * ```
      */
     public setBackground(background: Color | ImageSrc, transition?: ImageTransition): ChainedScene {
         const chain = this.chain();
@@ -276,13 +284,18 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Jump to the specified scene
+     * Jump to another scene and discard the current one.
      *
-     * After calling the method, you **won't** be able to return to the context of the scene that called the jump,
-     * so the scene will be unloaded
-     *
-     * Any operations after the jump operation won't be executed
+     * After the jump the calling scene is unloaded and any actions that follow are ignored.
+     * @param scene - The destination scene instance.
+     * @param config - Optional transition config (or transition object).
      * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     scene.jumpTo(nextScene, new FadeIn(800))
+     * ]);
+     * ```
      */
     public jumpTo(scene: Scene, config: Partial<JumpConfig> | JumpConfig["transition"] = {}): ChainableAction {
         return this.combineActions(new Control({
@@ -308,10 +321,14 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Set background music
-     * @param sound Target music
-     * @param fade If set, the fade-out effect will be applied to the previous music, and the fade-in effect will be applied to the current music, with a duration of {@link fade} milliseconds
+     * Set the scene background music, optionally fading the previous track.
+     * @param sound - The BGM or `null` to stop the music.
+     * @param fade - Duration of the cross-fade, in milliseconds.
      * @chainable
+     * @example
+     * ```ts
+     * scene.setBackgroundMusic(Sound.bgm("theme.mp3"), 500);
+     * ```
      */
     public setBackgroundMusic(sound: Sound | null, fade?: number): ChainedScene {
         return this.chain(new SceneAction<typeof SceneActionTypes["setBackgroundMusic"]>(
@@ -322,7 +339,18 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Add actions to the scene
+     * Register the list of actions (or an action-generating callback) that this scene will execute.
+     * @param actions - Either a list of actions or a factory that receives the scene and returns actions.
+     * @returns The scene instance, allowing chaining.
+     * @example
+     * ```ts
+     * story.entry(
+     *   new Scene("scene-1").action(scene => [
+     *     scene.setBackground("#000"),
+     *     Control.sleep(1000)
+     *   ])
+     * );
+     * ```
      */
     public action(actions: ActionStatements): this;
 
@@ -334,7 +362,13 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Manually register image sources
+     * Manually register image URLs so the story knows to preload them.
+     * @param src - One or more image URLs to cache ahead of time.
+     * @returns The scene so calls can be chained.
+     * @example
+     * ```ts
+     * scene.preloadImage(["bg-night.png", "bg-day.png"]);
+     * ```
      */
     public preloadImage(src: string | string[]): this {
         if (!Utils.isImageSrc(src)) {

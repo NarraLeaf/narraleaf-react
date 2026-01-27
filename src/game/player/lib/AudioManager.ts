@@ -121,6 +121,53 @@ export class AudioManager {
         return awaitable;
     }
 
+    public async playSoundToken(sound: SoundElement, options: FadeOptions = {
+        end: 1,
+        duration: 0,
+    }): Promise<SoundToken> {
+        await this.ready;
+
+        // Stop existing sound if playing
+        if (this.state.has(sound)) {
+            const existingState = this.state.get(sound)!;
+            existingState.token.stop();
+        }
+
+        try {
+            const channel = this.channels.get(sound.config.type);
+            if (!channel) {
+                throw new RuntimeGameError(`Channel not found for sound type: "${sound.config.type}"`);
+            }
+            const cachedAudio = await this.sound.load(sound.config.src);
+            const token = await channel.play(cachedAudio, {
+                volume: 0,
+                startTime: sound.config.seek,
+                loop: sound.config.loop,
+                rate: 1,
+            });
+
+            const isMuted = sound.state.muted ?? false;
+            token.mute(isMuted);
+            sound.state.muted = isMuted;
+
+            this.state.set(sound, { token, cachedAudio, originalVolume: options.end });
+
+            if (options.duration > 0) {
+                token.fade(0, options.end, options.duration);
+            } else {
+                token.setVolume(options.end);
+            }
+
+            sound.state.volume = options.end;
+            sound.state.paused = false;
+
+            return token;
+        } catch (error) {
+            this.gameState.logger.error("AudioManager", `Failed to play sound (src: "${sound.config.src}")`, error);
+            throw error;
+        }
+    }
+
     public stop(sound: SoundElement, duration: number = 0): Awaitable<void> {
         const awaitable = new Awaitable<void>();
 
@@ -275,6 +322,10 @@ export class AudioManager {
         }
         const state = this.state.get(sound)!;
         return state.token.isPlaying();
+    }
+
+    public getToken(sound: SoundElement): SoundToken | null {
+        return this.state.get(sound)?.token ?? null;
     }
 
     public toData(): AudioManagerDataRaw {

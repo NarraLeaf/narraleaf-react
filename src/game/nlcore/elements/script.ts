@@ -37,6 +37,18 @@ export class Script extends Actionable<object> {
         };
     }
 
+    /**
+     * Create a script action from a handler.
+     * @param handler - The script callback invoked when the action runs.
+     * @returns A proxied script action ready to chain.
+     * @example
+     * ```ts
+     * const script = Script.execute(({ storable }) => {
+     *   storable.getNamespace("player").set("score", 42);
+     * });
+     * scene.action([script]);
+     * ```
+     */
     public static execute(handler: ScriptRun): Proxied<Script, Chained<LogicAction.Actions>> {
         return new Script(handler) as Proxied<Script, Chained<LogicAction.Actions>>;
     }
@@ -44,6 +56,10 @@ export class Script extends Actionable<object> {
     /**@internal */
     readonly handler: ScriptRun;
 
+    /**
+     * Construct a script that runs arbitrary synchronous or asynchronous game logic.
+     * @param handler - Called with the script context when the action executes.
+     */
     constructor(handler: ScriptRun) {
         super();
         this.handler = handler;

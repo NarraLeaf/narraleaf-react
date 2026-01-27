@@ -86,6 +86,15 @@ export class Layer
     /**@internal */
     private userConfig: Config<ILayerUserConfig>;
 
+    /**
+     * Create a layer that can host displayables.
+     * @param name - Optional layer name for debugging.
+     * @param config - Optional config, e.g., `zIndex`.
+     * @example
+     * ```ts
+     * const layer = new Layer("background", { zIndex: -1 });
+     * ```
+     */
     constructor(name?: string, config: Partial<ILayerUserConfig> = {}) {
         super();
         const userConfig = Layer.DefaultUserConfig.create(config);
@@ -101,9 +110,13 @@ export class Layer
     }
 
     /**
-     * Include displayables in the layer.
-     *
-     * Same as {@link Displayable.useLayer}
+     * Include displayables in this layer (alias of `Displayable.useLayer`).
+     * @param elements - Image or text elements to attach.
+     * @returns This layer for chaining.
+     * @example
+     * ```ts
+     * layer.include(image);
+     * ```
      */
     public include(elements: (Image | Text)[] | Image | Text): this {
         const e = Array.isArray(elements) ? elements : [elements];
@@ -114,11 +127,9 @@ export class Layer
     }
 
     /**
-     * Set the z-index of the layer
-     * 
+     * Set the z-index of the layer.
+     * @param zIndex - The z-index of the layer.
      * @chainable
-     * @param zIndex - The z-index of the layer
-     * @returns The layer itself
      */
     public setZIndex(zIndex: number): Proxied<Layer, Chained<LogicAction.Actions>> {
         return this.chain(new LayerAction(

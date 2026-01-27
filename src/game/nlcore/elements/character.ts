@@ -151,6 +151,16 @@ export class Character extends Actionable<
         return this.chain(action);
     }
 
+    /**
+     * Set the display name that will appear in the dialog box for future actions.
+     * @param name - The new label to show above the next sentences.
+     * @returns The character instance to keep chaining dialogs.
+     * @chainable
+     * @example
+     * ```ts
+     * character.setName("Alice (angry)").say("What do you want?");
+     * ```
+     */
     public setName(name: string): Proxied<Character, Chained<LogicAction.Actions>> {
         const action = new CharacterAction<typeof CharacterAction.ActionTypes.setName>(
             this.chain(),
@@ -164,6 +174,18 @@ export class Character extends Actionable<
     public apply(content: Sentence): Proxied<Character, Chained<LogicAction.Actions>>;
     public apply(content: SentencePrompt, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
     public apply(texts: TemplateStringsArray, ...words: SingleWord[]): Proxied<Character, Chained<LogicAction.Actions>>;
+    
+    /**
+     * Alias of `say` intended for single-sentence tag usage.
+     *
+     * NOTE: some bundlers (e.g., Webpack) cannot keep this method chainable when used as a tag function, so prefer
+     * the full `.say` call if you need to continue the chain.
+     * @example
+     * ```ts
+     * scene.action([character`Hello, ${Word.color("Alice", "#f00")}!`]);
+     * ```
+     * @chainable
+     */
     public apply(
         contentOrText: SentencePrompt | Sentence | TemplateStringsArray,
         configOrArg0?: SentenceUserConfig | Sentence | SingleWord,
@@ -175,6 +197,12 @@ export class Character extends Actionable<
 
     /**
      * Call method to implement tag function functionality
+     * @internal
+     */
+    /**
+     * Implements the documented tag-function shorthand (`character\`...\``).
+     *
+     * The tag delegates to `say`, so it is not chainable when packaged by tools that break this pattern.
      * @internal
      */
     public call(

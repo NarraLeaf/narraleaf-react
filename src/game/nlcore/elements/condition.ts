@@ -100,7 +100,16 @@ export class Condition<Closed extends true | false = false> extends Actionable<n
     }
 
     /**
+     * Create a new conditional branch that only runs when the condition is true.
+     * @param condition - Lambda determining whether to take the branch.
+     * @param action - Actions to execute when the condition is satisfied.
      * @chainable
+     * @example
+     * ```ts
+     * Condition.If(persis.equals("coin", 10), [
+     *   character.say("You have enough coins")
+     * ]);
+     * ```
      */
     public static If(
         condition: Lambda | LambdaHandler<boolean>, action: ActionStatements
@@ -126,6 +135,9 @@ export class Condition<Closed extends true | false = false> extends Actionable<n
     }
 
     /**
+     * Add an `else if` branch that executes when the provided condition becomes true.
+     * @param condition - Lambda gating the branch.
+     * @param action - Actions for this branch.
      * @chainable
      */
     public ElseIf(
@@ -145,6 +157,8 @@ export class Condition<Closed extends true | false = false> extends Actionable<n
     }
 
     /**
+     * Add a final `else` branch that runs when no other conditions matched.
+     * @param action - Actions executed when all prior conditions fail.
      * @chainable
      */
     public Else(

@@ -219,6 +219,20 @@ export class Image<
     /**@internal */
     private readonly userConfig: Config<IImageUserConfig<Tags>, { position: IPosition }>;
 
+    /**
+     * Construct an image element. The config can describe either static sources or tagged outfits, but not both.
+     * @param config - Image metadata such as tags, source, layer, and wearables.
+     * @example
+     * ```ts
+     * const image = new Image({
+     *   src: {
+     *     groups: [["happy", "sad"], ["top", "coat"]],
+     *     defaults: ["happy", "top"],
+     *     resolve: (emotion, top) => `https://img/${emotion}_${top}.png`
+     *   }
+     * });
+     * ```
+     */
     constructor(config: Partial<IImageUserConfig<Tags>> = {}) {
         super();
         const userConfig = Image.DefaultUserConfig.create(config);
@@ -286,8 +300,13 @@ export class Image<
     }
 
     /**
-     * Add a wearable to the image
-     * @param children - Wearable image or images
+     * Add wearable images that move with this image.
+     * @param children - A wearable image or an array of wearables.
+     * @example
+     * ```ts
+     * const hat = new Image({ src: "hat.png" });
+     * image.addWearable(hat);
+     * ```
      */
     public addWearable(children: Image | Image[]): this {
         const wearables = Array.isArray(children) ? children : [children];
@@ -304,9 +323,7 @@ export class Image<
     }
 
     /**
-     * Add a wearable to the image
-     *
-     * Alias of {@link Image.addWearable}
+     * Alias of {@link Image.addWearable}.
      * @param children - Wearable image or images
      */
     public wear(children: Image | Image[]): this {
@@ -314,17 +331,19 @@ export class Image<
     }
 
     /**
-     * Bind this image to a parent image as a wearable
-     * @param parent - The parent image
+     * Bind this image as a wearable child of another image.
+     * @param parent - The parent image that should carry this wearable.
+     * @example
+     * ```ts
+     * childImage.bindWearable(parentImage);
+     * ```
      */
     public bindWearable(parent: Image): this {
         return parent.addWearable([this]) as this;
     }
 
     /**
-     * Bind this image to a parent image as a wearable
-     *
-     * Alias of {@link Image.bindWearable}
+     * Alias of {@link Image.bindWearable}.
      * @param parent - The parent image
      */
     public asWearableOf(parent: Image): this {
@@ -332,7 +351,8 @@ export class Image<
     }
 
     /**
-     * Use layer for the image, will override the layer in the image config
+     * Assign a layer to the image, overriding the config.
+     * @param layer - Layer instance or `null` to remove the override.
      */
     public useLayer(layer: Layer | null): this {
         this.userConfig.get().layer = layer || undefined;

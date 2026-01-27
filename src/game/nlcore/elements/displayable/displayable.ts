@@ -30,6 +30,10 @@ export abstract class Displayable<
      * @param duration - The duration of the position animation
      * @param easing - The easing of the position animation
      * @chainable
+     * @example
+     * ```ts
+     * element.pos({ xalign: 0.3 }, 1000, "linear");
+     * ```
      */
     public pos(
         position: TransformDefinitions.ImageTransformProps["position"],
@@ -47,6 +51,12 @@ export abstract class Displayable<
     /**
      * Set the zoom of the current staging sequence.
      * @param zoom - The zoom of the transform. use `1` to keep the original size
+     * @param duration - Optional duration of the zoom.
+     * @param easing - Optional easing function.
+     * @example
+     * ```ts
+     * element.zoom(2, 1000, "linear");
+     * ```
      */
     public zoom(
         zoom: number,
@@ -64,6 +74,10 @@ export abstract class Displayable<
     /**
      * Set the scale of the current staging sequence on x axis.
      * @param scaleX - The scale of the transform on x axis.
+     * @example
+     * ```ts
+     * element.scaleX(1.5, 1000, "easeInOut");
+     * ```
      */
     public scaleX(
         scaleX: number,
@@ -81,6 +95,10 @@ export abstract class Displayable<
     /**
      * Set the scale of the current staging sequence on y axis.
      * @param scaleY - The scale of the transform on y axis.
+     * @example
+     * ```ts
+     * element.scaleY(0.8, 1000, "easeInOut");
+     * ```
      */
     public scaleY(
         scaleY: number,
@@ -99,6 +117,10 @@ export abstract class Displayable<
      * Set the scale of the current staging sequence.
      * @param scaleX - The scale of the transform on x axis. use negative value to invert the scale
      * @param scaleY - The scale of the transform on y axis. use negative value to invert the scale
+     * @example
+     * ```ts
+     * element.scale(1.2, 0.9, 1000, "easeInOut");
+     * ```
      */
     public scale(
         scaleX: number,
@@ -120,6 +142,10 @@ export abstract class Displayable<
      * @param scaleX - The scale of the transform on x axis. use negative value to invert the scale
      * @param scaleY - The scale of the transform on y axis. use negative value to invert the scale
      * @alias {@link Displayable.scale}
+     * @example
+     * ```ts
+     * element.scaleXY(1.2, 0.9, 1000, "easeInOut");
+     * ```
      */
     public scaleXY(
         scaleX: number,
@@ -136,6 +162,10 @@ export abstract class Displayable<
      * @param duration - The duration of the rotation animation
      * @param easing - The easing of the rotation animation
      * @chainable
+     * @example
+     * ```ts
+     * element.rotate(90, 1000, "easeInOut");
+     * ```
      */
     public rotate(
         rotation: number,
@@ -156,6 +186,10 @@ export abstract class Displayable<
      * @param duration - The duration of the opacity animation
      * @param easing - The easing of the opacity animation
      * @chainable
+     * @example
+     * ```ts
+     * element.opacity(0.5, 1000, "easeInOut");
+     * ```
      */
     public opacity(
         opacity: number,
@@ -173,6 +207,10 @@ export abstract class Displayable<
     /**
      * Apply a transform to the Displayable
      * @chainable
+     * @example
+     * ```ts
+     * element.transform(new Transform(\/* Transform Definitions *\/));
+     * ```
      */
     public transform(transform: Transform<TransformType>): Proxied<Self, Chained<LogicAction.Actions, Self>> {
         const chain: Proxied<Self, Chained<LogicAction.Actions, Self>> = this.chain();
