@@ -158,12 +158,6 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    static DefaultSceneState = new ConfigConstructor<SceneState>({
-        backgroundImage: new Image(),
-        backgroundMusic: null,
-    });
-
-    /**@internal */
     static isScene(object: any): object is Scene {
         return object instanceof Scene;
     }
@@ -647,18 +641,24 @@ export class Scene extends Constructable<
             );
         }
 
-        return Scene.DefaultSceneState.create().assign({
-            backgroundImage: this.state?.backgroundImage ? this.state.backgroundImage.reset() : (new Image({
+        const backgroundImage = this.state?.backgroundImage
+            ? this.state.backgroundImage.reset()
+            : (new Image({
                 src: userConfig.background,
                 opacity: 1,
                 autoFit: true,
                 name: `[[Background Image of ${this.config.name}]]`,
                 layer: this.config.defaultBackgroundLayer,
-            })._setIsBackground(true)),
-            ...(userConfig.backgroundMusic ? {
-                backgroundMusic: this.state?.backgroundMusic ? this.state.backgroundMusic.reset() : userConfig.backgroundMusic,
-            } : {}),
-        }).get();
+            })._setIsBackground(true));
+
+        const backgroundMusic = userConfig.backgroundMusic
+            ? (this.state?.backgroundMusic ? this.state.backgroundMusic.reset() : userConfig.backgroundMusic)
+            : null;
+
+        return {
+            backgroundImage,
+            backgroundMusic,
+        };
     }
 
     /**@internal */

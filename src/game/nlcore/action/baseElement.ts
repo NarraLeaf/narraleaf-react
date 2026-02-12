@@ -1,5 +1,5 @@
 import {ElementStateRaw} from "@core/elements/story";
-import {LogicAction} from "@core/action/logicAction";
+import type {LogicAction} from "@core/action/logicAction";
 
 export class BaseElement {
     /**@internal */

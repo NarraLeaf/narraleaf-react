@@ -111,6 +111,12 @@ const FixedAspectRatioContainer = React.forwardRef<FixedAspectRatioContainerHand
             width: "0px",
             height: "0px",
         });
+        const onUpdateRef = useRef<FixedAspectRatioContainerProps["onUpdate"]>(onUpdate);
+        const lastDimensionsRef = useRef<{ width: number; height: number } | null>(null);
+
+        useEffect(() => {
+            onUpdateRef.current = onUpdate;
+        }, [onUpdate]);
 
         const handleUpdate = useCallback(() => {
             const container = containerRef.current;
@@ -128,21 +134,25 @@ const FixedAspectRatioContainer = React.forwardRef<FixedAspectRatioContainerHand
             const width = clamp(rawDimensions.width, minWidth);
             const height = clamp(rawDimensions.height, minHeight);
 
-            setInnerStyle({
-                ...innerBaseStyle,
-                width: `${width}px`,
-                height: `${height}px`,
-            });
+            const lastDimensions = lastDimensionsRef.current;
+            if (!lastDimensions || lastDimensions.width !== width || lastDimensions.height !== height) {
+                lastDimensionsRef.current = { width, height };
+                setInnerStyle({
+                    ...innerBaseStyle,
+                    width: `${width}px`,
+                    height: `${height}px`,
+                });
+            }
 
             const scale = baseWidth > 0 ? width / baseWidth : 1;
-            onUpdate?.({
+            onUpdateRef.current?.({
                 width,
                 height,
                 scale,
                 containerWidth,
                 containerHeight,
             });
-        }, [aspectRatio, baseWidth, minWidth, minHeight, onUpdate]);
+        }, [aspectRatio, baseWidth, minWidth, minHeight]);
 
         const debouncedUpdate = useMemo(() => debounce(handleUpdate, typeof debounceMs === "number" ? debounceMs : DEFAULT_DEBOUNCE_MS), [
             handleUpdate,

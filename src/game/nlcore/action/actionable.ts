@@ -1,6 +1,5 @@
-import {LogicAction} from "@core/action/logicAction";
+import type {LogicAction} from "@core/action/logicAction";
 import {Chainable, Chained, Proxied} from "@core/action/chain";
-import GameElement = LogicAction.GameElement;
 
 export class Actionable<
     StateData extends Record<string, any> | null = Record<string, any>,
@@ -21,7 +20,7 @@ export class Actionable<
      *
      * When converting a chain to actions, this method is called to convert the chain to actions
      */
-    public fromChained(chained: Proxied<GameElement, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
+    public fromChained(chained: Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return chained.getActions();
     }
 }

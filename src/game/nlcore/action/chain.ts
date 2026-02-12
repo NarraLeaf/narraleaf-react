@@ -1,8 +1,6 @@
 import type {LogicAction} from "@core/action/logicAction";
 import {BaseElement} from "@core/action/baseElement";
-import {ContentNode} from "@core/action/tree/actionTree";
 import type {Control} from "@core/elements/control";
-import {ControlAction} from "@core/action/actions/controlAction";
 
 export type Proxied<T extends Record<any, any>, U extends Record<any, any>> =
     T & U;
@@ -111,13 +109,7 @@ export class Chainable<T, U extends Chainable<any, any>> extends BaseElement {
             => ChainedAction)
     ): Proxied<U, Chained<T, U>> {
         const chain = getActions(this.chain().newChain());
-        const action = new ControlAction(
-            control.chain(),
-            ControlAction.ActionTypes.do,
-            new ContentNode().setContent([
-                this.construct(Chained.toActions([chain]))
-            ])
-        );
+        const action = (control.do([chain]) as any).getActions()[0];
         return this.chain(action as T);
     }
 }
