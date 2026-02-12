@@ -4,12 +4,16 @@
 
 ### _Feature_
 
-- Enhanced StackModel to support loop state serialization, replacing the previous repeat implementation
 - Added `Control.whileLoop(condition, actions)` for condition-based loops
 - Added `Control.breakLoop()` to exit loops prematurely
 - Repeat loops now save their execution state in save files
 - Added `Sound.mute` and `Sound.unmute` to mute and unmute a sound
 - Added `GamePreference.voiceEndMode` to control how to end voice playback at the end of a sentence
+- Added `Namespace.has`, `Namespace.keys`, `Namespace.values`, `Namespace.entries`
+- Added `Storable.createNamespace`
+- Added `beforeRestore` and `afterRestore` hooks for plugin system
+- Added `LiveGame.playSound` to play a sound immediately and return the SoundToken
+- Added `useVoiceState` hook to access the voice state
 
 ### _Incompatible Changes_
 
@@ -17,15 +21,11 @@
 
 ### Update
 
+- Enhanced StackModel to support loop state serialization, replacing the previous repeat implementation
 - Added `DevTools` interface to access the internal state of the game
-- Added `Namespace.has`, `Namespace.keys`, `Namespace.values`, `Namespace.entries`
-- Added `Storable.createNamespace`
 - Fixed some type exports
-- Added `beforeRestore` and `afterRestore` hooks for plugin system
 - `Control.repeat` now uses StackModel-based implementation with full serialization support
 - Loop conditions (Lambda) are now automatically restored during deserialization
-- Added `LiveGame.playSound` to play a sound immediately and return the SoundToken
-- Added `useVoiceState` hook to access the voice state
 
 ### Fixed
 

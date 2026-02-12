@@ -2,7 +2,7 @@ import { TypedAction } from "@core/action/actions";
 import { ControlActionContentType, ControlActionTypes } from "@core/action/actionTypes";
 import { LogicAction } from "@core/action/logicAction";
 import { ContentNode } from "@core/action/tree/actionTree";
-import { Control } from "@core/elements/control";
+import type { Control } from "@core/elements/control";
 import { Story } from "@core/elements/story";
 import type { CalledActionResult } from "@core/gameTypes";
 import { ActionSearchOptions } from "@core/types";

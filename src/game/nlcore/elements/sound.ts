@@ -1,11 +1,11 @@
-import {Actionable} from "@core/action/actionable";
-import {Serializer} from "@lib/util/data";
-import {LogicAction} from "@core/game";
-import {ContentNode} from "@core/action/tree/actionTree";
-import {SoundActionContentType, SoundActionTypes} from "@core/action/actionTypes";
-import {Chained, Proxied} from "@core/action/chain";
-import {SoundAction} from "@core/action/actions/soundAction";
-import {Config, ConfigConstructor} from "@lib/util/config";
+import { Actionable } from "@core/action/actionable";
+import { Serializer } from "@lib/util/data";
+import { LogicAction } from "@core/game";
+import { ContentNode } from "@core/action/tree/actionTree";
+import { SoundActionContentType, SoundActionTypes } from "@core/action/actionTypes";
+import { Chained, Proxied } from "@core/action/chain";
+import { SoundAction } from "@core/action/actions/soundAction";
+import { Config, ConfigConstructor } from "@lib/util/config";
 import { StaticScriptWarning } from "../common/Utils";
 
 type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
@@ -117,7 +117,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
             return null;
         }
         if (typeof v === "string") {
-            return new Sound({src: v});
+            return new Sound({ src: v });
         }
         return v;
     }
@@ -136,8 +136,8 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
      * ```
      */
     public static voice(arg0: Partial<ISoundUserConfig> | string) {
-        const config = typeof arg0 === "string" ? {src: arg0} : arg0;
-        return new Sound({...config, type: SoundType.Voice});
+        const config = typeof arg0 === "string" ? { src: arg0 } : arg0;
+        return new Sound({ ...config, type: SoundType.Voice });
     }
 
     /**
@@ -149,8 +149,8 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
      * ```
      */
     public static bgm(arg0: Partial<ISoundUserConfig> | string) {
-        const config = typeof arg0 === "string" ? {src: arg0} : arg0;
-        return new Sound({...config, type: SoundType.Bgm});
+        const config = typeof arg0 === "string" ? { src: arg0 } : arg0;
+        return new Sound({ ...config, type: SoundType.Bgm });
     }
 
     /**
@@ -158,8 +158,8 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
      * @param arg0 - Source or config for the sound effect.
      */
     public static sound(arg0: Partial<ISoundUserConfig> | string) {
-        const config = typeof arg0 === "string" ? {src: arg0} : arg0;
-        return new Sound({...config, type: SoundType.Sound});
+        const config = typeof arg0 === "string" ? { src: arg0 } : arg0;
+        return new Sound({ ...config, type: SoundType.Sound });
     }
 
     /**@internal */
@@ -174,7 +174,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
     constructor(arg0: Partial<ISoundUserConfig> | string)
     constructor(arg0: Partial<ISoundUserConfig> | string = {}) {
         super();
-        const rawConfig = typeof arg0 === "string" ? {src: arg0} : arg0;
+        const rawConfig = typeof arg0 === "string" ? { src: arg0 } : arg0;
         const userConfig = Sound.DefaultUserConfig.create(rawConfig);
         const [config] = userConfig.extract(Sound.DefaultConfig.keys());
 

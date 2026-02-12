@@ -140,7 +140,7 @@ export default function Player(
                             if (currentHandlingResult.current === nextResult) {
                                 currentHandlingResult.current = null;
                             }
-    
+
                             next();
                         });
                     }
