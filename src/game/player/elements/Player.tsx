@@ -5,7 +5,6 @@ import { CalledActionResult } from "@core/gameTypes";
 import { Awaitable, createMicroTask, EventToken, MultiLock } from "@lib/util/data";
 import { KeyEventAnnouncer } from "@player/elements/player/KeyEventAnnouncer";
 import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
-import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 import { Preload } from "@player/elements/preload/Preload";
 import { default as StageScene } from "@player/elements/scene/Scene";
 import { PlayerProps } from "@player/elements/type";
@@ -259,7 +258,6 @@ export default function Player(
                 tabIndex={0}
             >
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
-                    <SizeUpdateAnnouncer ref={containerRef} />
                     <PreferenceUpdateAnnouncer gameState={state} />
                     <RenderEventAnnoucer gameState={state} />
                     <Isolated className={"absolute"} ref={mainContentRef} style={{

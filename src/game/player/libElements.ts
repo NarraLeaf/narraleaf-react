@@ -12,6 +12,7 @@ import { useVoiceState } from "@player/elements/say/useVoiceState";
 import { Page, PageInjectContext } from "@player/lib/PageRouter/Page";
 import { Layout, LayoutRouterProvider } from "@player/lib/PageRouter/Layout";
 import { RootPath } from "@player/lib/PageRouter/router";
+import { FixedAspectRatioContainer } from "@player/lib/FixedAspectRatioContainer";
 import { useKeyBinding } from "./lib/keyMap";
 import { useLiveGame } from "./lib/useLiveGame";
 
@@ -32,6 +33,7 @@ export {
     LayoutRouterProvider,
     PageInjectContext,
     RootPath,
+    FixedAspectRatioContainer,
     useKeyBinding,
     useLiveGame,
 };

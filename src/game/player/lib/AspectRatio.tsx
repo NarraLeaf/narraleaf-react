@@ -1,10 +1,15 @@
+"use client";
+
 import clsx from "clsx";
-import React, {useEffect, useState} from "react";
+import React, {useCallback, useEffect, useRef} from "react";
 import {useRatio} from "@player/provider/ratio";
 import {useGame} from "@player/provider/game-state";
-import {debounce} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 import {useFlush} from "@player/lib/flush";
+import FixedAspectRatioContainer, {
+    FixedAspectRatioContainerHandle,
+    FixedAspectRatioMetrics,
+} from "@player/lib/FixedAspectRatioContainer";
 
 export default function AspectRatio(
     {
@@ -16,90 +21,56 @@ export default function AspectRatio(
         className?: string;
         gameState: GameState;
     }) {
-    const [style, setStyle] = useState({});
     const {ratio} = useRatio();
     const game = useGame();
     const [flush] = useFlush();
+    const containerRef = useRef<FixedAspectRatioContainerHandle | null>(null);
 
     const MIN_WIDTH = game.config.minWidth;
     const MIN_HEIGHT = game.config.minHeight;
 
+    const handleAspectUpdate = useCallback((metrics: FixedAspectRatioMetrics) => {
+        if (ratio.isLocked()) {
+            gameState.logger.weakWarn("AspectRatio", "ratio is locked, skipping update");
+            return;
+        }
+
+        ratio.update(metrics.width, metrics.height, metrics.scale);
+        ratio.updateMin(MIN_WIDTH, MIN_HEIGHT);
+        flush();
+    }, [flush, gameState.logger, MIN_HEIGHT, MIN_WIDTH, ratio]);
+
     useEffect(() => {
-        gameState.logger.debug("AspectRatio", "mount, using interval", game.config.ratioUpdateInterval);
-        const updateStyle = () => {
-            if (ratio.isLocked()) {
-                gameState.logger.weakWarn("Ratio is locked, skipping update");
-                return;
-            }
+        ratio.setUpdate(() => {
+            containerRef.current?.requestUpdate();
+        });
+    }, [ratio]);
 
-            const container = document.getElementById(game.config.contentContainerId);
-            if (container) {
-                const containerWidth = container.clientWidth;
-                const containerHeight = container.clientHeight;
-                const aspectRatio = game.config.aspectRatio;
+    useEffect(() => {
+        const cancelToken = ratio.onRequestedUpdate(() => {
+            containerRef.current?.requestUpdate();
+        });
 
-                let width: number, height: number;
-                if (containerWidth / containerHeight > aspectRatio) {
-                    width = containerHeight * aspectRatio;
-                    height = containerHeight;
-                } else {
-                    width = containerWidth;
-                    height = containerWidth / aspectRatio;
-                }
-
-                if (width < MIN_WIDTH) width = MIN_WIDTH;
-                if (height < MIN_HEIGHT) height = MIN_HEIGHT;
-
-                setStyle({
-                    width: `${width}px`,
-                    height: `${height}px`,
-                    margin: "auto",
-                    position: "absolute",
-                    top: "0",
-                    bottom: "0",
-                    left: "0",
-                    right: "0",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center"
-                });
-
-                const scale = width / game.config.width;
-                ratio.update(width, height, scale);
-                ratio.updateMin(MIN_WIDTH, MIN_HEIGHT);
-                flush();
-            }
-        };
-
-        ratio.setUpdate(updateStyle);
-
-        const handleResize = () => {
-            updateStyle();
-        };
-
-        const listener = debounce(handleResize, game.config.ratioUpdateInterval);
-
-        listener();
-        window.addEventListener("resize", listener);
-
-        const updateRequestListenerToken = ratio.onRequestedUpdate(listener);
-
-        return () => {
-            window.removeEventListener("resize", listener);
-            updateRequestListenerToken();
-        };
-    }, [ratio, game.config.ratioUpdateInterval]);
+        return cancelToken;
+    }, [ratio]);
 
     useEffect(() => {
         return gameState.events.on(GameState.EventTypes["event:state.player.requestFlush"], flush).cancel;
-    }, [gameState]);
+    }, [gameState, flush]);
 
     return (
-        <div id={game.config.contentContainerId}
-             style={{position: "relative", width: "100%", height: "100%", overflow: "hidden"}}>
-            <div className={clsx(className)} style={style}>
-                {children}
-            </div>
-        </div>
+        <FixedAspectRatioContainer
+            ref={containerRef}
+            id={game.config.contentContainerId}
+            aspectRatio={game.config.aspectRatio}
+            baseWidth={game.config.width}
+            minWidth={MIN_WIDTH}
+            minHeight={MIN_HEIGHT}
+            debounceMs={game.config.ratioUpdateInterval}
+            className={clsx(className)}
+            onUpdate={handleAspectUpdate}
+        >
+            {children}
+        </FixedAspectRatioContainer>
     );
 };
