@@ -121,6 +121,19 @@ export class Control extends Actionable {
         return new Control().sleep(duration);
     }
 
+    /**
+     * Pause execution until the user clicks anywhere on the stage (excluding GUI/Page elements).
+     * Similar to inserting a pause with no duration in a Sentence.
+     * @chainable
+     * @example
+     * ```ts
+     * Control.waitForClick();
+     * ```
+     */
+    public static waitForClick(): ChainedControl {
+        return new Control().waitForClick();
+    }
+
     constructor(/**@internal */public config: Partial<ControlConfig> = {}) {
         super();
     }
@@ -202,6 +215,19 @@ export class Control extends Actionable {
      */
     public sleep(duration: number | Awaitable<any> | Promise<any>): ChainedControl {
         return this.push(ControlAction.ActionTypes.sleep, [], duration);
+    }
+
+    /**
+     * Wait for user to click the stage (excluding GUI elements)
+     * @chainable
+     */
+    public waitForClick(): ChainedControl {
+        const action = new ControlAction(
+            this.chain(),
+            ControlAction.ActionTypes.waitForClick,
+            new ContentNode().setContent([])
+        );
+        return this.chain(action);
     }
 
     /**@internal */

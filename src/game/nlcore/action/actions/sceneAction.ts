@@ -225,6 +225,70 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             }
 
             return this.applyTransition(gameState, transition, injection);
+        } else if (this.type === SceneActionTypes.nvlBlock) {
+            const [actions, options] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlBlock"]>).getContent();
+            
+            gameState.enterNvlMode(options);
+
+            if (actions.length === 0) {
+                gameState.exitNvlMode(options);
+                return super.executeAction(gameState, injection);
+            }
+
+            const stackModel = gameState.game.getLiveGame().requestAsyncStackModel([{
+                type: actions[0].type,
+                node: actions[0].contentNode,
+            }]);
+
+            const awaitable = new Awaitable<CalledActionResult>();
+            stackModel.execute().then(() => {
+                gameState.exitNvlMode(options);
+                awaitable.resolve({
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                });
+            });
+
+            gameState.timelines.attachTimeline(awaitable);
+
+            return awaitable;
+        } else if (this.type === SceneActionTypes.nvlShow) {
+            const [options] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlShow"]>).getContent();
+            const previousVisible = gameState.getNvlState().visible;
+            gameState.actionHistory.push<[boolean]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevVisible) => {
+                gameState.setNvlVisibility(prevVisible);
+            }, [previousVisible]);
+
+            gameState.setNvlVisibility(true, options);
+            
+            return super.executeAction(gameState, injection);
+        } else if (this.type === SceneActionTypes.nvlHide) {
+            const [options] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlHide"]>).getContent();
+            const previousVisible = gameState.getNvlState().visible;
+            gameState.actionHistory.push<[boolean]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevVisible) => {
+                gameState.setNvlVisibility(prevVisible);
+            }, [previousVisible]);
+
+            gameState.setNvlVisibility(false, options);
+            
+            return super.executeAction(gameState, injection);
+        } else if (this.type === SceneActionTypes.nvlEnd) {
+            gameState.exitNvlMode();
+
+            if (injection.stackModel.isLoop()) {
+                injection.stackModel.breakLoop();
+            }
+            
+            return {
+                type: this.type,
+                node: null
+            };
         }
 
         throw new Error("Unknown scene action type: " + this.type);
@@ -232,8 +296,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
 
     getFutureActions(story: Story, searchOptions: ActionSearchOptions = {}): LogicAction.Actions[] {
         if (this.type === SceneActionTypes.jumpTo && searchOptions.allowFutureScene !== false) {
-            // It doesn't care about the actions after jumpTo
-            // because they won't be executed
             const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
             const scene = story.getScene(targetScene, true);
 
@@ -244,6 +306,13 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             const sceneRootNode = story.getScene(targetScene, true).getSceneRoot()?.contentNode;
             return sceneRootNode?.action ? [sceneRootNode.action] : [];
         }
+        
+        if (this.type === SceneActionTypes.nvlBlock) {
+            const [actions] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlBlock"]>).getContent();
+            const childActions = super.getFutureActions(story, searchOptions);
+            return [...(actions ?? []), ...childActions];
+        }
+
         const action = this.contentNode.getChild()?.action;
         return action ? [action] : [];
     }

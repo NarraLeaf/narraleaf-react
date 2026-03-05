@@ -15,6 +15,8 @@
 - Added `LiveGame.playSound` to play a sound immediately and return the SoundToken
 - Added `useVoiceState` hook to access the voice state
 - Added `FixedAspectRatioContainer` Helper Component to create a container with a fixed aspect ratio
+- Added NVL Dialog Mode API
+- Added `Control.waitForClick`
 
 ### _Incompatible Changes_
 

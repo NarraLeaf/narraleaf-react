@@ -51,6 +51,15 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     }));
             const timeline = new Timeline(awaitable);
             const sentence = (this.contentNode as ContentNode<Sentence>).getContent();
+            const isNvlMode = gameState.isNvlMode();
+            const liveGame = gameState.getLiveGame();
+            const previousLastDialog = liveGame.lastDialog
+                ? {
+                    sentence: liveGame.lastDialog.sentence,
+                    speaker: liveGame.lastDialog.speaker,
+                }
+                : null;
+            let appendedNvlDialogId: string | null = null;
 
             // Play voice if available
             const voice = CharacterAction.getVoice(gameState, sentence);
@@ -71,7 +80,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             // Create dialog
             const dialogId = gameState.idManager.generateId();
             const dialog = gameState.createDialog(dialogId, sentence, () => {
-                gameState.gameHistory.resolvePending(id); // accessing id is technically dangerous, but I think it is impossible to happen
+                gameState.gameHistory.resolvePending(id);
 
                 awaitable.resolve({
                     type: this.type,
@@ -79,8 +88,19 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 });
             });
 
+            // Append to NVL dialogs if in NVL mode
+            if (isNvlMode) {
+                gameState.appendNvlDialog({
+                    id: dialogId,
+                    character: this.callee,
+                    sentence,
+                    text: dialog.text,
+                });
+                appendedNvlDialogId = dialogId;
+            }
+
             // Set last dialog
-            gameState.getLiveGame().setLastDialog(dialog.text, this.callee.state.name);
+            liveGame.setLastDialog(dialog.text, this.callee.state.name);
 
             // Attach timeline
             gameState.timelines.attachTimeline(timeline);
@@ -99,6 +119,14 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     }
                 }
                 dialog.cancel();
+                if (appendedNvlDialogId) {
+                    gameState.removeNvlDialog(appendedNvlDialogId);
+                }
+                if (previousLastDialog) {
+                    liveGame.setLastDialog(previousLastDialog.sentence, previousLastDialog.speaker);
+                } else {
+                    liveGame.lastDialog = null;
+                }
             });
             gameState.gameHistory.push({
                 token: id,

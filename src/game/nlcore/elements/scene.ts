@@ -22,6 +22,9 @@ import {ImageTransition} from "@core/elements/transition/transitions/image/image
 import {StaticScriptWarning, Utils} from "@core/common/Utils";
 import {Layer} from "@core/elements/layer";
 import { Narrator } from "./character";
+import { NVLToken } from "./nvl";
+import type { TransformDefinitions } from "@core/elements/transform/type";
+import type { NvlBlockOptions } from "@core/action/actionTypes";
 
 /**@internal */
 export type SceneConfig = {
@@ -330,6 +333,69 @@ export class Scene extends Constructable<
             SceneActionTypes["setBackgroundMusic"],
             new ContentNode<SceneActionContentType[typeof SceneActionTypes["setBackgroundMusic"]]>().setContent([sound, fade])
         ));
+    }
+
+    /**
+     * Create an NVL (Novel) mode block for displaying accumulated dialog.
+     * In NVL mode, dialogs are stacked on screen rather than replacing each other.
+     * @param actions - Actions to execute within NVL mode, or a callback receiving an NVLToken
+     * @chainable
+     * @example
+     * ```ts
+     * scene.nvl([
+     *     character.say("First line"),
+     *     character.say("Second line"),
+     *     character.say("Third line"),
+     * ]);
+     * ```
+     * @example
+     * ```ts
+     * scene.nvl(nvl => [
+     *     nvl.show({ duration: 500 }),
+     *     character.say("Line 1"),
+     *     character.say("Line 2"),
+     *     nvl.hide({ duration: 500 }),
+     * ]);
+     * ```
+     */
+    public nvl(actions: ActionStatements | ((nvl: NVLToken) => ActionStatements)): ChainableAction;
+    public nvl(options: Partial<TransformDefinitions.CommonTransformProps>, actions: ActionStatements | ((nvl: NVLToken) => ActionStatements)): ChainableAction;
+    public nvl(
+        optionsOrActions: Partial<TransformDefinitions.CommonTransformProps> | ActionStatements | ((nvl: NVLToken) => ActionStatements),
+        actionsArg?: ActionStatements | ((nvl: NVLToken) => ActionStatements)
+    ): ChainableAction {
+        let options: Partial<TransformDefinitions.CommonTransformProps> | undefined;
+        let actions: ActionStatements | ((nvl: NVLToken) => ActionStatements);
+
+        if (actionsArg !== undefined) {
+            options = optionsOrActions as Partial<TransformDefinitions.CommonTransformProps>;
+            actions = actionsArg;
+        } else {
+            options = undefined;
+            actions = optionsOrActions as ActionStatements | ((nvl: NVLToken) => ActionStatements);
+        }
+
+        const nvlToken = new NVLToken(this);
+        const resolvedActions = typeof actions === "function" ? actions(nvlToken) : actions;
+        const flatActions = this.narrativeToActions(resolvedActions);
+
+        const nvlBlockOptions: NvlBlockOptions = {
+            showTransition: options,
+            hideTransition: options,
+        };
+
+        super.constructNodes(flatActions);
+
+        const nvlBlockAction = new SceneAction<typeof SceneActionTypes.nvlBlock>(
+            this.chain() as any,
+            SceneActionTypes.nvlBlock,
+            new ContentNode<SceneActionContentType["scene:nvlBlock"]>().setContent([
+                flatActions,
+                nvlBlockOptions
+            ])
+        );
+
+        return this.chain(nvlBlockAction);
     }
 
     /**

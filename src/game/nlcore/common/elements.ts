@@ -16,6 +16,7 @@ import {Persistent} from "@core/elements/persistent";
 import {Service} from "@core/elements/service";
 import {Layer} from "@core/elements/layer";
 import {Video} from "@core/elements/video";
+import {NVLToken} from "../elements/nvl";
 
 export {
     Character,
@@ -24,6 +25,7 @@ export {
     Image,
     Lambda,
     Menu,
+    NVLToken,
     Scene,
     Script,
     Sentence,

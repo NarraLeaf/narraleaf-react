@@ -4,6 +4,7 @@ import { Story } from "@core/elements/story";
 import { CalledActionResult } from "@core/gameTypes";
 import { Awaitable, createMicroTask, EventToken, MultiLock } from "@lib/util/data";
 import { KeyEventAnnouncer } from "@player/elements/player/KeyEventAnnouncer";
+import { StageClickAnnouncer } from "@player/elements/player/StageClickAnnouncer";
 import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
 import { Preload } from "@player/elements/preload/Preload";
 import { default as StageScene } from "@player/elements/scene/Scene";
@@ -25,6 +26,8 @@ import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import { StackModel } from "@lib/game/nlcore/action/stackModel";
 import { RootLayout } from "../lib/PageRouter/Layout";
 import PlayerNotification from "./notification/PlayerNotification";
+import { NvlProvider } from "./nvl/NvlContext";
+import { NvlDialogComponent } from "./type";
 
 export default function Player(
     {
@@ -272,15 +275,19 @@ export default function Player(
                             />
                         )}
                         <OnlyPreloaded show={preloadedReady && active} key={key}>
-                            <KeyEventAnnouncer state={state} />
-                            {state.getSceneElements().map((elements) => (
-                                <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
-                            ))}
-                            {state.getVideos().map((video, index) => (
-                                <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
-                                    <Video gameState={state} video={video} />
-                                </div>
-                            ))}
+                            <NvlProvider>
+                                <KeyEventAnnouncer state={state} />
+                                <StageClickAnnouncer state={state} />
+                                {state.getSceneElements().map((elements) => (
+                                    <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
+                                ))}
+                                {state.getVideos().map((video, index) => (
+                                    <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
+                                        <Video gameState={state} video={video} />
+                                    </div>
+                                ))}
+                                <NvlOverlay NvlComponent={game.config.nvlDialog} />
+                            </NvlProvider>
                         </OnlyPreloaded>
                         <Preload state={state} />
                         <RootLayout>
@@ -303,4 +310,8 @@ function OnlyPreloaded({ children, show }: Readonly<{
             {show ? children : null}
         </>
     );
+}
+
+function NvlOverlay({ NvlComponent }: { NvlComponent: NvlDialogComponent }) {
+    return <NvlComponent />;
 }

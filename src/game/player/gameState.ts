@@ -30,6 +30,24 @@ import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
 import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
 import { Displayable } from "../nlcore/elements/displayable/displayable";
 import { Transform } from "../nlcore/common/elements";
+import type { Character } from "@core/elements/character";
+import type { TransformDefinitions } from "@core/elements/transform/type";
+import type { NvlBlockOptions } from "@core/action/actionTypes";
+
+export type NvlDialogEntry = {
+    id: string;
+    character: Character | null;
+    sentence: Sentence;
+    text: string;
+};
+
+export type NvlState = {
+    active: boolean;
+    visible: boolean;
+    sessionId: string | null;
+    dialogs: NvlDialogEntry[];
+    options: NvlBlockOptions | null;
+};
 
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -54,6 +72,13 @@ export type PlayerStateElement = {
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Chosen>[];
 };
+export type NvlStateData = {
+    active: boolean;
+    visible: boolean;
+    sessionId: string | null;
+    dialogIds: string[];
+};
+
 export type PlayerStateData = {
     scenes: {
         sceneId: string;
@@ -68,6 +93,7 @@ export type PlayerStateData = {
     }[],
     audio: AudioManagerDataRaw;
     videos: [videoId: string, videoState: VideoStateRaw][];
+    nvlState?: NvlStateData;
 };
 /**@internal */
 export type PlayerStateElementSnapshot = {
@@ -90,9 +116,14 @@ type GameStateEvents = {
     "event:state.player.skip": [force?: boolean];
     "event:state.player.lineEnd": [];
     "event:state.player.requestFlush": [];
+    "event:state.player.stageClick": [];
     "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
     "event:state.onRender": [];
     "event:state:flushPreloadedScenes": [];
+    "event:state.nvl.enter": [sessionId: string, options: NvlBlockOptions | null];
+    "event:state.nvl.exit": [];
+    "event:state.nvl.dialogAppend": [entry: NvlDialogEntry];
+    "event:state.nvl.visibilityChange": [visible: boolean, options?: Partial<TransformDefinitions.CommonTransformProps>];
 };
 
 /**
@@ -105,15 +136,27 @@ export class GameState {
         "event:state.player.skip": "event:state.player.skip",
         "event:state.player.lineEnd": "event:state.player.lineEnd",
         "event:state.player.requestFlush": "event:state.player.requestFlush",
+        "event:state.player.stageClick": "event:state.player.stageClick",
         "event.state.onExpose": "event.state.onExpose",
         "event:state.onRender": "event:state.onRender",
         "event:state:flushPreloadedScenes": "event:state:flushPreloadedScenes",
+        "event:state.nvl.enter": "event:state.nvl.enter",
+        "event:state.nvl.exit": "event:state.nvl.exit",
+        "event:state.nvl.dialogAppend": "event:state.nvl.dialogAppend",
+        "event:state.nvl.visibilityChange": "event:state.nvl.visibilityChange",
     };
     private state: PlayerState = {
         sounds: [],
         videos: [],
         srcManagers: [],
         elements: [],
+    };
+    private nvlState: NvlState = {
+        active: false,
+        visible: false,
+        sessionId: null,
+        dialogs: [],
+        options: null,
     };
     currentHandling: CalledActionResult | null = null;
     stage: StageUtils;
@@ -401,6 +444,112 @@ export class GameState {
         };
     }
 
+    /**
+     * Enter NVL mode
+     * @param options - Optional block options for transitions
+     */
+    public enterNvlMode(options?: NvlBlockOptions | null): this {
+        const sessionId = this.idManager.generateId();
+        this.nvlState = {
+            active: true,
+            visible: true,
+            sessionId,
+            dialogs: [],
+            options: options || null,
+        };
+        this.events.emit(GameState.EventTypes["event:state.nvl.enter"], sessionId, options || null);
+        this.events.emit(GameState.EventTypes["event:state.nvl.visibilityChange"], true, options?.showTransition);
+        this.stage.update();
+        return this;
+    }
+
+    /**
+     * Exit NVL mode
+     * @param options - Optional block options for transitions
+     */
+    public exitNvlMode(options?: NvlBlockOptions | null): this {
+        const hideOptions = options?.hideTransition || this.nvlState.options?.hideTransition;
+        this.nvlState = {
+            active: false,
+            visible: false,
+            sessionId: null,
+            dialogs: [],
+            options: null,
+        };
+        this.events.emit(GameState.EventTypes["event:state.nvl.visibilityChange"], false, hideOptions);
+        this.events.emit(GameState.EventTypes["event:state.nvl.exit"]);
+        this.stage.update();
+        return this;
+    }
+
+    /**
+     * Set NVL layer visibility without exiting NVL mode
+     * @param visible - Whether to show or hide the NVL layer
+     * @param options - Optional transition properties
+     */
+    public setNvlVisibility(visible: boolean, options?: Partial<TransformDefinitions.CommonTransformProps>): this {
+        this.nvlState.visible = visible;
+        this.events.emit(GameState.EventTypes["event:state.nvl.visibilityChange"], visible, options);
+        this.stage.update();
+        return this;
+    }
+
+    /**
+     * Append a dialog to the NVL dialog list
+     * @param entry - The dialog entry to append
+     */
+    public appendNvlDialog(entry: NvlDialogEntry): this {
+        this.nvlState.dialogs.push(entry);
+        this.events.emit(GameState.EventTypes["event:state.nvl.dialogAppend"], entry);
+        this.stage.update();
+        return this;
+    }
+
+    /**
+     * Remove a dialog from the NVL dialog list
+     * @param id - The dialog id to remove
+     */
+    public removeNvlDialog(id: string): this {
+        const index = this.nvlState.dialogs.findIndex(dialog => dialog.id === id);
+        if (index === -1) {
+            return this;
+        }
+        const [removed] = this.nvlState.dialogs.splice(index, 1);
+        this.events.emit(GameState.EventTypes["event:state.nvl.dialogAppend"], removed);
+        this.stage.update();
+        return this;
+    }
+
+    /**
+     * Get current NVL dialogs
+     */
+    public getNvlDialogs(): NvlDialogEntry[] {
+        return this.nvlState.dialogs;
+    }
+
+    /**
+     * Check if currently in NVL mode
+     */
+    public isNvlMode(): boolean {
+        return this.nvlState.active;
+    }
+
+    /**
+     * Get NVL state
+     */
+    public getNvlState(): NvlState {
+        return this.nvlState;
+    }
+
+    /**
+     * Clear NVL dialogs
+     */
+    public clearNvlDialogs(): this {
+        this.nvlState.dialogs = [];
+        this.stage.update();
+        return this;
+    }
+
     public createDisplayable(
         displayable: LogicAction.DisplayableElements,
         scene: Scene | null = null,
@@ -449,6 +598,13 @@ export class GameState {
         this.state.elements = [];
         this.state.srcManagers = [];
         this.state.videos = [];
+        this.nvlState = {
+            active: false,
+            visible: false,
+            sessionId: null,
+            dialogs: [],
+            options: null,
+        };
         this.audioManager.reset();
         this.timelines.abortAll();
         this.gameHistory.reset();
@@ -629,6 +785,12 @@ export class GameState {
                 v.getId(),
                 v.toData(),
             ]),
+            nvlState: {
+                active: this.nvlState.active,
+                visible: this.nvlState.visible,
+                sessionId: this.nvlState.sessionId,
+                dialogIds: this.nvlState.dialogs.map(d => d.id),
+            },
         };
     }
 
@@ -671,6 +833,22 @@ export class GameState {
             video.fromData(state);
             return video;
         });
+
+        if (data.nvlState) {
+            this.nvlState = {
+                active: data.nvlState.active,
+                visible: data.nvlState.visible,
+                sessionId: data.nvlState.sessionId,
+                dialogs: [],
+                options: null,
+            };
+            if (this.nvlState.active) {
+                this.events.emit(GameState.EventTypes["event:state.nvl.enter"], this.nvlState.sessionId || "", null);
+            }
+            if (this.nvlState.visible) {
+                this.events.emit(GameState.EventTypes["event:state.nvl.visibilityChange"], true, undefined);
+            }
+        }
     }
 
     public getLastSceneIfNot(scene: Scene | null | void) {

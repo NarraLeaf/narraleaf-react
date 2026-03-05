@@ -7,7 +7,7 @@ import { PlayerStateData } from "@player/gameState";
 import { GuardConfig } from "@player/guard";
 import React from "react";
 import { StackModel, StackModelRawData } from "./action/stackModel";
-import { MenuComponent, NotificationComponent, SayComponent } from "./common/player";
+import { MenuComponent, NotificationComponent, NvlDialogComponent, SayComponent } from "./common/player";
 import { Color, LiveGameEventToken } from "./types";
 
 export interface SavedGameMetaData {
@@ -275,6 +275,11 @@ export type GameConfig = {
      * @default DefaultSay
      */
     dialog: SayComponent;
+    /**
+     * The component to use for NVL mode dialog
+     * @default DefaultNvlContainer
+     */
+    nvlDialog: NvlDialogComponent;
     /**
      * The function to call when an error occurs
      * @default () => {}

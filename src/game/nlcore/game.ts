@@ -129,6 +129,7 @@ export class Game {
         notification: DefaultElements.notification,
         menu: DefaultElements.menu,
         dialog: DefaultElements.say,
+        nvlDialog: DefaultElements.nvlDialog,
         onError: (error: Error) => { console.error(error); },
         fontSize: 16,
         fontWeight: 400,

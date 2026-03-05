@@ -8,15 +8,18 @@ import { GameState } from "@player/gameState";
 import { Storable } from "@core/elements/persistent/storable";
 import { LiveGame } from "@core/game/liveGame";
 import { INotificationsProps, NotificationsProps } from "./notification/type";
+import { INvlContainerProps } from "./nvl/type";
 
 export type Components<T extends Record<string, any>> = (props: Readonly<T>) => React.JSX.Element;
 export type SayComponent = Components<IDialogProps>;
 export type MenuComponent = Components<IUserMenuProps>;
 export type NotificationComponent = Components<INotificationsProps>;
+export type NvlDialogComponent = Components<INvlContainerProps>;
 export type ComponentsTypes = {
     say: SayComponent;
     menu: MenuComponent;
     notification: NotificationComponent;
+    nvlDialog: NvlDialogComponent;
 };
 
 export type {

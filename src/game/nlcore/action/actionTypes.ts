@@ -51,7 +51,15 @@ export const SceneActionTypes = {
     setBackgroundMusic: "scene:setBackgroundMusic",
     preUnmount: "scene:preUnmount",
     transitionToScene: "scene:transitionToScene",
+    nvlBlock: "scene:nvlBlock",
+    nvlShow: "scene:nvlShow",
+    nvlHide: "scene:nvlHide",
+    nvlEnd: "scene:nvlEnd",
 } as const;
+export type NvlBlockOptions = {
+    showTransition?: Partial<TransformDefinitions.CommonTransformProps>;
+    hideTransition?: Partial<TransformDefinitions.CommonTransformProps>;
+};
 export type SceneActionContentType = {
     [K in typeof SceneActionTypes[keyof typeof SceneActionTypes]]:
     K extends typeof SceneActionTypes["action"] ? Scene :
@@ -61,6 +69,10 @@ export type SceneActionContentType = {
     K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
     K extends typeof SceneActionTypes["preUnmount"] ? [] :
     K extends typeof SceneActionTypes["transitionToScene"] ? [ImageTransition, Scene | undefined, ImageSrc | Color | undefined] :
+    K extends typeof SceneActionTypes["nvlBlock"] ? [LogicAction.Actions[], NvlBlockOptions] :
+    K extends typeof SceneActionTypes["nvlShow"] ? [Partial<TransformDefinitions.CommonTransformProps>?] :
+    K extends typeof SceneActionTypes["nvlHide"] ? [Partial<TransformDefinitions.CommonTransformProps>?] :
+    K extends typeof SceneActionTypes["nvlEnd"] ? [] :
     any;
 }
 /* Story */
@@ -149,6 +161,7 @@ export const ControlActionTypes = {
     while: "control:while",
     break: "control:break",
     sleep: "control:sleep",
+    waitForClick: "control:waitForClick",
 } as const;
 export type ControlActionContentType = {
     [K in typeof ControlActionTypes[keyof typeof ControlActionTypes]]:
@@ -162,6 +175,7 @@ export type ControlActionContentType = {
     K extends "control:while" ? [LogicAction.Actions[], Lambda<boolean>] :
     K extends "control:break" ? [] :
     K extends "control:sleep" ? [LogicAction.Actions[], number | Awaitable<any> | Promise<any>] :
+    K extends "control:waitForClick" ? [] :
     any;
 }
 export const TextActionTypes = {

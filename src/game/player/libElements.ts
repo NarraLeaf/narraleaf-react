@@ -15,6 +15,9 @@ import { RootPath } from "@player/lib/PageRouter/router";
 import { FixedAspectRatioContainer } from "@player/lib/FixedAspectRatioContainer";
 import { useKeyBinding } from "./lib/keyMap";
 import { useLiveGame } from "./lib/useLiveGame";
+import { NvlContainer } from "@player/elements/nvl/NvlContainer";
+import { NvlDialogList, DefaultNvlDialogItem } from "@player/elements/nvl/NvlDialogList";
+import { NvlProvider, useNvl, useNvlDialogs, useIsNvlMode, useIsNvlVisible } from "@player/elements/nvl/NvlContext";
 
 export {
     Isolated,
@@ -36,4 +39,12 @@ export {
     FixedAspectRatioContainer,
     useKeyBinding,
     useLiveGame,
+    NvlContainer,
+    NvlDialogList,
+    DefaultNvlDialogItem,
+    NvlProvider,
+    useNvl,
+    useNvlDialogs,
+    useIsNvlMode,
+    useIsNvlVisible,
 };

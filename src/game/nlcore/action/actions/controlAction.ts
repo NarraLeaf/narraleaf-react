@@ -202,6 +202,32 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             });
 
             return awaitable;
+        } else if (this.type === ControlActionTypes.waitForClick) {
+            const awaitable = new Awaitable<CalledActionResult>();
+            const clickAwaitable = new Awaitable<void>();
+            const timeline = new Timeline(clickAwaitable);
+            gameState.timelines.attachTimeline(timeline);
+
+            const eventToken = gameState.events.on(GameState.EventTypes["event:state.player.stageClick"], () => {
+                clickAwaitable.resolve();
+            });
+
+            clickAwaitable.then(() => {
+                eventToken.cancel();
+                awaitable.resolve({
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                });
+            });
+
+            awaitable.onSkipControllerRegister(controller => {
+                controller.onAbort(() => {
+                    eventToken.cancel();
+                    timeline.abort();
+                });
+            });
+
+            return awaitable;
         }
 
         throw new Error("Unknown control action type: " + this.type);
@@ -212,8 +238,8 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             return [...super.getFutureActions(story, options)];
         }
 
-        // break has no body actions
-        if (this.type === ControlActionTypes.break) {
+        // break and waitForClick have no body actions
+        if (this.type === ControlActionTypes.break || this.type === ControlActionTypes.waitForClick) {
             return super.getFutureActions(story, options);
         }
 
@@ -223,9 +249,12 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
     }
 
     stringify(story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {
-        // break has no body actions
+        // break and waitForClick have no body actions
         if (this.type === ControlActionTypes.break) {
             return super.stringifyWithContent("Control", "break");
+        }
+        if (this.type === ControlActionTypes.waitForClick) {
+            return super.stringifyWithContent("Control", "waitForClick");
         }
 
         const contentNode = this.contentNode as ContentNode<ControlActionContentType[T]>;
