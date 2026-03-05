@@ -17,21 +17,26 @@ function isInsidePageRouter(element: HTMLElement | null): boolean {
     return false;
 }
 
-const GUI_ELEMENT_SELECTORS = [
-    "[data-layout-path]",
-    "[data-element-type=\"dialog\"]",
-    "[data-element-type=\"menu\"]",
-    "[data-element-type=\"notification\"]",
+const NVL_ELEMENT_SELECTORS = [
     "[data-element-type=\"nvl-container\"]",
     "[data-element-type=\"nvl-dialog-list\"]",
     "[data-element-type=\"nvl-dialog-item\"]",
 ];
 
-function isInsideGuiElement(target: Element | null): boolean {
+const GUI_ELEMENT_SELECTORS = [
+    "[data-layout-path]",
+    "[data-element-type=\"menu\"]",
+    "[data-element-type=\"notification\"]",
+];
+
+function isInsideGuiElement(target: Element | null, allowNvlClick: boolean): boolean {
     if (!target) {
         return false;
     }
-    return GUI_ELEMENT_SELECTORS.some(selector => !!target.closest(selector));
+    if (allowNvlClick && NVL_ELEMENT_SELECTORS.some(selector => !!target.closest(selector))) {
+        return false;
+    }
+    return [...GUI_ELEMENT_SELECTORS, ...NVL_ELEMENT_SELECTORS].some(selector => !!target.closest(selector));
 }
 
 function isPointInsideElement(event: MouseEvent, element: HTMLElement | null): boolean {
@@ -87,11 +92,12 @@ export function StageClickAnnouncer({ state }: Readonly<{
                 return;
             }
 
-            if (isInsideGuiElement(target)) {
+            if (isInsideGuiElement(target, state.isNvlMode())) {
                 return;
             }
 
             state.events.emit(GameState.EventTypes["event:state.player.stageClick"]);
+            state.recordStageClick();
         };
 
         if (game.config.useWindowListener) {

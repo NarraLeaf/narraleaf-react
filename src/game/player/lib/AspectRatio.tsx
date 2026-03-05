@@ -55,6 +55,16 @@ export default function AspectRatio(
     }, [ratio]);
 
     useEffect(() => {
+        const frame = requestAnimationFrame(() => {
+            containerRef.current?.requestUpdate();
+        });
+
+        return () => {
+            cancelAnimationFrame(frame);
+        };
+    }, [game.config.aspectRatio, game.config.height, game.config.width, MIN_HEIGHT, MIN_WIDTH]);
+
+    useEffect(() => {
         return gameState.events.on(GameState.EventTypes["event:state.player.requestFlush"], flush).cancel;
     }, [gameState, flush]);
 

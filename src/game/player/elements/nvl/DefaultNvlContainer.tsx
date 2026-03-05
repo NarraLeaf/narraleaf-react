@@ -3,12 +3,12 @@ import { NvlContainer } from "./NvlContainer";
 import { NvlDialogList } from "./NvlDialogList";
 import { INvlContainerProps } from "./type";
 
-export function DefaultNvlContainer(_props: INvlContainerProps) {
+export function DefaultNvlContainer({ renderDialogItem }: INvlContainerProps) {
     return (
         <NvlContainer
-            className="bg-black/80 text-white"
+            className="bg-black/80 text-white p-16"
         >
-            <NvlDialogList />
+            <NvlDialogList renderDialogItem={renderDialogItem} />
         </NvlContainer>
     );
 }

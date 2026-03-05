@@ -47,6 +47,8 @@ export type NvlState = {
     sessionId: string | null;
     dialogs: NvlDialogEntry[];
     options: NvlBlockOptions | null;
+    activeDialogId: string | null;
+    isTyping: boolean;
 };
 
 type Legacy_PlayerStateElement = {
@@ -76,7 +78,14 @@ export type NvlStateData = {
     active: boolean;
     visible: boolean;
     sessionId: string | null;
-    dialogIds: string[];
+    dialogIds?: string[];
+    dialogs?: NvlDialogEntryData[];
+};
+
+export type NvlDialogEntryData = {
+    id: string;
+    text: string;
+    characterId: string | null;
 };
 
 export type PlayerStateData = {
@@ -122,6 +131,7 @@ type GameStateEvents = {
     "event:state:flushPreloadedScenes": [];
     "event:state.nvl.enter": [sessionId: string, options: NvlBlockOptions | null];
     "event:state.nvl.exit": [];
+    "event:state.nvl.dialogComplete": [dialogId: string];
     "event:state.nvl.dialogAppend": [entry: NvlDialogEntry];
     "event:state.nvl.visibilityChange": [visible: boolean, options?: Partial<TransformDefinitions.CommonTransformProps>];
 };
@@ -142,6 +152,7 @@ export class GameState {
         "event:state:flushPreloadedScenes": "event:state:flushPreloadedScenes",
         "event:state.nvl.enter": "event:state.nvl.enter",
         "event:state.nvl.exit": "event:state.nvl.exit",
+        "event:state.nvl.dialogComplete": "event:state.nvl.dialogComplete",
         "event:state.nvl.dialogAppend": "event:state.nvl.dialogAppend",
         "event:state.nvl.visibilityChange": "event:state.nvl.visibilityChange",
     };
@@ -157,6 +168,8 @@ export class GameState {
         sessionId: null,
         dialogs: [],
         options: null,
+        activeDialogId: null,
+        isTyping: false,
     };
     currentHandling: CalledActionResult | null = null;
     stage: StageUtils;
@@ -178,6 +191,7 @@ export class GameState {
     public readonly actionHistory: ActionHistoryManager;
     public readonly gameHistory: GameHistoryManager;
     public pageRouter: null = null;
+    private stageClickBuffer: { timestamp: number } | null = null;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
@@ -456,6 +470,8 @@ export class GameState {
             sessionId,
             dialogs: [],
             options: options || null,
+            activeDialogId: null,
+            isTyping: false,
         };
         this.events.emit(GameState.EventTypes["event:state.nvl.enter"], sessionId, options || null);
         this.events.emit(GameState.EventTypes["event:state.nvl.visibilityChange"], true, options?.showTransition);
@@ -475,6 +491,8 @@ export class GameState {
             sessionId: null,
             dialogs: [],
             options: null,
+            activeDialogId: null,
+            isTyping: false,
         };
         this.events.emit(GameState.EventTypes["event:state.nvl.visibilityChange"], false, hideOptions);
         this.events.emit(GameState.EventTypes["event:state.nvl.exit"]);
@@ -542,12 +560,86 @@ export class GameState {
     }
 
     /**
+     * Create a snapshot of the current NVL state.
+     */
+    public createNvlSnapshot(): NvlState {
+        return {
+            active: this.nvlState.active,
+            visible: this.nvlState.visible,
+            sessionId: this.nvlState.sessionId,
+            dialogs: this.nvlState.dialogs.map(dialog => ({ ...dialog })),
+            options: this.nvlState.options ? { ...this.nvlState.options } : null,
+            activeDialogId: this.nvlState.activeDialogId,
+            isTyping: this.nvlState.isTyping,
+        };
+    }
+
+    /**
+     * Restore NVL state and refresh UI.
+     */
+    public restoreNvlSnapshot(snapshot: NvlState): this {
+        this.nvlState = {
+            active: snapshot.active,
+            visible: snapshot.visible,
+            sessionId: snapshot.sessionId,
+            dialogs: snapshot.dialogs.map(dialog => ({ ...dialog })),
+            options: snapshot.options ? { ...snapshot.options } : null,
+            activeDialogId: snapshot.activeDialogId,
+            isTyping: snapshot.isTyping,
+        };
+
+        if (this.nvlState.active) {
+            this.events.emit(GameState.EventTypes["event:state.nvl.enter"], this.nvlState.sessionId || "", this.nvlState.options);
+            this.events.emit(
+                GameState.EventTypes["event:state.nvl.visibilityChange"],
+                this.nvlState.visible,
+                this.nvlState.visible ? this.nvlState.options?.showTransition : this.nvlState.options?.hideTransition
+            );
+        } else {
+            this.events.emit(
+                GameState.EventTypes["event:state.nvl.visibilityChange"],
+                false,
+                this.nvlState.options?.hideTransition
+            );
+            this.events.emit(GameState.EventTypes["event:state.nvl.exit"]);
+        }
+        this.stage.update();
+        return this;
+    }
+
+    /**
      * Clear NVL dialogs
      */
     public clearNvlDialogs(): this {
         this.nvlState.dialogs = [];
         this.stage.update();
         return this;
+    }
+
+    public setNvlActiveDialog(dialogId: string | null, isTyping: boolean): this {
+        this.nvlState.activeDialogId = dialogId;
+        this.nvlState.isTyping = isTyping;
+        return this;
+    }
+
+    public setNvlTyping(isTyping: boolean): this {
+        this.nvlState.isTyping = isTyping;
+        return this;
+    }
+
+    public recordStageClick(): this {
+        this.stageClickBuffer = { timestamp: Date.now() };
+        return this;
+    }
+
+    public consumeStageClick(maxAgeMs: number = 200): boolean {
+        if (!this.stageClickBuffer) {
+            return false;
+        }
+        const { timestamp } = this.stageClickBuffer;
+        const age = Date.now() - timestamp;
+        this.stageClickBuffer = null;
+        return age >= 0 && age <= maxAgeMs;
     }
 
     public createDisplayable(
@@ -604,6 +696,8 @@ export class GameState {
             sessionId: null,
             dialogs: [],
             options: null,
+            activeDialogId: null,
+            isTyping: false,
         };
         this.audioManager.reset();
         this.timelines.abortAll();
@@ -790,6 +884,11 @@ export class GameState {
                 visible: this.nvlState.visible,
                 sessionId: this.nvlState.sessionId,
                 dialogIds: this.nvlState.dialogs.map(d => d.id),
+                dialogs: this.nvlState.dialogs.map(d => ({
+                    id: d.id,
+                    text: d.text,
+                    characterId: d.character ? d.character.getId() : null,
+                })),
             },
         };
     }
@@ -835,12 +934,26 @@ export class GameState {
         });
 
         if (data.nvlState) {
+            const restoredDialogs = (data.nvlState.dialogs || []).map((dialog) => {
+                const character = dialog.characterId
+                    ? (elementMap.get(dialog.characterId) as Character | undefined) || null
+                    : null;
+                const text = dialog.text || "";
+                return {
+                    id: dialog.id,
+                    character,
+                    sentence: new Sentence(text, { character }),
+                    text,
+                } satisfies NvlDialogEntry;
+            });
             this.nvlState = {
                 active: data.nvlState.active,
                 visible: data.nvlState.visible,
                 sessionId: data.nvlState.sessionId,
-                dialogs: [],
+                dialogs: restoredDialogs,
                 options: null,
+                activeDialogId: null,
+                isTyping: false,
             };
             if (this.nvlState.active) {
                 this.events.emit(GameState.EventTypes["event:state.nvl.enter"], this.nvlState.sessionId || "", null);

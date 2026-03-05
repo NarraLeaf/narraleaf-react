@@ -10,6 +10,8 @@ const defaultNvlState: NvlState = {
     sessionId: null,
     dialogs: [],
     options: null,
+    activeDialogId: null,
+    isTyping: false,
 };
 
 const NvlContext = createContext<NvlContextValue>({

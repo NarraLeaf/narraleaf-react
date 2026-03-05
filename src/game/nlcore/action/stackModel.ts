@@ -614,7 +614,7 @@ export class StackModel {
      *                 The undo/history system will then re-insert the action
      *                 manually (see LiveGame.undo) to avoid having two copies
      *                 of the same action after deserialisation.
-     * @returns Snapshot that can be passed to {@link StackModel.deserialize}.
+     * @returns Snapshot that can be passed to StackModel.deserialize.
      */
     serialize(frozen: boolean = true): StackModelRawData {
         const toData = (item: CalledActionResult | Awaitable<CalledActionResult>): StackModelItemData | null => {

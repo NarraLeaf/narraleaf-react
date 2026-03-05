@@ -1,6 +1,6 @@
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import type {Scene, SceneDataRaw} from "@core/elements/scene";
-import {GameState, PlayerStateElementSnapshot} from "@player/gameState";
+import {GameState, PlayerStateElementSnapshot, NvlState} from "@player/gameState";
 import {Awaitable, SkipController} from "@lib/util/data";
 import type {CalledActionResult} from "@core/gameTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
@@ -228,7 +228,14 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         } else if (this.type === SceneActionTypes.nvlBlock) {
             const [actions, options] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlBlock"]>).getContent();
             
+            const preNvlSnapshot = gameState.createNvlSnapshot();
             gameState.enterNvlMode(options);
+            gameState.actionHistory.push<[NvlState]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevSnapshot) => {
+                gameState.restoreNvlSnapshot(prevSnapshot);
+            }, [preNvlSnapshot]);
 
             if (actions.length === 0) {
                 gameState.exitNvlMode(options);
@@ -240,18 +247,30 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 node: actions[0].contentNode,
             }]);
 
-            const awaitable = new Awaitable<CalledActionResult>();
-            stackModel.execute().then(() => {
-                gameState.exitNvlMode(options);
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
+            const originalExecute = stackModel.execute.bind(stackModel);
+            stackModel.execute = () => {
+                const awaitable = originalExecute();
+                awaitable.then(() => {
+                    const exitSnapshot = gameState.createNvlSnapshot();
+                    gameState.actionHistory.push<[NvlState]>({
+                        action: this,
+                        stackModel: injection.stackModel
+                    }, (prevSnapshot) => {
+                        gameState.restoreNvlSnapshot(prevSnapshot);
+                    }, [exitSnapshot]);
+                    gameState.exitNvlMode(options);
                 });
-            });
+                return awaitable;
+            };
 
-            gameState.timelines.attachTimeline(awaitable);
-
-            return awaitable;
+            return {
+                type: this.type,
+                node: this.contentNode.getChild(),
+                wait: {
+                    type: "all",
+                    stackModels: [stackModel]
+                }
+            };
         } else if (this.type === SceneActionTypes.nvlShow) {
             const [options] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlShow"]>).getContent();
             const previousVisible = gameState.getNvlState().visible;

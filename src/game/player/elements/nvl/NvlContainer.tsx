@@ -24,7 +24,7 @@ export function NvlContainer({ children, className, style }: NvlContainerProps) 
                     transition={{ duration }}
                     data-element-type="nvl-container"
                     className={clsx(
-                        "absolute inset-0 overflow-auto",
+                        "absolute inset-6 overflow-auto",
                         className
                     )}
                     style={{
@@ -42,7 +42,7 @@ export function NvlContainer({ children, className, style }: NvlContainerProps) 
     );
 }
 
-export function BaseNvlContainer(props: INvlContainerProps) {
+export function BaseNvlContainer({ renderDialogItem: _renderDialogItem, ...props }: INvlContainerProps & NvlContainerProps) {
     return <NvlContainer {...props} />;
 }
 

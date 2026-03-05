@@ -7,6 +7,7 @@ import { Story } from "@core/elements/story";
 import type { CalledActionResult } from "@core/gameTypes";
 import { ActionSearchOptions } from "@core/types";
 import { Awaitable } from "@lib/util/data";
+import { Game } from "@core/common/game";
 import { GameState } from "@player/gameState";
 import { Timeline } from "@player/Tasks";
 import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
@@ -203,17 +204,55 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
 
             return awaitable;
         } else if (this.type === ControlActionTypes.waitForClick) {
+            if (gameState.consumeStageClick()) {
+                return {
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                };
+            }
             const awaitable = new Awaitable<CalledActionResult>();
             const clickAwaitable = new Awaitable<void>();
             const timeline = new Timeline(clickAwaitable);
             gameState.timelines.attachTimeline(timeline);
 
-            const eventToken = gameState.events.on(GameState.EventTypes["event:state.player.stageClick"], () => {
+            const preference = gameState.game.preference;
+            const autoForward = preference.getPreference(Game.Preferences.autoForward);
+            const gameSpeed = preference.getPreference(Game.Preferences.gameSpeed);
+            const autoForwardDelay = autoForward
+                ? gameState.game.config.autoForwardDelay / gameSpeed
+                : null;
+
+            let settled = false;
+            let autoForwardTimer: ReturnType<typeof setTimeout> | null = null;
+            let stageToken: { cancel: () => void } | null = null;
+            let skipToken: { cancel: () => void } | null = null;
+
+            const cleanup = () => {
+                stageToken?.cancel();
+                skipToken?.cancel();
+                if (autoForwardTimer) {
+                    clearTimeout(autoForwardTimer);
+                    autoForwardTimer = null;
+                }
+            };
+
+            const finalize = () => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                cleanup();
                 clickAwaitable.resolve();
-            });
+            };
+
+            stageToken = gameState.events.on(GameState.EventTypes["event:state.player.stageClick"], finalize);
+            skipToken = gameState.events.on(GameState.EventTypes["event:state.player.skip"], finalize);
+
+            if (autoForwardDelay !== null) {
+                autoForwardTimer = setTimeout(finalize, autoForwardDelay);
+            }
 
             clickAwaitable.then(() => {
-                eventToken.cancel();
                 awaitable.resolve({
                     type: this.type,
                     node: this.contentNode.getChild()
@@ -222,7 +261,11 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
 
             awaitable.onSkipControllerRegister(controller => {
                 controller.onAbort(() => {
-                    eventToken.cancel();
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    cleanup();
                     timeline.abort();
                 });
             });

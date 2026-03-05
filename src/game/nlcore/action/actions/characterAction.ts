@@ -5,12 +5,15 @@ import type {CalledActionResult} from "@core/gameTypes";
 import {Awaitable, SkipController} from "@lib/util/data";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Sentence} from "@core/elements/character/sentence";
+import {Word} from "@core/elements/character/word";
 import {TypedAction} from "@core/action/actions";
 import {Sound} from "@core/elements/sound";
+import {Script} from "@core/elements/script";
 import { Timeline } from "@lib/game/player/Tasks";
 import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
 import { LogicAction } from "@core/action/logicAction";
 import { Story } from "@core/elements/story";
+import { LiveGame } from "@core/game/liveGame";
 
 export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof CharacterActionTypes] = typeof CharacterActionTypes[keyof typeof CharacterActionTypes]>
     extends TypedAction<CharacterActionContentType, T, Character> {
@@ -44,10 +47,13 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
          * Create a game dialog and play voice if available
          */
         if (this.type === CharacterActionTypes.say) {
+            let dialogCancel: (() => void) | null = null;
+            let dialogText = "";
+            let appendedNvlDialogId: string | null = null;
             const awaitable =
                 new Awaitable<CalledActionResult, CalledActionResult>(v => v)
                     .registerSkipController(new SkipController(() => {
-                        dialog.cancel();
+                        dialogCancel?.();
                     }));
             const timeline = new Timeline(awaitable);
             const sentence = (this.contentNode as ContentNode<Sentence>).getContent();
@@ -59,7 +65,6 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     speaker: liveGame.lastDialog.speaker,
                 }
                 : null;
-            let appendedNvlDialogId: string | null = null;
 
             // Play voice if available
             const voice = CharacterAction.getVoice(gameState, sentence);
@@ -77,30 +82,89 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 })
                 : null;
 
-            // Create dialog
-            const dialogId = gameState.idManager.generateId();
-            const dialog = gameState.createDialog(dialogId, sentence, () => {
-                gameState.gameHistory.resolvePending(id);
-
-                awaitable.resolve({
-                    type: this.type,
-                    node: this.contentNode.getChild()
-                });
-            });
-
-            // Append to NVL dialogs if in NVL mode
             if (isNvlMode) {
+                const dialogId = gameState.idManager.generateId();
+                const words = sentence.evaluate(Script.getCtx({ gameState }));
+                dialogText = Word.getText(words);
+
+                liveGame.events.emit(LiveGame.EventTypes["event:character.prompt"], {
+                    character: sentence.config.character,
+                    sentence,
+                    text: dialogText,
+                });
+
+                let resolved = false;
+                const completeLine = () => {
+                    if (resolved) {
+                        return;
+                    }
+                    resolved = true;
+                    gameState.events.emit(GameState.EventTypes["event:state.player.lineEnd"]);
+                    gameState.gameHistory.resolvePending(id);
+                    awaitable.resolve({
+                        type: this.type,
+                        node: this.contentNode.getChild()
+                    });
+                };
+
                 gameState.appendNvlDialog({
                     id: dialogId,
                     character: this.callee,
                     sentence,
-                    text: dialog.text,
+                    text: dialogText,
                 });
                 appendedNvlDialogId = dialogId;
+                gameState.setNvlActiveDialog(dialogId, true);
+
+                let pendingAdvance = false;
+                const resolveClick = () => {
+                    const nvlState = gameState.getNvlState();
+                    if (nvlState.activeDialogId !== dialogId) {
+                        return;
+                    }
+                    if (nvlState.isTyping) {
+                        pendingAdvance = true;
+                        return;
+                    }
+                    completeLine();
+                    gameState.setNvlActiveDialog(null, false);
+                };
+
+                const stageToken = gameState.events.on(GameState.EventTypes["event:state.player.stageClick"], resolveClick);
+                const skipToken = gameState.events.on(GameState.EventTypes["event:state.player.skip"], resolveClick);
+                const completeToken = gameState.events.on(GameState.EventTypes["event:state.nvl.dialogComplete"], (completedId) => {
+                    if (completedId !== dialogId) {
+                        return;
+                    }
+                    if (!pendingAdvance) {
+                        return;
+                    }
+                    pendingAdvance = false;
+                    completeLine();
+                    gameState.setNvlActiveDialog(null, false);
+                });
+
+                dialogCancel = () => {
+                    stageToken.cancel();
+                    skipToken.cancel();
+                    completeToken.cancel();
+                };
+            } else {
+                const dialogId = gameState.idManager.generateId();
+                const dialog = gameState.createDialog(dialogId, sentence, () => {
+                    gameState.gameHistory.resolvePending(id);
+
+                    awaitable.resolve({
+                        type: this.type,
+                        node: this.contentNode.getChild()
+                    });
+                });
+                dialogText = dialog.text;
+                dialogCancel = dialog.cancel;
             }
 
             // Set last dialog
-            liveGame.setLastDialog(dialog.text, this.callee.state.name);
+            liveGame.setLastDialog(dialogText, this.callee.state.name);
 
             // Attach timeline
             gameState.timelines.attachTimeline(timeline);
@@ -118,9 +182,12 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                         timeline.attachChild(task);
                     }
                 }
-                dialog.cancel();
+                dialogCancel?.();
                 if (appendedNvlDialogId) {
                     gameState.removeNvlDialog(appendedNvlDialogId);
+                    if (gameState.getNvlState().activeDialogId === appendedNvlDialogId) {
+                        gameState.setNvlActiveDialog(null, false);
+                    }
                 }
                 if (previousLastDialog) {
                     liveGame.setLastDialog(previousLastDialog.sentence, previousLastDialog.speaker);
@@ -133,7 +200,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 action: this,
                 element: {
                     type: "say",
-                    text: dialog.text,
+                    text: dialogText,
                     voice: voice ? voice.getSrc() : null,
                     character: this.callee.state.name,
                 },
