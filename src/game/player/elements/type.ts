@@ -27,6 +27,7 @@ export type {
     MenuElementProps,
     NotificationsProps as INotificationProps,
 };
+export type { INvlContainerProps, NvlDialogItemRenderProps } from "./nvl/type";
 
 export type PlayerEventContext = {
     game: Game;

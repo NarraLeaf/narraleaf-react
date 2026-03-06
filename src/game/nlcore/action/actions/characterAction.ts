@@ -59,6 +59,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             const sentence = (this.contentNode as ContentNode<Sentence>).getContent();
             const isNvlMode = gameState.isNvlMode();
             const liveGame = gameState.getLiveGame();
+            const presentationSnapshot = gameState.createPresentationSnapshot();
             const previousLastDialog = liveGame.lastDialog
                 ? {
                     sentence: liveGame.lastDialog.sentence,
@@ -83,7 +84,10 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 : null;
 
             if (isNvlMode) {
-                const dialogId = gameState.idManager.generateId();
+                const actionId = this.getId();
+                const restoredDialog = gameState.getActiveNvlDialogForAction(actionId)
+                    || gameState.getLatestNvlDialogForAction(actionId);
+                const dialogId = restoredDialog?.id || gameState.allocateNvlDialogId(actionId);
                 const words = sentence.evaluate(Script.getCtx({ gameState }));
                 dialogText = Word.getText(words);
 
@@ -107,47 +111,25 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     });
                 };
 
-                gameState.appendNvlDialog({
+                const { created } = gameState.ensureNvlDialog({
                     id: dialogId,
+                    actionId,
                     character: this.callee,
                     sentence,
                     text: dialogText,
                 });
                 appendedNvlDialogId = dialogId;
-                gameState.setNvlActiveDialog(dialogId, true);
+                const suppressTyping = gameState.consumeNvlTypingSuppression();
+                const phase = created && !suppressTyping ? "typing" : "awaitAdvance";
+                gameState.activateNvlDialog(dialogId, phase, !created);
 
-                let pendingAdvance = false;
-                const resolveClick = () => {
-                    const nvlState = gameState.getNvlState();
-                    if (nvlState.activeDialogId !== dialogId) {
-                        return;
-                    }
-                    if (nvlState.isTyping) {
-                        pendingAdvance = true;
-                        return;
-                    }
+                const advanceToken = gameState.waitForNvlAdvance(dialogId, () => {
+                    gameState.settleNvlDialog(dialogId);
                     completeLine();
-                    gameState.setNvlActiveDialog(null, false);
-                };
-
-                const stageToken = gameState.events.on(GameState.EventTypes["event:state.player.stageClick"], resolveClick);
-                const skipToken = gameState.events.on(GameState.EventTypes["event:state.player.skip"], resolveClick);
-                const completeToken = gameState.events.on(GameState.EventTypes["event:state.nvl.dialogComplete"], (completedId) => {
-                    if (completedId !== dialogId) {
-                        return;
-                    }
-                    if (!pendingAdvance) {
-                        return;
-                    }
-                    pendingAdvance = false;
-                    completeLine();
-                    gameState.setNvlActiveDialog(null, false);
                 });
 
                 dialogCancel = () => {
-                    stageToken.cancel();
-                    skipToken.cancel();
-                    completeToken.cancel();
+                    advanceToken.cancel();
                 };
             } else {
                 const dialogId = gameState.idManager.generateId();
@@ -185,10 +167,9 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                 dialogCancel?.();
                 if (appendedNvlDialogId) {
                     gameState.removeNvlDialog(appendedNvlDialogId);
-                    if (gameState.getNvlState().activeDialogId === appendedNvlDialogId) {
-                        gameState.setNvlActiveDialog(null, false);
-                    }
+                    gameState.settleNvlDialog(appendedNvlDialogId);
                 }
+                gameState.restorePresentationSnapshot(presentationSnapshot);
                 if (previousLastDialog) {
                     liveGame.setLastDialog(previousLastDialog.sentence, previousLastDialog.speaker);
                 } else {

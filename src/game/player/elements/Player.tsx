@@ -26,8 +26,9 @@ import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import { StackModel } from "@lib/game/nlcore/action/stackModel";
 import { RootLayout } from "../lib/PageRouter/Layout";
 import PlayerNotification from "./notification/PlayerNotification";
-import { NvlProvider } from "./nvl/NvlContext";
+import { NvlProvider, useNvl } from "./nvl/NvlContext";
 import { NvlDialogComponent } from "./type";
+import { Script } from "@core/elements/script";
 
 export default function Player(
     {
@@ -313,5 +314,24 @@ function OnlyPreloaded({ children, show }: Readonly<{
 }
 
 function NvlOverlay({ NvlComponent }: { NvlComponent: NvlDialogComponent }) {
-    return <NvlComponent />;
+    const { dialogs, state } = useNvl();
+    const game = useGame();
+    const gameState = game.getLiveGame().getGameState()!;
+    const dialogProxies = React.useMemo(() => (
+        dialogs.map((entry, index) => {
+            const words = entry.sentence.evaluate(Script.getCtx({ gameState }));
+            const isActive = state.activeDialogId === entry.id;
+            const useTypeEffect = isActive && state.phase === "typing";
+            return {
+                entry,
+                index,
+                isActive,
+                gameState,
+                words,
+                useTypeEffect,
+            };
+        })
+    ), [dialogs, gameState, state.activeDialogId, state.phase]);
+
+    return <NvlComponent dialogs={dialogProxies} />;
 }

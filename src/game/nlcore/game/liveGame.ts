@@ -1,7 +1,7 @@
 import { ConditionAction } from "@core/action/actions/conditionAction";
 import { ControlAction } from "@core/action/actions/controlAction";
 import { SceneAction } from "@core/action/actions/sceneAction";
-import { ControlActionTypes, SceneActionTypes } from "@core/action/actionTypes";
+import { CharacterActionTypes, ControlActionTypes, SceneActionTypes } from "@core/action/actionTypes";
 import { LogicAction } from "@core/action/logicAction";
 import { ContentNode, RawData } from "@core/action/tree/actionTree";
 import { RuntimeGameError, RuntimeInternalError } from "@core/common/Utils";
@@ -290,6 +290,10 @@ export class LiveGame {
         if (actionHistory) {
             const [actionMaps] = this.constructMaps();
             const { rootStackSnapshot, stackModel } = actionHistory;
+
+            if (actionHistory.action.type === CharacterActionTypes.say && this.gameState.isNvlMode()) {
+                this.gameState.suppressNextNvlTyping();
+            }
 
             this.stackModel.deserialize(rootStackSnapshot, actionMaps);
             if (stackModel === this.stackModel) {

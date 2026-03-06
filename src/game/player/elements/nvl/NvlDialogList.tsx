@@ -1,20 +1,19 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useNvlDialogs } from "./NvlContext";
+import React, { useMemo } from "react";
+import { useNvl, useNvlDialogs } from "./NvlContext";
 import { NvlDialogListProps, NvlDialogItemProps } from "./type";
 import clsx from "clsx";
 import { useGame } from "@lib/game/player/provider/game-state";
 import { toHex } from "@lib/util/data";
 import { Script } from "@core/elements/script";
 import { DialogContext } from "../say/context";
-import { DialogState } from "../say/UIDialog";
 import { Texts } from "../say/Sentence";
 import Nametag from "../say/Nametag";
-import { GameState, NvlDialogEntry } from "@player/gameState";
-import { KeyBindingType } from "@lib/game/nlcore/game/types";
-import { useKeyBinding } from "../../lib/keyMap";
+import { NvlDialogEntry } from "@player/gameState";
+import { useNvlDialogState } from "./useNvlDialogState";
 
 export function NvlDialogList({ children, className, style, renderDialogItem }: NvlDialogListProps) {
     const dialogs = useNvlDialogs();
+    const { state } = useNvl();
 
     return (
         <div
@@ -26,13 +25,13 @@ export function NvlDialogList({ children, className, style, renderDialogItem }: 
             style={style}
         >
             {dialogs.map((entry, index) => (
-                <div key={entry.id}>
+                <div key={`${entry.id}:${state.activeDialogId === entry.id ? state.phase : "idle"}`}>
                     <NvlDialogItemProvider entry={entry}>
                         {renderDialogItem ? (
                             renderDialogItem({
                                 entry,
                                 index,
-                                isActive: dialogs[dialogs.length - 1]?.id === entry.id,
+                                isActive: state.activeDialogId === entry.id,
                                 nametag: entry.character ? (
                                     <Nametag className="nvl-character-name font-bold mr-2" />
                                 ) : null,
@@ -89,109 +88,18 @@ export function DefaultNvlDialogItem({ entry, index, className, style, texts }: 
 
 function NvlDialogItemProvider({ entry, children }: { entry: NvlDialogEntry; children: React.ReactNode }) {
     const game = useGame();
-    const dialogs = useNvlDialogs();
     const gameState = game.getLiveGame().getGameState()!;
-    const [nextKeyBinding] = useKeyBinding(KeyBindingType.nextAction);
     const words = useMemo(() => entry.sentence.evaluate(Script.getCtx({ gameState })), [entry.sentence, gameState]);
-    const isActive = dialogs[dialogs.length - 1]?.id === entry.id;
-    const useTypeEffect = isActive && gameState.getNvlState().activeDialogId === entry.id;
-    const [dialogState] = useState(() => new DialogState({
-        useTypeEffect,
-        action: {
-            sentence: entry.sentence,
-            character: entry.character,
-            words,
-            id: entry.id,
-        },
-        evaluatedWords: words,
+    const nvlState = gameState.getNvlState();
+    const isActive = nvlState.activeDialogId === entry.id;
+    const useTypeEffect = isActive && nvlState.phase === "typing";
+    const dialogState = useNvlDialogState({
+        entry,
         gameState,
-    }));
-
-    useEffect(() => {
-        if (!isActive) {
-            return;
-        }
-        const handleClick = () => {
-            const nvlState = gameState.getNvlState();
-            if (!isActive || nvlState.activeDialogId !== entry.id) {
-                return;
-            }
-            dialogState.requestComplete();
-        };
-        const handleSkip = () => {
-            const nvlState = gameState.getNvlState();
-            if (!isActive || nvlState.activeDialogId !== entry.id) {
-                return;
-            }
-            dialogState.forceSkip();
-        };
-        const stageToken = gameState.events.on(GameState.EventTypes["event:state.player.stageClick"], handleClick);
-        const skipToken = gameState.events.on(GameState.EventTypes["event:state.player.skip"], handleSkip);
-
-        return () => {
-            stageToken.cancel();
-            skipToken.cancel();
-        };
-    }, [dialogState, gameState, isActive]);
-
-    useEffect(() => {
-        if (!isActive) {
-            return;
-        }
-        const handleKeyUp = (event: KeyboardEvent) => {
-            if (!game.keyMap.match(KeyBindingType.nextAction, event.key)) {
-                return;
-            }
-            const nvlState = gameState.getNvlState();
-            if (!isActive || nvlState.activeDialogId !== entry.id) {
-                return;
-            }
-            dialogState.requestComplete();
-        };
-
-        if (game.config.useWindowListener) {
-            const token = game.getLiveGame().onWindowEvent("keyup", handleKeyUp);
-            return () => {
-                token.cancel();
-            };
-        }
-        const token = game.getLiveGame().onPlayerEvent("keyup", handleKeyUp);
-        return () => {
-            token.cancel();
-        };
-    }, [dialogState, entry.id, game, gameState, isActive, nextKeyBinding]);
-
-    useEffect(() => {
-        const completeToken = dialogState.events.on(DialogState.Events.complete, (force: boolean) => {
-            if (!isActive) {
-                return;
-            }
-            const nvlState = gameState.getNvlState();
-            if (nvlState.activeDialogId === entry.id) {
-                gameState.setNvlTyping(false);
-                gameState.events.emit(GameState.EventTypes["event:state.nvl.dialogComplete"], entry.id);
-            }
-            if (!dialogState.isIdle() && !force) {
-                dialogState.setIdle(true);
-            }
-        });
-
-        return () => {
-            completeToken.cancel();
-        };
-    }, [dialogState, entry.id, gameState, isActive]);
-
-    useEffect(() => {
-        const token = dialogState.events.on(DialogState.Events.simulateClick, () => {
-            const nvlState = gameState.getNvlState();
-            if (isActive && nvlState.activeDialogId === entry.id) {
-                dialogState.requestComplete();
-            }
-        });
-        return () => {
-            token.cancel();
-        };
-    }, [dialogState, isActive]);
+        words,
+        isActive,
+        useTypeEffect,
+    });
 
     return (
         <DialogContext value={dialogState}>

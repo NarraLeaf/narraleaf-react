@@ -383,14 +383,20 @@ export class Scene extends Constructable<
             showTransition: options,
             hideTransition: options,
         };
+        const nvlExitAction = new SceneAction<typeof SceneActionTypes.nvlEnd>(
+            this.chain() as any,
+            SceneActionTypes.nvlEnd,
+            new ContentNode<SceneActionContentType["scene:nvlEnd"]>().setContent([nvlBlockOptions])
+        );
+        const nvlActions = [...flatActions, nvlExitAction];
 
-        super.constructNodes(flatActions);
+        super.constructNodes(nvlActions);
 
         const nvlBlockAction = new SceneAction<typeof SceneActionTypes.nvlBlock>(
             this.chain() as any,
             SceneActionTypes.nvlBlock,
             new ContentNode<SceneActionContentType["scene:nvlBlock"]>().setContent([
-                flatActions,
+                nvlActions,
                 nvlBlockOptions
             ])
         );

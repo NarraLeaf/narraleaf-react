@@ -16,6 +16,7 @@ import { FixedAspectRatioContainer } from "@player/lib/FixedAspectRatioContainer
 import { useKeyBinding } from "./lib/keyMap";
 import { useLiveGame } from "./lib/useLiveGame";
 import { NvlContainer } from "@player/elements/nvl/NvlContainer";
+import { DefaultNvlContainer } from "@player/elements/nvl/DefaultNvlContainer";
 import { NvlDialogList, DefaultNvlDialogItem } from "@player/elements/nvl/NvlDialogList";
 import { NvlProvider, useNvl, useNvlDialogs, useIsNvlMode, useIsNvlVisible } from "@player/elements/nvl/NvlContext";
 
@@ -40,6 +41,7 @@ export {
     useKeyBinding,
     useLiveGame,
     NvlContainer,
+    DefaultNvlContainer,
     NvlDialogList,
     DefaultNvlDialogItem,
     NvlProvider,

@@ -72,7 +72,7 @@ export type SceneActionContentType = {
     K extends typeof SceneActionTypes["nvlBlock"] ? [LogicAction.Actions[], NvlBlockOptions] :
     K extends typeof SceneActionTypes["nvlShow"] ? [Partial<TransformDefinitions.CommonTransformProps>?] :
     K extends typeof SceneActionTypes["nvlHide"] ? [Partial<TransformDefinitions.CommonTransformProps>?] :
-    K extends typeof SceneActionTypes["nvlEnd"] ? [] :
+    K extends typeof SceneActionTypes["nvlEnd"] ? [NvlBlockOptions?] :
     any;
 }
 /* Story */

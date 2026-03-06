@@ -13,6 +13,8 @@ import { Timeline } from "../../Tasks";
 import { useDialogContext } from "./context";
 import { DialogElementProps } from "./type";
 import { DialogState } from "./UIDialog";
+import { useNvlDialogState } from "../nvl/useNvlDialogState";
+import type { NvlDialogEntry } from "@player/gameState";
 
 /**@internal */
 type SplitWord = {
@@ -454,19 +456,52 @@ export interface TextsProps extends DialogElementProps {
     words?: Word<Pausing | string>[];
 }
 
+export type EntryTextsProps = BaseTextsProps & {
+    entry: NvlDialogEntry;
+    gameState: GameState;
+    words: Word<Pausing | string>[];
+    useTypeEffect: boolean;
+    isActive: boolean;
+};
+
 export function RawTexts(props: BaseTextsProps) {
     return <BaseText {...props} key={props.dialog?.config.action.id} />;
+}
+
+function EntryTexts({
+    entry,
+    gameState,
+    words,
+    useTypeEffect,
+    isActive,
+    ...props
+}: EntryTextsProps) {
+    const dialogState = useNvlDialogState({
+        entry,
+        gameState,
+        words,
+        useTypeEffect,
+        isActive,
+    });
+    return <BaseText {...props} dialog={dialogState} key={dialogState.config.action.id} />;
+}
+
+function ContextTexts(props: BaseTextsProps) {
+    const context = useDialogContext();
+    return (
+        <BaseText {...props} dialog={context} key={context.config.action.id} />
+    );
 }
 
 /**
  * Context-based wrapper component
  * Provides integration with the sentence context
  */
-export function Texts(props: BaseTextsProps) {
-    const context = useDialogContext();
-    return (
-        <BaseText {...props} dialog={context} key={context.config.action.id} />
-    );
+export function Texts(props: BaseTextsProps | EntryTextsProps) {
+    if ("entry" in props && props.entry && "gameState" in props && props.gameState && "words" in props && props.words) {
+        return <EntryTexts {...props} />;
+    }
+    return <ContextTexts {...props} />;
 }
 
 export default Texts;

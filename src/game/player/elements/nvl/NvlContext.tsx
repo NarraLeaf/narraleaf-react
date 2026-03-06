@@ -11,6 +11,8 @@ const defaultNvlState: NvlState = {
     dialogs: [],
     options: null,
     activeDialogId: null,
+    phase: "idle",
+    pendingAdvance: false,
     isTyping: false,
 };
 
@@ -48,27 +50,37 @@ export interface NvlProviderProps {
 export function NvlProvider({ children }: NvlProviderProps) {
     const game = useGame();
     const gameState = game.getLiveGame().getGameState()!;
-    const [state, setState] = useState<NvlState>(() => gameState.getNvlState());
+    const [state, setState] = useState<NvlState>(() => ({
+        ...gameState.getNvlState(),
+        dialogs: [...gameState.getNvlState().dialogs],
+    }));
     const [transitionOptions, setTransitionOptions] = useState<Partial<TransformDefinitions.CommonTransformProps> | null>(null);
 
     useEffect(() => {
+        const snapshotState = (source: NvlState): NvlState => ({
+            ...source,
+            dialogs: [...source.dialogs],
+        });
         const enterToken = gameState.events.on(GameState.EventTypes["event:state.nvl.enter"], (sessionId, options) => {
-            setState(gameState.getNvlState());
+            setState(snapshotState(gameState.getNvlState()));
             setTransitionOptions(options?.showTransition || null);
         });
 
         const exitToken = gameState.events.on(GameState.EventTypes["event:state.nvl.exit"], () => {
-            setState(gameState.getNvlState());
+            setState(snapshotState(gameState.getNvlState()));
             setTransitionOptions(null);
         });
 
         const appendToken = gameState.events.on(GameState.EventTypes["event:state.nvl.dialogAppend"], () => {
-            setState(gameState.getNvlState());
+            setState(snapshotState(gameState.getNvlState()));
         });
 
         const visibilityToken = gameState.events.on(GameState.EventTypes["event:state.nvl.visibilityChange"], (visible, options) => {
-            setState(gameState.getNvlState());
+            setState(snapshotState(gameState.getNvlState()));
             setTransitionOptions(options || null);
+        });
+        const changeToken = gameState.events.on(GameState.EventTypes["event:state.nvl.change"], (nextState) => {
+            setState(snapshotState(nextState));
         });
 
         return () => {
@@ -76,6 +88,7 @@ export function NvlProvider({ children }: NvlProviderProps) {
             exitToken.cancel();
             appendToken.cancel();
             visibilityToken.cancel();
+            changeToken.cancel();
         };
     }, [gameState]);
 
