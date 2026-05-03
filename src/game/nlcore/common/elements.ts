@@ -40,3 +40,5 @@ export {
     Layer,
     Video,
 };
+
+export type { SentenceMetadata } from "../elements/character/sentence";

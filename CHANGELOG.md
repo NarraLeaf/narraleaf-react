@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.1]
+
+### _Feature_
+
+- Added `Sentence.getMetadata` to get the metadata of a sentence
+
 ## [0.9.0]
 
 ### _Feature_

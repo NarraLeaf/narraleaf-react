@@ -11,7 +11,7 @@ export default function ErrorFallback({error, errorInfo}: { error: Error, errorI
                 <p className={"text-red-700"}>Message: {error.message}</p>
                 <pre>Error Stack: {error?.stack}</pre>
                 <pre>Component Stack: {errorInfo?.componentStack}</pre>
-                <pre>Digest: {errorInfo?.digest}</pre>
+                <pre>Digest: {"digest" in errorInfo ? String((errorInfo as { digest?: unknown }).digest) : ""}</pre>
             </div>
         );
     }

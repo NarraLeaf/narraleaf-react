@@ -7,12 +7,20 @@ import { Color, Font } from "@core/types";
 import { deepMerge, safeClone } from "@lib/util/data";
 import { EmptyObject } from "../transition/type";
 
+/**
+ * User-provided runtime metadata attached to a sentence; not serialized with saves.
+ * Use plain serializable values when possible.
+ */
+export type SentenceMetadata = Record<string, unknown>;
+
 export type SentenceConfig = {
     pause?: boolean | number;
     voice: Sound | null;
     character: Character | null;
     voiceId: string | number | null;
     color?: Color;
+    /** Optional runtime-only metadata for UI hooks and integrations */
+    metadata?: SentenceMetadata;
 } & Font;
 
 /**@internal */
@@ -110,6 +118,13 @@ export class Sentence {
     readonly config: SentenceConfig;
     /**@internal */
     state: SentenceState;
+
+    /**
+     * Returns runtime-only user metadata from sentence config; undefined when not set.
+     */
+    getMetadata(): SentenceMetadata | undefined {
+        return this.config.metadata;
+    }
 
     /**
      * Build a new sentence from a prompt or mix of words, pauses, and dynamic data.
