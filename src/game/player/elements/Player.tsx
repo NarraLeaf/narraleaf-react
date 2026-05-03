@@ -105,10 +105,19 @@ export default function Player(
                 }
                 currentHandlingResult.current = nextResult;
                 nextResult.onSettled(() => {
+                    if (nextResult.isFailed()) {
+                        return;
+                    }
                     if (currentHandlingResult.current === nextResult) {
                         currentHandlingResult.current = null;
                     }
                     next();
+                });
+                nextResult.onFailed((error) => {
+                    if (currentHandlingResult.current === nextResult) {
+                        currentHandlingResult.current = null;
+                    }
+                    state.logger.error("Player", error);
                 });
                 exited = true;
                 break;
@@ -139,12 +148,19 @@ export default function Player(
                     currentHandlingResult.current = nextResult;
 
                     if (nextResult.wait) {
-                        StackModel.executeStackModelGroup(nextResult.wait.type, nextResult.wait.stackModels).then(() => {
+                        const waitResult = StackModel.executeStackModelGroup(nextResult.wait.type, nextResult.wait.stackModels);
+                        waitResult.then(() => {
                             if (currentHandlingResult.current === nextResult) {
                                 currentHandlingResult.current = null;
                             }
 
                             next();
+                        });
+                        waitResult.onFailed((error) => {
+                            if (currentHandlingResult.current === nextResult) {
+                                currentHandlingResult.current = null;
+                            }
+                            state.logger.error("Player", error);
                         });
                     }
 

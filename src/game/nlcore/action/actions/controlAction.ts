@@ -23,7 +23,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             node: action.contentNode,
         }]);
 
-        return stackModel.execute();
+        return gameState.game.getLiveGame().executeAsyncStackModel(stackModel);
     }
 
     checkActionChain(actions: LogicAction.Actions[]): LogicAction.Actions[] {
@@ -55,7 +55,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             }
 
             const stackModels = this.checkActionChain(content).map(action => {
-                return gameState.game.getLiveGame().requestAsyncStackModel([{
+                return gameState.game.getLiveGame().createStackModel([{
                     type: action.type,
                     node: action.contentNode,
                 }]);
@@ -78,7 +78,7 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             }
 
             const stackModels = this.checkActionChain(content).map(action => {
-                return gameState.game.getLiveGame().requestAsyncStackModel([{
+                return gameState.game.getLiveGame().createStackModel([{
                     type: action.type,
                     node: action.contentNode,
                 }]);
@@ -106,7 +106,9 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
                     node: action.contentNode,
                 }]);
             });
-            gameState.timelines.attachTimeline(Awaitable.all(...stackModels.map(stackModel => stackModel.execute())));
+            gameState.timelines.attachTimeline(Awaitable.all(...stackModels.map(stackModel => {
+                return gameState.game.getLiveGame().executeAsyncStackModel(stackModel);
+            })));
 
             return super.executeAction(gameState, injection);
         } else if (this.type === ControlActionTypes.repeat) {

@@ -1,4 +1,4 @@
-import { Awaitable, Stack } from "@lib/util/data";
+import { Awaitable, SkipController, Stack } from "@lib/util/data";
 import { LiveGame } from "../common/game";
 import { RuntimeInternalError, RuntimeGameError } from "../common/Utils";
 import { CalledActionResult, StackModelWaiting } from "../gameTypes";
@@ -428,6 +428,9 @@ export class StackModel {
         const currentAction = this.stack.pop()!;
         // Handle Awaitable type result
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(currentAction)) {
+            if (currentAction.isFailed()) {
+                throw currentAction.error;
+            }
 
             const result = currentAction.result;
             if (result) {
@@ -448,10 +451,13 @@ export class StackModel {
     }
 
     public execute(): Awaitable<void> {
-        const awaitable = new Awaitable<void>();
-
         let currentWaiting: Awaitable | null = null,
             exited = false;
+        const awaitable = new Awaitable<void>()
+            .registerSkipController(new SkipController(() => {
+                exited = true;
+                currentWaiting?.abort();
+            }));
 
         const roll = async () => {
             let count = 0;
@@ -479,6 +485,9 @@ export class StackModel {
                     continue;
                 }
                 if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(result)) {
+                    if (result.isFailed()) {
+                        throw result.error;
+                    }
                     if (result.isSettled()) {
                         continue;
                     } else {
@@ -496,15 +505,9 @@ export class StackModel {
             }
         };
 
-        roll().then(() => awaitable.resolve());
-        awaitable.onSkipControllerRegister((skipController) => {
-            skipController.onAbort(() => {
-                if (currentWaiting) {
-                    exited = true;
-                    currentWaiting.abort();
-                }
-            });
-        });
+        roll()
+            .then(() => awaitable.resolve())
+            .catch(error => awaitable.fail(error));
         return awaitable;
     }
 

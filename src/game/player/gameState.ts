@@ -891,7 +891,8 @@ export class GameState {
     }
 
     public forceReset() {
-        this.state.elements.forEach(({scene}) => {
+        const activeElements = [...this.state.elements];
+        activeElements.forEach(({scene}) => {
             this.offSrcManager(scene.srcManager);
             this.removeScene(scene);
             scene.events.clear();

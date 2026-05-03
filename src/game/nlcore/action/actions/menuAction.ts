@@ -34,7 +34,7 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             ]);
             awaitable.resolve({
                 type: this.type,
-                node: null,
+                node: this.contentNode.getChild(),
                 wait: {
                     type: "all",
                     stackModels: [stackModel]
@@ -73,13 +73,7 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             isPending: true,
         });
 
-        return [
-            {
-                type: this.type,
-                node: this.contentNode.getChild(),
-            },
-            awaitable
-        ];
+        return awaitable;
     }
 
     getFutureActions(story: Story, options: ActionSearchOptions): LogicAction.Actions[] {

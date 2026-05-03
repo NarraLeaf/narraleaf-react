@@ -234,8 +234,11 @@ export class LiveGame {
 
         // restore stack model
         this.stackModel.deserialize(stackModel, actionMaps);
-        asyncStackModels.forEach(stack => this.asyncStackModels.add(StackModel.createStackModel(this, stack, actionMaps)));
-        this.asyncStackModels.forEach(stack => gameState.timelines.attachTimeline(stack.execute()));
+        asyncStackModels.forEach(stack => {
+            const stackModel = StackModel.createStackModel(this, stack, actionMaps);
+            this.asyncStackModels.add(stackModel);
+            gameState.timelines.attachTimeline(this.executeAsyncStackModel(stackModel));
+        });
 
         // restore services
         story.deserializeServices(services);
@@ -680,6 +683,21 @@ export class LiveGame {
         stack.push(...value);
 
         return stack;
+    }
+
+    /**@internal */
+    executeAsyncStackModel(stack: StackModel): Awaitable<void> {
+        this.assertGameState();
+
+        const awaitable = stack.execute();
+        awaitable.onFailed(error => {
+            this.gameState.logger.error("Async StackModel", error);
+        });
+        awaitable.onSettled(() => {
+            this.asyncStackModels.delete(stack);
+        });
+
+        return awaitable;
     }
 
     /**@internal */

@@ -236,11 +236,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 action: this,
                 stackModel: injection.stackModel
             }, (prevMusic) => {
-                if (prevMusic) exposed.setBackgroundMusic(prevMusic, 0);
+                exposed.setBackgroundMusic(prevMusic, 0);
             }, [originalMusic]);
 
             exposed.setBackgroundMusic(sound, fade || 0);
-            this.callee.state.backgroundMusic = sound;
 
             return super.executeAction(gameState, injection);
         } else if (this.type === SceneActionTypes.preUnmount) {
