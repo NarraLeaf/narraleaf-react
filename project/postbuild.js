@@ -4,42 +4,67 @@ const process = require("process");
 const fs = require("fs-extra");
 const path = require("path");
 
-// Read target directories from dev config
+const sourceDir = path.resolve(__dirname, "../dist");
 const devConfigPath = path.resolve(__dirname, "../dev.json");
-let targetDirs = [];
-try {
-    const devConfig = JSON.parse(fs.readFileSync(devConfigPath, "utf8"));
-    
-    // Support both single targetDir and multiple targetDirs
-    if (devConfig.targetDirs && Array.isArray(devConfig.targetDirs)) {
-        targetDirs = devConfig.targetDirs;
-    } else if (devConfig.targetDir) {
-        targetDirs = [devConfig.targetDir];
-    } else {
-        throw new Error("Neither targetDir nor targetDirs found in dev.json");
+
+/**
+ * Collect postbuild target *package roots* (each should contain or receive `dist/` for the built library).
+ * Priority: CLI `--target-dir` (repeatable) > env `NVL_POSTBUILD_TARGET_DIRS` (comma-separated) > `dev.json`.
+ */
+function collectTargetDirs() {
+    const fromCli = [];
+    const argv = process.argv.slice(2);
+    for (let i = 0; i < argv.length; i++) {
+        if (argv[i] === "--target-dir" && argv[i + 1]) {
+            fromCli.push(argv[i + 1]);
+            i++;
+        }
     }
-    
-    if (targetDirs.length === 0) {
-        throw new Error("No target directories specified in dev.json");
+    if (fromCli.length) {
+        return fromCli;
     }
-} catch (err) {
-    console.error(`Error reading dev.json: ${err}`);
-    process.exit(1);
+
+    const fromEnv = process.env.NVL_POSTBUILD_TARGET_DIRS;
+    if (fromEnv) {
+        const parts = fromEnv.split(",").map(s => s.trim()).filter(Boolean);
+        if (parts.length) {
+            return parts;
+        }
+    }
+
+    if (fs.existsSync(devConfigPath)) {
+        try {
+            const devConfig = JSON.parse(fs.readFileSync(devConfigPath, "utf8"));
+            if (devConfig.targetDirs && Array.isArray(devConfig.targetDirs)) {
+                return devConfig.targetDirs;
+            }
+            if (devConfig.targetDir) {
+                return [devConfig.targetDir];
+            }
+        } catch (e) {
+            console.error(`Error reading dev.json: ${e}`);
+            process.exit(1);
+        }
+    }
+
+    return [];
 }
 
-const sourceDir = path.resolve(__dirname, "../dist");
+const targetDirs = collectTargetDirs();
 
-// Copy files to all target directories
+if (targetDirs.length === 0) {
+    console.log("postbuild: no target directories (set dev.json, NVL_POSTBUILD_TARGET_DIRS, or use --target-dir). Skipping copy.");
+    process.exit(0);
+}
+
 let successCount = 0;
 let errorCount = 0;
 
 for (const targetDir of targetDirs) {
     const fullTargetDir = path.join(targetDir, "dist");
-    
-    // Ensure target directory exists
+
     fs.ensureDirSync(fullTargetDir);
-    
-    // Copy files from source to target, overwriting if exists
+
     try {
         fs.copySync(sourceDir, fullTargetDir, { overwrite: true });
         console.log(`✓ Successfully copied build files to ${fullTargetDir}`);
@@ -50,15 +75,9 @@ for (const targetDir of targetDirs) {
     }
 }
 
-// Summary
-console.log(`\nCopy operation completed:`);
+console.log("\nCopy operation completed:");
 console.log(`  Success: ${successCount} directories`);
 if (errorCount > 0) {
     console.log(`  Errors: ${errorCount} directories`);
     process.exit(1);
 }
-
-
-
-
-
