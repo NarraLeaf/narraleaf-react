@@ -11,6 +11,7 @@ import { Texts } from "./Sentence";
 import { DialogState } from "./UIDialog";
 import { KeyBindingType } from "@lib/game/nlcore/game/types";
 import { useKeyBinding } from "../../lib/keyMap";
+import Avatar from "./Avatar";
 
 function BaseDialog({
     children,
@@ -124,8 +125,28 @@ export default Dialog;
 export function DefaultDialog() {
     return (
         <Dialog>
-            <Nametag />
-            <Texts />
+            <div
+                className="dialog-content"
+                style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 16,
+                    width: "100%",
+                    height: "100%",
+                }}
+            >
+                <Avatar />
+                <div
+                    className="dialog-text-content"
+                    style={{
+                        minWidth: 0,
+                        flex: "1 1 auto",
+                    }}
+                >
+                    <Nametag />
+                    <Texts />
+                </div>
+            </div>
         </Dialog>
     );
 }

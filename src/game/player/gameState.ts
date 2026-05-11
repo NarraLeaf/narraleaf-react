@@ -33,6 +33,10 @@ import { Transform } from "../nlcore/common/elements";
 import type { Character } from "@core/elements/character";
 import type { TransformDefinitions } from "@core/elements/transform/type";
 import type { NvlBlockOptions } from "@core/action/actionTypes";
+import {
+    normalizeCharacterPortraitConfig,
+    type NormalizedCharacterPortraitConfig,
+} from "@core/elements/character/avatar";
 
 export type NvlDialogEntry = {
     id: string;
@@ -354,6 +358,37 @@ export class GameState {
 
     public getCurrentScene(): Scene | null {
         return this.state.elements[0]?.scene || null;
+    }
+
+    public findCurrentPortraitForCharacter(character: Character): NormalizedCharacterPortraitConfig | null {
+        const portraits = (character.config.portraits || [])
+            .map(normalizeCharacterPortraitConfig);
+        if (!portraits.length) {
+            return null;
+        }
+
+        const scene = this.getLastScene();
+        const element = scene ? this.findElementByScene(scene) : null;
+        if (!element) {
+            return null;
+        }
+
+        const portraitByImage = new Map(
+            portraits.map(portrait => [portrait.image, portrait])
+        );
+        const layers = Array.from(element.layers.values());
+        for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex--) {
+            const displayables = layers[layerIndex];
+            for (let displayableIndex = displayables.length - 1; displayableIndex >= 0; displayableIndex--) {
+                const displayable = displayables[displayableIndex];
+                const portrait = portraitByImage.get(displayable as NormalizedCharacterPortraitConfig["image"]);
+                if (portrait && this.isDisplayableVisible(displayable)) {
+                    return portrait;
+                }
+            }
+        }
+
+        return null;
     }
 
     public sceneExists(scene?: Scene): boolean {
@@ -1270,6 +1305,10 @@ export class GameState {
         this.emitNvlStateChange();
         waiter();
         return true;
+    }
+
+    private isDisplayableVisible(displayable: LogicAction.DisplayableElements): boolean {
+        return (displayable.transformState.get().opacity ?? 0) > 0;
     }
 
     private createWaitableAction<A extends Record<any, any>, T = undefined>(action: A, after?: (arg0: T) => void) {

@@ -6,6 +6,7 @@ import { Sound } from "@core/elements/sound";
 import { Color, Font } from "@core/types";
 import { deepMerge, safeClone } from "@lib/util/data";
 import { EmptyObject } from "../transition/type";
+import type { DialogAvatar } from "@core/elements/character/avatar";
 
 /**
  * User-provided runtime metadata attached to a sentence; not serialized with saves.
@@ -21,6 +22,8 @@ export type SentenceConfig = {
     color?: Color;
     /** Optional runtime-only metadata for UI hooks and integrations */
     metadata?: SentenceMetadata;
+    /** Optional per-line dialog avatar override. Use `false` to hide the avatar for this sentence. */
+    avatar?: DialogAvatar | false;
 } & Font;
 
 /**@internal */

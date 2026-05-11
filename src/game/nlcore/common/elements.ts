@@ -42,3 +42,11 @@ export {
 };
 
 export type { SentenceMetadata } from "../elements/character/sentence";
+export type {
+    CharacterPortraitConfig,
+    DialogAvatar,
+    DialogAvatarResolver,
+    DialogAvatarResolverContext,
+    DialogAvatarResolution,
+    DialogAvatarSource,
+} from "../elements/character/avatar";

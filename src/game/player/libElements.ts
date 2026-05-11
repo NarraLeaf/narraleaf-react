@@ -7,6 +7,7 @@ import Notifications from "@player/elements/notification/Notifications";
 import Texts from "@player/elements/say/Sentence";
 import Nametag from "@player/elements/say/Nametag";
 import Dialog from "@player/elements/say/Dialog";
+import Avatar, { useAvatar } from "@player/elements/say/Avatar";
 import { useDialog } from "@player/elements/say/useDialog";
 import { useVoiceState } from "@player/elements/say/useVoiceState";
 import { Page, PageInjectContext } from "@player/lib/PageRouter/Page";
@@ -20,6 +21,8 @@ import { DefaultNvlContainer } from "@player/elements/nvl/DefaultNvlContainer";
 import { NvlDialogList, DefaultNvlDialogItem } from "@player/elements/nvl/NvlDialogList";
 import { NvlProvider, useNvl, useNvlDialogs, useIsNvlMode, useIsNvlVisible } from "@player/elements/nvl/NvlContext";
 
+export type { DialogAvatarContext } from "@player/elements/say/Avatar";
+
 export {
     Isolated,
     usePreference,
@@ -30,6 +33,8 @@ export {
     Texts,
     Nametag,
     Dialog,
+    Avatar,
+    useAvatar,
     useDialog,
     useVoiceState,
     Page,

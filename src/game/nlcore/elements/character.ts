@@ -6,9 +6,16 @@ import {Actionable} from "@core/action/actionable";
 import {Chained, Proxied} from "@core/action/chain";
 import {Sentence, SentencePrompt, SentenceUserConfig, SingleWord} from "@core/elements/character/sentence";
 import {CharacterAction} from "@core/action/actions/characterAction";
+import type {
+    CharacterPortraitConfig,
+    DialogAvatar,
+} from "@core/elements/character/avatar";
+import type { Image } from "@core/elements/displayable/image";
 
 export type CharacterConfig = {
     color?: Color;
+    avatar?: DialogAvatar | false;
+    portraits: (Image | CharacterPortraitConfig)[];
 };
 /**@internal */
 export type CharacterStateData = {
@@ -37,6 +44,7 @@ export class Character extends Actionable<
     static defaultCharacterColor: Color = "#000";
     /**@internal */
     static defaultConfig: CharacterConfig = {
+        portraits: [],
     };
     /**@internal */
     readonly config: CharacterConfig;
@@ -168,6 +176,45 @@ export class Character extends Actionable<
             new ContentNode<[string]>().setContent([name])
         );
         return this.chain(action);
+    }
+
+    /**
+     * Set the avatar strategy used by dialogs for this character.
+     * @param avatar - Image source, resolver, `false` to hide by default, or `null` for no avatar.
+     * @example
+     * ```ts
+     * character.setAvatar("alice-avatar.png");
+     * ```
+     */
+    public setAvatar(avatar: DialogAvatar | false | null): this {
+        this.config.avatar = avatar === null ? null : avatar;
+        return this;
+    }
+
+    /**
+     * Register a portrait image as a possible visual source for this character's dialog avatar.
+     * @param image - The stage image that represents the character.
+     * @param config - Optional avatar override for this portrait.
+     * @example
+     * ```ts
+     * character.addPortrait(aliceSprite, { avatar: "alice-happy-avatar.png" });
+     * ```
+     */
+    public addPortrait(image: Image, config: { avatar?: DialogAvatar } = {}): this {
+        this.config.portraits.push({
+            image,
+            avatar: config.avatar,
+        });
+        return this;
+    }
+
+    /**
+     * Replace all portrait bindings for this character.
+     * @param portraits - Stage images or image/avatar pairs.
+     */
+    public setPortraits(portraits: (Image | CharacterPortraitConfig)[]): this {
+        this.config.portraits = [...portraits];
+        return this;
     }
 
     public apply(content: string, config?: SentenceUserConfig): Proxied<Character, Chained<LogicAction.Actions>>;
