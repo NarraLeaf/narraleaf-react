@@ -1,7 +1,9 @@
 import React, {ErrorInfo} from "react";
 import {useGame} from "@player/provider/game-state";
 
-export default function ErrorFallback({error, errorInfo}: { error: Error, errorInfo: ErrorInfo }) {
+type ErrorFallbackInfo = ErrorInfo & { digest?: string };
+
+export default function ErrorFallback({error, errorInfo}: { error: Error, errorInfo: ErrorFallbackInfo }) {
     const game = useGame();
 
     if (game.config.app.debug) {
