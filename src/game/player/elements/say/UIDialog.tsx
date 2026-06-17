@@ -5,13 +5,14 @@ import { GameState } from "@lib/game/nlcore/common/game";
 import { Game } from "@lib/game/nlcore/game";
 import { EventDispatcher, EventToken, Scheduler } from "@lib/util/data";
 import { SayComponent } from "@player/type";
-import React, { useLayoutEffect, useMemo, useState } from "react";
+import React, { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { DialogContext } from "./context";
 import { DialogAction, DialogStateType, SayElementProps } from "./type";
+import { useIsPresent } from "motion/react";
 
 type DialogEvents = {
     "event:dialog.requestComplete": [];
-    "event:dialog.complete": [force: boolean];
+    "event:dialog.complete": [force?: boolean];
     "event:dialog.forceSkip": [];
     "event:dialog.onFlush": [];
     "event:dialog.simulateClick": [];
@@ -22,6 +23,7 @@ type DialogStateConfig = {
     action: DialogAction;
     evaluatedWords: Word<Pausing | string>[];
     gameState: GameState;
+    suppressInitialAnimation?: boolean;
 };
 
 export class DialogState {
@@ -45,6 +47,7 @@ export class DialogState {
     private _count: number;
     private _forceSkipped = false;
     private _idle = false;
+    private _active = true;
     private autoForwardScheduler: Scheduler;
 
     constructor(config: DialogStateConfig) {
@@ -70,6 +73,18 @@ export class DialogState {
         this._idle = idle;
     }
 
+    public isActive() {
+        return this._active;
+    }
+
+    public setActive(active: boolean) {
+        this._active = active;
+        if (!active) {
+            this.cancelAutoForward();
+        }
+        return this;
+    }
+
     /**
      * Only for dialog component to call
      * 
@@ -77,6 +92,7 @@ export class DialogState {
      * If the sentence is already completed, it will exit the dialog
      */
     public requestComplete() {
+        if (!this._active) return;
         if (this.state === DialogStateType.Ended) {
             this.safeEmit(DialogState.Events.complete);
         } else {
@@ -90,6 +106,7 @@ export class DialogState {
      * Force the sentence to cancel/skip all the tasks
      */
     public forceSkip() {
+        if (!this._active) return;
         if (this.state === DialogStateType.Ended) {
             this.emitComplete();
         } else {
@@ -176,7 +193,7 @@ export class DialogState {
 
     private scheduleAutoForward() {
         const preference = this.config.gameState.game.preference;
-        if (!preference.getPreference(Game.Preferences.autoForward) || this.state !== DialogStateType.Ended) return;
+        if (!this._active || !preference.getPreference(Game.Preferences.autoForward) || this.state !== DialogStateType.Ended) return;
         this.autoForwardScheduler
             .cancelTask().scheduleTask(() => {
                 this.events.emit(DialogState.Events.simulateClick);
@@ -189,17 +206,46 @@ export default function PlayerDialog({
     onFinished,
     useTypeEffect = true,
     gameState,
+    active = true,
 }: Readonly<SayElementProps>) {
+    const isPresent = useIsPresent();
+    const isActive = active && isPresent;
+    const finishedRef = useRef(false);
+    const previousActionRef = useRef(action);
+    const isActionReplacement = previousActionRef.current !== action;
     const words = useMemo(() => action.sentence?.evaluate(Script.getCtx({
         gameState,
     })), [action.sentence, gameState]);
-    const [dialogState] = useState(() => new DialogState({
+    const dialogState = useMemo(() => new DialogState({
         useTypeEffect,
         action,
         evaluatedWords: words || [],
         gameState,
-    }));
+        suppressInitialAnimation: isActionReplacement,
+    }), [action, gameState, useTypeEffect, words]);
     const DialogConstructor: SayComponent = gameState.game.config.dialog;
+    const finish = useCallback((skiped?: boolean) => {
+        if (!isActive || finishedRef.current) {
+            return;
+        }
+        finishedRef.current = true;
+        onFinished?.(skiped);
+    }, [isActive, onFinished]);
+
+    useLayoutEffect(() => {
+        finishedRef.current = false;
+    }, [dialogState]);
+
+    useLayoutEffect(() => {
+        previousActionRef.current = action;
+    }, [action]);
+
+    useLayoutEffect(() => {
+        dialogState.setActive(isActive);
+        return () => {
+            dialogState.setActive(false);
+        };
+    }, [dialogState, isActive]);
 
     /**
      * Listen to the complete event
@@ -207,35 +253,41 @@ export default function PlayerDialog({
     useLayoutEffect(() => {
         gameState.logger.debug("NarraLeaf-React: Say", "dialogState", dialogState);
         
-        return dialogState.events.on(DialogState.Events.complete, (force: boolean) => {
+        return dialogState.events.on(DialogState.Events.complete, (force?: boolean) => {
             gameState.logger.log("NarraLeaf-React: Say", "Complete", dialogState.isIdle());
+            if (!isActive) {
+                return;
+            }
             if (dialogState.isIdle() || force) {
-                onFinished?.(false);
+                finish(false);
             } else {
                 dialogState.setIdle(true);
             }
         }).cancel;
-    }, [dialogState]);
+    }, [dialogState, finish, gameState, isActive]);
 
     /**
      * Listen to the skip event
      */
     useLayoutEffect(() => {
         return gameState.events.on(GameState.EventTypes["event:state.player.skip"], (force?: boolean) => {
+            if (!isActive) {
+                return;
+            }
             if (force) {
                 dialogState.setIdle(true);
                 dialogState.forceSkip();
             } else if (dialogState.isIdle()) {
-                onFinished?.(true);
+                finish(true);
             } else {
                 dialogState.forceSkip();
             }
         }).cancel;
-    }, [dialogState]);
+    }, [dialogState, finish, gameState, isActive]);
 
     return (
         <>
-            <DialogContext value={dialogState} key={action.id}>
+            <DialogContext value={dialogState}>
                 <DialogConstructor />
             </DialogContext>
         </>

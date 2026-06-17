@@ -461,7 +461,10 @@ export class GameState {
             id,
             words,
         }, () => {
-            texts.splice(texts.indexOf(action as any), 1);
+            const index = texts.indexOf(action as any);
+            if (index !== -1) {
+                texts.splice(index, 1);
+            }
             if (afterClick) afterClick();
         });
         texts.push(action);

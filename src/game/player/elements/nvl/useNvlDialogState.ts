@@ -89,7 +89,7 @@ export function useNvlDialogState({
     }, [dialogState, entry.id, game, gameState, isActive, nextKeyBinding]);
 
     useEffect(() => {
-        const completeToken = dialogState.events.on(DialogState.Events.complete, (force: boolean) => {
+        const completeToken = dialogState.events.on(DialogState.Events.complete, (force?: boolean) => {
             if (!isActive) {
                 return;
             }

@@ -12,9 +12,12 @@ import { DialogState } from "./UIDialog";
 import { KeyBindingType } from "@lib/game/nlcore/game/types";
 import { useKeyBinding } from "../../lib/keyMap";
 import Avatar from "./Avatar";
+import { motion, useIsPresent } from "motion/react";
 
 function BaseDialog({
     children,
+    initial,
+    transition,
     ...props
 }: DialogProps) {
     const game = useGame();
@@ -23,6 +26,7 @@ function BaseDialog({
     const [showDialog] = usePreference(Game.Preferences.showDialog);
     const dialogRef = useRef<HTMLDivElement>(null);
     const [nextKeyBinding] = useKeyBinding(KeyBindingType.nextAction);
+    const isPresent = useIsPresent();
 
     function onElementClick() {
         dialog.requestComplete();
@@ -67,7 +71,7 @@ function BaseDialog({
     }, [dialog]);
 
     return (
-        <div data-element-type={"dialog"} className="w-full h-full">
+        <div data-element-type={"dialog"} className="absolute w-full h-full">
             <div
                 className={clsx(
                     "absolute bottom-0 w-full h-full",
@@ -86,9 +90,13 @@ function BaseDialog({
                 }}
                 ref={dialogRef}
             >
-                <div {...props}>
+                <motion.div
+                    {...props}
+                    initial={dialog.config.suppressInitialAnimation ? false : initial}
+                    transition={dialog.config.suppressInitialAnimation && isPresent ? { duration: 0 } : transition}
+                >
                     {children}
-                </div>
+                </motion.div>
             </div>
         </div>
     );

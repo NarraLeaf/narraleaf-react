@@ -6,6 +6,7 @@
 
 - Added `Sentence.getMetadata` to get the metadata of a sentence
 - Added dialog avatar APIs for character avatars, portrait-based avatar resolution, and the default dialog avatar display
+- Added animation support for dialog box
 
 ## [0.9.0]
 

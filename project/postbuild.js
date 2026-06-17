@@ -1,15 +1,23 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* eslint-disable no-undef */
-const process = require("process");
-const fs = require("fs-extra");
-const path = require("path");
+import process from "process";
+import fs from "fs-extra";
+import path from "path";
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const sourceDir = path.resolve(__dirname, "../dist");
 const devConfigPath = path.resolve(__dirname, "../dev.json");
 
 /**
- * Collect postbuild target *package roots* (each should contain or receive `dist/` for the built library).
- * Priority: CLI `--target-dir` (repeatable) > env `NVL_POSTBUILD_TARGET_DIRS` (comma-separated) > `dev.json`.
+ * Collect postbuild target package roots. Each target should contain or receive
+ * a `dist/` directory for the built library.
+ *
+ * Priority:
+ * 1. CLI `--target-dir` (repeatable)
+ * 2. env `NVL_POSTBUILD_TARGET_DIRS` (comma-separated)
+ * 3. local `dev.json`
  */
 function collectTargetDirs() {
     const fromCli = [];
@@ -67,10 +75,10 @@ for (const targetDir of targetDirs) {
 
     try {
         fs.copySync(sourceDir, fullTargetDir, { overwrite: true });
-        console.log(`✓ Successfully copied build files to ${fullTargetDir}`);
+        console.log(`Copied build files to ${fullTargetDir}`);
         successCount++;
     } catch (err) {
-        console.error(`✗ Error copying build files to ${fullTargetDir}: ${err}`);
+        console.error(`Error copying build files to ${fullTargetDir}: ${err}`);
         errorCount++;
     }
 }

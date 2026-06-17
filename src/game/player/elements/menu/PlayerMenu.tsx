@@ -19,6 +19,7 @@ export default function PlayerMenu(
         afterChoose,
         state,
         words,
+        renderPrompt = true,
     }: Readonly<MenuElementProps>) {
     const game = useGame();
     const itemRefs = useRef<React.RefObject<HTMLElement>[]>([]);
@@ -59,7 +60,7 @@ export default function PlayerMenu(
             <UIMenuContext value={{ evaluated, choose, gameState: state }}>
                 <UIListContext value={{register, unregister, getIndex}}>
                     <Isolated className={"absolute"}>
-                        {prompt && <PlayerDialog
+                        {renderPrompt && prompt && <PlayerDialog
                             gameState={state}
                             action={{
                                 sentence: prompt,

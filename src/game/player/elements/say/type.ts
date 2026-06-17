@@ -4,6 +4,7 @@ import {Sentence} from "@core/elements/character/sentence";
 import { Word } from "@core/elements/character/word";
 import { Pausing } from "@core/elements/character/pause";
 import React from "react";
+import type { HTMLMotionProps } from "motion/react";
 
 export interface SayElementProps {
     action: {
@@ -20,14 +21,15 @@ export interface SayElementProps {
     onFinished?: (skiped?: boolean) => void;
     useTypeEffect?: boolean;
     gameState: GameState;
+    active?: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface IDialogProps {};
 
 export type DialogProps = {
-    children: React.ReactNode;
-} & React.HTMLAttributes<HTMLDivElement>;
+    children?: React.ReactNode;
+} & HTMLMotionProps<"div">;
 export type DialogElementProps = {
     children?: never;
 } & React.HTMLAttributes<HTMLDivElement>;
