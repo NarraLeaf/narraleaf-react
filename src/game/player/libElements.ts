@@ -4,7 +4,7 @@ import {Stage} from "@player/lib/PageRouter/Stage";
 import GameMenu from "@player/elements/menu/UIMenu/Menu";
 import Item from "@player/elements/menu/UIMenu/Item";
 import Notifications from "@player/elements/notification/Notifications";
-import Texts from "@player/elements/say/Sentence";
+import Texts, { TextsPreview } from "@player/elements/say/Sentence";
 import Nametag from "@player/elements/say/Nametag";
 import Dialog from "@player/elements/say/Dialog";
 import Avatar, { useAvatar } from "@player/elements/say/Avatar";
@@ -22,6 +22,7 @@ import { NvlDialogList, DefaultNvlDialogItem } from "@player/elements/nvl/NvlDia
 import { NvlProvider, useNvl, useNvlDialogs, useIsNvlMode, useIsNvlVisible } from "@player/elements/nvl/NvlContext";
 
 export type { DialogAvatarContext } from "@player/elements/say/Avatar";
+export type { TextsPreviewInput, TextsPreviewLoop, TextsPreviewProps } from "@player/elements/say/Sentence";
 
 export {
     Isolated,
@@ -31,6 +32,7 @@ export {
     Item,
     Notifications,
     Texts,
+    TextsPreview,
     Nametag,
     Dialog,
     Avatar,
