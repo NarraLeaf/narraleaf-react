@@ -1,4 +1,4 @@
-import {Character} from "../elements/character";
+import {Character, Narrator} from "../elements/character";
 import {Condition, Lambda} from "../elements/condition";
 import {Control} from "@core/elements/control";
 import {Image} from "../elements/displayable/image";
@@ -20,6 +20,7 @@ import {NVLToken} from "../elements/nvl";
 
 export {
     Character,
+    Narrator,
     Condition,
     Control,
     Image,

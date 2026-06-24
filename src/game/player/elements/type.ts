@@ -48,6 +48,12 @@ export interface PlayerProps {
      */
     onReady?: (ctx: PlayerEventContext) => void;
     /**
+     * Once the internal preload pass is ready and the Player has committed that state.
+     *
+     * only called each lifecycle once
+     */
+    onPreloadedReady?: (ctx: PlayerEventContext) => void;
+    /**
      * Once the game is ended
      *
      * only called each lifecycle once

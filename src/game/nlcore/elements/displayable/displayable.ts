@@ -10,6 +10,7 @@ import type {TransformDefinitions} from "@core/elements/transform/type";
 import {SrcManager} from "@core/action/srcManager";
 import type {ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
+import {Control} from "@core/elements/control";
 
 export abstract class Displayable<
     StateData extends Record<string, any>,
@@ -298,6 +299,112 @@ export abstract class Displayable<
     }
 
     /**
+     * Reveal the Displayable with an animated circular clip-path.
+     *
+     * @chainable
+     */
+    public circleReveal(
+        options: TransformDefinitions.CircleRevealOptions = {}
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        const {
+            center = "50% 50%",
+            from = 0,
+            to = 150,
+            clearClip = true,
+            duration = 600,
+            ease = "easeInOut",
+            ...transitionOptions
+        } = options;
+        const animationOptions = {duration, ease, ...transitionOptions};
+
+        const transform = Displayable.createClipPathTransform<TransformType>([
+            [Displayable.circleClipPath(from, center), {duration: 0}],
+            [Displayable.circleClipPath(to, center), animationOptions],
+        ]);
+
+        if (!clearClip) {
+            return this.transform(transform);
+        }
+
+        return this.combineActions(new Control(), chain =>
+            chain
+                .transform(transform)
+                .clearClip({duration: 0})
+        );
+    }
+
+    /**
+     * Close the Displayable with an animated circular clip-path.
+     *
+     * @chainable
+     */
+    public circleClose(
+        options: TransformDefinitions.CircleCloseOptions = {}
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        const {
+            center = "50% 50%",
+            from = 150,
+            to = 0,
+            clearClip = false,
+            duration = 600,
+            ease = "easeInOut",
+            ...transitionOptions
+        } = options;
+        const animationOptions = {duration, ease, ...transitionOptions};
+
+        const transform = Displayable.createClipPathTransform<TransformType>([
+            [Displayable.circleClipPath(from, center), {duration: 0}],
+            [Displayable.circleClipPath(to, center), animationOptions],
+        ]);
+
+        if (!clearClip) {
+            return this.transform(transform);
+        }
+
+        return this.combineActions(new Control(), chain =>
+            chain
+                .transform(transform)
+                .clearClip({duration: 0})
+        );
+    }
+
+    /**
+     * Reveal or close the Displayable with an animated directional wipe.
+     *
+     * @chainable
+     */
+    public wipe(
+        options: TransformDefinitions.WipeOptions = {}
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        const {
+            direction = "left",
+            reverse = false,
+            clearClip = !reverse,
+            duration = 600,
+            ease = "easeInOut",
+            ...transitionOptions
+        } = options;
+        const animationOptions = {duration, ease, ...transitionOptions};
+        const hidden = Displayable.wipeClipPath(direction, 100);
+        const visible = Displayable.wipeClipPath(direction, 0);
+
+        const transform = Displayable.createClipPathTransform<TransformType>([
+            [reverse ? visible : hidden, {duration: 0}],
+            [reverse ? hidden : visible, animationOptions],
+        ]);
+
+        if (!clearClip) {
+            return this.transform(transform);
+        }
+
+        return this.combineActions(new Control(), chain =>
+            chain
+                .transform(transform)
+                .clearClip({duration: 0})
+        );
+    }
+
+    /**
      * Apply a CSS filter to the Displayable.
      *
      * @chainable
@@ -393,6 +500,39 @@ export abstract class Displayable<
         }
 
         return urls;
+    }
+
+    private static createClipPathTransform<T extends TransformDefinitions.Types>(
+        frames: readonly (readonly [
+            TransformDefinitions.VisualEffectTransformProps["clipPath"],
+            TransformDefinitions.VisualEffectOptions
+        ])[]
+    ): Transform<T> {
+        return new Transform<T>(frames.map(([clipPath, options]) => ({
+            props: {clipPath} as Partial<T>,
+            options,
+        })));
+    }
+
+    private static circleClipPath(radius: number, center: string): string {
+        return `circle(${radius}% at ${center})`;
+    }
+
+    private static wipeClipPath(
+        direction: TransformDefinitions.WipeDirection,
+        amount: number
+    ): string {
+        switch (direction) {
+            case "right":
+                return `inset(0 0 0 ${amount}%)`;
+            case "top":
+                return `inset(0 0 ${amount}% 0)`;
+            case "bottom":
+                return `inset(${amount}% 0 0 0)`;
+            case "left":
+            default:
+                return `inset(0 ${amount}% 0 0)`;
+        }
     }
 
     /**

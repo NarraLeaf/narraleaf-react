@@ -10,6 +10,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/main.js",
       "require": "./dist/main.js"
+    },
+    "./built-in": {
+      "types": "./dist/built-in.d.ts",
+      "import": "./dist/built-in.js",
+      "require": "./dist/built-in.js"
     }
   },
   "scripts": {

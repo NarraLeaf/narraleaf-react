@@ -7,6 +7,20 @@ import fs from "fs/promises";
 import process from "process";
 
 const isProduction = process.env.NODE_ENV === "production";
+const external = [
+  // React and React DOM
+  "react",
+  "react-dom",
+  // Dependencies
+  "client-only",
+  "clsx",
+  "howler",
+  "html-to-image",
+  "prop-types",
+  // Peer Dependencies
+  "@emotion/is-prop-valid",
+  "motion"
+];
 
 const InlineTailwindPlugin = {
   name: "inline-tailwind-css",
@@ -33,35 +47,37 @@ const InlineTailwindPlugin = {
   },
 };
 
-esbuild.build({
-  entryPoints: ["./src/index.ts"],
+const sharedOptions = {
   bundle: true,
   sourcemap: !isProduction,
   minify: isProduction,
   target: ["es2020"],
-  outfile: "dist/main.js",
   format: "esm",
   define: {
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV || "development"),
   },
-  plugins: [InlineTailwindPlugin],
   loader: {
     ".css": "file",
     ".png": "file",
     ".svg": "file",
   },
-  external: [
-    // React and React DOM
-    "react", 
-    "react-dom",
-    // Dependencies
-    "client-only",
-    "clsx",
-    "howler",
-    "html-to-image",
-    "prop-types",
-    // Peer Dependencies
-    "@emotion/is-prop-valid",
-    "motion"
-  ],
-}).catch(() => process.exit(1));
+};
+
+Promise.all([
+  esbuild.build({
+    ...sharedOptions,
+    entryPoints: ["./src/index.ts"],
+    outfile: "dist/main.js",
+    plugins: [InlineTailwindPlugin],
+    external,
+  }),
+  esbuild.build({
+    ...sharedOptions,
+    entryPoints: ["./src/built-in.ts"],
+    outfile: "dist/built-in.js",
+    external: [
+      ...external,
+      "narraleaf-react",
+    ],
+  }),
+]).catch(() => process.exit(1));

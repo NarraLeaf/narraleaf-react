@@ -58,7 +58,11 @@ export function Preload(
             state.logger.weakWarn(LogTag, "Cache cleared");
         }
         if (!story || !lastScene) {
-            state.logger.weakWarn(LogTag, "Story/Scene not found, skipping preload");
+            if (!story) {
+                state.logger.weakWarn(LogTag, "Story not found, skipping preload");
+            } else {
+                state.logger.debug(LogTag, "Scene not ready yet, waiting for scene before preload");
+            }
             return onPreloaderUnmount;
         }
 

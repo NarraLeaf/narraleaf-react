@@ -37,6 +37,7 @@ export default function Player(
         height,
         className,
         onReady,
+        onPreloadedReady,
         onEnd,
         onError,
         children,
@@ -71,6 +72,7 @@ export default function Player(
 
     const { preloaded } = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
+    const preloadedReadyHandlerExecuted = React.useRef(false);
     const [awaitables] = useState<Map<Awaitable<CalledActionResult>, EventToken>>(new Map());
 
     function next() {
@@ -248,11 +250,25 @@ export default function Player(
     }, [ready]);
 
     useEffect(() => {
+        return createMicroTask(() => {
+            if (preloadedReady && onPreloadedReady && !preloadedReadyHandlerExecuted.current) {
+                preloadedReadyHandlerExecuted.current = true;
+                onPreloadedReady({
+                    game,
+                    gameState: state,
+                    liveGame: game.getLiveGame(),
+                    storable: game.getLiveGame().getStorable(),
+                });
+            }
+        });
+    }, [preloadedReady]);
+
+    useEffect(() => {
         return preloaded.events.depends([
             preloaded.events.on(Preloaded.EventTypes["event:preloaded.ready"], () => {
                 setPreloadedReady(true);
                 state.stage.update();
-                if (story) {
+                if (story && game.getLiveGame().isPlaying()) {
                     next();
                 }
             }),

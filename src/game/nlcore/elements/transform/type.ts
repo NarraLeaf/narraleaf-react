@@ -49,6 +49,20 @@ export namespace TransformDefinitions {
         VisualEffectTransformProps,
         "maskSize" | "maskPosition" | "maskRepeat" | "maskMode"
     >;
+    export type WipeDirection = "left" | "right" | "top" | "bottom";
+    export type CircleClipOptions = VisualEffectOptions & {
+        center?: string;
+        from?: number;
+        to?: number;
+        clearClip?: boolean;
+    };
+    export type CircleRevealOptions = CircleClipOptions;
+    export type CircleCloseOptions = CircleClipOptions;
+    export type WipeOptions = VisualEffectOptions & {
+        direction?: WipeDirection;
+        reverse?: boolean;
+        clearClip?: boolean;
+    };
     export type ImageTransformProps = CommonDisplayableConfig & VisualEffectTransformProps;
     export type TextTransformProps = CommonDisplayableConfig & {
         fontColor?: Color;
