@@ -1,20 +1,20 @@
-import { LogicAction } from "@core/action/logicAction";
+import type { LogicAction } from "@core/action/logicAction";
 import type { Story } from "@core/elements/story";
 import type { ConditionData, Lambda } from "@core/elements/condition";
-import { Color, ImageSrc } from "@core/types";
-import { Transform } from "@core/elements/transform/transform";
+import type { Color, ImageSrc } from "@core/types";
+import type { Transform } from "@core/elements/transform/transform";
 import type { Scene } from "@core/elements/scene";
 import type { MenuData } from "@core/elements/menu";
-import { Awaitable, FlexibleTuple, SelectElementFromEach } from "@lib/util/data";
+import type { Awaitable, FlexibleTuple, SelectElementFromEach } from "@lib/util/data";
 import type { Sound } from "@core/elements/sound";
 import type { Script } from "@core/elements/script";
-import { Sentence } from "@core/elements/character/sentence";
+import type { Sentence } from "@core/elements/character/sentence";
 import type { TransformDefinitions } from "@core/elements/transform/type";
-import { Image, TagGroupDefinition } from "@core/elements/displayable/image";
-import { FadeOptions } from "@core/elements/type";
-import { Transition } from "@core/elements/transition/transition";
-import { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
-import { Layer } from "@core/elements/layer";
+import type { Image, TagGroupDefinition } from "@core/elements/displayable/image";
+import type { FadeOptions } from "@core/elements/type";
+import type { Transition } from "@core/elements/transition/transition";
+import type { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
+import type { Layer } from "@core/elements/layer";
 
 export const DisplayableActionTypes = {
     action: "displayable:action",

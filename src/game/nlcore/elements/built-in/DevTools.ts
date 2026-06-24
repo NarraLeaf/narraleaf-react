@@ -17,6 +17,15 @@ export class DevTools {
         return action;
     }
 
+    public static getStaticId(action: LogicAction.Actions): string | null {
+        return action.getStaticId();
+    }
+
+    public static setStaticId(action: LogicAction.Actions, id: string | null): LogicAction.Actions {
+        action.setStaticId(id);
+        return action;
+    }
+
     public static chainToActions(chain: Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>>): LogicAction.Actions[] {
         return chain.getActions();
     }

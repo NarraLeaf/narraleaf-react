@@ -1,4 +1,3 @@
-import {CommonDisplayableConfig} from "@core/types";
 import {LogicAction} from "@core/action/logicAction";
 import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {TransformState} from "@core/elements/transform/transform";
@@ -21,7 +20,7 @@ import {Scene} from "@core/elements/scene";
 import { Serializer } from "@lib/util/data";
 import { Chained, Proxied } from "../action/chain";
 
-export interface ILayerUserConfig extends CommonDisplayableConfig {
+export interface ILayerUserConfig extends TransformDefinitions.ImageTransformProps {
     /**
      * The z-index of the layer, higher z-index will be rendered on top of the lower z-index, allows negative values.
      *

@@ -7,6 +7,12 @@
 - Added `Sentence.getMetadata` to get the metadata of a sentence
 - Added dialog avatar APIs for character avatars, portrait-based avatar resolution, and the default dialog avatar display
 - Added animation support for dialog box
+- Added static action IDs through `DevTools.setStaticId` for editor and studio integration
+- Added visual effect APIs for displayables, including masks, clip paths, filters, backdrop filters, and blend modes
+
+### Update
+
+- Improved action type imports to reduce runtime module cycles
 
 ## [0.9.0]
 

@@ -113,5 +113,3 @@ export class Chainable<T, U extends Chainable<any, any>> extends BaseElement {
         return this.chain(action as T);
     }
 }
-
-

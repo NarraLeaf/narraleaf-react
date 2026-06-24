@@ -1,4 +1,4 @@
-import {Color, CommonDisplayableConfig} from "@core/types";
+import {Color} from "@core/types";
 import {Serializer} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {LogicAction} from "@core/action/logicAction";
@@ -30,7 +30,7 @@ export type TextState = {
     text: string;
 };
 
-export interface ITextUserConfig extends CommonDisplayableConfig {
+export interface ITextUserConfig extends TransformDefinitions.TextTransformProps {
     /**
      * Where to align the text horizontally
      * @default "center"
@@ -262,5 +262,4 @@ export class Text
         }).get();
     }
 }
-
 

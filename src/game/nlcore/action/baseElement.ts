@@ -1,4 +1,4 @@
-import {ElementStateRaw} from "@core/elements/story";
+import type {ElementStateRaw} from "@core/elements/story";
 import type {LogicAction} from "@core/action/logicAction";
 
 export class BaseElement {
@@ -35,4 +35,3 @@ export class BaseElement {
         return actions;
     }
 }
-

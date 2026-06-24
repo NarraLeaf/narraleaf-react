@@ -3,7 +3,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
 import {TransformState} from "../transform/transform";
-import {Color, CommonDisplayableConfig, ImageSrc, StaticImageData} from "@core/types";
+import {Color, ImageSrc, StaticImageData} from "@core/types";
 import {DisplayableActionContentType, DisplayableActionTypes, ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
 import {EmptyObject} from "@core/elements/transition/type";
@@ -47,7 +47,7 @@ type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | nul
 };
 
 export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | null>
-    extends CommonDisplayableConfig {
+    extends TransformDefinitions.ImageTransformProps {
     /**
      * The name of the image, only for debugging purposes
      */

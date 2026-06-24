@@ -5,16 +5,17 @@ import type {Image} from "@core/elements/displayable/image";
 import type {Condition} from "@core/elements/condition";
 import type {Script} from "@core/elements/script";
 import type {Menu} from "@core/elements/menu";
-import {StringKeyOf, Values} from "@lib/util/data";
-import {TypedAction} from "@core/action/actions";
-import {Sound} from "@core/elements/sound";
-import {Control} from "@core/elements/control";
+import type {StringKeyOf, Values} from "@lib/util/data";
+import type {TypedAction} from "@core/action/actions";
+import type {Sound} from "@core/elements/sound";
+import type {Control} from "@core/elements/control";
 import {
     CharacterActionContentType,
     CharacterActionTypes,
     ConditionActionContentType,
     ConditionActionTypes,
     ControlActionContentType,
+    ControlActionTypes,
     DisplayableActionContentType,
     DisplayableActionTypes,
     ImageActionContentType,
@@ -25,33 +26,33 @@ import {
     SceneActionTypes,
     ScriptActionContentType,
     ScriptActionTypes,
-    SoundActionContentType,
+    SoundActionContentType, SoundActionTypes,
     StoryActionContentType,
     StoryActionTypes,
-    TextActionContentType, VideoActionContentType, VideoActionTypes
+    TextActionContentType, TextActionTypes, VideoActionContentType, VideoActionTypes
 } from "@core/action/actionTypes";
-import {CharacterAction} from "@core/action/actions/characterAction";
-import {SceneAction} from "@core/action/actions/sceneAction";
-import {StoryAction} from "@core/action/actions/storyAction";
-import {ImageAction} from "@core/action/actions/imageAction";
-import {ConditionAction} from "@core/action/actions/conditionAction";
-import {ScriptAction} from "@core/action/actions/scriptAction";
-import {MenuAction} from "@core/action/actions/menuAction";
-import {SoundAction} from "@core/action/actions/soundAction";
-import {ControlAction} from "@core/action/actions/controlAction";
-import {Text} from "@core/elements/displayable/text";
-import {TextAction} from "@core/action/actions/textAction";
-import {Displayable as AbstractDisplayable} from "@core/elements/displayable/displayable";
-import {DisplayableAction} from "@core/action/actions/displayableAction";
-import {Persistent} from "@core/elements/persistent";
-import {PersistentAction} from "@core/action/actions/persistentAction";
-import {ServiceSkeleton} from "@core/elements/service";
-import {ServiceAction, ServiceActionContentType} from "@core/action/serviceAction";
-import {Layer} from "@core/elements/layer";
-import {LayerAction} from "@core/action/actions/layerAction";
-import {ExposedStateType} from "@player/type";
-import {Video} from "@core/elements/video";
-import {VideoAction} from "@core/action/actions/videoAction";
+import type {CharacterAction} from "@core/action/actions/characterAction";
+import type {SceneAction} from "@core/action/actions/sceneAction";
+import type {StoryAction} from "@core/action/actions/storyAction";
+import type {ImageAction} from "@core/action/actions/imageAction";
+import type {ConditionAction} from "@core/action/actions/conditionAction";
+import type {ScriptAction} from "@core/action/actions/scriptAction";
+import type {MenuAction} from "@core/action/actions/menuAction";
+import type {SoundAction} from "@core/action/actions/soundAction";
+import type {ControlAction} from "@core/action/actions/controlAction";
+import type {Text} from "@core/elements/displayable/text";
+import type {TextAction} from "@core/action/actions/textAction";
+import type {Displayable as AbstractDisplayable} from "@core/elements/displayable/displayable";
+import type {DisplayableAction} from "@core/action/actions/displayableAction";
+import type {Persistent} from "@core/elements/persistent";
+import type {PersistentAction} from "@core/action/actions/persistentAction";
+import type {ServiceSkeleton} from "@core/elements/service";
+import type {ServiceAction, ServiceActionContentType} from "@core/action/serviceAction";
+import type {Layer} from "@core/elements/layer";
+import type {LayerAction} from "@core/action/actions/layerAction";
+import type {ExposedStateType} from "@player/type";
+import type {Video} from "@core/elements/video";
+import type {VideoAction} from "@core/action/actions/videoAction";
 
 // Define the interface first
 export interface LogicActionInterface {
@@ -94,9 +95,9 @@ export interface LogicActionInterface {
         | Values<typeof ScriptActionTypes>
         | Values<typeof StoryActionTypes>
         | Values<typeof MenuActionTypes>
-        | Values<typeof SoundAction.ActionTypes>
-        | Values<typeof ControlAction.ActionTypes>
-        | Values<typeof TextAction.ActionTypes>
+        | Values<typeof SoundActionTypes>
+        | Values<typeof ControlActionTypes>
+        | Values<typeof TextActionTypes>
         | Values<typeof DisplayableActionTypes>
         | Values<typeof PersistentActionTypes>
         | StringKeyOf<ServiceActionContentType>
@@ -163,9 +164,9 @@ export namespace LogicAction {
         | Values<typeof ScriptActionTypes>
         | Values<typeof StoryActionTypes>
         | Values<typeof MenuActionTypes>
-        | Values<typeof SoundAction.ActionTypes>
-        | Values<typeof ControlAction.ActionTypes>
-        | Values<typeof TextAction.ActionTypes>
+        | Values<typeof SoundActionTypes>
+        | Values<typeof ControlActionTypes>
+        | Values<typeof TextActionTypes>
         | Values<typeof DisplayableActionTypes>
         | Values<typeof PersistentActionTypes>
         | StringKeyOf<ServiceActionContentType>

@@ -8,6 +8,8 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import type {TransformDefinitions} from "@core/elements/transform/type";
 import {SrcManager} from "@core/action/srcManager";
+import type {ImageSrc} from "@core/types";
+import {Utils} from "@core/common/Utils";
 
 export abstract class Displayable<
     StateData extends Record<string, any>,
@@ -205,6 +207,144 @@ export abstract class Displayable<
     }
 
     /**
+     * Apply visual effects to the Displayable.
+     *
+     * This is the low-level effect entry. Resource-aware helpers such as
+     * {@link Displayable.mask} should be preferred when an effect depends on an image source.
+     *
+     * @chainable
+     */
+    public effect(
+        effect: TransformDefinitions.VisualEffectTransformProps,
+        options?: TransformDefinitions.VisualEffectOptions
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        this.registerEffectSrc(effect);
+
+        return this.transform(new Transform<TransformType>(
+            effect as TransformType,
+            options
+        ));
+    }
+
+    /**
+     * Apply an image mask to the Displayable.
+     *
+     * The source is registered for image preload and resolved to a CSS `url(...)` mask image.
+     *
+     * @chainable
+     */
+    public mask(
+        src: ImageSrc,
+        options: TransformDefinitions.MaskOptions = {}
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        const imageUrl = Utils.srcToURL(src);
+        const {
+            maskSize,
+            maskPosition,
+            maskRepeat,
+            maskMode,
+            ...transitionOptions
+        } = options;
+
+        this.srcManager.registerRawSrc(imageUrl);
+
+        return this.effect({
+            maskImage: Displayable.toCSSUrl(imageUrl),
+            maskSize,
+            maskPosition,
+            maskRepeat,
+            maskMode,
+        }, transitionOptions);
+    }
+
+    /**
+     * Clear the current CSS mask from the Displayable.
+     *
+     * @chainable
+     */
+    public clearMask(
+        options?: TransformDefinitions.VisualEffectOptions
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        return this.effect({
+            maskImage: "none",
+            maskSize: "auto",
+            maskPosition: "0% 0%",
+            maskRepeat: "repeat",
+            maskMode: "match-source",
+        }, options);
+    }
+
+    /**
+     * Apply a CSS clip-path to the Displayable.
+     *
+     * @chainable
+     */
+    public clip(
+        clipPath: TransformDefinitions.VisualEffectTransformProps["clipPath"],
+        options?: TransformDefinitions.VisualEffectOptions
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        return this.effect({clipPath}, options);
+    }
+
+    /**
+     * Clear the current CSS clip-path from the Displayable.
+     *
+     * @chainable
+     */
+    public clearClip(
+        options?: TransformDefinitions.VisualEffectOptions
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        return this.effect({clipPath: "none"}, options);
+    }
+
+    /**
+     * Apply a CSS filter to the Displayable.
+     *
+     * @chainable
+     */
+    public filter(
+        filter: TransformDefinitions.VisualEffectTransformProps["filter"],
+        options?: TransformDefinitions.VisualEffectOptions
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        return this.effect({filter}, options);
+    }
+
+    /**
+     * Clear the current CSS filter from the Displayable.
+     *
+     * @chainable
+     */
+    public clearFilter(
+        options?: TransformDefinitions.VisualEffectOptions
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        return this.effect({filter: "none"}, options);
+    }
+
+    /**
+     * Apply a CSS backdrop-filter to the Displayable.
+     *
+     * @chainable
+     */
+    public backdrop(
+        backdropFilter: TransformDefinitions.VisualEffectTransformProps["backdropFilter"],
+        options?: TransformDefinitions.VisualEffectOptions
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        return this.effect({backdropFilter}, options);
+    }
+
+    /**
+     * Apply a CSS mix-blend-mode to the Displayable.
+     *
+     * @chainable
+     */
+    public blend(
+        mixBlendMode: TransformDefinitions.VisualEffectTransformProps["mixBlendMode"],
+        options?: TransformDefinitions.VisualEffectOptions
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        return this.effect({mixBlendMode}, options);
+    }
+
+    /**
      * Apply a transform to the Displayable
      * @chainable
      * @example
@@ -222,6 +362,37 @@ export abstract class Displayable<
             ])
         );
         return chain.chain(action);
+    }
+
+    private registerEffectSrc(effect: TransformDefinitions.VisualEffectTransformProps): void {
+        const maskImage = effect.maskImage;
+
+        if (typeof maskImage !== "string") {
+            return;
+        }
+
+        for (const src of Displayable.extractCSSUrls(maskImage)) {
+            this.srcManager.registerRawSrc(src);
+        }
+    }
+
+    private static toCSSUrl(src: string): string {
+        return `url("${src.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}")`;
+    }
+
+    private static extractCSSUrls(value: string): string[] {
+        const urls: string[] = [];
+        const pattern = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/g;
+        let match: RegExpExecArray | null;
+
+        while ((match = pattern.exec(value))) {
+            const src = match[1] || match[2] || match[3];
+            if (src) {
+                urls.push(src.trim());
+            }
+        }
+
+        return urls;
     }
 
     /**

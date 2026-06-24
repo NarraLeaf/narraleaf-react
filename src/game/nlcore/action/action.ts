@@ -1,10 +1,11 @@
-import { LogicAction } from "./logicAction";
+import type { LogicAction } from "./logicAction";
 import { ContentNode } from "@core/action/tree/actionTree";
 import type { CalledActionResult } from "@core/gameTypes";
-import { Awaitable, getCallStack } from "@lib/util/data";
-import { GameState } from "@player/gameState";
-import { Story } from "@core/elements/story";
-import { ActionSearchOptions } from "@core/types";
+import { getCallStack } from "@lib/util/data";
+import type { Awaitable } from "@lib/util/data";
+import type { GameState } from "@player/gameState";
+import type { Story } from "@core/elements/story";
+import type { ActionSearchOptions } from "@core/types";
 import type { StackModel } from "./stackModel";
 
 export type ActionExecutionInjection = {
@@ -24,6 +25,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Typ
     type: Type;
     contentNode: ContentNode<ContentNodeType>;
     _id: string;
+    private _staticId: string | null;
 
     readonly __stack: string;
 
@@ -33,6 +35,7 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Typ
         this.contentNode = contentNode;
         this.__stack = getCallStack();
         this._id = "";
+        this._staticId = null;
     }
 
     public executeAction(_state: GameState, _injection: ActionExecutionInjection): ExecutedActionResult {
@@ -48,6 +51,20 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Typ
 
     setId(id: string) {
         this._id = id;
+    }
+
+    getStaticId() {
+        return this._staticId;
+    }
+
+    setStaticId(id: string | null) {
+        this._staticId = id;
+        return this;
+    }
+
+    resolveId(generatedId: string) {
+        this.setId(this._staticId || generatedId);
+        return this;
     }
 
     setContent(content: ContentNodeType) {

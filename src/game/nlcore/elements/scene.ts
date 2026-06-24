@@ -8,7 +8,7 @@ import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, SoundType, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
-import {ActionStatements, Control, Persistent, Story, Transition} from "@core/common/core";
+import {Control} from "@core/elements/control";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -25,6 +25,10 @@ import { Narrator } from "./character";
 import { NVLToken } from "./nvl";
 import type { TransformDefinitions } from "@core/elements/transform/type";
 import type { NvlBlockOptions } from "@core/action/actionTypes";
+import type {ActionStatements} from "@core/elements/type";
+import type {Persistent} from "@core/elements/persistent";
+import type {Story} from "@core/elements/story";
+import {Transition} from "@core/elements/transition/transition";
 
 /**@internal */
 export type SceneConfig = {
@@ -639,9 +643,32 @@ export class Scene extends Constructable<
     /**@internal */
     assignActionId(story: Story) {
         const actions = this.getAllChildren(story, this.sceneRoot || [], {allowFutureScene: true});
+        const usedIds = new Set<string>();
 
-        actions.forEach((action, i) => {
-            action.setId(`a-${i}`);
+        actions.forEach(action => {
+            const staticId = action.getStaticId();
+            if (!staticId) {
+                return;
+            }
+            if (usedIds.has(staticId)) {
+                throw new StaticScriptWarning(`Duplicate static action id: ${staticId}`);
+            }
+            usedIds.add(staticId);
+        });
+
+        let nextId = 0;
+        const nextGeneratedId = () => {
+            let id = `a-${nextId++}`;
+            while (usedIds.has(id)) {
+                id = `a-${nextId++}`;
+            }
+            usedIds.add(id);
+            return id;
+        };
+
+        actions.forEach(action => {
+            const staticId = action.getStaticId();
+            action.resolveId(staticId || nextGeneratedId());
         });
     }
 
