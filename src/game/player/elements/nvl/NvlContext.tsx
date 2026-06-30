@@ -68,7 +68,6 @@ export function NvlProvider({ children }: NvlProviderProps) {
 
         const exitToken = gameState.events.on(GameState.EventTypes["event:state.nvl.exit"], () => {
             setState(snapshotState(gameState.getNvlState()));
-            setTransitionOptions(null);
         });
 
         const appendToken = gameState.events.on(GameState.EventTypes["event:state.nvl.dialogAppend"], () => {

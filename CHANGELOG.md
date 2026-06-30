@@ -14,6 +14,10 @@
 
 - Improved action type imports to reduce runtime module cycles
 
+### Fixed
+
+- Preserve NVL transition options when exiting NVL mode so configured hide transitions can complete correctly
+
 ## [0.9.0]
 
 ### _Feature_
