@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.0]
+
+### _Incompatible Changes_
+
+- Removed dialog text appearance defaults from `GameConfig`. `defaultTextColor`, `fontSize`, `fontWeight`, `fontWeightBold`, and `fontFamily` are no longer configured globally for dialog text; pass them to `Texts`, `RawTexts`, `TextsPreview`, or `Item` instead.
+- Removed `GameConfig.defaultNametagColor`; pass `color`, `name`, `children`, `style`, or `className` to `Nametag` to control the name tag.
+- Removed `GameConfig.defaultMenuChoiceColor`; custom menu components should control menu choice text through `Item` props or inherited CSS.
+
+### Update
+
+- Added exported `NametagProps`, `TextAppearanceProps`, `TextsProps`, `RawTextsProps`, `EntryTextsProps`, and `ItemProps` types for custom dialog and menu components.
+- `Nametag` now renders component-provided content when `children` or `name` is provided, while still falling back to the current dialog character name.
+- `Texts`, `RawTexts`, `TextsPreview`, and `Item` now allow component-level defaults for text color, font size, family, and weights while preserving `Sentence` and `Word` inline style overrides.
+
 ## [0.9.1]
 
 ### _Feature_

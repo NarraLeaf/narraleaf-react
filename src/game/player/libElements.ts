@@ -22,7 +22,18 @@ import { NvlDialogList, DefaultNvlDialogItem } from "@player/elements/nvl/NvlDia
 import { NvlProvider, useNvl, useNvlDialogs, useIsNvlMode, useIsNvlVisible } from "@player/elements/nvl/NvlContext";
 
 export type { DialogAvatarContext } from "@player/elements/say/Avatar";
-export type { TextsPreviewInput, TextsPreviewLoop, TextsPreviewProps } from "@player/elements/say/Sentence";
+export type {
+    BaseTextsProps,
+    EntryTextsProps,
+    RawTextsProps,
+    TextAppearanceProps,
+    TextsPreviewInput,
+    TextsPreviewLoop,
+    TextsPreviewProps,
+    TextsProps,
+} from "@player/elements/say/Sentence";
+export type { NametagProps } from "@player/elements/say/Nametag";
+export type { ItemProps } from "@player/elements/menu/UIMenu/Item";
 
 export {
     Isolated,

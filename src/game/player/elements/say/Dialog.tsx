@@ -14,6 +14,14 @@ import { useKeyBinding } from "../../lib/keyMap";
 import Avatar from "./Avatar";
 import { motion, useIsPresent } from "motion/react";
 
+const defaultDialogTextProps = {
+    defaultColor: "#000",
+    fontSize: 16,
+    fontWeight: 400,
+    fontWeightBold: 700,
+    fontFamily: "sans-serif",
+} as const;
+
 function BaseDialog({
     children,
     initial,
@@ -152,7 +160,7 @@ export function DefaultDialog() {
                     }}
                 >
                     <Nametag />
-                    <Texts />
+                    <Texts {...defaultDialogTextProps} />
                 </div>
             </div>
         </Dialog>

@@ -1,5 +1,5 @@
 import type { GameConfig, GamePreference, GameSettings } from "./gameTypes";
-import { deepMerge, DeepPartial, filterObjectExcept, Hooks, StringKeyOf } from "@lib/util/data";
+import { deepMerge, DeepPartial, EventDispatcher, filterObjectExcept, Hooks, StringKeyOf } from "@lib/util/data";
 import { LogicAction } from "@core/action/logicAction";
 import { LiveGame } from "@core/game/liveGame";
 import { Preference } from "@core/game/preference";
@@ -10,6 +10,9 @@ import { Plugins, IGamePluginRegistry } from "./game/plugin/plugin";
 import { LayoutRouter } from "../player/lib/PageRouter/router";
 import { KeyMap } from "./game/keyMap";
 import { KeyBindingType } from "./game/types";
+import type { Storable } from "@core/elements/persistent/storable";
+import type { Scene } from "@core/elements/scene";
+import type { LiveGameEventHandler, LiveGameEventToken } from "./types";
 enum GameSettingsNamespace {
     game = "game",
 }
@@ -38,6 +41,19 @@ export type GameHooks = {
      * Hook after deserializing the game state
      */
     "afterRestore": [];
+};
+
+export type GameLifecycleEventContext = {
+    game: Game;
+    gameState: GameState;
+    liveGame: LiveGame;
+    storable: Storable;
+    scene: Scene | null;
+};
+
+export type GameLifecycleEvents = {
+    "event:game.preloadComplete": [ctx: GameLifecycleEventContext];
+    "event:game.firstSceneReady": [ctx: GameLifecycleEventContext];
 };
 
 export class Game {
@@ -124,19 +140,12 @@ export class Game {
         animationPropagate: false,
         dialogWidth: 1920,
         dialogHeight: 1080 * 0.2,
-        defaultTextColor: "#000",
-        defaultNametagColor: "#000",
         notification: DefaultElements.notification,
         menu: DefaultElements.menu,
         dialog: DefaultElements.say,
         nvlDialog: DefaultElements.nvlDialog,
         onError: (error: Error) => { console.error(error); },
-        fontSize: 16,
-        fontWeight: 400,
-        fontWeightBold: 700,
-        fontFamily: "sans-serif",
         stage: null,
-        defaultMenuChoiceColor: "#000",
         maxStackModelLoop: 1000,
         maxActionHistory: 100,
     };
@@ -162,11 +171,18 @@ export class Game {
         [KeyBindingType.skipAction]: ["Control"],
         [KeyBindingType.nextAction]: [" "],
     });
+    public static LifecycleEventTypes: { [K in keyof GameLifecycleEvents]: K } = {
+        "event:game.preloadComplete": "event:game.preloadComplete",
+        "event:game.firstSceneReady": "event:game.firstSceneReady",
+    };
     /**
      * Plugin registry
      */
     public plugins: Plugins;
     public router: LayoutRouter;
+    private readonly lifecycleEvents = new EventDispatcher<GameLifecycleEvents>();
+    private preloadCompleteContext: GameLifecycleEventContext | null = null;
+    private firstSceneReadyContext: GameLifecycleEventContext | null = null;
 
     /**
      * Create a new game
@@ -227,6 +243,99 @@ export class Game {
             this.plugins.use(plugin).register(plugin);
         }
         return this;
+    }
+
+    /**
+     * Listen for the initial preload pass completing.
+     *
+     * This is the point where the initial preload pass has actually finished.
+     * Use {@link whenPreloadComplete} if the listener may be registered after the event has fired.
+     */
+    public onPreloadComplete(fc: LiveGameEventHandler<GameLifecycleEvents["event:game.preloadComplete"]>): LiveGameEventToken {
+        return this.lifecycleEvents.on(Game.LifecycleEventTypes["event:game.preloadComplete"], fc);
+    }
+
+    /**
+     * Listen once for the initial preload pass completing.
+     */
+    public oncePreloadComplete(fc: LiveGameEventHandler<GameLifecycleEvents["event:game.preloadComplete"]>): LiveGameEventToken {
+        return this.lifecycleEvents.once(Game.LifecycleEventTypes["event:game.preloadComplete"], fc);
+    }
+
+    /**
+     * Resolve when the initial preload pass has completed.
+     */
+    public whenPreloadComplete(): Promise<GameLifecycleEventContext> {
+        if (this.preloadCompleteContext) {
+            return Promise.resolve(this.preloadCompleteContext);
+        }
+        return new Promise(resolve => {
+            this.oncePreloadComplete(resolve);
+        });
+    }
+
+    /**
+     * Whether the initial preload pass has completed.
+     */
+    public isPreloadComplete(): boolean {
+        return this.preloadCompleteContext !== null;
+    }
+
+    /**
+     * Listen for the first scene being fully ready.
+     *
+     * This fires after the initial preload pass has actually finished, after the first
+     * scene component is mounted, and after the browser has had a frame to render it.
+     * Use {@link whenFirstSceneReady} if the listener may be registered after the event has fired.
+     */
+    public onFirstSceneReady(fc: LiveGameEventHandler<GameLifecycleEvents["event:game.firstSceneReady"]>): LiveGameEventToken {
+        return this.lifecycleEvents.on(Game.LifecycleEventTypes["event:game.firstSceneReady"], fc);
+    }
+
+    /**
+     * Listen once for the first scene being fully ready.
+     */
+    public onceFirstSceneReady(fc: LiveGameEventHandler<GameLifecycleEvents["event:game.firstSceneReady"]>): LiveGameEventToken {
+        return this.lifecycleEvents.once(Game.LifecycleEventTypes["event:game.firstSceneReady"], fc);
+    }
+
+    /**
+     * Resolve when the first scene is fully ready.
+     */
+    public whenFirstSceneReady(): Promise<GameLifecycleEventContext> {
+        if (this.firstSceneReadyContext) {
+            return Promise.resolve(this.firstSceneReadyContext);
+        }
+        return new Promise(resolve => {
+            this.onceFirstSceneReady(resolve);
+        });
+    }
+
+    /**
+     * Whether the first scene is fully ready.
+     */
+    public isFirstSceneReady(): boolean {
+        return this.firstSceneReadyContext !== null;
+    }
+
+    /**@internal */
+    public markPreloadComplete(ctx: GameLifecycleEventContext): boolean {
+        if (this.preloadCompleteContext) {
+            return false;
+        }
+        this.preloadCompleteContext = ctx;
+        this.lifecycleEvents.emit(Game.LifecycleEventTypes["event:game.preloadComplete"], ctx);
+        return true;
+    }
+
+    /**@internal */
+    public markFirstSceneReady(ctx: GameLifecycleEventContext): boolean {
+        if (this.firstSceneReadyContext) {
+            return false;
+        }
+        this.firstSceneReadyContext = ctx;
+        this.lifecycleEvents.emit(Game.LifecycleEventTypes["event:game.firstSceneReady"], ctx);
+        return true;
     }
 
     /* Live Game */

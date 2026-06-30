@@ -8,7 +8,7 @@ import { GuardConfig } from "@player/guard";
 import React from "react";
 import { StackModel, StackModelRawData } from "./action/stackModel";
 import { MenuComponent, NotificationComponent, NvlDialogComponent, SayComponent } from "./common/player";
-import { Color, LiveGameEventToken } from "./types";
+import { LiveGameEventToken } from "./types";
 
 export interface SavedGameMetaData {
     /**
@@ -251,16 +251,6 @@ export type GameConfig = {
      */
     allowSkipVideo: boolean;
     /**
-     * The default text color for the dialog
-     * @default "#000"
-     */
-    defaultTextColor: Color;
-    /**
-     * The default text color for the character nametag
-     * @default "#000"
-     */
-    defaultNametagColor: Color;
-    /**
      * The component to use for the notification
      * @default DefaultNotification
      */
@@ -310,35 +300,10 @@ export type GameConfig = {
         guard: GuardConfig;
     };
     /**
-     * Default font size for the game
-     * @default "16px"
-     */
-    fontSize: React.CSSProperties["fontSize"];
-    /**
-     * Default font weight for the game
-     * @default 400
-     */
-    fontWeight: number;
-    /**
-     * Default font weight for the game
-     * @default 700
-     */
-    fontWeightBold: number;
-    /**
-     * Default font family for the game
-     * @default "sans-serif"
-     */
-    fontFamily: React.CSSProperties["fontFamily"];
-    /**
      * Override the default stage
      * @default null
      */
     stage: React.ReactNode | null;
-    /**
-     * The default color for the menu choices
-     * @default "#000"
-     */
-    defaultMenuChoiceColor: Color;
     /**
      * The maximum number of times a stack model can loop
      * @default 1000

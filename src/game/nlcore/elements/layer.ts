@@ -41,6 +41,7 @@ type LayerState = {
 /**@internal */
 type LayerDataRaw = {
     state: Record<string, any>;
+    transformState: Record<string, any>;
 };
 
 export class Layer
@@ -142,12 +143,15 @@ export class Layer
     public toData(): LayerDataRaw | null {
         return {
             state: Layer.StateSerializer.serialize(this.state),
+            transformState: this.transformState.serialize(),
         };
     }
 
     /**@internal */
     public fromData(data: LayerDataRaw): this {
         this.state = Layer.StateSerializer.deserialize(data.state);
+        this.transformState =
+            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState);
         return this;
     }
 
