@@ -3,7 +3,6 @@ import { useNvl, useNvlDialogs } from "./NvlContext";
 import { NvlDialogListProps, NvlDialogItemProps } from "./type";
 import clsx from "clsx";
 import { useGame } from "@lib/game/player/provider/game-state";
-import { toHex } from "@lib/util/data";
 import { Script } from "@core/elements/script";
 import { DialogContext } from "../say/context";
 import { Texts } from "../say/Sentence";
@@ -58,9 +57,7 @@ export function NvlDialogList({ children, className, style, renderDialogItem }: 
 }
 
 export function DefaultNvlDialogItem({ entry, index, className, style, texts }: NvlDialogItemProps & { texts?: React.ReactNode }) {
-    const game = useGame();
     const characterName = entry.character?.state.name || null;
-    const characterColor = toHex(entry.character?.config.color || game.config.defaultTextColor);
     const textContent = texts ?? <Texts className="nvl-dialog-text" />;
 
     return (
@@ -74,12 +71,12 @@ export function DefaultNvlDialogItem({ entry, index, className, style, texts }: 
             style={style}
         >
             {characterName && (
-                <span
+                <Nametag
+                    entry={entry}
                     className="nvl-character-name font-bold mr-2"
-                    style={{ color: characterColor }}
                 >
                     {characterName}:
-                </span>
+                </Nametag>
             )}
             {textContent}
         </div>

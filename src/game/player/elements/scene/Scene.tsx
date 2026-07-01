@@ -101,10 +101,12 @@ export default function Scene(
 
     useEffect(() => {
         scene.events.emit(GameScene.EventTypes["event:scene.mount"]);
+        state.events.emit(GameState.EventTypes["event:state.scene.mount"], scene);
         state.logger.debug("Scene", "Scene mounted", scene.getId());
 
         return () => {
             scene.events.emit(GameScene.EventTypes["event:scene.unmount"]);
+            state.events.emit(GameState.EventTypes["event:state.scene.unmount"], scene);
             state.logger.debug("Scene", "Scene unmounted", scene.getId());
         };
     }, []);

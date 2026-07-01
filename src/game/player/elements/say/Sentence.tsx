@@ -11,7 +11,6 @@ import { useFlush } from "../../lib/flush";
 import { useGame, useOptionalGame } from "../../provider/game-state";
 import { Timeline } from "../../Tasks";
 import { useDialogContext } from "./context";
-import { DialogElementProps } from "./type";
 import { DialogState } from "./UIDialog";
 import { useNvlDialogState } from "../nvl/useNvlDialogState";
 import type { NvlDialogEntry } from "@player/gameState";
@@ -64,11 +63,18 @@ type RollingTask = {
 
 type PureWord = Exclude<SplitWord, Pausing>;
 type InteractionHandler = (preventDefault: () => void) => void;
-type BaseTextsProps = {
+export type TextAppearanceProps = {
     /**
      * The default color of the text
      */
     defaultColor?: Color;
+    fontSize?: React.CSSProperties["fontSize"];
+    fontWeight?: React.CSSProperties["fontWeight"];
+    fontWeightBold?: React.CSSProperties["fontWeight"];
+    fontFamily?: React.CSSProperties["fontFamily"];
+};
+
+export type BaseTextsProps = TextAppearanceProps & {
     className?: string;
     style?: React.CSSProperties;
     dialog?: DialogState;
@@ -225,9 +231,22 @@ function getPreviewDelay(cps: number, gameSpeed: number) {
     return 1000 / (safeCps * safeGameSpeed);
 }
 
+function toOptionalColor(color: Color | undefined): React.CSSProperties["color"] {
+    return color === undefined ? undefined : toHex(color);
+}
 
 function BaseText(
-    { defaultColor, className, style, dialog, ...props }: BaseTextsProps
+    {
+        defaultColor,
+        className,
+        style,
+        dialog,
+        fontSize,
+        fontWeight,
+        fontWeightBold,
+        fontFamily,
+        ...props
+    }: BaseTextsProps
 ) {
     const game = useGame();
     const gameState = game.getLiveGame().getGameState()!;
@@ -505,23 +524,24 @@ function BaseText(
         return null;
     }
 
+    const resolvedFontWeightBold = fontWeightBold ?? "bold";
     const calculatedSentence: React.CSSProperties = {
-        fontWeight: sentence.config.bold ? game.config.fontWeightBold : game.config.fontWeight,
-        fontSize: sentence.config.fontSize ?? game.config.fontSize,
-        color: toHex(sentence.config.color ?? game.config.defaultTextColor),
-        fontFamily: sentence.config.fontFamily ?? game.config.fontFamily,
+        fontWeight: sentence.config.bold ? resolvedFontWeightBold : fontWeight,
+        fontSize: sentence.config.fontSize ?? fontSize,
+        color: toOptionalColor(sentence.config.color ?? defaultColor),
+        fontFamily: sentence.config.fontFamily ?? fontFamily,
         fontStyle: sentence.config.italic ? "italic" : undefined,
     };
 
     const calculateStyle = (word: Exclude<SplitWord, Pausing | "\n">): React.CSSProperties => ({
         fontWeight: word.config.bold
-            ? game.config.fontWeightBold
+            ? resolvedFontWeightBold
             : sentence.config.bold
-                ? game.config.fontWeightBold
-                : game.config.fontWeight,
-        fontSize: word.config.fontSize ?? sentence.config.fontSize ?? game.config.fontSize,
-        color: toHex(word.config.color ?? sentence.config.color ?? defaultColor ?? game.config.defaultTextColor),
-        fontFamily: word.config.fontFamily ?? sentence.config.fontFamily ?? game.config.fontFamily,
+                ? resolvedFontWeightBold
+                : fontWeight,
+        fontSize: word.config.fontSize ?? sentence.config.fontSize ?? fontSize,
+        color: toOptionalColor(word.config.color ?? sentence.config.color ?? defaultColor),
+        fontFamily: word.config.fontFamily ?? sentence.config.fontFamily ?? fontFamily,
         fontStyle: word.config.italic ?? sentence.config.italic ? "italic" : undefined,
     });
 
@@ -562,27 +582,13 @@ function BaseText(
                 className,
             )}
             style={{
-                ...style,
                 ...calculatedSentence,
+                ...style,
             }}
         >
             {displaying.map(getElement)}
         </div>
     );
-}
-
-/**
- * Props-based wrapper component
- * Provides a clean interface for direct prop usage
- */
-export interface TextsProps extends DialogElementProps {
-    sentence: Sentence;
-    gameState: GameState;
-    useTypeEffect?: boolean;
-    onCompleted?: () => void;
-    finished?: boolean;
-    count?: number;
-    words?: Word<Pausing | string>[];
 }
 
 export type EntryTextsProps = BaseTextsProps & {
@@ -721,15 +727,12 @@ export function TextsPreview({
     }, [previewWords, useTypeEffect, loopConfig, resolvedCps, resolvedGameSpeed, resolvedPauseDuration]);
 
     const sentenceConfig = sentence?.config;
-    const resolvedFontWeight = fontWeight ?? gameConfig.fontWeight;
-    const resolvedFontWeightBold = fontWeightBold ?? gameConfig.fontWeightBold;
-    const resolvedFontSize = fontSize ?? gameConfig.fontSize;
-    const resolvedFontFamily = fontFamily ?? gameConfig.fontFamily;
+    const resolvedFontWeightBold = fontWeightBold ?? "bold";
     const calculatedSentence: React.CSSProperties = {
-        fontWeight: sentenceConfig?.bold ? resolvedFontWeightBold : resolvedFontWeight,
-        fontSize: sentenceConfig?.fontSize ?? resolvedFontSize,
-        color: toHex(sentenceConfig?.color ?? defaultColor ?? gameConfig.defaultTextColor),
-        fontFamily: sentenceConfig?.fontFamily ?? resolvedFontFamily,
+        fontWeight: sentenceConfig?.bold ? resolvedFontWeightBold : fontWeight,
+        fontSize: sentenceConfig?.fontSize ?? fontSize,
+        color: toOptionalColor(sentenceConfig?.color ?? defaultColor),
+        fontFamily: sentenceConfig?.fontFamily ?? fontFamily,
         fontStyle: sentenceConfig?.italic ? "italic" : undefined,
     };
     const calculateStyle = (word: Exclude<SplitWord, Pausing | "\n">): React.CSSProperties => ({
@@ -737,10 +740,10 @@ export function TextsPreview({
             ? resolvedFontWeightBold
             : sentenceConfig?.bold
                 ? resolvedFontWeightBold
-                : resolvedFontWeight,
-        fontSize: word.config.fontSize ?? sentenceConfig?.fontSize ?? resolvedFontSize,
-        color: toHex(word.config.color ?? sentenceConfig?.color ?? defaultColor ?? gameConfig.defaultTextColor),
-        fontFamily: word.config.fontFamily ?? sentenceConfig?.fontFamily ?? resolvedFontFamily,
+                : fontWeight,
+        fontSize: word.config.fontSize ?? sentenceConfig?.fontSize ?? fontSize,
+        color: toOptionalColor(word.config.color ?? sentenceConfig?.color ?? defaultColor),
+        fontFamily: word.config.fontFamily ?? sentenceConfig?.fontFamily ?? fontFamily,
         fontStyle: word.config.italic ?? sentenceConfig?.italic ? "italic" : undefined,
     });
     const getElement = (word: PureWord, index: number) => {
@@ -774,14 +777,16 @@ export function TextsPreview({
                 className,
             )}
             style={{
-                ...style,
                 ...calculatedSentence,
+                ...style,
             }}
         >
             {displaying.map(getElement)}
         </div>
     );
 }
+
+export type RawTextsProps = BaseTextsProps;
 
 export function RawTexts(props: BaseTextsProps) {
     return <BaseText {...props} key={props.dialog?.config.action.id} />;
@@ -816,6 +821,8 @@ function ContextTexts(props: BaseTextsProps) {
  * Context-based wrapper component
  * Provides integration with the sentence context
  */
+export type TextsProps = BaseTextsProps | EntryTextsProps;
+
 export function Texts(props: BaseTextsProps | EntryTextsProps) {
     if ("entry" in props && props.entry && "gameState" in props && props.gameState && "words" in props && props.words) {
         return <EntryTexts {...props} />;

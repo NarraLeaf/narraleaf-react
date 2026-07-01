@@ -144,6 +144,8 @@ type GameStateEvents = {
     "event:state.player.lineEnd": [];
     "event:state.player.requestFlush": [];
     "event:state.player.stageClick": [];
+    "event:state.scene.mount": [scene: Scene];
+    "event:state.scene.unmount": [scene: Scene];
     "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
     "event:state.onRender": [];
     "event:state:flushPreloadedScenes": [];
@@ -166,6 +168,8 @@ export class GameState {
         "event:state.player.lineEnd": "event:state.player.lineEnd",
         "event:state.player.requestFlush": "event:state.player.requestFlush",
         "event:state.player.stageClick": "event:state.player.stageClick",
+        "event:state.scene.mount": "event:state.scene.mount",
+        "event:state.scene.unmount": "event:state.scene.unmount",
         "event.state.onExpose": "event.state.onExpose",
         "event:state.onRender": "event:state.onRender",
         "event:state:flushPreloadedScenes": "event:state:flushPreloadedScenes",

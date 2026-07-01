@@ -1,6 +1,8 @@
 import "client-only";
 
 import { Story } from "@core/elements/story";
+import type { Scene as CoreScene } from "@core/elements/scene";
+import type { GameLifecycleEventContext } from "@core/game";
 import { CalledActionResult } from "@core/gameTypes";
 import { Awaitable, createMicroTask, EventToken, MultiLock } from "@lib/util/data";
 import { KeyEventAnnouncer } from "@player/elements/player/KeyEventAnnouncer";
@@ -37,13 +39,16 @@ export default function Player(
         height,
         className,
         onReady,
+        onPreloadComplete,
         onPreloadedReady,
+        onFirstSceneReady,
         onEnd,
         onError,
         children,
         active = true,
     }: Readonly<PlayerProps>) {
     const [flushDep, update] = useReducer((x) => x + 1, 0);
+    const [firstSceneMountDep, updateFirstSceneMount] = useReducer((x) => x + 1, 0);
     const [key, setKey] = useState(0);
     const game = useGame();
     const [state] = useState<GameState>(() => new GameState(game, {
@@ -73,7 +78,21 @@ export default function Player(
     const { preloaded } = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
     const preloadedReadyHandlerExecuted = React.useRef(false);
+    const [preloadComplete, setPreloadComplete] = useState(false);
+    const preloadCompleteHandlerExecuted = React.useRef(false);
+    const firstSceneRef = React.useRef<CoreScene | null>(null);
+    const firstSceneReadyPending = React.useRef(false);
     const [awaitables] = useState<Map<Awaitable<CalledActionResult>, EventToken>>(new Map());
+
+    function getLifecycleContext(scene: CoreScene | null): GameLifecycleEventContext {
+        return {
+            game,
+            gameState: state,
+            liveGame: game.getLiveGame(),
+            storable: game.getLiveGame().getStorable(),
+            scene,
+        };
+    }
 
     function next() {
         const cleanup = () => {
@@ -253,15 +272,83 @@ export default function Player(
         return createMicroTask(() => {
             if (preloadedReady && onPreloadedReady && !preloadedReadyHandlerExecuted.current) {
                 preloadedReadyHandlerExecuted.current = true;
-                onPreloadedReady({
-                    game,
-                    gameState: state,
-                    liveGame: game.getLiveGame(),
-                    storable: game.getLiveGame().getStorable(),
-                });
+                const scene = firstSceneRef.current || state.getLastScene() || state.getPreloadingScene();
+                const ctx = getLifecycleContext(scene);
+                onPreloadedReady(ctx);
             }
         });
     }, [preloadedReady]);
+
+    useEffect(() => {
+        return createMicroTask(() => {
+            if (preloadComplete && !preloadCompleteHandlerExecuted.current) {
+                preloadCompleteHandlerExecuted.current = true;
+                const scene = firstSceneRef.current || state.getLastScene() || state.getPreloadingScene();
+                const ctx = getLifecycleContext(scene);
+
+                if (game.markPreloadComplete(ctx) && onPreloadComplete) {
+                    onPreloadComplete(ctx);
+                }
+            }
+        });
+    }, [preloadComplete]);
+
+    useEffect(() => {
+        return state.events.on(GameState.EventTypes["event:state.scene.mount"], (scene) => {
+            if (firstSceneRef.current) {
+                return;
+            }
+            firstSceneRef.current = scene;
+            updateFirstSceneMount();
+        }).cancel;
+    }, []);
+
+    useEffect(() => {
+        if (!preloadComplete || !active || firstSceneReadyPending.current || game.isFirstSceneReady()) {
+            return;
+        }
+
+        const scene = firstSceneRef.current || state.getLastScene();
+        if (!scene) {
+            return;
+        }
+
+        let frame: number | null = null;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let completed = false;
+        firstSceneReadyPending.current = true;
+
+        const complete = () => {
+            completed = true;
+            firstSceneReadyPending.current = false;
+
+            const ctx = getLifecycleContext(scene);
+            if (game.markFirstSceneReady(ctx) && onFirstSceneReady) {
+                onFirstSceneReady(ctx);
+            }
+        };
+
+        if (typeof requestAnimationFrame === "function") {
+            frame = requestAnimationFrame(() => {
+                timer = setTimeout(complete, 0);
+            });
+        } else {
+            timer = setTimeout(complete, 0);
+        }
+
+        return () => {
+            if (completed) {
+                return;
+            }
+            firstSceneReadyPending.current = false;
+            if (frame !== null && typeof cancelAnimationFrame === "function") {
+                cancelAnimationFrame(frame);
+            }
+            if (timer !== null) {
+                clearTimeout(timer);
+            }
+        };
+    }, [active, firstSceneMountDep, flushDep, preloadComplete]);
 
     useEffect(() => {
         return preloaded.events.depends([
@@ -271,6 +358,9 @@ export default function Player(
                 if (story && game.getLiveGame().isPlaying()) {
                     next();
                 }
+            }),
+            preloaded.events.on(Preloaded.EventTypes["event:preloaded.complete"], () => {
+                setPreloadComplete(true);
             }),
         ]).cancel;
     }, []);

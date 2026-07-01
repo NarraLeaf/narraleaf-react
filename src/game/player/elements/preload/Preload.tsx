@@ -44,11 +44,13 @@ export function Preload(
      */
     useEffect(() => {
         if (typeof fetch === "undefined") {
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             state.logger.warn(LogTag, "Fetch is not supported in this environment, skipping preload");
             return onPreloaderUnmount;
         }
         if (!game.config.preloadAllImages) {
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             state.logger.debug(LogTag, "Preload all images is disabled, skipping preload");
             return onPreloaderUnmount;
@@ -112,6 +114,7 @@ export function Preload(
         taskPool.start().then(() => {
             state.logger.info(LogTag, "Image preload", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
 
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
             if (game.config.waitForPreload) {
                 preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             }

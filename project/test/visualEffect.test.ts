@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Chained } from "../../src/game/nlcore/action/chain";
 import { ControlActionTypes, DisplayableActionTypes } from "../../src/game/nlcore/action/actionTypes";
 import { Image } from "../../src/game/nlcore/elements/displayable/image";
+import { Layer } from "../../src/game/nlcore/elements/layer";
 import { Scene } from "../../src/game/nlcore/elements/scene";
 import { Story } from "../../src/game/nlcore/elements/story";
 import { MaskTransition } from "../../src/game/nlcore/elements/transition/transitions/image/maskTransition";
@@ -113,6 +114,23 @@ describe("visual effect transform", () => {
             maskSize: "100% 100%",
             clipPath: "circle(40%)",
             filter: "grayscale(1)",
+            mixBlendMode: "screen",
+        });
+    });
+
+    it("keeps layer visual effect fields through serialization restore", () => {
+        const layer = new Layer("effect layer", {
+            filter: "blur(8px)",
+            backdropFilter: "brightness(0.8)",
+            mixBlendMode: "screen",
+        });
+
+        const restored = new Layer("effect layer");
+        restored.fromData(layer.toData()!);
+
+        expect(restored.transformState.get()).toMatchObject({
+            filter: "blur(8px)",
+            backdropFilter: "brightness(0.8)",
             mixBlendMode: "screen",
         });
     });
