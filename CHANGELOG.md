@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.1]
+
+### Fixed
+
+- Exported `useUIMenuContext` and type `ChoiceEvaluated`
+
 ## [0.10.0]
 
 ### _Incompatible Changes_

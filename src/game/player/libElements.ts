@@ -3,6 +3,7 @@ import {usePreference} from "@player/lib/preferences";
 import {Stage} from "@player/lib/PageRouter/Stage";
 import GameMenu from "@player/elements/menu/UIMenu/Menu";
 import Item from "@player/elements/menu/UIMenu/Item";
+import { useUIMenuContext } from "@player/elements/menu/UIMenu/context";
 import Notifications from "@player/elements/notification/Notifications";
 import Texts, { TextsPreview } from "@player/elements/say/Sentence";
 import Nametag from "@player/elements/say/Nametag";
@@ -34,6 +35,7 @@ export type {
 } from "@player/elements/say/Sentence";
 export type { NametagProps } from "@player/elements/say/Nametag";
 export type { ItemProps } from "@player/elements/menu/UIMenu/Item";
+export type { ChoiceEvaluated } from "@player/elements/menu/type";
 
 export {
     Isolated,
@@ -41,6 +43,7 @@ export {
     Stage,
     GameMenu,
     Item,
+    useUIMenuContext,
     Notifications,
     Texts,
     TextsPreview,
