@@ -276,7 +276,8 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     public static positionToCSS(
         position: RawPosition | IPosition | undefined,
         invertY?: boolean | undefined,
-        invertX?: boolean | undefined
+        invertX?: boolean | undefined,
+        dimensions?: { width: number; height: number }
     ): CSSProps {
         if (!position) {
             return {};
@@ -285,10 +286,11 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             return PositionUtils.D2PositionToCSS(
                 PositionUtils.rawPositionToCoord2D(position),
                 invertX,
-                invertY
+                invertY,
+                dimensions
             );
         }
-        return PositionUtils.D2PositionToCSS(position.toCSS(), invertX, invertY);
+        return PositionUtils.D2PositionToCSS(position.toCSS(), invertX, invertY, dimensions);
     }
 
     /**@internal */
@@ -350,8 +352,14 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     static constructStyle<T extends TransformDefinitions.Types>(state: GameState, props: Partial<T>, overwrites?: OverwriteDefinition): DOMKeyframesDefinition {
         const { invertY, invertX } = state.getStory().getInversionConfig();
         const { overwrite } = overwrites || {};
+        // Fold pixel offsets into design-relative percentages so positions stay
+        // resolution-independent and remain animatable by `motion`.
+        const config = state.game?.config;
+        const dimensions = config && config.width > 0 && config.height > 0
+            ? { width: config.width, height: config.height }
+            : undefined;
         return {
-            ...Transform.positionToCSS(props.position, invertY, invertX),
+            ...Transform.positionToCSS(props.position, invertY, invertX, dimensions),
             opacity: props.opacity,
             color: ("fontColor" in props && props.fontColor) ? toHex((props as TransformDefinitions.TextTransformProps).fontColor!) : undefined,
             transform: Transform.propToCSSTransform(state, props),

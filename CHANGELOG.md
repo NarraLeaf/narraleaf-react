@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.0]
+
+### _Incompatible Changes_
+
+- Displayable position offsets (`xoffset`/`yoffset`) and pixel coordinates are now resolved relative to the game's design resolution (`GameConfig.width`/`height`) instead of the rendered, window-fitted size. Positions are therefore resolution-independent and consistent across window sizes. Games that relied on offsets being raw on-screen pixels may need to adjust their values.
+
+### Fixed
+
+- An align position that also carries offsets (e.g. `{xalign, yalign, xoffset, yoffset}`) is no longer misdetected as a coordinate position, which previously dropped the alignment back to the stage default and only applied the offsets.
+- Animated positions now interpolate their alignment. Offsets are folded into a single percentage, so `motion` can animate the whole position; previously the percentage (alignment) component of a mixed `calc(% + px)` value was left at its base and only the pixel offset animated.
+
 ## [0.10.1]
 
 ### Fixed
