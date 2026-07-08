@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0]
+
+### Update
+
+- Added six built-in image transitions, exported from the main entry alongside `Dissolve`/`FadeIn`/`MaskTransition`:
+  - `SoftWipe` — feathered directional wipe (the soft-edged counterpart of `MaskTransition.wipe`).
+  - `SoftIris` — feathered circular reveal (the soft-edged counterpart of `MaskTransition.circle`).
+  - `Blinds` — venetian slats reveal, with `orientation` and `slats`.
+  - `BlurDissolve` — a blurred crossfade for flashback / dream states.
+  - `Push` — directional push/slide (both images translate).
+  - `ThroughColor` — a colour-hold engine created via `ThroughColor.fade` / `.wipe` / `.blinds` / `.iris`: covers the frame with a solid colour, holds, then uncovers on the target, so the target only appears after the colour frame (fade-to-black/white, soft wipe through black, blinds black hold, iris to black, flash via `hold: 0`).
+- Exported the accompanying option types (`SoftWipeOptions`, `BlindsOptions`, `SoftIrisOptions`, `BlurDissolveOptions`, `PushOptions`, `ThroughColorFadeOptions`, `ThroughColorWipeOptions`, `ThroughColorBlindsOptions`, `ThroughColorIrisOptions`) and `BlindsOrientation`.
+
 ## [0.11.0]
 
 ### _Incompatible Changes_
