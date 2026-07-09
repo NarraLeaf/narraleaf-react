@@ -8,6 +8,7 @@ import {
     TransitionTask
 } from "@core/elements/transition/type";
 import {useFlush} from "@player/lib/flush";
+import {useRatio} from "@player/provider/ratio";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Awaitable, deepMerge, KeyGen, SkipController} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
@@ -130,6 +131,34 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         Object.assign(ref.current!.style, initialStyle);
         gameState.logger.debug("Displayable", "Initial style applied", ref.current, initialStyle);
     }, []);
+
+    // Self-heal the wrapper's settled style whenever no animation owns the element. The wrapper's
+    // transform is written imperatively by `transform.animate` / layout projection; an interrupted
+    // animation (or motion's layout cleanup) can leave a stale or cleared `transform` behind, which
+    // shows up as a permanently mispositioned displayable — especially after the stage container
+    // resizes mid-animation. Re-deriving from the TransformState (the source of truth) on each
+    // settled render makes any such corruption converge back to the correct pose.
+    const healSettledStyleRef = useRef<() => void>(() => undefined);
+    healSettledStyleRef.current = () => {
+        if (transformToken || transitionTask || !ref.current) {
+            return;
+        }
+        Object.assign(ref.current.style, state.toStyle(gameState, overwriteDefinition));
+    };
+    useLayoutEffect(() => {
+        healSettledStyleRef.current();
+    });
+
+    // Stage resizes are when layout projection touches wrapper transforms, and projection cleanup
+    // can land after this component's last render — heal on every ratio update, plus one frame
+    // later to catch that trailing cleanup.
+    const {ratio} = useRatio();
+    useEffect(() => {
+        return ratio.onUpdate(() => {
+            healSettledStyleRef.current();
+            requestAnimationFrame(() => healSettledStyleRef.current());
+        });
+    }, [ratio]);
 
     function updateStyleSync() {
         const evaluatedTransProps = typeof transitionsProps === "function"

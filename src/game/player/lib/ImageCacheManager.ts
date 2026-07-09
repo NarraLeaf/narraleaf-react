@@ -95,6 +95,9 @@ export class ImageCacheManager {
             }
         })
             .catch((reason) => {
+                // Drop the failed task so the URL isn't stuck in "preloading" forever —
+                // otherwise every later preload() of the same URL no-ops and never retries.
+                this.preloadTasks.delete(url);
                 gameState.logger.error(
                     "ImageCacheManager",
                     `Failed to preload image: ${url}`,

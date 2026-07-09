@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.1]
+
+### Update
+
+- Added some NarraLeaf Studio Support
+
 ## [0.12.0]
 
 ### Update

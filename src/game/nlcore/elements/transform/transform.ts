@@ -487,6 +487,13 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
 
         token.then(onComplete, ((arg0: unknown) => {
             gameState.logger.error("Failed to animate transform. " + (arg0?.toString?.() || ""));
+            // Settle to the final pose anyway: leaving the state locked and the awaitable pending
+            // wedges the element (and the action that awaits it) forever.
+            try {
+                onComplete();
+            } catch {
+                awaitable.resolve();
+            }
         }) as any);
         token.play();
 

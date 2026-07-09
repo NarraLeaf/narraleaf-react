@@ -3,6 +3,7 @@ import { Chained, Proxied } from "../../action/chain";
 import { GameState } from "../../common/game";
 import { LogicAction } from "../../game";
 import { Control } from "../control";
+import { Layer } from "../layer";
 import { DynamicPersistent, Persistent } from "../persistent";
 import { Scene } from "../scene";
 
@@ -41,6 +42,77 @@ export class DevTools {
 
     public static getCurrentScene(gameState: GameState): Scene | null {
         return gameState.getCurrentScene();
+    }
+
+    /**
+     * Register a displayable into a scene's render tree without emitting a `displayable:init`
+     * action. The element renders immediately at its constructor-config transform state
+     * (visibility is governed by `opacity > 0`).
+     *
+     * Intended for editor hosts that pre-pose a stage: construct elements with their computed
+     * state as constructor config (config state survives `element.reset()` / `newGame()`), then
+     * register them from a `Script` action or after mount.
+     */
+    public static registerDisplayable(
+        gameState: GameState,
+        displayable: LogicAction.DisplayableElements,
+        scene: Scene | null = null,
+        layer: Layer | null = null,
+    ): void {
+        // Idempotent: the scene root's auto-init actions may already have registered the
+        // element (any displayable referenced by a compiled action is auto-inited on mount).
+        if (gameState.findElementByDisplayable(displayable)) {
+            return;
+        }
+        gameState.createDisplayable(displayable, scene, layer);
+        gameState.flush();
+    }
+
+    /**
+     * Assign an explicit element id. Elements reachable from a scene's action tree receive
+     * generated ids (`e-0`, `e-1`, ...) at story construction, but elements registered directly
+     * via {@link registerDisplayable} are outside the tree and would otherwise share the default
+     * id — colliding as React keys. Editor hosts should give those elements unique ids
+     * (use a distinct prefix so they never collide with generated ids).
+     */
+    public static setElementId(element: LogicAction.GameElement, id: string): void {
+        element.setId(id);
+    }
+
+    /**
+     * Read a displayable's current transform-state props (position/opacity/zoom/rotation/scale/
+     * effects...). Returns a shallow copy. Intended for editor hosts capturing a live pose
+     * (e.g. prefilling a motion editor with an element's current stage state).
+     */
+    public static getDisplayableTransformProps(
+        displayable: LogicAction.DisplayableElements,
+    ): Record<string, unknown> {
+        return { ...displayable.transformState.get() };
+    }
+
+    /**
+     * Overwrite a displayable's transform-state props with no animation and push the result to
+     * the DOM immediately when the element is mounted. With `merge: false` the previous state is
+     * discarded entirely; by default the given props are merged over the current state.
+     *
+     * Throws if the transform state is locked by an in-flight transform — editor hosts should
+     * only inject while the stage is idle.
+     */
+    public static setDisplayableTransformProps(
+        gameState: GameState,
+        displayable: LogicAction.DisplayableElements,
+        props: Record<string, unknown>,
+        options: { merge?: boolean } = {},
+    ): void {
+        const transformState = displayable.transformState;
+        if (options.merge === false) {
+            transformState.forceOverwrite(props as never);
+        } else {
+            transformState.assign(Symbol("DevTools.setDisplayableTransformProps"), props as never);
+        }
+        const exposed = gameState.getExposedState(displayable as never) as { updateStyleSync?: () => void } | null;
+        exposed?.updateStyleSync?.();
+        gameState.flush();
     }
 
     public static DynamicPersistent = DynamicPersistent;
