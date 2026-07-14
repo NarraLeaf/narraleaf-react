@@ -25,7 +25,6 @@ export default function Text({state, text}: Readonly<{
         applyTransition,
         updateStyleSync,
         deps,
-        isTransforming,
     } = useDisplayable<TextTransition, HTMLSpanElement>({
         element: text,
         state: text.transformState,
@@ -69,11 +68,14 @@ export default function Text({state, text}: Readonly<{
 
     return (
         <Inspect.Div data-element-type={"text"}>
+            {/* No `layout` here: the wrapper's transform is written imperatively, frame by frame,
+                by `transform.animate` — layout projection measures on any re-render (stage resizes,
+                transition start/end) and writes to the same node, so the two fight mid-animation,
+                and an interrupted projection leaves a corrupt `transform` behind. */}
             <Inspect.mDiv
                 tag={"text.container"}
                 color={"green"}
                 border={"dashed"}
-                layout={isTransforming}
                 ref={transformRef}
                 className={"absolute"}
             >

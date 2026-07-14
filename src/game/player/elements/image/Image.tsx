@@ -33,7 +33,6 @@ export default function Image(
     const {
         transformRef,
         transitionRefs,
-        isTransforming,
         initDisplayable,
         applyTransition,
         applyTransform,
@@ -130,8 +129,11 @@ export default function Image(
     }
 
     return (
+        /* No `layout` here: the wrapper's transform is written imperatively, frame by frame,
+           by `transform.animate` — layout projection measures on any re-render (stage resizes,
+           transition start/end) and writes to the same node, so the two fight mid-animation,
+           and an interrupted projection leaves a corrupt `transform` behind. */
         <motion.div
-            layout={isTransforming}
             ref={transformRef}
             className={"absolute w-max h-max"}
             data-element-type={"image"}

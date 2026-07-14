@@ -45,7 +45,6 @@ type TransitionTaskWithController<TransitionType extends Transition<U>, U extend
 export type DisplayableHookResult<TransitionType extends Transition<U>, U extends HTMLElement> = {
     transformRef: React.RefObject<HTMLDivElement | null>;
     transitionRefs: DisplayableRefGroup<U>[];
-    isTransforming: boolean;
     transitionTask: TransitionTaskWithController<TransitionType, U> | null;
     initDisplayable: (resolve: () => void) => Timeline;
     applyTransform: (transform: Transform, resolve: () => void) => Timeline;
@@ -357,7 +356,6 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     return {
         transformRef: ref,
         transitionRefs: refs.current,
-        isTransforming: !!transformToken,
         transitionTask,
         initDisplayable,
         applyTransform,
