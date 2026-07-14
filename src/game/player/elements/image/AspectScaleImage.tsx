@@ -34,15 +34,27 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
                 },
                 waitForLoad: {
                     value: () => {
+                        // Resolving on `load` alone is not enough: a large image can be fully
+                        // loaded but not yet decoded, and revealing it then paints a blank
+                        // frame while the browser decodes asynchronously. Wait for the decode
+                        // too, falling back to load-only behavior if decoding is unsupported
+                        // or fails (e.g. EncodingError), so the wait can never dead-lock.
+                        const waitForDecode = (): Promise<void> => {
+                            const img = imgRef.current;
+                            if (!img || typeof img.decode !== "function") {
+                                return Promise.resolve();
+                            }
+                            return img.decode().catch(() => void 0);
+                        };
                         if (isLoadedRef.current) {
-                            return Promise.resolve();
+                            return waitForDecode();
                         }
                         if (!loadPromiseRef.current) {
                             loadPromiseRef.current = new Promise((resolve) => {
                                 loadResolveRef.current = resolve;
                             });
                         }
-                        return loadPromiseRef.current;
+                        return loadPromiseRef.current.then(waitForDecode);
                     },
                     configurable: true
                 }
