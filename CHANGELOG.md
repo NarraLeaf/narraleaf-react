@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.2]
+
+### Fixed
+
+- Images and texts no longer jump mid-animation or settle at the wrong position when the page re-renders (e.g. on a window resize or when a transition starts or ends) while a transform animation is playing. Layout projection no longer competes with the animation for the element's transform, which previously could also leave the element permanently misplaced after an interrupted animation.
+- Revealing a large image through a transition no longer flashes a blank first frame. Preloaded images are now decoded ahead of time instead of merely fetched, and transitions wait for the incoming image to be fully decoded — not just loaded — before starting. If decoding is unavailable or fails, the previous load-only behavior is used, so playback never stalls. Source changes applied without a transition are outside the scope of this gating.
+
 ## [0.12.1]
 
 ### Update
