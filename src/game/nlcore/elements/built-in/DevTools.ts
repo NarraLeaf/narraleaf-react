@@ -2,10 +2,20 @@ import { ControlAction } from "../../action/actions/controlAction";
 import { Chained, Proxied } from "../../action/chain";
 import { GameState } from "../../common/game";
 import { LogicAction } from "../../game";
+import type { LiveGameEventToken } from "../../types";
 import { Control } from "../control";
 import { Layer } from "../layer";
 import { DynamicPersistent, Persistent } from "../persistent";
 import { Scene } from "../scene";
+
+/** Snapshot of the dialog line currently presented to the player (ADV or NVL). */
+export type DevToolsCurrentDialog = {
+    /** Id of the say action that produced the line (static id when assigned). */
+    actionId: string | null;
+    /** True once the line finished displaying and awaits advance. */
+    ended: boolean;
+    mode: "adv" | "nvl";
+};
 
 
 export class DevTools {
@@ -113,6 +123,57 @@ export class DevTools {
         const exposed = gameState.getExposedState(displayable as never) as { updateStyleSync?: () => void } | null;
         exposed?.updateStyleSync?.();
         gameState.flush();
+    }
+
+    /**
+     * Read the dialog line currently presented to the player, or null when no
+     * dialog is on screen. Covers both ADV (tracked via GameState.beginAdvDialog)
+     * and NVL (active entry + phase) presentation.
+     */
+    public static getCurrentDialog(gameState: GameState): DevToolsCurrentDialog | null {
+        if (gameState.isNvlMode()) {
+            const nvlState = gameState.getNvlState();
+            if (!nvlState.activeDialogId || nvlState.phase === "idle") {
+                return null;
+            }
+            const entry = gameState.getNvlDialog(nvlState.activeDialogId);
+            if (!entry) {
+                return null;
+            }
+            return {
+                actionId: entry.actionId || null,
+                ended: nvlState.phase === "awaitAdvance",
+                mode: "nvl",
+            };
+        }
+        const adv = gameState.getAdvDialogState();
+        if (!adv) {
+            return null;
+        }
+        return {
+            actionId: adv.actionId,
+            ended: adv.ended,
+            mode: "adv",
+        };
+    }
+
+    /**
+     * Subscribe to changes of the currently presented dialog line (creation,
+     * typing completion, advance/settle) across ADV and NVL modes. The listener
+     * carries no payload; call {@link getCurrentDialog} to read the new state.
+     */
+    public static onDialogStateChange(gameState: GameState, listener: () => void): LiveGameEventToken {
+        const tokens = [
+            gameState.events.on(GameState.EventTypes["event:state.dialog.change"], listener),
+            gameState.events.on(GameState.EventTypes["event:state.nvl.change"], listener),
+        ];
+        return {
+            cancel: () => {
+                for (const token of tokens) {
+                    token.cancel();
+                }
+            },
+        };
     }
 
     public static DynamicPersistent = DynamicPersistent;

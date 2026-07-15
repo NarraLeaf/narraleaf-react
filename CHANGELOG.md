@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.3]
+
+### _Feature_
+
+- Added `DevTools.getCurrentDialog(gameState)` and `DevTools.onDialogStateChange(gameState, listener)` for editor / Studio hosts. `getCurrentDialog` reports the dialog line currently presented to the player — its originating say-action id and whether the line has finished displaying — across both ADV and NVL modes (`null` when no dialog is on screen). `onDialogStateChange` subscribes to changes of that line (creation, typing completion, advance) and returns a cancellable token. Together they let a host implement "text read" / already-seen tracking without reaching into player-layer internals.
+- Added ADV dialog line tracking in `GameState` (`beginAdvDialog` / `completeAdvDialogTyping` / `settleAdvDialog`) and a new `event:state.dialog.change` event, mirroring the existing NVL state so the currently displayed ADV line is queryable from the core layer. The tracking is transient (not serialized) and rebuilds naturally after load/undo when the pending say action re-executes.
+
 ## [0.12.2]
 
 ### Fixed

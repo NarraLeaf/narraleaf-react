@@ -48,6 +48,18 @@ export type NvlDialogEntry = {
 
 export type NvlDialogPhase = "idle" | "typing" | "awaitAdvance";
 
+/**
+ * Transient tracking record for the currently displayed ADV dialog line.
+ * Rebuilt naturally on load/undo because the pending say action re-executes;
+ * never serialized.
+ */
+export type AdvDialogState = {
+    dialogId: string;
+    actionId: string | null;
+    /** True once the sentence finished displaying (typing done or skipped to full text). */
+    ended: boolean;
+};
+
 export type NvlState = {
     active: boolean;
     visible: boolean;
@@ -142,6 +154,7 @@ type GameStateEvents = {
     "event:state.end": [];
     "event:state.player.skip": [force?: boolean];
     "event:state.player.lineEnd": [];
+    "event:state.dialog.change": [];
     "event:state.player.requestFlush": [];
     "event:state.player.stageClick": [];
     "event:state.scene.mount": [scene: Scene];
@@ -166,6 +179,7 @@ export class GameState {
         "event:state.end": "event:state.end",
         "event:state.player.skip": "event:state.player.skip",
         "event:state.player.lineEnd": "event:state.player.lineEnd",
+        "event:state.dialog.change": "event:state.dialog.change",
         "event:state.player.requestFlush": "event:state.player.requestFlush",
         "event:state.player.stageClick": "event:state.player.stageClick",
         "event:state.scene.mount": "event:state.scene.mount",
@@ -220,6 +234,7 @@ export class GameState {
     public pageRouter: null = null;
     private stageClickBuffer: { timestamp: number } | null = null;
     private readonly nvlAdvanceWaiters: Map<string, () => void> = new Map();
+    private advDialogState: AdvDialogState | null = null;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
@@ -876,6 +891,45 @@ export class GameState {
         }
         this._suppressNextNvlTyping = false;
         return true;
+    }
+
+    /**
+     * Track the ADV dialog created by a say action. Emits `event:state.dialog.change`.
+     */
+    public beginAdvDialog(dialogId: string, actionId: string | null): this {
+        this.advDialogState = { dialogId, actionId, ended: false };
+        this.events.emit(GameState.EventTypes["event:state.dialog.change"]);
+        return this;
+    }
+
+    /**
+     * Mark the tracked ADV dialog as fully displayed. No-op when the dialog id
+     * does not match the tracked one (e.g. DialogState reused outside ADV flow).
+     */
+    public completeAdvDialogTyping(dialogId: string | undefined): this {
+        if (!dialogId || !this.advDialogState || this.advDialogState.dialogId !== dialogId) {
+            return this;
+        }
+        if (!this.advDialogState.ended) {
+            this.advDialogState.ended = true;
+            this.events.emit(GameState.EventTypes["event:state.dialog.change"]);
+        }
+        return this;
+    }
+
+    /**
+     * Clear the tracked ADV dialog when the line is advanced past or cancelled.
+     */
+    public settleAdvDialog(dialogId: string): this {
+        if (this.advDialogState?.dialogId === dialogId) {
+            this.advDialogState = null;
+            this.events.emit(GameState.EventTypes["event:state.dialog.change"]);
+        }
+        return this;
+    }
+
+    public getAdvDialogState(): AdvDialogState | null {
+        return this.advDialogState;
     }
 
     public recordStageClick(): this {

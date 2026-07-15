@@ -134,6 +134,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             } else {
                 const dialogId = gameState.idManager.generateId();
                 const dialog = gameState.createDialog(dialogId, sentence, () => {
+                    gameState.settleAdvDialog(dialogId);
                     gameState.gameHistory.resolvePending(id);
 
                     awaitable.resolve({
@@ -141,8 +142,12 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                         node: this.contentNode.getChild()
                     });
                 });
+                gameState.beginAdvDialog(dialogId, this.getId());
                 dialogText = dialog.text;
-                dialogCancel = dialog.cancel;
+                dialogCancel = () => {
+                    gameState.settleAdvDialog(dialogId);
+                    dialog.cancel();
+                };
             }
 
             // Set last dialog

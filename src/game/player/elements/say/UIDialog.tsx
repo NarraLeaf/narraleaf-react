@@ -134,6 +134,7 @@ export class DialogState {
 
         const preference = this.config.gameState.game.preference;
         this._state = DialogStateType.Ended;
+        this.config.gameState.completeAdvDialogTyping(this.config.action.id);
 
         if (preference.getPreference(Game.Preferences.autoForward)) {
             this.scheduleAutoForward();
