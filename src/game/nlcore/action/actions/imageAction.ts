@@ -18,7 +18,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
     static ActionTypes = ImageActionTypes;
 
     public static resolveTagSrc(image: Image, tags: string[]) {
-        if (!Image.isTagSrc(image)) {
+        if (!Image.isTagSrc(image) || !image.config.src.resolve) {
             throw image._mixedSrcError();
         }
 
@@ -28,11 +28,13 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
     }
 
     public static resolveCurrentSrc(image: Image): string | Color {
-        if (Image.isStaticSrc(image)) {
+        if (Image.isLayeredSrc(image)) {
+            throw image._mixedSrcError();
+        } else if (Image.isStaticSrc(image)) {
             return Utils.isImageSrc(image.state.currentSrc)
                 ? Utils.srcToURL(image.state.currentSrc)
                 : image.state.currentSrc;
-        } else if (Image.isTagSrc(image)) {
+        } else if (Image.isTagSrc(image) && image.config.src.resolve) {
             return Image.getSrcFromTags(image.state.currentSrc as string[], image.config.src.resolve);
         }
 
@@ -93,10 +95,52 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             const oldTags = this.callee.state.currentSrc as string[];
             const newTags = this.callee.resolveTags(oldTags, tags);
             const oldSrc = [...oldTags];
-            const newSrc = Image.getSrcFromTags(newTags, this.callee.config.src.resolve);
             const handleUndo = () => {
                 this.callee.state.currentSrc = oldSrc as [];
             };
+
+            if (Image.isLayeredSrc(this.callee)) {
+                state.logger.debug("Image - Set Appearance (layered)", newTags);
+
+                if (transition) {
+                    const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v)
+                        .registerSkipController(new SkipController(() => super.executeAction(state, injection) as CalledActionResult));
+                    transition
+                        ._setPrevLayers(Image.getSrcURLs(this.callee))
+                        ._setTargetLayers(Image.getSrcURLs(this.callee, newTags));
+
+                    const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
+                    const task = exposed.applyTransition(transition, () => {
+                        this.callee.state.currentSrc = newTags as [];
+                        awaitable.resolve(super.executeAction(state, injection) as CalledActionResult);
+                    });
+                    const timeline = state.timelines
+                        .attachTimeline(awaitable)
+                        .attachChild(task);
+                    state.actionHistory.push({
+                        action: this,
+                        stackModel: injection.stackModel,
+                        timeline
+                    }, handleUndo, []);
+
+                    return awaitable;
+                }
+
+                this.callee.state.currentSrc = newTags as [];
+                state.actionHistory.push({
+                    action: this,
+                    stackModel: injection.stackModel
+                }, handleUndo);
+
+                state.stage.update();
+                return super.executeAction(state, injection);
+            }
+
+            const resolve = this.callee.config.src.resolve;
+            if (!resolve) {
+                throw this.callee._invalidSrcHandlerError();
+            }
+            const newSrc = Image.getSrcFromTags(newTags, resolve);
 
             state.logger.debug("Image - Set Appearance", newTags, newSrc);
 
@@ -139,12 +183,19 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
 
             if (duration && easing) {
-                const imageSrc= ImageAction.resolveCurrentSrc(this.callee);
                 const awaitable = new Awaitable<CalledActionResult>(v => v);
-                const transition = new Darkness(oldDarkness, darkness, duration, easing)
-                    ._setPrevSrc(imageSrc)
-                    ._setTargetSrc(imageSrc);
-                
+                const transition = new Darkness(oldDarkness, darkness, duration, easing);
+
+                // Darkness animates the target element's brightness in place, so both sides of the
+                // transition show what is already on screen.
+                if (Image.isLayeredSrc(this.callee)) {
+                    const layers = Image.getSrcURLs(this.callee);
+                    transition._setPrevLayers(layers)._setTargetLayers(layers);
+                } else {
+                    const imageSrc = ImageAction.resolveCurrentSrc(this.callee);
+                    transition._setPrevSrc(imageSrc)._setTargetSrc(imageSrc);
+                }
+
                 const task = exposed.applyTransition(transition, () => {
                     this.callee.state.darkness = darkness;
                     awaitable.resolve(super.executeAction(state, injection) as CalledActionResult);

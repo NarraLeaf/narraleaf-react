@@ -18,6 +18,37 @@ export abstract class ImageTransition<T extends TransitionAnimationType[] = any>
     private _targetSrc: Color | ImageSrc | undefined;
     /**@package */
     private _currentSrc: Color | ImageSrc | undefined;
+    /**@package */
+    private _prevLayers: (string | null)[] | undefined;
+    /**@package */
+    private _targetLayers: (string | null)[] | undefined;
+
+    /**@package */
+    _setPrevLayers(layers: (string | null)[]): this {
+        this._prevLayers = layers;
+        return this;
+    }
+
+    /**@package */
+    _setTargetLayers(layers: (string | null)[]): this {
+        this._targetLayers = layers;
+        return this;
+    }
+
+    /**@package */
+    _getPrevLayers(): (string | null)[] | undefined {
+        return this._prevLayers;
+    }
+
+    /**@package */
+    _getTargetLayers(): (string | null)[] | undefined {
+        return this._targetLayers;
+    }
+
+    /**@package */
+    _isLayered(): boolean {
+        return !!this._prevLayers || !!this._targetLayers;
+    }
 
     /**@package */
     _setPrevSrc(src: Color | ImageSrc | undefined): this {
@@ -72,6 +103,11 @@ export abstract class ImageTransition<T extends TransitionAnimationType[] = any>
 
     /**@package */
     private _srcToProps(src: Color | ImageSrc | undefined): ImgElementProp {
+        // A layered image resolves its own srcs per layer; the element a transition drives is the
+        // stack wrapper, so the transition contributes style only and never a src of its own.
+        if (this._isLayered()) {
+            return {};
+        }
         if (Utils.isColor(src)) {
             return {
                 src: Image.DefaultImagePlaceholder,

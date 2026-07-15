@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.13.0]
+
+### _Feature_
+
+- Added layered images. `Image`'s `src` accepts a `{layers, defaults}` definition that composes a character from one image per part instead of one pre-composited image per combination, which turns an N×M asset explosion into N+M files:
+
+  ```ts
+  const yuko = new Image({
+      src: {
+          // bottom to top
+          layers: [
+              "yuko/body.png",                                          // constant layer
+              {uniform: "yuko/uniform.png", casual: "yuko/casual.png"}, // mutually exclusive variants
+              {happy: "yuko/happy.png", sad: "yuko/sad.png"},
+              {noHat: null, straw: "yuko/straw_hat.png"},               // null draws nothing
+              (tags) => tags.has("sad") ? "yuko/tears.png" : null,      // derived from other layers
+          ],
+          defaults: ["uniform", "happy", "noHat"],
+      },
+  });
+
+  yuko.char(["sad"]);              // only the face layer changes; the outfit is kept
+  yuko.char(["casual", "happy"]);  // several layers at once, in any order
+  ```
+
+  There is no new method: layered images are driven by the existing `char()`, and tags behave as they already do — a tag replaces the other variants of its own layer and leaves every other layer untouched. Array order is the stacking order. Tags are inferred from the definition, so `char()` rejects a misspelled tag at compile time without an explicit type argument. Saves store tags rather than resolved urls, so a layered image's save format matches a tag-based one.
+
+  Every existing image transition works on a layered image and crossfades the stacks as a whole, the same way `Dissolve` crossfades two plain images:
+
+  ```ts
+  yuko.char(["sad"], new Dissolve(300));
+  ```
+
+  Effects that apply to an image as a whole — a transition's opacity or mask, `darken`, and transforms such as `opacity()` or `pos()` — are applied to the stack as one unit rather than to each layer, so layers never composite against the background individually and never show through the ones above them.
+
+  Layers of one image are expected to share a canvas and are aligned by centering, matching how art tools export layers; per-layer offsets and per-layer transitions are not supported.
+
+  Every reachable layer src is registered for preload up-front. Because layers are independent this is the sum of the variants rather than their cross product, so a layered image needs no appearance prediction and never warns about an unpredicted source. Sources returned by a resolver layer are opaque and must be registered with `scene.preloadImage` if they are not used by another layer.
+
 ## [0.12.3]
 
 ### _Feature_

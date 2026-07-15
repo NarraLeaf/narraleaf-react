@@ -1,5 +1,5 @@
 import {Image as GameImage} from "@core/elements/displayable/image";
-import React, {useRef, useState} from "react";
+import React, {forwardRef, useImperativeHandle, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import AspectScaleImage from "@player/elements/image/AspectScaleImage";
 import clsx from "clsx";
@@ -10,10 +10,98 @@ import {usePreloaded} from "@player/provider/preloaded";
 import {motion} from "motion/react";
 import {EventDispatcher} from "@lib/util/data";
 import {useExposeState} from "@player/lib/useExposeState";
+import {DisplayableElementRef} from "@player/elements/displayable/type";
 import {ExposedStateType} from "@player/type";
 
 export type ImageEvents = {
     "event:image.onLoad": [];
+};
+
+/* Layers of one image share a canvas, so centering each of them on the stack is what keeps
+   them aligned. This style is static: everything that applies to the stack as a whole is
+   written to the wrapper instead, never here. */
+const layerStyle: React.CSSProperties = {
+    position: "absolute",
+    transformOrigin: "center",
+    transform: "translate(-50%, -50%)",
+    top: "50%",
+    left: "50%",
+    right: "auto",
+    bottom: "auto",
+    maxWidth: "none",
+    maxHeight: "none",
+};
+
+/* A stack of layers that behaves like a single image to the transition machinery: group-wide
+   effects land on this wrapper, and `waitForLoad` reports the whole stack so a transition still
+   waits for every incoming layer to decode before it starts. Effects must not be applied to the
+   layers individually — a per-layer opacity would composite each layer against the background on
+   its own and let the layers below show through the ones above them. */
+const LayerStack = forwardRef<DisplayableElementRef<HTMLDivElement>, {
+    src: (string | null)[];
+    autoFit?: boolean;
+    resolveSrc: (src: string) => string;
+    onSizeChanged?: (width: number, height: number) => void;
+    onLoad?: () => void;
+}>(({src, autoFit, resolveSrc, onSizeChanged, onLoad}, ref) => {
+    const stackRef = useRef<HTMLDivElement>(null);
+    const layerRefs = useRef<(DisplayableElementRef<HTMLImageElement> | null)[]>([]);
+    const sizingLayer = src.findIndex((layer) => layer !== null);
+
+    useImperativeHandle(ref, () => Object.assign(stackRef.current!, {
+        isLoaded: () => layerRefs.current.every((layer) => !layer?.isLoaded || layer.isLoaded()),
+        waitForLoad: () => Promise.all(
+            layerRefs.current.map((layer) => layer?.waitForLoad ? layer.waitForLoad() : Promise.resolve())
+        ).then(() => undefined),
+    }), []);
+
+    return (
+        <div ref={stackRef}>
+            {src.map((layer, i) => layer === null ? null : (
+                <AspectScaleImage
+                    key={"layer-" + i}
+                    ref={(element) => {
+                        layerRefs.current[i] = element as DisplayableElementRef<HTMLImageElement> | null;
+                    }}
+                    src={resolveSrc(layer)}
+                    style={layerStyle}
+                    autoFit={autoFit}
+                    onSizeChanged={i === sizingLayer ? onSizeChanged : undefined}
+                    onLoad={i === sizingLayer ? onLoad : undefined}
+                />
+            ))}
+        </div>
+    );
+});
+LayerStack.displayName = "LayerStack";
+
+/* Written to a stack wrapper, so it covers the container and every layer inside centres on it.
+   Brightness belongs here rather than on the layers: it scales RGB before compositing, so
+   darkening the stack once is identical to darkening each layer, and it leaves the property free
+   for a Darkness transition to animate. */
+function stackStyle(darkness: number): React.CSSProperties {
+    return {
+        willChange: "filter, opacity",
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        filter: `brightness(${1 - darkness})`,
+    };
+}
+
+/* The base style a transition's own element sits on, matching what a non-layered image uses. */
+const overlayStyle: React.CSSProperties = {
+    position: "absolute",
+    transformOrigin: "center",
+    transform: "translate(-50%, -50%)",
+    top: "50%",
+    left: "50%",
+    right: "auto",
+    bottom: "auto",
+    maxWidth: "none",
+    maxHeight: "none",
 };
 
 /**@internal */
@@ -30,9 +118,29 @@ export default function Image(
     const {cacheManager} = usePreloaded();
     const ignored = useRef<string[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
+    const layerSrc: (string | null)[] | null = GameImage.isLayeredSrc(image)
+        ? GameImage.getSrcURLs(image)
+        : null;
+
+    function resolveCachedSrc(src: string): string {
+        if (!Utils.isDataURI(src)
+            && (!cacheManager.has(src) && !cacheManager.isPreloading(src))
+            && !ignored.current.includes(src)
+        ) {
+            state.game.getLiveGame().getGameState()?.logger.warn("Image",
+                `Image not preloaded: "${src}". `
+                + "\nThis may be caused by complicated image action behavior that cannot be predicted. "
+                + "\nTo fix this issue, you can manually register the image using scene.preloadImage(YourImageSrc). "
+            );
+            ignored.current.push(src);
+        }
+        return cacheManager.get(src) || src;
+    }
+
     const {
         transformRef,
         transitionRefs,
+        transitionTask,
         initDisplayable,
         applyTransition,
         applyTransform,
@@ -44,6 +152,18 @@ export default function Image(
         skipTransform: state.game.config.allowSkipImageTransform,
         skipTransition: state.game.config.allowSkipImageTransition,
         transitionsProps: (task) => {
+            if (layerSrc) {
+                // Index-aligned with the transition's resolvers: a keyed resolver drives a stack
+                // wrapper, an unkeyed one drives a plain image the transition adds on top of the
+                // stacks (ThroughColor's colour frame).
+                const resolvers = task ? task.task.resolve : [null];
+                return resolvers.map((resolver) =>
+                    resolver && typeof resolver === "function"
+                        ? {style: overlayStyle}
+                        : {style: stackStyle(image.state.darkness)}
+                );
+            }
+
             const currentSrc = task ? task.transition._getCurrentSrc() : image.state.currentSrc;
             return [
                 {
@@ -80,20 +200,9 @@ export default function Image(
         },
         propOverwrite: (props) => {
             if (props.src) {
-                if (!Utils.isDataURI(props.src)
-                    && (!cacheManager.has(props.src) && !cacheManager.isPreloading(props.src))
-                    && !ignored.current.includes(props.src)
-                ) {
-                    state.game.getLiveGame().getGameState()?.logger.warn("Image",
-                        `Image not preloaded: "${props.src}". `
-                        + "\nThis may be caused by complicated image action behavior that cannot be predicted. "
-                        + "\nTo fix this issue, you can manually register the image using scene.preloadImage(YourImageSrc). "
-                    );
-                    ignored.current.push(props.src);
-                }
                 return {
                     ...props,
-                    src: cacheManager.get(props.src) || props.src,
+                    src: resolveCachedSrc(props.src),
                 };
             }
             return props;
@@ -139,7 +248,33 @@ export default function Image(
             data-element-type={"image"}
         >
             <div className={"relative h-full w-full"} ref={containerRef} data-image-id={image.getId()}>
-                {transitionRefs.map(([ref, key], i) => (
+                {layerSrc ? transitionRefs.map(([ref, key], i) => {
+                    const resolver = transitionTask ? transitionTask.task.resolve[i] : null;
+                    if (resolver && typeof resolver === "function") {
+                        return (
+                            <AspectScaleImage
+                                key={key}
+                                ref={ref as React.Ref<HTMLImageElement>}
+                                autoFit={image.config.autoFit}
+                            />
+                        );
+                    }
+                    const stack = !resolver ? layerSrc
+                        : resolver.key === "target"
+                            ? transitionTask!.transition._getTargetLayers()
+                            : transitionTask!.transition._getPrevLayers();
+                    return (
+                        <LayerStack
+                            key={key}
+                            ref={ref as React.Ref<DisplayableElementRef<HTMLDivElement>>}
+                            src={stack || layerSrc}
+                            autoFit={image.config.autoFit}
+                            resolveSrc={resolveCachedSrc}
+                            onSizeChanged={i === 0 ? handleWidthChange : undefined}
+                            onLoad={i === 0 ? handleOnLoad : undefined}
+                        />
+                    );
+                }) : transitionRefs.map(([ref, key], i) => (
                     <AspectScaleImage
                         key={key}
                         ref={ref}

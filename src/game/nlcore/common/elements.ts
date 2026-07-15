@@ -42,6 +42,14 @@ export {
     Video,
 };
 
+export type {
+    LayeredDefinition,
+    LayerGroupDefinition,
+    LayerResolver,
+    LayerSlot,
+    LayerTagsOf,
+    LayerVariants,
+} from "../elements/displayable/image";
 export type { SentenceMetadata } from "../elements/character/sentence";
 export type {
     CharacterPortraitConfig,

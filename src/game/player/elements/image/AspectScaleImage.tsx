@@ -7,10 +7,14 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
     onSizeChanged?: (width: number, height: number) => void;
     onLoad?: () => void;
     autoFit?: boolean;
+    src?: string;
+    style?: React.CSSProperties;
 }>(({
     onSizeChanged,
     onLoad,
     autoFit = false,
+    src,
+    style,
 }, ref) => {
     const imgRef = useRef<HTMLImageElement>(null);
     const {ratio} = useRatio();
@@ -138,6 +142,8 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
             width={width}
             height={height}
             alt={""}
+            src={src}
+            style={style}
         />
     );
 });
