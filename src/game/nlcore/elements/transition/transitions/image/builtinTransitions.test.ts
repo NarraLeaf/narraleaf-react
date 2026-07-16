@@ -1,5 +1,7 @@
 import {describe, expect, it} from "vitest";
-import {Blinds, BlurDissolve, FadeIn, Push, SoftIris, SoftWipe, ThroughColor} from "narraleaf-react";
+import {Blinds, BlurDissolve, Dissolve, FadeIn, MaskTransition, Push, SoftIris, SoftWipe, ThroughColor} from "narraleaf-react";
+// Not exported from the barrel: internal, drives `image.darken(x, duration)`.
+import {Darkness} from "@core/elements/transition/transitions/image/darkness";
 
 // The resolver entries produced by asPrev/asTarget are wrapped as
 // `{ resolver, key }`; a bare resolver (the through-colour overlay layer) is a
@@ -27,6 +29,82 @@ function prepared<T>(inst: T): T {
     (inst as any)._setTargetSrc("#000000");
     return inst;
 }
+
+// On a layered image the element a transition drives is the stack wrapper, and the stack's
+// settled style (`stackStyle` in player/elements/image/Image.tsx) is re-applied on its own once
+// the transition ends. Any style property a transition writes but that settled style does not
+// name keeps its last animated value — normally harmless, but `cancel()` (an undo of an in-flight
+// action) stops without a final frame, so a half-way value would stick forever.
+//
+// This pins the full set of properties that can land on a stack. Adding one here means adding a
+// reset for it to `stackStyle`; if this list changes without that, the residue is back.
+describe("what a transition can leave on a layered stack", () => {
+    const SETTLED_POSE_MUST_RESET = [
+        "clipPath",      // MaskTransition
+        "filter",        // BlurDissolve, Darkness
+        "maskImage",     // SoftWipe, Blinds, SoftIris
+        "opacity",       // Dissolve, BlurDissolve, MaskTransition, ThroughColor, Darkness, FadeIn
+        "translate",     // Push, FadeIn
+        "WebkitMaskImage",
+        // Inert on their own: they only take effect alongside a mask image, which is reset above.
+        "maskRepeat", "maskSize", "WebkitMaskRepeat", "WebkitMaskSize",
+    ].sort();
+
+    const gameState = {getStory: () => ({getInversionConfig: () => ({invertX: false, invertY: false})})} as any;
+    // `_isLayered()` drives whether the resolvers contribute a src of their own; layered ones
+    // contribute style only, which is exactly the case under test.
+    const layered = <T,>(inst: T): T => {
+        (inst as any)._setPrevLayers(["a.png"]);
+        (inst as any)._setTargetLayers(["b.png"]);
+        return inst;
+    };
+    const everyTransition = () => [
+        new Dissolve(400),
+        new FadeIn(400, [30, 30]),
+        new Push({duration: 400}),
+        new SoftWipe({duration: 400}),
+        new SoftIris({duration: 400}),
+        new Blinds({duration: 400}),
+        new BlurDissolve({duration: 400}),
+        new Darkness(0, 0.5, 400),
+        MaskTransition.circle({duration: 400}),
+        ThroughColor.fade({duration: 400, color: "#000000"}),
+        ThroughColor.wipe({duration: 400, color: "#000000"}),
+        ThroughColor.iris({duration: 400, color: "#000000"}),
+        ThroughColor.blinds({duration: 400, color: "#000000"}),
+    ].map(layered);
+
+    it("writes nothing to a stack that the settled pose does not reset", () => {
+        const written = new Set<string>();
+        for (const inst of everyTransition()) {
+            const task = (inst as any).createTask(gameState);
+            for (const entry of task.resolve as ResolverEntry[]) {
+                // A bare function is ThroughColor's colour overlay: its own element, not a stack.
+                if (typeof entry === "function") continue;
+                for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+                    Object.keys(callWith(entry, t, t, t).style || {}).forEach(k => written.add(k));
+                }
+            }
+        }
+        expect([...written].sort()).toEqual(SETTLED_POSE_MUST_RESET);
+    });
+
+    it("resolves to a resting value at the end of its run", () => {
+        // Guards the normal path: completing a transition must itself land on the settled pose,
+        // so the reset is a safety net rather than something the happy path depends on.
+        for (const inst of everyTransition()) {
+            const task = (inst as any).createTask(gameState);
+            const target = (task.resolve as ResolverEntry[]).find(e => keyOf(e) === "target")!;
+            const style = callWith(target, 1, 0, 0).style;
+            if ("opacity" in style) expect(style.opacity, inst.constructor.name).toBe(1);
+            if ("translate" in style) {
+                // Identity, whatever unit it is spelled in (Push travels in vw/vh, FadeIn in px).
+                const axes = String(style.translate).split(" ").map(parseFloat);
+                expect(axes, inst.constructor.name).toEqual([0, 0]);
+            }
+        }
+    });
+});
 
 describe("built-in image transitions", () => {
     it("SoftWipe: one 0→1 channel, prev current + target feathered mask", () => {

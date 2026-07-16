@@ -80,12 +80,19 @@ LayerStack.displayName = "LayerStack";
    darkening the stack once is identical to darkening each layer, and it leaves the property free
    for a Darkness transition to animate.
 
-   This is also the stack's settled pose, re-applied once a transition ends, so it has to name
-   every property a transition may have written — a property left out keeps whatever the last
-   animation frame put there. `transform`/`translate` are spelled out for that reason: the stack
-   is positioned purely by `inset: 0` and carries no offset of its own, so anything a transition
-   leaves behind on them displaces the stack permanently. (The non-layered path gets this for
-   free: its settled style already resets `transform` and the insets.) */
+   This doubles as the stack's settled pose: it is re-applied on its own once a transition ends,
+   so it must name every property any transition writes to a stack. A property left out is not
+   neutral — it keeps whatever the last animation frame put there. That is survivable while a
+   transition completes (its final frame is the resting value anyway), but `cancel()` stops the
+   animation mid-flight without a final frame — an undo of an in-flight action does exactly this —
+   and the half-way value would then stick forever. So each one below is reset to the value that
+   means "no transition is acting on this": the stack carries no offset (`inset: 0` positions it)
+   and no mask of its own, so identity is `none` throughout, and group opacity lives on the
+   wrapper rather than here. Resetting is safe because a running transition's resolver output is
+   merged over this base, and a freshly mounted stack starts at these values regardless.
+
+   The non-layered path already gets this for free — its settled style resets `transform` and the
+   insets the same way. */
 function stackStyle(darkness: number): React.CSSProperties {
     return {
         willChange: "filter, opacity",
@@ -96,6 +103,10 @@ function stackStyle(darkness: number): React.CSSProperties {
         bottom: 0,
         transform: "none",
         translate: "none",
+        opacity: 1,
+        clipPath: "none",
+        maskImage: "none",
+        WebkitMaskImage: "none",
         filter: `brightness(${1 - darkness})`,
     };
 }
