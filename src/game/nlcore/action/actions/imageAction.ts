@@ -182,7 +182,10 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             };
             const exposed = state.getExposedStateForce<ExposedStateType.image>(this.callee);
 
-            if (duration && easing) {
+            // Only `duration` gates the animation: `Darkness` and the underlying `animate`
+            // both accept an undefined easing and fall back to their own default, so
+            // requiring one here would silently drop the duration and jump instead.
+            if (duration) {
                 const awaitable = new Awaitable<CalledActionResult>(v => v);
                 const transition = new Darkness(oldDarkness, darkness, duration, easing);
 

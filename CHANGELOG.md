@@ -53,6 +53,10 @@
 
 - `SavedGame`'s `store` field is now typed as what it actually holds. It was declared as unwrapped `StorableData` while carrying the tagged form, and that mismatch is what let the missing untag step type-check. The tagged shape is now public as `WrappedStorableData` / `SerializedNamespaceData`, since it is part of the save format rather than an implementation detail.
 
+- `image.darken(darkness, duration)` now animates over the duration instead of jumping. The animation was gated on an easing being passed as well, so the natural call — a duration and nothing else — silently discarded the duration and applied the new darkness instantly, with no warning. Easing was never required: the underlying transition and animator both accept an undefined easing and fall back to their own default, which is what every other timed method (`setFontSize`, `transform`, `pos`, …) already relied on. Passing an easing continues to work unchanged; only the duration-without-easing case is affected, and it now behaves the way the signature reads.
+
+- Undoing while an animation is still playing no longer strands the action that was playing. Actions run through `Control.all` / `any` / `doAsync` / `allAsync` execute on their own stack, and that stack waited on the running action in a way that only a *completed* action could satisfy — aborting one (which is what undo does to an animation in flight) left the stack parked on it forever. The stack was then never released, was written into subsequent saves, and was executed again when such a save was loaded, replaying an animation the player had already rewound past. These stacks now stop when the action they are waiting on is aborted, and the actions queued behind it — which the rewind has made unreachable — no longer run.
+
 ## [0.12.3]
 
 ### _Feature_

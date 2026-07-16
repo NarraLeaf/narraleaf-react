@@ -492,7 +492,24 @@ export class StackModel {
                         continue;
                     } else {
                         currentWaiting = result;
-                        await result;
+                        // Wait for the action to settle rather than awaiting it directly:
+                        // `Awaitable.abort()` deliberately does not run the `then` callbacks,
+                        // so `await result` would park here forever once an in-flight action is
+                        // aborted (undo landing mid-animation). This stack would then never
+                        // settle, never be dropped from LiveGame's asyncStackModels, and would
+                        // be serialized into the save and re-executed on load.
+                        await new Promise<void>(resolve => {
+                            result.onSettled(resolve);
+                        });
+                        if (result.isFailed()) {
+                            throw result.error;
+                        }
+                        if (result.isAborted()) {
+                            // The action was rewound or skipped, so whatever is queued behind it
+                            // is no longer reachable.
+                            exited = true;
+                            break;
+                        }
                     }
                 } else if (StackModel.isCalledActionResult(result)) {
                     if (result.wait) {
