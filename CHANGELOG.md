@@ -10,6 +10,10 @@
 
 - Texts now rescale when the stage does. A text is sized by the stage's scale factor, which is applied to its element as part of the same imperatively-written props, and nothing re-applied them on a resize. A text therefore kept the scale it was mounted at: it stayed the size it was while the stage around it grew or shrank, and only snapped to the correct size if a transition happened to repaint it. Images were never affected, since their dimensions are driven by React state that already follows the stage. The settled props of every displayable are now re-derived on each settled render and on every stage resize — alongside the pose self-healing that already ran there — so anything they are derived from converges instead of sticking at its mounted value.
 
+- Tag-based images now render. An image whose `src` is a `{groups, defaults, resolve}` definition drew nothing at all: the renderer read the image's current source straight out of its state, but for a tag image that state holds the *tags*, not a url, and a tag list is not a source — so it fell back to the empty placeholder. The image was invisible from the moment it was shown, and stayed invisible except during a transition, which carries sources it has already resolved and so painted the right thing until it ended, then reverted to the placeholder. Tags are now resolved through the image's own definition wherever the settled source is read. Layered images and static url/colour images were never affected.
+
+  `image.char(tags)` with no transition was also affected by the imperative-write bug above, and is fixed the same way. Note that preload only predicts an appearance change that names *every* group: after a partial change such as `char(["happy"])` — legal, and the recommended way to change one group — the resolved source is fetched when it is first shown rather than ahead of time, and warns that it was not preloaded. That gap predates this fix and was merely invisible while the image itself was; `scene.preloadImage(src)` registers such sources manually.
+
 ## [0.13.0]
 
 ### _Feature_

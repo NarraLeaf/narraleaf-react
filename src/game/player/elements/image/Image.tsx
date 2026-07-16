@@ -12,6 +12,7 @@ import {EventDispatcher} from "@lib/util/data";
 import {useExposeState} from "@player/lib/useExposeState";
 import {DisplayableElementRef} from "@player/elements/displayable/type";
 import {ExposedStateType} from "@player/type";
+import {Color, ImageSrc} from "@core/types";
 
 export type ImageEvents = {
     "event:image.onLoad": [];
@@ -118,6 +119,18 @@ export function stackStyle(darkness: number): React.CSSProperties {
     };
 }
 
+/* What a non-layered image paints when no transition owns it. `state.currentSrc` is not that:
+   a tag-src image stores its *tags* there, and only the image's own definition knows which url
+   they resolve to. A static image keeps its state as-is, so that a colour src (backgrounds) and
+   `StaticImageData` still reach the caller intact. A transition, by contrast, carries sources it
+   already resolved, so it never needs this. */
+function settledSrc(image: GameImage): Color | ImageSrc | undefined {
+    if (GameImage.isStaticSrc(image)) {
+        return image.state.currentSrc as Color | ImageSrc;
+    }
+    return GameImage.getSrcURL(image) ?? undefined;
+}
+
 /* The base style a transition's own element sits on, matching what a non-layered image uses. */
 const overlayStyle: React.CSSProperties = {
     position: "absolute",
@@ -191,7 +204,7 @@ export default function Image(
                 );
             }
 
-            const currentSrc = task ? task.transition._getCurrentSrc() : image.state.currentSrc;
+            const currentSrc = task ? task.transition._getCurrentSrc() : settledSrc(image);
             return [
                 {
                     style: {

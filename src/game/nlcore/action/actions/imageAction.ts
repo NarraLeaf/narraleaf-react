@@ -179,6 +179,11 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 stackModel: injection.stackModel
             }, handleUndo);
 
+            // Same imperative `src` as the setSrc branch — the tags resolve to a url only when the
+            // element is synced, and a re-render does not do that. The layered path above needs
+            // just the re-render, since its layers are a real React prop.
+            state.stage.update();
+            state.getExposedState<ExposedStateType.image>(this.callee)?.updateStyleSync();
             return super.executeAction(state, injection);
         } else if (this.type === ImageActionTypes.setDarkness) {
             const [darkness, duration, easing] = (this.contentNode as ContentNode<ImageActionContentType["image:setDarkness"]>).getContent();
