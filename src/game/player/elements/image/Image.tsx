@@ -78,7 +78,14 @@ LayerStack.displayName = "LayerStack";
 /* Written to a stack wrapper, so it covers the container and every layer inside centres on it.
    Brightness belongs here rather than on the layers: it scales RGB before compositing, so
    darkening the stack once is identical to darkening each layer, and it leaves the property free
-   for a Darkness transition to animate. */
+   for a Darkness transition to animate.
+
+   This is also the stack's settled pose, re-applied once a transition ends, so it has to name
+   every property a transition may have written — a property left out keeps whatever the last
+   animation frame put there. `transform`/`translate` are spelled out for that reason: the stack
+   is positioned purely by `inset: 0` and carries no offset of its own, so anything a transition
+   leaves behind on them displaces the stack permanently. (The non-layered path gets this for
+   free: its settled style already resets `transform` and the insets.) */
 function stackStyle(darkness: number): React.CSSProperties {
     return {
         willChange: "filter, opacity",
@@ -87,6 +94,8 @@ function stackStyle(darkness: number): React.CSSProperties {
         left: 0,
         right: 0,
         bottom: 0,
+        transform: "none",
+        translate: "none",
         filter: `brightness(${1 - darkness})`,
     };
 }

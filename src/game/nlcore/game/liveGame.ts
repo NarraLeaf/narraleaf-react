@@ -214,7 +214,12 @@ export class LiveGame {
         const [actionMaps, elementMaps] = this.constructMaps();
 
         // restore storable
-        this._storable.clear().load(store);
+        // Re-register the authored namespaces before applying the save: a save only carries
+        // the keys that existed when it was written, so loading into freshly defaulted
+        // namespaces is what lets a key added since then keep its default (and lets
+        // `reset()` still mean the author's defaults rather than the save's contents).
+        this.initNamespaces();
+        this._storable.load(store);
 
         // restore elements
         elementStates.forEach(({ id, data }) => {

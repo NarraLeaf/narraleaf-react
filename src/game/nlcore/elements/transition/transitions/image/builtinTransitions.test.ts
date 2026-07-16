@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {Blinds, BlurDissolve, Push, SoftIris, SoftWipe, ThroughColor} from "narraleaf-react";
+import {Blinds, BlurDissolve, FadeIn, Push, SoftIris, SoftWipe, ThroughColor} from "narraleaf-react";
 
 // The resolver entries produced by asPrev/asTarget are wrapped as
 // `{ resolver, key }`; a bare resolver (the through-colour overlay layer) is a
@@ -11,6 +11,12 @@ function call(entry: ResolverEntry, t: number): any {
 }
 function keyOf(entry: ResolverEntry): string | undefined {
     return typeof entry === "function" ? undefined : entry.key;
+}
+
+// For transitions driving more than one animation channel, where `call`'s single `t` won't do.
+function callWith(entry: ResolverEntry, ...args: number[]): any {
+    const fn = typeof entry === "function" ? entry : entry.resolver;
+    return fn(...args);
 }
 
 // The wrapped asPrev/asTarget resolvers merge the transition's prev/target src
@@ -76,6 +82,59 @@ describe("built-in image transitions", () => {
         expect(call(task.resolve[1], 1).style.translate).toBe("0vw 0px");
         expect(call(prepared(new Push({duration: 400, direction: "bottom"})).createTask().resolve[1] as ResolverEntry, 0).style.translate)
             .toBe("0px -100vh");
+    });
+
+    describe("FadeIn", () => {
+        // createTask only reads the story's inversion config off the game state.
+        const gameStateWith = (invertX: boolean, invertY: boolean) => ({
+            getStory: () => ({getInversionConfig: () => ({invertX, invertY})}),
+        }) as any;
+        const fadeIn = (startPos: [number, number] = [120, -80], invertX = false, invertY = false) =>
+            prepared(new FadeIn(700, startPos)).createTask(gameStateWith(invertX, invertY));
+
+        it("one opacity channel plus an x/y offset channel, prev current + target", () => {
+            const task = fadeIn() as any;
+            expect(task.animations).toHaveLength(3);
+            expect(task.animations[0]).toMatchObject({start: 0, end: 1, duration: 700});
+            expect(task.animations[1]).toMatchObject({start: 120, end: 0});
+            expect(task.animations[2]).toMatchObject({start: -80, end: 0});
+            expect(task.resolve).toHaveLength(2);
+            expect(keyOf(task.resolve[0])).toBe("current");
+            expect(keyOf(task.resolve[1])).toBe("target");
+        });
+
+        // Writing `transform`/`left`/`top` would overwrite the driven element's base positioning.
+        // On a layered image the driven element is the stack wrapper, whose settled pose carries no
+        // offset of its own, so a leftover `transform` there outlives the crossfade and displaces
+        // the stack for good.
+        it("offsets via the independent `translate` property, never `transform` or insets", () => {
+            const style = callWith(fadeIn().resolve[1] as ResolverEntry, 0, 120, -80).style;
+            expect(style.translate).toBe("120px -80px");
+            expect(style.transform).toBeUndefined();
+            expect(style.left).toBeUndefined();
+            expect(style.top).toBeUndefined();
+            expect(style.right).toBeUndefined();
+            expect(style.bottom).toBeUndefined();
+        });
+
+        it("travels from the start offset to the identity at rest", () => {
+            const target = fadeIn().resolve[1] as ResolverEntry;
+            expect(callWith(target, 0, 120, -80).style).toMatchObject({opacity: 0, translate: "120px -80px"});
+            expect(callWith(target, 1, 0, 0).style).toMatchObject({opacity: 1, translate: "0px 0px"});
+        });
+
+        it("defaults to no travel at all, only the fade", () => {
+            const target = fadeIn([0, 0]).resolve[1] as ResolverEntry;
+            expect(callWith(target, 0, 0, 0).style.translate).toBe("0px 0px");
+            expect(callWith(target, 1, 0, 0).style.translate).toBe("0px 0px");
+        });
+
+        it("negates the offset on an inverted axis, which measures from the far edge", () => {
+            expect(callWith(fadeIn([120, -80], true, false).resolve[1] as ResolverEntry, 0, 120, -80).style.translate)
+                .toBe("-120px -80px");
+            expect(callWith(fadeIn([120, -80], false, true).resolve[1] as ResolverEntry, 0, 120, -80).style.translate)
+                .toBe("120px 80px");
+        });
     });
 
     describe("ThroughColor", () => {

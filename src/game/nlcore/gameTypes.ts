@@ -1,6 +1,6 @@
 import { LogicAction } from "@core/action/logicAction";
 import { ContentNode, RawData } from "@core/action/tree/actionTree";
-import { StorableData } from "@core/elements/persistent/type";
+import { SerializedNamespaceData } from "@core/elements/persistent/type";
 import { ElementStateRaw } from "@core/elements/story";
 import { StringKeyOf } from "@lib/util/data";
 import { PlayerStateData } from "@player/gameState";
@@ -41,7 +41,7 @@ export interface SavedGame {
     name: string;
     meta: SavedGameMetaData;
     game: {
-        store: { [key: string]: StorableData; };
+        store: { [key: string]: SerializedNamespaceData; };
         elementStates: RawData<ElementStateRaw>[];
         stage: PlayerStateData;
         services: { [key: string]: unknown; };

@@ -39,6 +39,18 @@
 
   Every reachable layer src is registered for preload up-front. Because layers are independent this is the sum of the variants rather than their cross product, so a layered image needs no appearance prediction and never warns about an unpredicted source. Sources returned by a resolver layer are opaque and must be registered with `scene.preloadImage` if they are not used by another layer.
 
+### Fixed
+
+- `FadeIn` no longer displaces the image it fades in. The transition positioned its target by writing `transform: translate(-50%, 50%)` — the wrong sign on the y axis, so the incoming image was drawn a full height too low for the length of the fade. On a layered image it also outlived the fade: `transform` overwrites the driven element's base positioning rather than composing with it, and a stack wrapper is positioned purely by `inset: 0`, so nothing in the settled style overwrote the leftover value and the stack stayed parked half its width to the left and half its height down. The offset now rides on the independent CSS `translate` property, which composes additively with the base positioning and is the identity at rest — matching how `Push` already does it. A stack's settled style also resets `transform`/`translate` explicitly now, so a transition can no longer leave a lasting offset behind.
+
+- Loading a saved game no longer corrupts every stored value. Values are tagged with their type on the way into a save so that `Date` survives JSON, but the read paths assigned the raw tagged form straight back into the namespace instead of untagging it. Every value therefore came back as its `{type, data}` wrapper rather than the value itself: a saved number never compared equal to a number, a `Date` came back as an object holding a string, and — worst of the three — a saved `false` came back as an object, which is truthy, so a load could silently flip a false story flag to true and take the opposite branch. This affected `Persistent` namespaces, `scene.local`, and the scene snapshots behind undo, all of which shared the same faulty path.
+
+  Saves written by earlier versions read correctly again, with one exception: a save produced by *saving after loading* on an affected version had its values tagged twice on disk, and that second tag cannot be told apart from a value the game legitimately stored. Such saves are not repaired.
+
+- Authored defaults now survive loading a save. Restoring a save rebuilt each namespace out of the save data alone, which discarded the defaults passed to `Persistent`. As a result `reset()` restored the save's contents instead of the author's defaults, and any key added to a `Persistent` after a save was written read back as `undefined` rather than its default. Saves are now layered over freshly initialized namespaces, so a key the save predates keeps its default and `reset()` means what it says.
+
+- `SavedGame`'s `store` field is now typed as what it actually holds. It was declared as unwrapped `StorableData` while carrying the tagged form, and that mismatch is what let the missing untag step type-check. The tagged shape is now public as `WrappedStorableData` / `SerializedNamespaceData`, since it is part of the save format rather than an implementation detail.
+
 ## [0.12.3]
 
 ### _Feature_
