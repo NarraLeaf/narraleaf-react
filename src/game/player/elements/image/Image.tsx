@@ -92,8 +92,11 @@ LayerStack.displayName = "LayerStack";
    merged over this base, and a freshly mounted stack starts at these values regardless.
 
    The non-layered path already gets this for free — its settled style resets `transform` and the
-   insets the same way. */
-function stackStyle(darkness: number): React.CSSProperties {
+   insets the same way.
+
+   `layeredStackStyle.test.ts` pins this list against what the built-in transitions actually
+   write, so a transition cannot start writing a property without this naming it. */
+export function stackStyle(darkness: number): React.CSSProperties {
     return {
         willChange: "filter, opacity",
         position: "absolute",
@@ -107,6 +110,10 @@ function stackStyle(darkness: number): React.CSSProperties {
         clipPath: "none",
         maskImage: "none",
         WebkitMaskImage: "none",
+        maskSize: "auto",
+        WebkitMaskSize: "auto",
+        maskRepeat: "repeat",
+        WebkitMaskRepeat: "repeat",
         filter: `brightness(${1 - darkness})`,
     };
 }
