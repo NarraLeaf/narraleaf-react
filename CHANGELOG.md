@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.13.1]
+
+### Fixed
+
+- Changing an image's source without a transition now actually shows the new image. `scene.setBackground(src)` and `image.char(src)` updated the image's state and re-rendered, but a plain image's `src` is written to the DOM imperatively rather than passed down as a React prop, and the only things that write it are a running transition and the state sync that the re-render never triggered. The new source was therefore stored, saved, and reported correctly while the old image stayed on screen — the swap only became visible once some later action with a transition happened to repaint the element. Passing a transition was never affected, which is what made the instant form look like it worked everywhere except where it mattered.
+
+- `text.setFontSize(size)` now applies the size instead of storing it. The same imperative write is behind this one: a text's font size reaches its element only when the displayable's props are synced, which re-rendering does not do. Passing a duration animates the size through a transition and was never affected, so — as with images — it was exactly the instant form, the one that reads like it could not fail, that silently did nothing.
+
+- Texts now rescale when the stage does. A text is sized by the stage's scale factor, which is applied to its element as part of the same imperatively-written props, and nothing re-applied them on a resize. A text therefore kept the scale it was mounted at: it stayed the size it was while the stage around it grew or shrank, and only snapped to the correct size if a transition happened to repaint it. Images were never affected, since their dimensions are driven by React state that already follows the stage. The settled props of every displayable are now re-derived on each settled render and on every stage resize — alongside the pose self-healing that already ran there — so anything they are derived from converges instead of sticking at its mounted value.
+
 ## [0.13.0]
 
 ### _Feature_

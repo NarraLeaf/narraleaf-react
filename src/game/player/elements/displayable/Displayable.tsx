@@ -143,6 +143,13 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             return;
         }
         Object.assign(ref.current.style, state.toStyle(gameState, overwriteDefinition));
+        // The groups' props are derived from state that outlives a single render — a text's font
+        // size and, notably, the stage scale every text is sized by — but they only reach the DOM
+        // when this hook writes them, so a settled element whose inputs changed keeps painting the
+        // old ones. Re-deriving them here, next to the wrapper's pose and under the same
+        // no-animation guard, is what makes them converge: a running animation owns these
+        // properties and re-applies its own values on every frame anyway.
+        updateStyleSync();
     };
     useLayoutEffect(() => {
         healSettledStyleRef.current();
@@ -166,13 +173,15 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         if (!refs.current || !refs.current.length) {
             throw new RuntimeGameError("Displayable: Transition group refs are not initialized correctly");
         }
+        // The groups are legitimately ref-less between a render that replaces them and the commit
+        // that re-attaches them — `resetRefs` does exactly this when a transition ends, and an
+        // action running off the transition's `resolve` lands right in that window. Skipping is
+        // safe (and the only option that isn't a crash): the pending commit's layout effect calls
+        // this again, and it re-reads the props, so nothing is lost by not writing them twice.
         if (refs.current.some(([ref]) => !ref.current)) {
-            throw new RuntimeGameError("Displayable: Trying to access transition groups before they are mounted");
+            return;
         }
         refs.current.forEach(([ref], index) => {
-            if (!ref.current) {
-                throw new RuntimeGameError("Displayable: Trying to assign properties to unmounted element");
-            }
             assignProperties(ref, evaluatedTransProps[index] || evaluatedTransProps[evaluatedTransProps.length - 1] || {});
         });
     }

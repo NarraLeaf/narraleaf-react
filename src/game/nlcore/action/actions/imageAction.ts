@@ -81,7 +81,13 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                 this.callee.state.currentSrc = oldSrc;
             }, [oldSrc]);
 
+            // A non-layered image's `src`/`backgroundColor` is written imperatively (the rendered
+            // `<img>` never receives them as React props), and the only writers are the transition
+            // resolver and `updateStyleSync`. So a re-render alone leaves the old image on screen:
+            // without this call, a srcless swap — `setBackground(src)` / `char(src)` with no
+            // transition — mutates the state and paints nothing.
             state.stage.update();
+            state.getExposedState<ExposedStateType.image>(this.callee)?.updateStyleSync();
             return super.executeAction(state, injection);
         } else if (this.type === ImageActionTypes.flush) {
             return super.executeAction(state, injection);
