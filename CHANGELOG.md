@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.13.2]
+
+### Fixed
+
+- Advancing the dialogue no longer slows down — or, with several images on screen, risks freezing — as more elements are added to a scene. Every on-stage image re-derived its own size on each render, and doing so could schedule another render, so a single "next" fanned out into repeated re-renders across every image; a busy enough scene reached React's update-depth limit and threw. An image now skips re-applying a size it has already applied, which breaks that loop. How images look and animate is unchanged.
+
+- Advancing now responds on key press rather than release, and holding the advance key no longer runs through several lines at once: the operating system's key auto-repeat is ignored, so one physical press advances once. Applies to both the standard dialog and NVL mode.
+
+### Changed
+
+- `skipDelay` now defaults to `0` (was `500`). Pressing the skip key takes effect immediately by default; set `skipDelay` in preferences to reintroduce a delay between skipped actions.
+
+### Performance
+
+- The image element is memoized, so a stage update — advancing a line, for instance — no longer re-renders every on-stage image. Only an image whose own transform or transition is running repaints. In scenes with several characters this measurably cuts the work done per advance.
+
 ## [0.13.1]
 
 ### Fixed
