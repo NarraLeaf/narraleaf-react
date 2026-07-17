@@ -20,6 +20,13 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
     const {ratio} = useRatio();
     const [width, setWidth] = React.useState<number>(() => ratio.state.width);
     const [height, setHeight] = React.useState<number>(() => ratio.state.height);
+    // Remember the last size we actually applied. `updateWidth` is re-invoked on every settled
+    // render (the sizing effect re-runs whenever the parent hands it a fresh `onSizeChanged`
+    // closure), and it calls `onSizeChanged` -> `handleWidthChange` -> `emit(onLoad)`, which can
+    // schedule another render. When the computed size hasn't changed, repeating that work does
+    // nothing but feed a render loop that amplifies with the number of on-stage images. Skipping the
+    // redundant apply keeps the element correct while breaking the loop.
+    const lastAppliedRef = useRef<{ w: number; h: number; ar: string } | null>(null);
     const game = useGame();
     const isLoadedRef = useRef(false);
     const loadPromiseRef = useRef<Promise<void> | null>(null);
@@ -94,30 +101,33 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
 
     function updateWidth() {
         if (imgRef.current && imgRef.current.naturalWidth) {
+            let newWidth: number;
+            let newHeight: number;
+            let newAspectRatio: string;
             if (imgRef.current.naturalWidth * imgRef.current.naturalHeight === 1) {
-                const newWidth = ratio.state.width;
-                const newHeight = ratio.state.height;
-                const newAspectRatio = `${newWidth} / ${newHeight}`;
-
-                setWidth(newWidth);
-                setHeight(newHeight);
-                imgRef.current.style.aspectRatio = newAspectRatio;
-
-                if (onSizeChanged) {
-                    onSizeChanged(newWidth, newHeight);
-                }
+                newWidth = ratio.state.width;
+                newHeight = ratio.state.height;
+                newAspectRatio = `${newWidth} / ${newHeight}`;
             } else {
                 const autoFitFactorWidth = autoFit ? (game.config.width / imgRef.current.naturalWidth) : 1;
-                const newWidth = imgRef.current.naturalWidth * ratio.state.scale * autoFitFactorWidth;
-                const newHeight = imgRef.current.naturalHeight * ratio.state.scale * autoFitFactorWidth;
+                newWidth = imgRef.current.naturalWidth * ratio.state.scale * autoFitFactorWidth;
+                newHeight = imgRef.current.naturalHeight * ratio.state.scale * autoFitFactorWidth;
+                newAspectRatio = "auto";
+            }
 
-                setWidth(newWidth);
-                setHeight(newHeight);
-                imgRef.current.style.aspectRatio = "auto";
+            // Nothing changed since we last applied — repeating the work only risks a render loop.
+            const last = lastAppliedRef.current;
+            if (last && last.w === newWidth && last.h === newHeight && last.ar === newAspectRatio) {
+                return;
+            }
+            lastAppliedRef.current = { w: newWidth, h: newHeight, ar: newAspectRatio };
 
-                if (onSizeChanged) {
-                    onSizeChanged(newWidth, newHeight);
-                }
+            setWidth(newWidth);
+            setHeight(newHeight);
+            imgRef.current.style.aspectRatio = newAspectRatio;
+
+            if (onSizeChanged) {
+                onSizeChanged(newWidth, newHeight);
             }
         }
     }
