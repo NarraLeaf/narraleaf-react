@@ -145,7 +145,7 @@ const overlayStyle: React.CSSProperties = {
 };
 
 /**@internal */
-export default function Image(
+function ImageComponent(
     {
         image,
         state,
@@ -336,4 +336,11 @@ export default function Image(
             </div>
         </motion.div>
     );
-};
+}
+
+// A stage `flush()` re-renders the whole Player tree, but an Image's props (`image`, `state`) are
+// stable across it — the element only needs to repaint when its own transform/transition fires,
+// which it drives through its internal `useFlush`. Memoizing decouples it from the global cascade,
+// so N on-stage images no longer all re-render (and re-run their sizing effects) on every advance.
+const Image = React.memo(ImageComponent);
+export default Image;
