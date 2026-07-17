@@ -46,12 +46,14 @@ function BaseDialog({
             return;
         }
 
-        const handleKeyUp = (e: KeyboardEvent) => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore OS auto-repeat so holding the key advances only once per press
+            if (e.repeat) return;
             if (game.keyMap.match(KeyBindingType.nextAction, e.key)) {
                 dialog.requestComplete();
             }
         };
-        window.addEventListener("keyup", handleKeyUp);
+        window.addEventListener("keydown", handleKeyDown);
 
         const token = dialog.events.on(DialogState.Events.simulateClick, () => {
             if (dialogRef.current) {
@@ -60,7 +62,7 @@ function BaseDialog({
         });
 
         return () => {
-            window.removeEventListener("keyup", handleKeyUp);
+            window.removeEventListener("keydown", handleKeyDown);
             token.cancel();
         };
     }, [dialog, nextKeyBinding]);

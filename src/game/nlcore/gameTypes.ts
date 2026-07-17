@@ -399,7 +399,7 @@ export type GamePreference = {
      * This is used to prevent the game from skipping actions too quickly when the player presses the skip key.
      *
      * Set to 0 to skip actions immediately when the player presses the skip key.
-     * @default 500
+     * @default 0
      */
     skipDelay: number;
     /**

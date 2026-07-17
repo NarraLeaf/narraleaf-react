@@ -74,7 +74,7 @@ export class Game {
         bgmVolume: 1,
         soundVolume: 1,
         globalVolume: 1,
-        skipDelay: 500,
+        skipDelay: 0,
         skipInterval: 100,
     };
     /**@internal */

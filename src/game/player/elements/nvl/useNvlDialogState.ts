@@ -66,7 +66,9 @@ export function useNvlDialogState({
         if (!isActive) {
             return;
         }
-        const handleKeyUp = (event: KeyboardEvent) => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            // Ignore OS auto-repeat so holding the key advances only once per press
+            if (event.repeat) return;
             if (!game.keyMap.match(KeyBindingType.nextAction, event.key)) {
                 return;
             }
@@ -77,12 +79,12 @@ export function useNvlDialogState({
         };
 
         if (game.config.useWindowListener) {
-            const token = game.getLiveGame().onWindowEvent("keyup", handleKeyUp);
+            const token = game.getLiveGame().onWindowEvent("keydown", handleKeyDown);
             return () => {
                 token.cancel();
             };
         }
-        const token = game.getLiveGame().onPlayerEvent("keyup", handleKeyUp);
+        const token = game.getLiveGame().onPlayerEvent("keydown", handleKeyDown);
         return () => {
             token.cancel();
         };
