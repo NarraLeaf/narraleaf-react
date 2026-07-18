@@ -1,4 +1,3 @@
-import {CommonDisplayableConfig} from "@core/types";
 import {LogicAction} from "@core/action/logicAction";
 import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {TransformState} from "@core/elements/transform/transform";
@@ -21,7 +20,7 @@ import {Scene} from "@core/elements/scene";
 import { Serializer } from "@lib/util/data";
 import { Chained, Proxied } from "../action/chain";
 
-export interface ILayerUserConfig extends CommonDisplayableConfig {
+export interface ILayerUserConfig extends TransformDefinitions.ImageTransformProps {
     /**
      * The z-index of the layer, higher z-index will be rendered on top of the lower z-index, allows negative values.
      *
@@ -42,6 +41,7 @@ type LayerState = {
 /**@internal */
 type LayerDataRaw = {
     state: Record<string, any>;
+    transformState: Record<string, any>;
 };
 
 export class Layer
@@ -86,6 +86,15 @@ export class Layer
     /**@internal */
     private userConfig: Config<ILayerUserConfig>;
 
+    /**
+     * Create a layer that can host displayables.
+     * @param name - Optional layer name for debugging.
+     * @param config - Optional config, e.g., `zIndex`.
+     * @example
+     * ```ts
+     * const layer = new Layer("background", { zIndex: -1 });
+     * ```
+     */
     constructor(name?: string, config: Partial<ILayerUserConfig> = {}) {
         super();
         const userConfig = Layer.DefaultUserConfig.create(config);
@@ -101,9 +110,13 @@ export class Layer
     }
 
     /**
-     * Include displayables in the layer.
-     *
-     * Same as {@link Displayable.useLayer}
+     * Include displayables in this layer (alias of `Displayable.useLayer`).
+     * @param elements - Image or text elements to attach.
+     * @returns This layer for chaining.
+     * @example
+     * ```ts
+     * layer.include(image);
+     * ```
      */
     public include(elements: (Image | Text)[] | Image | Text): this {
         const e = Array.isArray(elements) ? elements : [elements];
@@ -114,11 +127,9 @@ export class Layer
     }
 
     /**
-     * Set the z-index of the layer
-     * 
+     * Set the z-index of the layer.
+     * @param zIndex - The z-index of the layer.
      * @chainable
-     * @param zIndex - The z-index of the layer
-     * @returns The layer itself
      */
     public setZIndex(zIndex: number): Proxied<Layer, Chained<LogicAction.Actions>> {
         return this.chain(new LayerAction(
@@ -132,12 +143,15 @@ export class Layer
     public toData(): LayerDataRaw | null {
         return {
             state: Layer.StateSerializer.serialize(this.state),
+            transformState: this.transformState.serialize(),
         };
     }
 
     /**@internal */
     public fromData(data: LayerDataRaw): this {
         this.state = Layer.StateSerializer.deserialize(data.state);
+        this.transformState =
+            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState);
         return this;
     }
 

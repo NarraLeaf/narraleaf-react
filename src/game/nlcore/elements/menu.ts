@@ -55,6 +55,12 @@ export class Menu extends Actionable<any, Menu> {
      * Create a menu with a prompt
      * @param prompt - The prompt to display to the player
      * @returns A new menu
+     * @example
+     * ```ts
+     * Menu.prompt("What should I do?").choose("Go left", [
+     *   character.say("I went left")
+     * ]);
+     * ```
      */
     public static prompt(prompt: SentencePrompt | Sentence | null | undefined, config: MenuConfig = {}): Menu {
         return new Menu(
@@ -81,11 +87,15 @@ export class Menu extends Actionable<any, Menu> {
     }
 
     /**
-     * Add a choice to the menu
+     * Add a choice to the menu.
+     * @param choice - A `MenuChoice` or pair of `Sentence`/prompt and actions.
+     * @param action - Optional statement list when the first argument is a prompt.
      * @example
+     * ```ts
      * menu.choose("Go left", [
      *     character.say("I went left")
      * ]);
+     * ```
      * @chainable
      */
     public choose(choice: MenuChoice): Proxied<Menu, Chained<LogicAction.Actions>>;
@@ -117,14 +127,12 @@ export class Menu extends Actionable<any, Menu> {
     }
 
     /**
-     * Magic method to hide the last choice if the condition is true
+     * Magic method to hide the last choice if the condition is true.
+     * @param condition - Condition used to decide whether to hide.
      * @example
      * ```ts
-     * menu.choose(
-     *   // ...
-     * ).hideIf(persis.isTrue("flag"));
+     * menu.choose(...).hideIf(persis.isTrue("flag"));
      * ```
-     * 
      * **Note**: This method will override the last choice's config.hidden
      */
     public hideIf(condition: Lambda<boolean> | LambdaHandler<boolean>): Proxied<Menu, Chained<LogicAction.Actions>> {
@@ -137,12 +145,11 @@ export class Menu extends Actionable<any, Menu> {
     }
 
     /**
-     * Magic method to disable the last choice if the condition is true
+     * Magic method to disable the last choice if the condition is true.
+     * @param condition - Condition used to disable the choice.
      * @example
      * ```ts
-     * menu.choose(
-     *   // ...
-     * ).disableIf(persis.isTrue("flag"));
+     * menu.choose(...).disableIf(persis.isTrue("flag"));
      * ```
      */
     public disableIf(condition: Lambda<boolean> | LambdaHandler<boolean>): Proxied<Menu, Chained<LogicAction.Actions>> {
@@ -155,7 +162,10 @@ export class Menu extends Actionable<any, Menu> {
     }
 
     /**
-     * Add a choice, only enable when the condition is true
+     * Add a choice that is enabled only when the condition is true.
+     * @param condition - Condition guarding the choice.
+     * @param prompt - Prompt when presenting the choice.
+     * @param action - Actions executed when the choice is selected.
      * @example
      * ```ts
      * menu.enableWhen(persis.isTrue("flag"), "Go left", [
@@ -174,7 +184,10 @@ export class Menu extends Actionable<any, Menu> {
     }
 
     /**
-     * Add a choice, only show when the condition is true
+     * Add a choice that is visible only when the condition is true.
+     * @param condition - Condition that controls visibility.
+     * @param prompt - Prompt displayed for the choice.
+     * @param action - Actions executed when the choice is selected.
      * @example
      * ```ts
      * menu.showWhen(persis.isTrue("flag"), "Go left", [

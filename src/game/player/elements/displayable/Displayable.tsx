@@ -8,6 +8,7 @@ import {
     TransitionTask
 } from "@core/elements/transition/type";
 import {useFlush} from "@player/lib/flush";
+import {useRatio} from "@player/provider/ratio";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Awaitable, deepMerge, KeyGen, SkipController} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
@@ -44,12 +45,12 @@ type TransitionTaskWithController<TransitionType extends Transition<U>, U extend
 export type DisplayableHookResult<TransitionType extends Transition<U>, U extends HTMLElement> = {
     transformRef: React.RefObject<HTMLDivElement | null>;
     transitionRefs: DisplayableRefGroup<U>[];
-    isTransforming: boolean;
     transitionTask: TransitionTaskWithController<TransitionType, U> | null;
     initDisplayable: (resolve: () => void) => Timeline;
     applyTransform: (transform: Transform, resolve: () => void) => Timeline;
     applyTransition: (transition: Transition, resolve: () => void) => Timeline;
     updateStyleSync: () => void;
+    flush: () => void;
     deps: React.DependencyList;
 };
 
@@ -96,7 +97,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         }
 
         const {controller, task} = transitionTask;
-        const eventToken = controller.onUpdate((values: AnimationDataTypeArray<TransitionAnimationType[]>) => {
+        const applyFrame = (values: AnimationDataTypeArray<TransitionAnimationType[]>) => {
             refs.current.forEach(([ref], i) => {
                 const currentResolve = task.resolve[i];
                 const resolver = typeof currentResolve === "function" ? currentResolve : currentResolve.resolver;
@@ -113,9 +114,36 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
                 );
                 assignProperties(ref, propOverwrite ? propOverwrite(mergedProps) : mergedProps);
             });
+        };
+        const eventToken = controller.onUpdate(applyFrame);
+
+        // Paint the exact start pose before the animation is allowed to run. The resolvers are
+        // the only source of some of the groups' props — notably the incoming element's `src` —
+        // so without this frame the target sits unstyled (and srcless) until the first
+        // animation tick, and the load gate below would deadlock on an image that was never
+        // given a source.
+        applyFrame(task.animations.map((animation) => animation.start) as AnimationDataTypeArray<TransitionAnimationType[]>);
+
+        // Gate the start on every group being loaded and decoded. The gate must be taken here,
+        // in the commit that mounted the groups: `applyTransition` replaces the refs before
+        // React attaches them, so a gate taken there reads `null` refs and waits on nothing —
+        // which is exactly how transitions used to race their images' decodes and reveal blank
+        // frames. `stale` covers replacement/unmount; a settled or cancelled controller makes
+        // `start()` a no-op on its own.
+        let stale = false;
+        Promise.all(refs.current.map(([ref]) => {
+            const loadableElement = ref.current;
+            return loadableElement?.waitForLoad ? loadableElement.waitForLoad() : Promise.resolve();
+        })).then(() => {
+            if (!stale) {
+                controller.start();
+            }
         });
 
-        return eventToken.cancel;
+        return () => {
+            stale = true;
+            eventToken.cancel();
+        };
     }, [transitionTask]);
 
     useEffect(() => {
@@ -131,6 +159,41 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         gameState.logger.debug("Displayable", "Initial style applied", ref.current, initialStyle);
     }, []);
 
+    // Self-heal the wrapper's settled style whenever no animation owns the element. The wrapper's
+    // transform is written imperatively by `transform.animate` / layout projection; an interrupted
+    // animation (or motion's layout cleanup) can leave a stale or cleared `transform` behind, which
+    // shows up as a permanently mispositioned displayable — especially after the stage container
+    // resizes mid-animation. Re-deriving from the TransformState (the source of truth) on each
+    // settled render makes any such corruption converge back to the correct pose.
+    const healSettledStyleRef = useRef<() => void>(() => undefined);
+    healSettledStyleRef.current = () => {
+        if (transformToken || transitionTask || !ref.current) {
+            return;
+        }
+        Object.assign(ref.current.style, state.toStyle(gameState, overwriteDefinition));
+        // The groups' props are derived from state that outlives a single render — a text's font
+        // size and, notably, the stage scale every text is sized by — but they only reach the DOM
+        // when this hook writes them, so a settled element whose inputs changed keeps painting the
+        // old ones. Re-deriving them here, next to the wrapper's pose and under the same
+        // no-animation guard, is what makes them converge: a running animation owns these
+        // properties and re-applies its own values on every frame anyway.
+        updateStyleSync();
+    };
+    useLayoutEffect(() => {
+        healSettledStyleRef.current();
+    });
+
+    // Stage resizes are when layout projection touches wrapper transforms, and projection cleanup
+    // can land after this component's last render — heal on every ratio update, plus one frame
+    // later to catch that trailing cleanup.
+    const {ratio} = useRatio();
+    useEffect(() => {
+        return ratio.onUpdate(() => {
+            healSettledStyleRef.current();
+            requestAnimationFrame(() => healSettledStyleRef.current());
+        });
+    }, [ratio]);
+
     function updateStyleSync() {
         const evaluatedTransProps = typeof transitionsProps === "function"
             ? transitionsProps(transitionTask)
@@ -138,13 +201,15 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         if (!refs.current || !refs.current.length) {
             throw new RuntimeGameError("Displayable: Transition group refs are not initialized correctly");
         }
+        // The groups are legitimately ref-less between a render that replaces them and the commit
+        // that re-attaches them — `resetRefs` does exactly this when a transition ends, and an
+        // action running off the transition's `resolve` lands right in that window. Skipping is
+        // safe (and the only option that isn't a crash): the pending commit's layout effect calls
+        // this again, and it re-reads the props, so nothing is lost by not writing them twice.
         if (refs.current.some(([ref]) => !ref.current)) {
-            throw new RuntimeGameError("Displayable: Trying to access transition groups before they are mounted");
+            return;
         }
         refs.current.forEach(([ref], index) => {
-            if (!ref.current) {
-                throw new RuntimeGameError("Displayable: Trying to assign properties to unmounted element");
-            }
             assignProperties(ref, evaluatedTransProps[index] || evaluatedTransProps[evaluatedTransProps.length - 1] || {});
         });
     }
@@ -238,8 +303,18 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         controller.onCanceled(() => {
             timeline.abort();
             setTransitionTask(null);
-            
+
             gameState.logger.debug("Displayable", "Transition cancelled", newTransition);
+        });
+        // Registered before the animation can possibly start: completion can be requested while
+        // the transition is still gated on its elements loading (a skip, or the next transition
+        // interrupting this one), and it must settle this task either way.
+        controller.onComplete(() => {
+            resetRefs();
+            setTransitionTask(null);
+            onTransition?.(newTransition);
+            resolve();
+            awaitable.resolve();
         });
         gameState.timelines.attachTimeline(timeline);
         setTransitionTask({
@@ -271,26 +346,9 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         }
         currentKey.current = nextKey;
 
-        // Wait for all elements to load before starting the animation
-        const loadPromises = refs.current.map(([ref]) => {
-            const loadableElement = ref.current;
-            if (loadableElement?.waitForLoad) {
-                return loadableElement.waitForLoad();
-            }
-            return Promise.resolve();
-        });
-
-        Promise.all(loadPromises).then(() => {
-            controller.start();
-            controller.onComplete(() => {
-                resetRefs();
-                setTransitionTask(null);
-                onTransition?.(newTransition);
-                resolve();
-                awaitable.resolve();
-            });
-        });
-
+        // The animation is not started here: the transition's groups only mount in the commit
+        // that renders this task, so the layout effect that sees them mounted applies the start
+        // frame and starts the controller once every element has loaded.
         return timeline;
     }
 
@@ -328,12 +386,12 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     return {
         transformRef: ref,
         transitionRefs: refs.current,
-        isTransforming: !!transformToken,
         transitionTask,
         initDisplayable,
         applyTransform,
         applyTransition: applyTransition as (transition: Transition, resolve: () => void) => Timeline,
         updateStyleSync,
+        flush,
         deps: [transformToken, transitionTask, refs],
     };
 }

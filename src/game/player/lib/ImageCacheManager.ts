@@ -20,6 +20,25 @@ export class ImageCacheManager {
         });
     }
 
+    /**
+     * Decode an image source off-screen so the browser's decoded-image cache is warm before
+     * the source is ever attached to a visible `<img>`. Without this, "preloaded" only means
+     * the bytes are cached — the first reveal still pays the (async) decode cost and can paint
+     * a blank frame. Decode failures are ignored: the image then simply decodes lazily on
+     * first paint, exactly as before.
+     */
+    private static decodeImage(src: string): Promise<void> {
+        if (typeof window === "undefined" || typeof window.Image === "undefined") {
+            return Promise.resolve();
+        }
+        const image = new window.Image();
+        image.src = src;
+        if (typeof image.decode !== "function") {
+            return Promise.resolve();
+        }
+        return image.decode().catch(() => void 0);
+    }
+
     private src: Map<string, string> = new Map();
     private preloadTasks: Map<string, ImageCacheTask> = new Map();
 
@@ -88,13 +107,20 @@ export class ImageCacheManager {
         const signal = controller.signal;
         const errorHandlers: ((reason: any) => void)[] = [];
 
-        const promise = ImageCacheManager.getImage(srcUrl, signal, options).then((dataUrl) => {
+        const promise = ImageCacheManager.getImage(srcUrl, signal, options).then(async (dataUrl) => {
             this.preloadTasks.delete(url);
             if (dataUrl) {
                 this.add(url, dataUrl);
+                // Decode ahead of time (against the exact URL that will be assigned to
+                // `<img src>`) so revealing the image later doesn't decode on its first
+                // visible frame.
+                await ImageCacheManager.decodeImage(dataUrl);
             }
         })
             .catch((reason) => {
+                // Drop the failed task so the URL isn't stuck in "preloading" forever —
+                // otherwise every later preload() of the same URL no-ops and never retries.
+                this.preloadTasks.delete(url);
                 gameState.logger.error(
                     "ImageCacheManager",
                     `Failed to preload image: ${url}`,

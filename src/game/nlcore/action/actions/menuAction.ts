@@ -21,6 +21,7 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             }));
         const timeline = gameState.timelines.attachTimeline(awaitable);
         const menu = this.contentNode.getContent() as MenuData;
+        const presentationSnapshot = gameState.createPresentationSnapshot();
 
         let cleanup: (() => void) | null = null;
 
@@ -33,7 +34,7 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             ]);
             awaitable.resolve({
                 type: this.type,
-                node: null,
+                node: this.contentNode.getChild(),
                 wait: {
                     type: "all",
                     stackModels: [stackModel]
@@ -59,6 +60,7 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
         }, () => {
             token.cancel();
             cleanup?.();
+            gameState.restorePresentationSnapshot(presentationSnapshot);
         });
         gameState.gameHistory.push({
             token: id,
@@ -71,13 +73,7 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
             isPending: true,
         });
 
-        return [
-            {
-                type: this.type,
-                node: this.contentNode.getChild(),
-            },
-            awaitable
-        ];
+        return awaitable;
     }
 
     getFutureActions(story: Story, options: ActionSearchOptions): LogicAction.Actions[] {

@@ -44,6 +44,14 @@ export class Video extends Actionable<VideoStateRaw> {
     /**@internal */
     public state: VideoState;
 
+    /**
+     * Create a video element with source and optional mute flag.
+     * @param config - Source configuration for the video.
+     * @example
+     * ```ts
+     * const video = new Video({ src: "https://example.com/video.mp4", muted: true });
+     * ```
+     */
     constructor(config: Partial<VideoConfig>) {
         super();
         const videoConfig = Video.DefaultVideoConfig.create(config);
@@ -57,6 +65,7 @@ export class Video extends Actionable<VideoStateRaw> {
     }
 
     /**
+     * Show the video element.
      * @chainable
      */
     show(): ChainedVideo {
@@ -67,6 +76,7 @@ export class Video extends Actionable<VideoStateRaw> {
     }
 
     /**
+     * Hide the video element.
      * @chainable
      */
     hide(): ChainedVideo {
@@ -77,10 +87,12 @@ export class Video extends Actionable<VideoStateRaw> {
     }
 
     /**
-     * Play the video
-     *
-     * The action will be resolved when the video ends
+     * Play the video and wait until it finishes.
      * @chainable
+     * @example
+     * ```ts
+     * video.play();
+     * ```
      */
     play(): ChainedVideo {
         return this.chain(this.createAction(

@@ -138,7 +138,9 @@ export class Awaitable<T = any, U = T> {
 
     static fromPromise<T>(promise: Promise<T>): Awaitable<T> {
         const awaitable = new Awaitable<T>();
-        promise.then(value => awaitable.resolve(value));
+        promise
+            .then(value => awaitable.resolve(value))
+            .catch(error => awaitable.fail(error));
 
         return awaitable;
     }
@@ -174,6 +176,7 @@ export class Awaitable<T = any, U = T> {
     static wait(awaitable: Awaitable<void>): Awaitable<void> {
         const result = new Awaitable<void>();
         awaitable.then(() => result.resolve());
+        awaitable.onFailed(error => result.fail(error));
         return result;
     }
 
@@ -206,6 +209,7 @@ export class Awaitable<T = any, U = T> {
                 });
                 result.resolve(value);
             });
+            awaitable.onFailed(error => result.fail(error));
         });
 
         result.registerSkipController(new SkipController(() => {
@@ -244,6 +248,7 @@ export class Awaitable<T = any, U = T> {
         const newAwaitable = new Awaitable<T>()
             .registerSkipController(skipController || new SkipController(() => result));
         awaitable.then(() => newAwaitable.resolve(result));
+        awaitable.onFailed(error => newAwaitable.fail(error));
 
         const skipControllerToken = awaitable.skipController?.onAbort(() => {
             newAwaitable.skipController?.abort();
@@ -260,8 +265,9 @@ export class Awaitable<T = any, U = T> {
     }
 
     static toPromise<T>(awaitable: Awaitable<T>): Promise<T> {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             awaitable.then(resolve);
+            awaitable.onFailed(reject);
         });
     }
 
@@ -276,9 +282,22 @@ export class Awaitable<T = any, U = T> {
      */
     static any(...awaitables: Awaitable<void>[]): Awaitable<void> {
         const result = new Awaitable<void>();
+        if (awaitables.length === 0) {
+            result.resolve();
+            return result;
+        }
         awaitables.forEach(awaitable => {
             awaitable.onSettled(() => result.resolve());
+            awaitable.onFailed(error => {
+                awaitables.forEach(item => {
+                    if (item !== awaitable) item.abort();
+                });
+                result.fail(error);
+            });
         });
+        result.registerSkipController(new SkipController(() => {
+            awaitables.forEach(awaitable => awaitable.abort());
+        }));
         return result;
     }
 
@@ -287,6 +306,10 @@ export class Awaitable<T = any, U = T> {
      */
     static all(...awaitables: Awaitable<void>[]): Awaitable<void> {
         const result = new Awaitable<void>();
+        if (awaitables.length === 0) {
+            result.resolve();
+            return result;
+        }
         let count = 0;
         awaitables.forEach(awaitable => {
             awaitable.onSettled(() => {
@@ -295,7 +318,16 @@ export class Awaitable<T = any, U = T> {
                     result.resolve();
                 }
             });
+            awaitable.onFailed(error => {
+                awaitables.forEach(item => {
+                    if (item !== awaitable) item.abort();
+                });
+                result.fail(error);
+            });
         });
+        result.registerSkipController(new SkipController(() => {
+            awaitables.forEach(awaitable => awaitable.abort());
+        }));
         return result;
     }
 
@@ -305,9 +337,15 @@ export class Awaitable<T = any, U = T> {
     result: T | undefined;
     solved = false;
     aborted = false;
+    failed = false;
+    error: unknown = null;
     skipController: SkipController<T, []> | undefined;
     private readonly listeners: ((value: T) => void)[] = [];
+    private readonly failListeners: ((error: unknown) => void)[] = [];
+    private readonly settledListeners: (() => void)[] = [];
     private readonly onRegisterSkipController: ((skipController: SkipController<T, []>) => void)[] = [];
+    private skipControllerAbortToken: EventToken | null = null;
+    private settledNotified = false;
     private readonly __stack?: string;
 
     constructor(
@@ -320,7 +358,12 @@ export class Awaitable<T = any, U = T> {
     }
 
     registerSkipController(skipController: SkipController<T, []>) {
+        this.skipControllerAbortToken?.cancel();
         this.skipController = skipController;
+        this.skipControllerAbortToken = skipController.onAbort(() => {
+            this.aborted = true;
+            this.notifySettled();
+        });
         for (const listener of this.onRegisterSkipController) {
             listener(skipController);
         }
@@ -329,7 +372,7 @@ export class Awaitable<T = any, U = T> {
     }
 
     resolve(value: U) {
-        if (this.solved) {
+        if (this.isSettled()) {
             return;
         }
         this.result = this.receiver(value);
@@ -341,32 +384,61 @@ export class Awaitable<T = any, U = T> {
         for (const listener of this.listeners) {
             listener(this.result);
         }
+        this.notifySettled();
     }
 
-    then(callback: (value: T) => void): this {
+    fail(error: unknown) {
+        if (this.isSettled()) {
+            return;
+        }
+        this.error = error;
+        this.failed = true;
+        if (this.skipController) {
+            this.skipController.cancel();
+        }
+
+        for (const listener of this.failListeners) {
+            listener(error);
+        }
+        this.notifySettled();
+    }
+
+    then(callback: (value: T) => void, onRejected?: (reason: unknown) => void): this {
         if (this.solved) {
             callback(this.result!);
+        } else if (this.failed) {
+            onRejected?.(this.error);
         } else {
             this.pushListener(callback);
+            if (onRejected) {
+                this.pushFailListener(onRejected);
+            }
         }
         return this;
     }
 
     onSettled(callback: () => void): EventToken {
-        if (this.solved) {
+        if (this.isSettled()) {
             callback();
         } else {
-            this.pushListener(callback);
-            const tokens: EventToken[] = [];
-            tokens.push(this.onSkipControllerRegister((controller) => {
-                tokens.push(controller.onAbort(() => {
-                    callback();
-                }));
-            }));
+            this.settledListeners.push(callback);
             return {
                 cancel: () => {
-                    tokens.forEach(token => token.cancel());
-                    this.offListener(callback);
+                    this.offSettledListener(callback);
+                }
+            };
+        }
+        return { cancel: () => { } };
+    }
+
+    onFailed(callback: (error: unknown) => void): EventToken {
+        if (this.failed) {
+            callback(this.error);
+        } else if (!this.isSettled()) {
+            this.pushFailListener(callback);
+            return {
+                cancel: () => {
+                    this.offFailListener(callback);
                 }
             };
         }
@@ -398,23 +470,32 @@ export class Awaitable<T = any, U = T> {
      * **Note**: Calling this method won't trigger the `then` callbacks.
      */
     abort() {
+        if (this.isSettled()) {
+            return this.result;
+        }
         this.aborted = true;
         if (this.skipController) {
-            return this.skipController.abort();
+            this.skipController.abort();
+        } else {
+            this.notifySettled();
         }
         return this.result;
     }
 
     isSolved() {
-        return this.solved && !this.aborted;
+        return this.solved && !this.aborted && !this.failed;
     }
 
     isAborted() {
         return this.aborted;
     }
 
+    isFailed() {
+        return this.failed;
+    }
+
     isSettled() {
-        return this.solved || this.aborted;
+        return this.solved || this.aborted || this.failed;
     }
 
     private pushListener(listener: (value: T) => void) {
@@ -425,12 +506,46 @@ export class Awaitable<T = any, U = T> {
         return this;
     }
 
+    private pushFailListener(listener: (error: unknown) => void) {
+        if (this.failListeners.length >= Awaitable.maxListeners) {
+            console.warn("NarraLeaf-React: Awaitable has too many failure listeners, this may cause performance issues.");
+        }
+        this.failListeners.push(listener);
+        return this;
+    }
+
     private offListener(listener: (value: T) => void) {
         const index = this.listeners.indexOf(listener);
         if (index !== -1) {
             this.listeners.splice(index, 1);
         }
         return this;
+    }
+
+    private offFailListener(listener: (error: unknown) => void) {
+        const index = this.failListeners.indexOf(listener);
+        if (index !== -1) {
+            this.failListeners.splice(index, 1);
+        }
+        return this;
+    }
+
+    private offSettledListener(listener: () => void) {
+        const index = this.settledListeners.indexOf(listener);
+        if (index !== -1) {
+            this.settledListeners.splice(index, 1);
+        }
+        return this;
+    }
+
+    private notifySettled() {
+        if (this.settledNotified) {
+            return;
+        }
+        this.settledNotified = true;
+        for (const listener of this.settledListeners) {
+            listener();
+        }
     }
 }
 

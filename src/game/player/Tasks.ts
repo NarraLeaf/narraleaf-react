@@ -2,7 +2,7 @@ import {Awaitable, createMicroTask, EventToken, SkipController} from "@lib/util/
 import {GameStateGuard, GuardWarningType} from "@player/guard";
 import {RuntimeGameError} from "@core/common/Utils";
 
-type TimelineStatus = "pending" | "cancelled" | "resolved";
+type TimelineStatus = "pending" | "cancelled" | "resolved" | "failed";
 
 export class Timeline {
     public static proxy<T>(onSettled: (resolved: Timeline[], canceled: Timeline[]) => void): [awaitable: Awaitable<T>, timeline: Timeline] {
@@ -209,6 +209,7 @@ export class Timeline {
     private children: Timeline[] = [];
     private _onResolved: (() => void)[] = [];
     private _onCancelled: (() => void)[] = [];
+    private _onFailed: ((error: unknown) => void)[] = [];
     private _onTimelineRegistered: (() => void)[] = [];
     private _ableToAttach: boolean = true;
 
@@ -240,12 +241,20 @@ export class Timeline {
         return this._status === "cancelled";
     }
 
+    public isFailed() {
+        return this._status === "failed";
+    }
+
     public onResolved(callback: () => void) {
         this._onResolved.push(callback);
     }
 
     public onCancelled(callback: () => void) {
         this._onCancelled.push(callback);
+    }
+
+    public onFailed(callback: (error: unknown) => void) {
+        this._onFailed.push(callback);
     }
 
     public onSettled(callback: () => void) {
@@ -256,6 +265,7 @@ export class Timeline {
         } else {
             this.onResolved(callback);
             this.onCancelled(callback);
+            this.onFailed(callback);
         }
     }
 
@@ -313,7 +323,10 @@ export class Timeline {
     }
 
     private resolveStatus() {
-        if (this.awaitable.solved && this.children.every(v => v.isSettled())) {
+        const failedChild = this.children.find(v => v.isFailed());
+        if (this.awaitable.failed || failedChild) {
+            this.setStatus("failed", this.emitEvents.bind(this));
+        } else if (this.awaitable.solved && this.children.every(v => v.isSettled())) {
             this.setStatus("resolved", this.emitEvents.bind(this));
         } else if (this.awaitable.skipController?.isAborted()) {
             this.setStatus("cancelled", this.emitEvents.bind(this));
@@ -325,9 +338,13 @@ export class Timeline {
             this._onResolved.forEach(v => v());
         } else if (this.isCancelled()) {
             this._onCancelled.forEach(v => v());
+        } else if (this.isFailed()) {
+            const failedChild = this.children.find(v => v.isFailed());
+            this._onFailed.forEach(v => v(this.awaitable.error ?? failedChild?.awaitable.error));
         }
         this._onResolved = [];
         this._onCancelled = [];
+        this._onFailed = [];
     }
 
     /**

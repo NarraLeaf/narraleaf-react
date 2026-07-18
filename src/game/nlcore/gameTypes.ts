@@ -1,14 +1,14 @@
 import { LogicAction } from "@core/action/logicAction";
 import { ContentNode, RawData } from "@core/action/tree/actionTree";
-import { StorableData } from "@core/elements/persistent/type";
+import { SerializedNamespaceData } from "@core/elements/persistent/type";
 import { ElementStateRaw } from "@core/elements/story";
 import { StringKeyOf } from "@lib/util/data";
 import { PlayerStateData } from "@player/gameState";
 import { GuardConfig } from "@player/guard";
 import React from "react";
 import { StackModel, StackModelRawData } from "./action/stackModel";
-import { MenuComponent, NotificationComponent, SayComponent } from "./common/player";
-import { Color, LiveGameEventToken } from "./types";
+import { MenuComponent, NotificationComponent, NvlDialogComponent, SayComponent } from "./common/player";
+import { LiveGameEventToken } from "./types";
 
 export interface SavedGameMetaData {
     /**
@@ -41,7 +41,7 @@ export interface SavedGame {
     name: string;
     meta: SavedGameMetaData;
     game: {
-        store: { [key: string]: StorableData; };
+        store: { [key: string]: SerializedNamespaceData; };
         elementStates: RawData<ElementStateRaw>[];
         stage: PlayerStateData;
         services: { [key: string]: unknown; };
@@ -251,16 +251,6 @@ export type GameConfig = {
      */
     allowSkipVideo: boolean;
     /**
-     * The default text color for the dialog
-     * @default "#000"
-     */
-    defaultTextColor: Color;
-    /**
-     * The default text color for the character nametag
-     * @default "#000"
-     */
-    defaultNametagColor: Color;
-    /**
      * The component to use for the notification
      * @default DefaultNotification
      */
@@ -275,6 +265,11 @@ export type GameConfig = {
      * @default DefaultSay
      */
     dialog: SayComponent;
+    /**
+     * The component to use for NVL mode dialog
+     * @default DefaultNvlContainer
+     */
+    nvlDialog: NvlDialogComponent;
     /**
      * The function to call when an error occurs
      * @default () => {}
@@ -305,35 +300,10 @@ export type GameConfig = {
         guard: GuardConfig;
     };
     /**
-     * Default font size for the game
-     * @default "16px"
-     */
-    fontSize: React.CSSProperties["fontSize"];
-    /**
-     * Default font weight for the game
-     * @default 400
-     */
-    fontWeight: number;
-    /**
-     * Default font weight for the game
-     * @default 700
-     */
-    fontWeightBold: number;
-    /**
-     * Default font family for the game
-     * @default "sans-serif"
-     */
-    fontFamily: React.CSSProperties["fontFamily"];
-    /**
      * Override the default stage
      * @default null
      */
     stage: React.ReactNode | null;
-    /**
-     * The default color for the menu choices
-     * @default "#000"
-     */
-    defaultMenuChoiceColor: Color;
     /**
      * The maximum number of times a stack model can loop
      * @default 1000
@@ -399,6 +369,16 @@ export type GamePreference = {
      */
     voiceVolume: number;
     /**
+     * Fade duration in milliseconds when ending voice in fade mode
+     * @default 0
+     */
+    voiceFadeDuration: number;
+    /**
+     * How to end voice playback at the end of a sentence
+     * @default "stop"
+     */
+    voiceEndMode: "fade" | "stop" | "none";
+    /**
      * The volume of the background music
      * @default 1
      */
@@ -419,7 +399,7 @@ export type GamePreference = {
      * This is used to prevent the game from skipping actions too quickly when the player presses the skip key.
      *
      * Set to 0 to skip actions immediately when the player presses the skip key.
-     * @default 500
+     * @default 0
      */
     skipDelay: number;
     /**

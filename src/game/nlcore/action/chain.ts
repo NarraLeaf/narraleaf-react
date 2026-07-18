@@ -1,16 +1,12 @@
-import {LogicAction} from "@core/action/logicAction";
+import type {LogicAction} from "@core/action/logicAction";
 import {BaseElement} from "@core/action/baseElement";
-import {ContentNode} from "@core/action/tree/actionTree";
 import type {Control} from "@core/elements/control";
-import Actions = LogicAction.Actions;
-import GameElement = LogicAction.GameElement;
-import {ControlAction} from "@core/action/actions/controlAction";
 
 export type Proxied<T extends Record<any, any>, U extends Record<any, any>> =
     T & U;
 
-export type ChainedAction = Proxied<GameElement, Chained<LogicAction.Actions>>;
-export type ChainedActions = (ChainedAction | ChainedAction[] | Actions | Actions[])[];
+export type ChainedAction = Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>>;
+export type ChainedActions = (ChainedAction | ChainedAction[] | LogicAction.Actions | LogicAction.Actions[])[];
 
 const ChainedFlag = Symbol("_Chained");
 
@@ -19,7 +15,7 @@ export class Chained<T, Self extends Chainable<any, any> = any> {
         return value && value[ChainedFlag];
     }
 
-    static toActions(chainedActions: ChainedActions): Actions[] {
+    static toActions(chainedActions: ChainedActions): LogicAction.Actions[] {
         return chainedActions
             .flat(2)
             .map(v => {
@@ -28,7 +24,7 @@ export class Chained<T, Self extends Chainable<any, any> = any> {
                 }
                 return v;
             })
-            .flat(3) satisfies Actions[];
+            .flat(3) satisfies LogicAction.Actions[];
     }
 
     /**@internal */
@@ -113,15 +109,7 @@ export class Chainable<T, U extends Chainable<any, any>> extends BaseElement {
             => ChainedAction)
     ): Proxied<U, Chained<T, U>> {
         const chain = getActions(this.chain().newChain());
-        const action = new ControlAction(
-            control.chain(),
-            ControlAction.ActionTypes.do,
-            new ContentNode().setContent([
-                this.construct(Chained.toActions([chain]))
-            ])
-        );
+        const action = (control.do([chain]) as any).getActions()[0];
         return this.chain(action as T);
     }
 }
-
-

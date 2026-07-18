@@ -1,26 +1,42 @@
 import React from "react";
-import { useDialogContext } from "./context";
+import { DialogContext } from "./context";
 import { toHex } from "@lib/util/data";
-import { useGame } from "@lib/game/nlcore/common/core";
+import type { Character } from "@core/elements/character";
+import type { NvlDialogEntry } from "@player/gameState";
+import type { Color } from "@lib/game/nlcore/types";
+
+export type NametagProps = Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "color"> & {
+    entry?: NvlDialogEntry;
+    character?: Character | null;
+    name?: React.ReactNode;
+    color?: Color;
+    children?: React.ReactNode;
+};
 
 export default function Nametag({
+    entry,
+    character,
+    name,
+    color,
+    children,
+    style,
     ...props
-}: Readonly<React.HTMLAttributes<HTMLDivElement>>) {
-    const {
-        config,
-    } = useDialogContext();
-    const game = useGame();
+}: Readonly<NametagProps>) {
+    const dialogContext = React.useContext(DialogContext);
+    const targetCharacter = character ?? entry?.character ?? dialogContext?.config.action.character ?? null;
+    const resolvedColor = color ?? targetCharacter?.config.color;
+    const content = children ?? name ?? targetCharacter?.state.name;
 
     return (
-        <>
-            <div {...props}>
-                <span style={{
-                    color: toHex(config.action.character?.config.color || game.config.defaultNametagColor),
-                }}>
-                    {config.action.character?.state.name}
-                </span>
-            </div>
-        </>
+        <div
+            {...props}
+            style={{
+                color: resolvedColor ? toHex(resolvedColor) : undefined,
+                ...style,
+            }}
+        >
+            {content}
+        </div>
     );
 }
 

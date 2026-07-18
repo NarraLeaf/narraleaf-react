@@ -1,5 +1,5 @@
 import {Sound} from "@core/elements/sound";
-import {Image as GameImage, Image, TagDefinition, TagGroupDefinition} from "@core/elements/displayable/image";
+import {Image as GameImage, Image} from "@core/elements/displayable/image";
 import {Story} from "@core/common/core";
 import {StaticImageData} from "@core/types";
 import {LogicAction} from "@core/action/logicAction";
@@ -110,10 +110,15 @@ export class SrcManager {
                 };
             } else if (action.type === ImageActionTypes.setAppearance) {
                 const tags = (action.contentNode as ContentNode<ImageActionContentType[typeof ImageActionTypes["setAppearance"]]>).getContent()[0];
+                if (Image.isLayeredSrc(imageAction.callee)) {
+                    // Every layer src is registered up-front by the image itself, so there is
+                    // nothing left to predict per appearance change.
+                    return null;
+                }
                 if (!imageAction.callee.config.src || typeof imageAction.callee.config.src?.resolve !== "function") {
                     throw imageAction.callee._invalidSrcHandlerError();
                 }
-                if (Image.isTagSrc(imageAction.callee) && tags.length === (imageAction.callee.config.src as TagDefinition<TagGroupDefinition>).groups.length) {
+                if (Image.isTagSrc(imageAction.callee) && tags.length === imageAction.callee.config.src.groups.length) {
                     return {
                         type: "image",
                         src: Image.getSrcFromTags(tags, imageAction.callee.config.src.resolve),

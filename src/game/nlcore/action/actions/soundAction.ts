@@ -108,6 +108,21 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             }, [originalState]);
 
             return awaitable;
+        } else if (this.type === SoundActionTypes.mute) {
+            const [muted] = (this.contentNode as ContentNode<SoundActionContentType["sound:mute"]>).getContent();
+            const originalState = this.callee.toData();
+
+            const awaitable = Awaitable.forward(state.audioManager.mute(this.callee, muted), {
+                type: this.type,
+                node: this.contentNode?.getChild()
+            });
+
+            state.timelines.attachTimeline(awaitable);
+            state.actionHistory.push<[SoundDataRaw | null]>(historyProps, (prevState) => {
+                if (prevState) this.callee.fromData(prevState);
+            }, [originalState]);
+
+            return awaitable;
         }
 
         throw super.unknownTypeError();

@@ -15,6 +15,14 @@ export class Pause {
         return input;
     }
 
+    /**
+     * Create a pause with specific duration (milliseconds) that blocks until it passes.
+     * @param duration - How long the player must wait.
+     * @example
+     * ```ts
+     * Pause.wait(1000);
+     * ```
+     */
     public static wait(duration: number): Pause {
         return new Pause({duration});
     }
@@ -32,6 +40,10 @@ export class Pause {
     /**@internal */
     public config: Partial<PauseConfig>;
 
+    /**
+     * Build a pause which can be inserted into sentences.
+     * @param config - Optional duration in milliseconds.
+     */
     constructor(config: Partial<PauseConfig> = {}) {
         this.config = config;
     }

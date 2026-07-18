@@ -4,8 +4,9 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {Awaitable, Values} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {ControlAction} from "@core/action/actions/controlAction";
-import { ActionStatements } from "./type";
+import { ActionStatements, LambdaHandler } from "./type";
 import { Narrator } from "./character";
+import { Lambda } from "./condition";
 
 
 /**@internal */
@@ -18,39 +19,60 @@ type ControlConfig = {
 
 export class Control extends Actionable {
     /**
-     * Execute actions in order, waiting for each action to complete
+     * Execute actions in order, waiting for each action to complete.
+     * @param actions - The sequence of actions to run.
      * @chainable
+     * @example
+     * ```ts
+     * Control.do([character.say("hello"), image.char("path.png")]);
+     * ```
      */
     public static do(actions: ActionStatements): ChainedControl {
         return new Control().do(actions);
     }
 
     /**
-     * Execute actions in order, do not wait for this action to complete
+     * Execute actions in order without waiting for completion.
+     * @param actions - Actions to run sequentially.
      * @chainable
+     * @example
+     * ```ts
+     * Control.doAsync([sound.play(), image.char("path.png")]);
+     * ```
      */
     public static doAsync(actions: ActionStatements): ChainedControl {
         return new Control().doAsync(actions);
     }
 
     /**
-     * Execute all actions at the same time, waiting for any one action to complete
+     * Execute actions concurrently, resolving once any finishes.
+     * @param actions - Actions to run in parallel.
      * @chainable
+     * @example
+     * ```ts
+     * Control.any([sound.play(), image.char("happy.png")]);
+     * ```
      */
     public static any(actions: ActionStatements): ChainedControl {
         return new Control().any(actions);
     }
 
     /**
-     * Execute all actions at the same time, waiting for all actions to complete
+     * Execute actions concurrently and wait until all finish.
+     * @param actions - Actions to run at the same time.
      * @chainable
+     * @example
+     * ```ts
+     * Control.all([sound.play(), dialog.show()]);
+     * ```
      */
     public static all(actions: ActionStatements): ChainedControl {
         return new Control().all(actions);
     }
 
     /**
-     * Execute all actions at the same time, do not wait for all actions to complete
+     * Execute actions concurrently and continue without waiting.
+     * @param actions - Actions to fire simultaneously.
      * @chainable
      */
     public static allAsync(actions: ActionStatements): ChainedControl {
@@ -58,19 +80,58 @@ export class Control extends Actionable {
     }
 
     /**
-     * Execute actions multiple times
+     * Execute actions multiple times.
+     * @param times - How many times to repeat.
+     * @param actions - The actions to repeat.
      * @chainable
+     * @example
+     * ```ts
+     * Control.repeat(3, [character.say("Again!")]);
+     * ```
      */
     public static repeat(times: number, actions: ActionStatements): ChainedControl {
         return new Control().repeat(times, actions);
     }
 
     /**
-     * Sleep for a duration
+     * Repeat actions while a condition stays true.
+     * @param condition - Lambda to guard the loop.
+     * @param actions - Body actions to run each iteration.
+     * @chainable
+     */
+    public static whileLoop(condition: Lambda<boolean> | LambdaHandler<boolean>, actions: ActionStatements): ChainedControl {
+        return new Control().whileLoop(condition, actions);
+    }
+
+    /**
+     * Break out of the nearest repeating loop (repeat or while).
+     * Can only be used inside a loop body.
+     * @chainable
+     */
+    public static breakLoop(): ChainedControl {
+        return new Control().breakLoop();
+    }
+
+    /**
+     * Pause execution for a duration or until an `Awaitable` resolves.
+     * @param duration - Milliseconds or awaitable controlling the pause length.
      * @chainable
      */
     public static sleep(duration: number | Awaitable<any> | Promise<any>): ChainedControl {
         return new Control().sleep(duration);
+    }
+
+    /**
+     * Pause execution until the user clicks anywhere on the stage (excluding GUI/Page elements).
+     * Similar to inserting a pause with no duration in a Sentence.
+     * @chainable
+     * @example
+     * ```ts
+     * Control.waitForClick();
+     * ```
+     */
+    public static waitForClick(): ChainedControl {
+        return new Control().waitForClick();
     }
 
     constructor(/**@internal */public config: Partial<ControlConfig> = {}) {
@@ -126,11 +187,47 @@ export class Control extends Actionable {
     }
 
     /**
+     * Execute actions while condition is true
+     * @chainable
+     */
+    public whileLoop(condition: Lambda<boolean> | LambdaHandler<boolean>, actions: ActionStatements): ChainedControl {
+        const lambda = Lambda.from(condition);
+        return this.pushWithLambda(ControlAction.ActionTypes.while, actions, lambda);
+    }
+
+    /**
+     * Break the current loop (repeat/while)
+     * Can only be used inside a loop body
+     * @chainable
+     */
+    public breakLoop(): ChainedControl {
+        const action = new ControlAction(
+            this.chain(),
+            ControlAction.ActionTypes.break,
+            new ContentNode().setContent([])
+        );
+        return this.chain(action);
+    }
+
+    /**
      * Sleep for a duration
      * @chainable
      */
     public sleep(duration: number | Awaitable<any> | Promise<any>): ChainedControl {
         return this.push(ControlAction.ActionTypes.sleep, [], duration);
+    }
+
+    /**
+     * Wait for user to click the stage (excluding GUI elements)
+     * @chainable
+     */
+    public waitForClick(): ChainedControl {
+        const action = new ControlAction(
+            this.chain(),
+            ControlAction.ActionTypes.waitForClick,
+            new ContentNode().setContent([])
+        );
+        return this.chain(action);
     }
 
     /**@internal */
@@ -159,6 +256,21 @@ export class Control extends Actionable {
             this.chain(),
             type,
             new ContentNode().setContent([flatted, ...args])
+        );
+        return this.chain(action);
+    }
+
+    /**@internal */
+    private pushWithLambda(
+        type: Values<typeof ControlAction.ActionTypes>,
+        actions: ActionStatements,
+        lambda: Lambda<boolean>
+    ): ChainedControl {
+        const flatted = this.narrativeToActions(actions);
+        const action = new ControlAction(
+            this.chain(),
+            type,
+            new ContentNode().setContent([this.construct(flatted), lambda])
         );
         return this.chain(action);
     }

@@ -1,7 +1,9 @@
 import React, {ErrorInfo} from "react";
 import {useGame} from "@player/provider/game-state";
 
-export default function ErrorFallback({error, errorInfo}: { error: Error, errorInfo: ErrorInfo }) {
+type ErrorFallbackInfo = ErrorInfo & { digest?: string };
+
+export default function ErrorFallback({error, errorInfo}: { error: Error, errorInfo: ErrorFallbackInfo }) {
     const game = useGame();
 
     if (game.config.app.debug) {
@@ -11,7 +13,7 @@ export default function ErrorFallback({error, errorInfo}: { error: Error, errorI
                 <p className={"text-red-700"}>Message: {error.message}</p>
                 <pre>Error Stack: {error?.stack}</pre>
                 <pre>Component Stack: {errorInfo?.componentStack}</pre>
-                <pre>Digest: {errorInfo?.digest}</pre>
+                <pre>Digest: {"digest" in errorInfo ? String((errorInfo as { digest?: unknown }).digest) : ""}</pre>
             </div>
         );
     }

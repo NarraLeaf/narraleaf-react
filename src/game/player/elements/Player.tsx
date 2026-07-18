@@ -1,11 +1,13 @@
 import "client-only";
 
 import { Story } from "@core/elements/story";
+import type { Scene as CoreScene } from "@core/elements/scene";
+import type { GameLifecycleEventContext } from "@core/game";
 import { CalledActionResult } from "@core/gameTypes";
 import { Awaitable, createMicroTask, EventToken, MultiLock } from "@lib/util/data";
 import { KeyEventAnnouncer } from "@player/elements/player/KeyEventAnnouncer";
+import { StageClickAnnouncer } from "@player/elements/player/StageClickAnnouncer";
 import PreferenceUpdateAnnouncer from "@player/elements/player/PreferenceUpdateAnnouncer";
-import SizeUpdateAnnouncer from "@player/elements/player/SizeUpdateAnnouncer";
 import { Preload } from "@player/elements/preload/Preload";
 import { default as StageScene } from "@player/elements/scene/Scene";
 import { PlayerProps } from "@player/elements/type";
@@ -26,6 +28,9 @@ import { RuntimeGameError } from "@lib/game/nlcore/common/Utils";
 import { StackModel } from "@lib/game/nlcore/action/stackModel";
 import { RootLayout } from "../lib/PageRouter/Layout";
 import PlayerNotification from "./notification/PlayerNotification";
+import { NvlProvider, useNvl } from "./nvl/NvlContext";
+import { NvlDialogComponent } from "./type";
+import { Script } from "@core/elements/script";
 
 export default function Player(
     {
@@ -34,12 +39,16 @@ export default function Player(
         height,
         className,
         onReady,
+        onPreloadComplete,
+        onPreloadedReady,
+        onFirstSceneReady,
         onEnd,
         onError,
         children,
         active = true,
     }: Readonly<PlayerProps>) {
     const [flushDep, update] = useReducer((x) => x + 1, 0);
+    const [firstSceneMountDep, updateFirstSceneMount] = useReducer((x) => x + 1, 0);
     const [key, setKey] = useState(0);
     const game = useGame();
     const [state] = useState<GameState>(() => new GameState(game, {
@@ -68,7 +77,22 @@ export default function Player(
 
     const { preloaded } = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
+    const preloadedReadyHandlerExecuted = React.useRef(false);
+    const [preloadComplete, setPreloadComplete] = useState(false);
+    const preloadCompleteHandlerExecuted = React.useRef(false);
+    const firstSceneRef = React.useRef<CoreScene | null>(null);
+    const firstSceneReadyPending = React.useRef(false);
     const [awaitables] = useState<Map<Awaitable<CalledActionResult>, EventToken>>(new Map());
+
+    function getLifecycleContext(scene: CoreScene | null): GameLifecycleEventContext {
+        return {
+            game,
+            gameState: state,
+            liveGame: game.getLiveGame(),
+            storable: game.getLiveGame().getStorable(),
+            scene,
+        };
+    }
 
     function next() {
         const cleanup = () => {
@@ -102,10 +126,19 @@ export default function Player(
                 }
                 currentHandlingResult.current = nextResult;
                 nextResult.onSettled(() => {
+                    if (nextResult.isFailed()) {
+                        return;
+                    }
                     if (currentHandlingResult.current === nextResult) {
                         currentHandlingResult.current = null;
                     }
                     next();
+                });
+                nextResult.onFailed((error) => {
+                    if (currentHandlingResult.current === nextResult) {
+                        currentHandlingResult.current = null;
+                    }
+                    state.logger.error("Player", error);
                 });
                 exited = true;
                 break;
@@ -136,12 +169,19 @@ export default function Player(
                     currentHandlingResult.current = nextResult;
 
                     if (nextResult.wait) {
-                        StackModel.executeStackModelGroup(nextResult.wait.type, nextResult.wait.stackModels).then(() => {
+                        const waitResult = StackModel.executeStackModelGroup(nextResult.wait.type, nextResult.wait.stackModels);
+                        waitResult.then(() => {
                             if (currentHandlingResult.current === nextResult) {
                                 currentHandlingResult.current = null;
                             }
-    
+
                             next();
+                        });
+                        waitResult.onFailed((error) => {
+                            if (currentHandlingResult.current === nextResult) {
+                                currentHandlingResult.current = null;
+                            }
+                            state.logger.error("Player", error);
                         });
                     }
 
@@ -229,13 +269,98 @@ export default function Player(
     }, [ready]);
 
     useEffect(() => {
+        return createMicroTask(() => {
+            if (preloadedReady && onPreloadedReady && !preloadedReadyHandlerExecuted.current) {
+                preloadedReadyHandlerExecuted.current = true;
+                const scene = firstSceneRef.current || state.getLastScene() || state.getPreloadingScene();
+                const ctx = getLifecycleContext(scene);
+                onPreloadedReady(ctx);
+            }
+        });
+    }, [preloadedReady]);
+
+    useEffect(() => {
+        return createMicroTask(() => {
+            if (preloadComplete && !preloadCompleteHandlerExecuted.current) {
+                preloadCompleteHandlerExecuted.current = true;
+                const scene = firstSceneRef.current || state.getLastScene() || state.getPreloadingScene();
+                const ctx = getLifecycleContext(scene);
+
+                if (game.markPreloadComplete(ctx) && onPreloadComplete) {
+                    onPreloadComplete(ctx);
+                }
+            }
+        });
+    }, [preloadComplete]);
+
+    useEffect(() => {
+        return state.events.on(GameState.EventTypes["event:state.scene.mount"], (scene) => {
+            if (firstSceneRef.current) {
+                return;
+            }
+            firstSceneRef.current = scene;
+            updateFirstSceneMount();
+        }).cancel;
+    }, []);
+
+    useEffect(() => {
+        if (!preloadComplete || !active || firstSceneReadyPending.current || game.isFirstSceneReady()) {
+            return;
+        }
+
+        const scene = firstSceneRef.current || state.getLastScene();
+        if (!scene) {
+            return;
+        }
+
+        let frame: number | null = null;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let completed = false;
+        firstSceneReadyPending.current = true;
+
+        const complete = () => {
+            completed = true;
+            firstSceneReadyPending.current = false;
+
+            const ctx = getLifecycleContext(scene);
+            if (game.markFirstSceneReady(ctx) && onFirstSceneReady) {
+                onFirstSceneReady(ctx);
+            }
+        };
+
+        if (typeof requestAnimationFrame === "function") {
+            frame = requestAnimationFrame(() => {
+                timer = setTimeout(complete, 0);
+            });
+        } else {
+            timer = setTimeout(complete, 0);
+        }
+
+        return () => {
+            if (completed) {
+                return;
+            }
+            firstSceneReadyPending.current = false;
+            if (frame !== null && typeof cancelAnimationFrame === "function") {
+                cancelAnimationFrame(frame);
+            }
+            if (timer !== null) {
+                clearTimeout(timer);
+            }
+        };
+    }, [active, firstSceneMountDep, flushDep, preloadComplete]);
+
+    useEffect(() => {
         return preloaded.events.depends([
             preloaded.events.on(Preloaded.EventTypes["event:preloaded.ready"], () => {
                 setPreloadedReady(true);
                 state.stage.update();
-                if (story) {
+                if (story && game.getLiveGame().isPlaying()) {
                     next();
                 }
+            }),
+            preloaded.events.on(Preloaded.EventTypes["event:preloaded.complete"], () => {
+                setPreloadComplete(true);
             }),
         ]).cancel;
     }, []);
@@ -259,7 +384,6 @@ export default function Player(
                 tabIndex={0}
             >
                 <AspectRatio className={clsx("flex-grow overflow-auto")} gameState={state}>
-                    <SizeUpdateAnnouncer ref={containerRef} />
                     <PreferenceUpdateAnnouncer gameState={state} />
                     <RenderEventAnnoucer gameState={state} />
                     <Isolated className={"absolute"} ref={mainContentRef} style={{
@@ -274,15 +398,19 @@ export default function Player(
                             />
                         )}
                         <OnlyPreloaded show={preloadedReady && active} key={key}>
-                            <KeyEventAnnouncer state={state} />
-                            {state.getSceneElements().map((elements) => (
-                                <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
-                            ))}
-                            {state.getVideos().map((video, index) => (
-                                <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
-                                    <Video gameState={state} video={video} />
-                                </div>
-                            ))}
+                            <NvlProvider>
+                                <KeyEventAnnouncer state={state} />
+                                <StageClickAnnouncer state={state} />
+                                {state.getSceneElements().map((elements) => (
+                                    <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
+                                ))}
+                                {state.getVideos().map((video, index) => (
+                                    <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
+                                        <Video gameState={state} video={video} />
+                                    </div>
+                                ))}
+                                <NvlOverlay NvlComponent={game.config.nvlDialog} />
+                            </NvlProvider>
                         </OnlyPreloaded>
                         <Preload state={state} />
                         <RootLayout>
@@ -305,4 +433,27 @@ function OnlyPreloaded({ children, show }: Readonly<{
             {show ? children : null}
         </>
     );
+}
+
+function NvlOverlay({ NvlComponent }: { NvlComponent: NvlDialogComponent }) {
+    const { dialogs, state } = useNvl();
+    const game = useGame();
+    const gameState = game.getLiveGame().getGameState()!;
+    const dialogProxies = React.useMemo(() => (
+        dialogs.map((entry, index) => {
+            const words = entry.sentence.evaluate(Script.getCtx({ gameState }));
+            const isActive = state.activeDialogId === entry.id;
+            const useTypeEffect = isActive && state.phase === "typing";
+            return {
+                entry,
+                index,
+                isActive,
+                gameState,
+                words,
+                useTypeEffect,
+            };
+        })
+    ), [dialogs, gameState, state.activeDialogId, state.phase]);
+
+    return <NvlComponent dialogs={dialogProxies} />;
 }

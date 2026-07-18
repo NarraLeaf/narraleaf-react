@@ -11,9 +11,21 @@ import { Texts } from "./Sentence";
 import { DialogState } from "./UIDialog";
 import { KeyBindingType } from "@lib/game/nlcore/game/types";
 import { useKeyBinding } from "../../lib/keyMap";
+import Avatar from "./Avatar";
+import { motion, useIsPresent } from "motion/react";
+
+const defaultDialogTextProps = {
+    defaultColor: "#000",
+    fontSize: 16,
+    fontWeight: 400,
+    fontWeightBold: 700,
+    fontFamily: "sans-serif",
+} as const;
 
 function BaseDialog({
     children,
+    initial,
+    transition,
     ...props
 }: DialogProps) {
     const game = useGame();
@@ -22,6 +34,7 @@ function BaseDialog({
     const [showDialog] = usePreference(Game.Preferences.showDialog);
     const dialogRef = useRef<HTMLDivElement>(null);
     const [nextKeyBinding] = useKeyBinding(KeyBindingType.nextAction);
+    const isPresent = useIsPresent();
 
     function onElementClick() {
         dialog.requestComplete();
@@ -33,12 +46,14 @@ function BaseDialog({
             return;
         }
 
-        const handleKeyUp = (e: KeyboardEvent) => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore OS auto-repeat so holding the key advances only once per press
+            if (e.repeat) return;
             if (game.keyMap.match(KeyBindingType.nextAction, e.key)) {
                 dialog.requestComplete();
             }
         };
-        window.addEventListener("keyup", handleKeyUp);
+        window.addEventListener("keydown", handleKeyDown);
 
         const token = dialog.events.on(DialogState.Events.simulateClick, () => {
             if (dialogRef.current) {
@@ -47,7 +62,7 @@ function BaseDialog({
         });
 
         return () => {
-            window.removeEventListener("keyup", handleKeyUp);
+            window.removeEventListener("keydown", handleKeyDown);
             token.cancel();
         };
     }, [dialog, nextKeyBinding]);
@@ -66,7 +81,7 @@ function BaseDialog({
     }, [dialog]);
 
     return (
-        <div data-element-type={"dialog"} className="w-full h-full">
+        <div data-element-type={"dialog"} className="absolute w-full h-full">
             <div
                 className={clsx(
                     "absolute bottom-0 w-full h-full",
@@ -85,9 +100,13 @@ function BaseDialog({
                 }}
                 ref={dialogRef}
             >
-                <div {...props}>
+                <motion.div
+                    {...props}
+                    initial={dialog.config.suppressInitialAnimation ? false : initial}
+                    transition={dialog.config.suppressInitialAnimation && isPresent ? { duration: 0 } : transition}
+                >
                     {children}
-                </div>
+                </motion.div>
             </div>
         </div>
     );
@@ -124,8 +143,28 @@ export default Dialog;
 export function DefaultDialog() {
     return (
         <Dialog>
-            <Nametag />
-            <Texts />
+            <div
+                className="dialog-content"
+                style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 16,
+                    width: "100%",
+                    height: "100%",
+                }}
+            >
+                <Avatar />
+                <div
+                    className="dialog-text-content"
+                    style={{
+                        minWidth: 0,
+                        flex: "1 1 auto",
+                    }}
+                >
+                    <Nametag />
+                    <Texts {...defaultDialogTextProps} />
+                </div>
+            </div>
         </Dialog>
     );
 }

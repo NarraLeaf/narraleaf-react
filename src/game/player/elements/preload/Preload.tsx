@@ -44,11 +44,13 @@ export function Preload(
      */
     useEffect(() => {
         if (typeof fetch === "undefined") {
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             state.logger.warn(LogTag, "Fetch is not supported in this environment, skipping preload");
             return onPreloaderUnmount;
         }
         if (!game.config.preloadAllImages) {
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             state.logger.debug(LogTag, "Preload all images is disabled, skipping preload");
             return onPreloaderUnmount;
@@ -58,7 +60,11 @@ export function Preload(
             state.logger.weakWarn(LogTag, "Cache cleared");
         }
         if (!story || !lastScene) {
-            state.logger.weakWarn(LogTag, "Story/Scene not found, skipping preload");
+            if (!story) {
+                state.logger.weakWarn(LogTag, "Story not found, skipping preload");
+            } else {
+                state.logger.debug(LogTag, "Scene not ready yet, waiting for scene before preload");
+            }
             return onPreloaderUnmount;
         }
 
@@ -108,6 +114,7 @@ export function Preload(
         taskPool.start().then(() => {
             state.logger.info(LogTag, "Image preload", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
 
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
             if (game.config.waitForPreload) {
                 preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             }

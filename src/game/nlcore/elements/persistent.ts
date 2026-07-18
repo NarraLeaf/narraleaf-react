@@ -127,7 +127,11 @@ export class Persistent<T extends PersistentContent>
     }
 
     /**
-     * Determine whether the value is true, can be used in {@link Condition}
+     * Determine whether the value is true, can be used in {@link Condition}.
+     * @example
+     * ```ts
+     * Condition.If(persis.isTrue("flag"), [character.say("Flag is true")]);
+     * ```
      */
     public isTrue<K extends Extract<keyof T, BooleanValueKeyOf<T>>>(key: K): Lambda<boolean> {
         return new Lambda(({ storable }) => {
@@ -205,7 +209,13 @@ export class Persistent<T extends PersistentContent>
     }
 
     /**
-     * Evaluate the JavaScript function and determine whether the result is true
+     * Evaluate the JavaScript function and determine whether the result is true.
+     * @example
+     * ```ts
+     * Condition.If(persis.evaluate("coin", (coin) => coin < 10), [
+     *   character.say("You don't have enough coins!")
+     * ]);
+     * ```
      */
     public evaluate<K extends StringKeyOf<T>>(key: K, fn: (value: T[K]) => boolean): Lambda<boolean> {
         return new Lambda(({ storable }) => {

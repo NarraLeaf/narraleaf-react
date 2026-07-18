@@ -1,12 +1,12 @@
 import { Word } from "@core/elements/character/word";
 import { Script } from "@lib/game/nlcore/elements/script";
-import { RawTexts } from "@player/elements/say/Sentence";
+import { RawTexts, type TextAppearanceProps } from "@player/elements/say/Sentence";
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DialogState } from "../../say/UIDialog";
 import { ChoiceEvaluated } from "../type";
 import { useUIListContext, useUIMenuContext } from "./context";
 
-export interface ItemProps {
+export interface ItemProps extends TextAppearanceProps {
     className?: string;
     style?: React.CSSProperties;
     /**
@@ -17,7 +17,16 @@ export interface ItemProps {
     bindKey?: string;
 }
 
-export default function Item({ className, style, bindKey }: ItemProps) {
+export default function Item({
+    className,
+    style,
+    bindKey,
+    defaultColor,
+    fontSize,
+    fontWeight,
+    fontWeightBold,
+    fontFamily,
+}: ItemProps) {
     const ref = useRef<HTMLButtonElement>(null);
     const { register, unregister, getIndex } = useUIListContext();
     const [index, setIndex] = useState(-1);
@@ -86,6 +95,11 @@ export default function Item({ className, style, bindKey }: ItemProps) {
                 disabled={disabled}
             >
                 {(visibility && <RawTexts
+                    defaultColor={defaultColor}
+                    fontSize={fontSize}
+                    fontWeight={fontWeight}
+                    fontWeightBold={fontWeightBold}
+                    fontFamily={fontFamily}
                     dialog={new DialogState({
                         useTypeEffect: false,
                         action: {

@@ -31,6 +31,7 @@ export class AudioManager {
     private sound!: NarraSound; // will be initialized in initialize()
     private ready: Promise<void> = Promise.resolve();
     private isReady: boolean = false;
+    private isInitializing: boolean = false;
 
     constructor(private gameState: GameState) {
         Object.values(SoundType).forEach(type => {
@@ -43,24 +44,32 @@ export class AudioManager {
      * Doing it here avoids "AudioContext is not defined" on the server.
      */
     public initialize(): void {
-        if (this.isReady) return; // already initialised
+        if (this.isReady || this.isInitializing) return; // already initialised or waiting for unlock
 
-        this.sound = new NarraSound();
+        const sound = new NarraSound();
+        this.sound = sound;
+        this.isInitializing = true;
 
         // Wait for audio context to be ready, then create channels
-        this.ready = this.sound.onceReady().then(() => {
+        this.ready = sound.onceReady().then(() => {
             // Apply cached global volume
-            this.sound.setVolume(this.globalVolume);
+            sound.setVolume(this.globalVolume);
 
             // Create channels for each sound type
             Object.values(SoundType).forEach(type => {
                 const volume = this.channelVolumes.get(type) ?? 1;
-                const channel = this.sound.createChannel(type, { volume });
+                const channel = sound.getChannel(type) ?? sound.createChannel(type, { volume });
+                channel.setVolume(volume);
                 this.channels.set(type, channel);
             });
             this.isReady = true;
+            this.isInitializing = false;
             // Apply group volumes that may have been set before initialise
             this.setupGroupVolume();
+        }).catch(error => {
+            this.isInitializing = false;
+            this.gameState.logger.error("AudioManager", "Failed to initialize audio subsystem", error);
+            throw error;
         });
     }
 
@@ -86,6 +95,10 @@ export class AudioManager {
                     loop: sound.config.loop,
                     rate: 1,
                 });
+
+                const isMuted = sound.state.muted ?? false;
+                token.mute(isMuted);
+                sound.state.muted = isMuted;
 
                 this.state.set(sound, { token, cachedAudio, originalVolume: options.end });
 
@@ -115,6 +128,53 @@ export class AudioManager {
         });
 
         return awaitable;
+    }
+
+    public async playSoundToken(sound: SoundElement, options: FadeOptions = {
+        end: 1,
+        duration: 0,
+    }): Promise<SoundToken> {
+        await this.ready;
+
+        // Stop existing sound if playing
+        if (this.state.has(sound)) {
+            const existingState = this.state.get(sound)!;
+            existingState.token.stop();
+        }
+
+        try {
+            const channel = this.channels.get(sound.config.type);
+            if (!channel) {
+                throw new RuntimeGameError(`Channel not found for sound type: "${sound.config.type}"`);
+            }
+            const cachedAudio = await this.sound.load(sound.config.src);
+            const token = await channel.play(cachedAudio, {
+                volume: 0,
+                startTime: sound.config.seek,
+                loop: sound.config.loop,
+                rate: 1,
+            });
+
+            const isMuted = sound.state.muted ?? false;
+            token.mute(isMuted);
+            sound.state.muted = isMuted;
+
+            this.state.set(sound, { token, cachedAudio, originalVolume: options.end });
+
+            if (options.duration > 0) {
+                token.fade(0, options.end, options.duration);
+            } else {
+                token.setVolume(options.end);
+            }
+
+            sound.state.volume = options.end;
+            sound.state.paused = false;
+
+            return token;
+        } catch (error) {
+            this.gameState.logger.error("AudioManager", `Failed to play sound (src: "${sound.config.src}")`, error);
+            throw error;
+        }
     }
 
     public stop(sound: SoundElement, duration: number = 0): Awaitable<void> {
@@ -164,6 +224,22 @@ export class AudioManager {
             });
         }
 
+        return awaitable;
+    }
+
+    public mute(sound: SoundElement, muted: boolean = true): Awaitable<void> {
+        const awaitable = new Awaitable<void>();
+
+        sound.state.muted = muted;
+
+        if (!this.state.has(sound)) {
+            awaitable.resolve();
+            return awaitable;
+        }
+
+        const state = this.state.get(sound)!;
+        state.token.mute(muted);
+        awaitable.resolve();
         return awaitable;
     }
 
@@ -257,6 +333,10 @@ export class AudioManager {
         return state.token.isPlaying();
     }
 
+    public getToken(sound: SoundElement): SoundToken | null {
+        return this.state.get(sound)?.token ?? null;
+    }
+
     public toData(): AudioManagerDataRaw {
         return {
             sounds: [...this.state.entries()].map(([sound, state]) => [
@@ -305,6 +385,9 @@ export class AudioManager {
                 });
 
                 this.state.set(sound, { token, cachedAudio, originalVolume: sound.state.volume });
+                const isMuted = sound.state.muted ?? false;
+                token.mute(isMuted);
+                sound.state.muted = isMuted;
 
                 if (sound.state.paused) {
                     token.pause();

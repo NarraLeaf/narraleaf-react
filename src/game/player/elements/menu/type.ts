@@ -11,6 +11,7 @@ export interface MenuElementProps {
     afterChoose: (choice: Chosen) => void;
     state: GameState;
     words: Word<Pausing | string>[] | null;
+    renderPrompt?: boolean;
 }
 
 export interface IUserMenuProps {

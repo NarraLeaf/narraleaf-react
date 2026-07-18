@@ -1,14 +1,20 @@
 {
   "name": "narraleaf-react",
-  "version": "0.8.7",
+  "version": "0.13.2",
   "description": "A React visual novel player framework",
+  "type": "module",
   "main": "./dist/main.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/main.js",
-      "require": "./dist/main.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/main.js"
+    },
+    "./built-in": {
+      "types": "./dist/built-in.d.ts",
+      "import": "./dist/built-in.js",
+      "require": "./dist/built-in.js"
     }
   },
   "scripts": {
@@ -49,7 +55,7 @@
     "fs-extra": "^11.3.0",
     "globals": "^15.9.0",
     "husky": "^9.1.6",
-    "motion": "^11.15.0",
+    "motion": ">=11 <12",
     "postcss": "^8.5.3",
     "postcss-cli": "^11.0.1",
     "postcss-import": "^16.1.0",
@@ -66,7 +72,7 @@
   },
   "peerDependencies": {
     "@emotion/is-prop-valid": "*",
-    "motion": "^11.15.0",
+    "motion": ">=11 <12",
     "react": ">=19",
     "react-dom": ">=19"
   },
@@ -83,6 +89,7 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.test.d.ts",
     "!dist/**/*.map"
   ],
   "keywords": [

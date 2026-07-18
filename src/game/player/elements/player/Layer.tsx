@@ -51,7 +51,10 @@ export function Layer(
 
     return (
         <>
-            <motion.div layout className={"absolute w-full h-full"} ref={transformRef} data-element-type={"layer"} data-layer-id={layer.getId()} key={`layer-${layer.getId()}`}>
+            {/* No `layout` here: layers are always w-full/h-full of the stage, so FLIP projection
+                only fires on stage resizes — animating those is wrong (letterboxing must snap),
+                and an interrupted projection leaves a corrupt `transform` behind. */}
+            <motion.div className={"absolute w-full h-full"} ref={transformRef} data-element-type={"layer"} data-layer-id={layer.getId()} key={`layer-${layer.getId()}`}>
                 {transitionRefs.map(([ref, key]) => (
                     <div className={"relative w-full h-full"} ref={ref} key={key}>
                         {children}

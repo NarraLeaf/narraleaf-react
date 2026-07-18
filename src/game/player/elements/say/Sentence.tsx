@@ -1,5 +1,5 @@
 import { Pause, Pausing } from "@core/elements/character/pause";
-import { Sentence } from "@core/elements/character/sentence";
+import { Sentence, type StaticWord } from "@core/elements/character/sentence";
 import { Word, WordConfig } from "@core/elements/character/word";
 import { Game, GameState } from "@lib/game/nlcore/common/game";
 import { Color, LiveGameEventToken } from "@lib/game/nlcore/types";
@@ -8,11 +8,12 @@ import Inspect from "@player/lib/Inspect";
 import clsx from "clsx";
 import React, { useEffect, useRef, useState } from "react";
 import { useFlush } from "../../lib/flush";
-import { useGame } from "../../provider/game-state";
+import { useGame, useOptionalGame } from "../../provider/game-state";
 import { Timeline } from "../../Tasks";
 import { useDialogContext } from "./context";
-import { DialogElementProps } from "./type";
 import { DialogState } from "./UIDialog";
+import { useNvlDialogState } from "../nvl/useNvlDialogState";
+import type { NvlDialogEntry } from "@player/gameState";
 
 /**@internal */
 type SplitWord = {
@@ -62,19 +63,190 @@ type RollingTask = {
 
 type PureWord = Exclude<SplitWord, Pausing>;
 type InteractionHandler = (preventDefault: () => void) => void;
-type BaseTextsProps = {
+export type TextAppearanceProps = {
     /**
      * The default color of the text
      */
     defaultColor?: Color;
+    fontSize?: React.CSSProperties["fontSize"];
+    fontWeight?: React.CSSProperties["fontWeight"];
+    fontWeightBold?: React.CSSProperties["fontWeight"];
+    fontFamily?: React.CSSProperties["fontFamily"];
+};
+
+export type BaseTextsProps = TextAppearanceProps & {
     className?: string;
     style?: React.CSSProperties;
     dialog?: DialogState;
 } & React.HTMLAttributes<HTMLDivElement>;
 
+export type TextsPreviewInput = StaticWord<string | Pausing> | StaticWord<string | Pausing>[];
+
+export type TextsPreviewLoop = boolean | {
+    /**
+     * Whether the preview restarts after the current type effect completes.
+     * @default true
+     */
+    enabled?: boolean;
+    /**
+     * Delay before the next preview cycle starts, in milliseconds.
+     * @default 1000
+     */
+    delay?: number;
+};
+
+export interface TextsPreviewProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
+    /**
+     * Static text or words to preview.
+     */
+    text?: TextsPreviewInput;
+    /**
+     * Sentence to preview. Dynamic words are not evaluated; pass `words` when
+     * previewing already-evaluated runtime content.
+     */
+    sentence?: Sentence;
+    /**
+     * Already-evaluated words, useful when previewing dynamic sentence content.
+     */
+    words?: Word<Pausing | string>[];
+    /**
+     * Whether the preview should use the rolling type effect.
+     * @default true
+     */
+    useTypeEffect?: boolean;
+    /**
+     * Loop behavior for settings screens and other static previews.
+     * @default true
+     */
+    loop?: TextsPreviewLoop;
+    /**
+     * Delay before replay when `loop` is `true`, in milliseconds.
+     * Ignored when `loop` is an object with `delay`.
+     * @default 1000
+     */
+    restartDelay?: number;
+    /**
+     * Characters per second used by the preview.
+     * @default current game's `cps` preference, or Game.DefaultPreference.cps outside GameProvider
+     */
+    cps?: number;
+    /**
+     * Speed multiplier used by the preview.
+     * @default current game's `gameSpeed` preference, or Game.DefaultPreference.gameSpeed outside GameProvider
+     */
+    gameSpeed?: number;
+    /**
+     * Duration for a pause without an explicit duration, in milliseconds.
+     * @default current game's `autoForwardDefaultPause` config, or Game.DefaultConfig.autoForwardDefaultPause outside GameProvider
+     */
+    pauseDuration?: number;
+    /**
+     * Fallback color when neither the word nor the sentence defines one.
+     */
+    defaultColor?: Color;
+    fontSize?: React.CSSProperties["fontSize"];
+    fontWeight?: React.CSSProperties["fontWeight"];
+    fontWeightBold?: React.CSSProperties["fontWeight"];
+    fontFamily?: React.CSSProperties["fontFamily"];
+    onCompleted?: () => void;
+}
+
+type ResolvedTextsPreviewLoop = {
+    enabled: boolean;
+    delay: number;
+};
+
+function getGeneratedWords(words: Word<Pausing | string>[]): PureWord[] {
+    const generator = textUpdater(words);
+    const result: PureWord[] = [];
+    for (const value of generator) {
+        if (Pause.isPause(value)) {
+            continue;
+        }
+        result.push(value);
+    }
+    return result;
+}
+
+function updateDisplayingWord(
+    setDisplaying: React.Dispatch<React.SetStateAction<PureWord[]>>,
+    value: Exclude<SplitWord, Pausing>
+) {
+    setDisplaying((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last !== "\n" && value !== "\n" && last.tag === value.tag) {
+            return [...prev.slice(0, -1), {
+                ...value,
+                text: last.text + value.text,
+                config: value.config,
+            }];
+        }
+        return [...prev, value];
+    });
+}
+
+function getPreviewWords(
+    text: TextsPreviewInput | undefined,
+    sentence: Sentence | undefined,
+    words: Word<Pausing | string>[] | undefined
+): Word<Pausing | string>[] {
+    if (words) {
+        return words;
+    }
+    if (text !== undefined) {
+        return Sentence.formatStaticWord(text);
+    }
+    if (!sentence) {
+        return [];
+    }
+    return sentence.text.flatMap((word) => {
+        if (typeof word.text === "function") {
+            return [];
+        }
+        return new Word<string | Pausing>(word.text, word.config);
+    });
+}
+
+function resolveTextsPreviewLoop(
+    loop: TextsPreviewLoop | undefined,
+    restartDelay: number | undefined,
+    defaultDelay: number
+): ResolvedTextsPreviewLoop {
+    const delay = Math.max(0, restartDelay ?? defaultDelay);
+    if (typeof loop === "object") {
+        return {
+            enabled: loop.enabled ?? true,
+            delay: Math.max(0, loop.delay ?? delay),
+        };
+    }
+    return {
+        enabled: loop ?? true,
+        delay,
+    };
+}
+
+function getPreviewDelay(cps: number, gameSpeed: number) {
+    const safeCps = Math.max(0.01, cps);
+    const safeGameSpeed = Math.max(0.01, gameSpeed);
+    return 1000 / (safeCps * safeGameSpeed);
+}
+
+function toOptionalColor(color: Color | undefined): React.CSSProperties["color"] {
+    return color === undefined ? undefined : toHex(color);
+}
 
 function BaseText(
-    { defaultColor, className, style, dialog, ...props }: BaseTextsProps
+    {
+        defaultColor,
+        className,
+        style,
+        dialog,
+        fontSize,
+        fontWeight,
+        fontWeightBold,
+        fontFamily,
+        ...props
+    }: BaseTextsProps
 ) {
     const game = useGame();
     const gameState = game.getLiveGame().getGameState()!;
@@ -196,17 +368,7 @@ function BaseText(
             };
         };
         const updateDisplaying = (value: Exclude<SplitWord, Pausing>) => {
-            setDisplaying((prev) => {
-                const last = prev[prev.length - 1];
-                if (last && last !== "\n" && value !== "\n" && last.tag === value.tag) {
-                    return [...prev.slice(0, -1), {
-                        ...value,
-                        text: last.text + value.text,
-                        config: value.config,
-                    }];
-                }
-                return [...prev, value];
-            });
+            updateDisplayingWord(setDisplaying, value);
         };
 
         const trySkip = (untilEnd: boolean = false) => {
@@ -357,40 +519,29 @@ function BaseText(
         };
     }
 
-    function getGeneratedWords(words: Word<Pausing | string>[]): PureWord[] {
-        const generator = textUpdater(words);
-        const result: PureWord[] = [];
-        for (const value of generator) {
-            if (Pause.isPause(value)) {
-                continue;
-            }
-            result.push(value);
-        }
-        return result;
-    }
-
     const sentence = dialog.config.action.sentence;
     if (!sentence) {
         return null;
     }
 
+    const resolvedFontWeightBold = fontWeightBold ?? "bold";
     const calculatedSentence: React.CSSProperties = {
-        fontWeight: sentence.config.bold ? game.config.fontWeightBold : game.config.fontWeight,
-        fontSize: sentence.config.fontSize ?? game.config.fontSize,
-        color: toHex(sentence.config.color ?? game.config.defaultTextColor),
-        fontFamily: sentence.config.fontFamily ?? game.config.fontFamily,
+        fontWeight: sentence.config.bold ? resolvedFontWeightBold : fontWeight,
+        fontSize: sentence.config.fontSize ?? fontSize,
+        color: toOptionalColor(sentence.config.color ?? defaultColor),
+        fontFamily: sentence.config.fontFamily ?? fontFamily,
         fontStyle: sentence.config.italic ? "italic" : undefined,
     };
 
     const calculateStyle = (word: Exclude<SplitWord, Pausing | "\n">): React.CSSProperties => ({
         fontWeight: word.config.bold
-            ? game.config.fontWeightBold
+            ? resolvedFontWeightBold
             : sentence.config.bold
-                ? game.config.fontWeightBold
-                : game.config.fontWeight,
-        fontSize: word.config.fontSize ?? sentence.config.fontSize ?? game.config.fontSize,
-        color: toHex(word.config.color ?? sentence.config.color ?? defaultColor ?? game.config.defaultTextColor),
-        fontFamily: word.config.fontFamily ?? sentence.config.fontFamily ?? game.config.fontFamily,
+                ? resolvedFontWeightBold
+                : fontWeight,
+        fontSize: word.config.fontSize ?? sentence.config.fontSize ?? fontSize,
+        color: toOptionalColor(word.config.color ?? sentence.config.color ?? defaultColor),
+        fontFamily: word.config.fontFamily ?? sentence.config.fontFamily ?? fontFamily,
         fontStyle: word.config.italic ?? sentence.config.italic ? "italic" : undefined,
     });
 
@@ -431,8 +582,8 @@ function BaseText(
                 className,
             )}
             style={{
-                ...style,
                 ...calculatedSentence,
+                ...style,
             }}
         >
             {displaying.map(getElement)}
@@ -440,33 +591,243 @@ function BaseText(
     );
 }
 
-/**
- * Props-based wrapper component
- * Provides a clean interface for direct prop usage
- */
-export interface TextsProps extends DialogElementProps {
-    sentence: Sentence;
+export type EntryTextsProps = BaseTextsProps & {
+    entry: NvlDialogEntry;
     gameState: GameState;
-    useTypeEffect?: boolean;
-    onCompleted?: () => void;
-    finished?: boolean;
-    count?: number;
-    words?: Word<Pausing | string>[];
+    words: Word<Pausing | string>[];
+    useTypeEffect: boolean;
+    isActive: boolean;
+};
+
+export function TextsPreview({
+    text,
+    sentence,
+    words,
+    useTypeEffect = true,
+    loop = true,
+    restartDelay,
+    cps,
+    gameSpeed,
+    pauseDuration,
+    defaultColor,
+    className,
+    style,
+    fontSize,
+    fontWeight,
+    fontWeightBold,
+    fontFamily,
+    onCompleted,
+    ...props
+}: TextsPreviewProps) {
+    const game = useOptionalGame();
+    const [, syncPreferenceVersion] = useState(0);
+    const gameConfig = game?.config ?? Game.DefaultConfig;
+    const gamePreferences = game?.preference.getPreferences() ?? Game.DefaultPreference;
+    const resolvedCps = cps ?? gamePreferences.cps;
+    const resolvedGameSpeed = gameSpeed ?? gamePreferences.gameSpeed;
+    const resolvedPauseDuration = pauseDuration ?? gameConfig.autoForwardDefaultPause;
+    const resolvedLoopDelay = restartDelay ?? gameConfig.autoForwardDefaultPause;
+    const previewWords = React.useMemo(
+        () => getPreviewWords(text, sentence, words),
+        [text, sentence, words]
+    );
+    const loopConfig = React.useMemo(
+        () => resolveTextsPreviewLoop(loop, restartDelay, resolvedLoopDelay),
+        [loop, restartDelay, resolvedLoopDelay]
+    );
+    const onCompletedRef = useRef(onCompleted);
+    const [displaying, setDisplaying] = useState<PureWord[]>(() => (
+        useTypeEffect ? [] : getGeneratedWords(previewWords)
+    ));
+
+    useEffect(() => {
+        if (!game) {
+            return;
+        }
+        return game.preference.onPreferenceChange(() => {
+            syncPreferenceVersion((version) => version + 1);
+        }).cancel;
+    }, [game]);
+
+    useEffect(() => {
+        onCompletedRef.current = onCompleted;
+    }, [onCompleted]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const timers: ReturnType<typeof setTimeout>[] = [];
+        const safeGameSpeed = Math.max(0.01, resolvedGameSpeed);
+        const wait = (duration: number) => new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, Math.max(0, duration));
+            timers.push(timer);
+        });
+        const complete = () => {
+            if (!cancelled) {
+                onCompletedRef.current?.();
+            }
+        };
+
+        if (!useTypeEffect) {
+            setDisplaying(getGeneratedWords(previewWords));
+            complete();
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        if (previewWords.length === 0) {
+            setDisplaying([]);
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        const run = async () => {
+            do {
+                const updater = textUpdater(previewWords);
+                setDisplaying([]);
+
+                while (!cancelled) {
+                    const { done, value } = updater.next();
+                    if (done) {
+                        break;
+                    }
+
+                    if (Pause.isPause(value)) {
+                        const pause = Pause.from(value);
+                        await wait((pause.config.duration ?? resolvedPauseDuration) / safeGameSpeed);
+                    } else {
+                        updateDisplayingWord(setDisplaying, value);
+                        if (value === "\n") {
+                            await wait(getPreviewDelay(resolvedCps, resolvedGameSpeed));
+                        } else {
+                            await wait(getPreviewDelay(value.cps ?? resolvedCps, resolvedGameSpeed));
+                        }
+                    }
+                }
+
+                if (cancelled) {
+                    return;
+                }
+
+                complete();
+
+                if (loopConfig.enabled) {
+                    await wait(loopConfig.delay);
+                }
+            } while (!cancelled && loopConfig.enabled);
+        };
+
+        void run();
+
+        return () => {
+            cancelled = true;
+            timers.forEach((timer) => clearTimeout(timer));
+        };
+    }, [previewWords, useTypeEffect, loopConfig, resolvedCps, resolvedGameSpeed, resolvedPauseDuration]);
+
+    const sentenceConfig = sentence?.config;
+    const resolvedFontWeightBold = fontWeightBold ?? "bold";
+    const calculatedSentence: React.CSSProperties = {
+        fontWeight: sentenceConfig?.bold ? resolvedFontWeightBold : fontWeight,
+        fontSize: sentenceConfig?.fontSize ?? fontSize,
+        color: toOptionalColor(sentenceConfig?.color ?? defaultColor),
+        fontFamily: sentenceConfig?.fontFamily ?? fontFamily,
+        fontStyle: sentenceConfig?.italic ? "italic" : undefined,
+    };
+    const calculateStyle = (word: Exclude<SplitWord, Pausing | "\n">): React.CSSProperties => ({
+        fontWeight: word.config.bold
+            ? resolvedFontWeightBold
+            : sentenceConfig?.bold
+                ? resolvedFontWeightBold
+                : fontWeight,
+        fontSize: word.config.fontSize ?? sentenceConfig?.fontSize ?? fontSize,
+        color: toOptionalColor(word.config.color ?? sentenceConfig?.color ?? defaultColor),
+        fontFamily: word.config.fontFamily ?? sentenceConfig?.fontFamily ?? fontFamily,
+        fontStyle: word.config.italic ?? sentenceConfig?.italic ? "italic" : undefined,
+    });
+    const getElement = (word: PureWord, index: number) => {
+        if (word === "\n") return (<br key={index} />);
+        return (
+            <span
+                key={index}
+                style={calculateStyle(word)}
+                className={clsx(
+                    "inline-block break-all",
+                    word.config.className,
+                )}
+            >
+                {word.config.ruby ? (
+                    <ruby className={"align-bottom inline-block"}>
+                        <rt className={"block text-center"}>{word.config.ruby}</rt>
+                        {word.text}
+                    </ruby>
+                ) : (
+                    word.text
+                )}
+            </span>
+        );
+    };
+
+    return (
+        <div
+            {...props}
+            className={clsx(
+                "whitespace-pre-wrap",
+                className,
+            )}
+            style={{
+                ...calculatedSentence,
+                ...style,
+            }}
+        >
+            {displaying.map(getElement)}
+        </div>
+    );
 }
+
+export type RawTextsProps = BaseTextsProps;
 
 export function RawTexts(props: BaseTextsProps) {
     return <BaseText {...props} key={props.dialog?.config.action.id} />;
+}
+
+function EntryTexts({
+    entry,
+    gameState,
+    words,
+    useTypeEffect,
+    isActive,
+    ...props
+}: EntryTextsProps) {
+    const dialogState = useNvlDialogState({
+        entry,
+        gameState,
+        words,
+        useTypeEffect,
+        isActive,
+    });
+    return <BaseText {...props} dialog={dialogState} key={dialogState.config.action.id} />;
+}
+
+function ContextTexts(props: BaseTextsProps) {
+    const context = useDialogContext();
+    return (
+        <BaseText {...props} dialog={context} key={context.config.action.id} />
+    );
 }
 
 /**
  * Context-based wrapper component
  * Provides integration with the sentence context
  */
-export function Texts(props: BaseTextsProps) {
-    const context = useDialogContext();
-    return (
-        <BaseText {...props} dialog={context} key={context.config.action.id} />
-    );
+export type TextsProps = BaseTextsProps | EntryTextsProps;
+
+export function Texts(props: BaseTextsProps | EntryTextsProps) {
+    if ("entry" in props && props.entry && "gameState" in props && props.gameState && "words" in props && props.words) {
+        return <EntryTexts {...props} />;
+    }
+    return <ContextTexts {...props} />;
 }
 
 export default Texts;
