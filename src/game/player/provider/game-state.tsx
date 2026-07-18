@@ -39,3 +39,7 @@ export function useGame(): GameContextType {
     if (!context) throw new Error("useGame must be used within a GameProvider");
     return context;
 }
+
+export function useOptionalGame(): GameContextType | null {
+    return useContext(GameContext);
+}

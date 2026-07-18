@@ -3,7 +3,7 @@ import {
     BaseStorableSerializeHandlers,
     BaseStorableTypeName,
     NameSpaceContent,
-    StorableData,
+    SerializedNamespaceData,
     StorableType,
     WrappedStorableData
 } from "@core/elements/persistent/type";
@@ -70,6 +70,22 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return this;
     }
 
+    public has(key: keyof T): boolean {
+        return this.content[key] !== undefined;
+    }
+
+    public keys(): (keyof T)[] {
+        return Object.keys(this.content) as (keyof T)[];
+    }
+
+    public values(): T[keyof T][] {
+        return Object.values(this.content) as T[keyof T][];
+    }
+
+    public entries(): [keyof T, T[keyof T]][] {
+        return Object.entries(this.content) as [keyof T, T[keyof T]][];
+    }
+
     public reset(): this {
         this.content = deepMerge({}, this.defaultContent);
         return this;
@@ -81,17 +97,23 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
     }
 
     /**@internal */
-    toData(): { [key: string]: WrappedStorableData } {
+    toData(): SerializedNamespaceData {
         return this.serialize();
     }
 
-    /**@internal */
-    load(data: T) {
+    /**
+     * Replace the contents with a serialized snapshot, discarding any key the snapshot
+     * does not carry. Use this to rewind to an exact previous state; use
+     * {@link Namespace.deserialize} to layer saved values over existing defaults.
+     * @internal
+     */
+    load(data: SerializedNamespaceData) {
         if (!data) {
             console.warn("No data to load");
             return;
         }
-        this.content = data;
+        this.content = {};
+        this.deserialize(data);
     }
 
     /**@internal */
@@ -103,8 +125,13 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return output;
     }
 
-    /**@internal */
-    deserialize(data: { [key: string]: WrappedStorableData }) {
+    /**
+     * Layer a serialized snapshot over the current contents. Keys the snapshot does not
+     * carry keep their current value, so a namespace that gained a key after a save was
+     * written still reads that key's default when the save is loaded.
+     * @internal
+     */
+    deserialize(data: SerializedNamespaceData) {
         if (!data) {
             console.warn("No data to load");
             return;
@@ -147,6 +174,10 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
 }
 
 export class Storable {
+    public static createNamespace<T extends NameSpaceContent<keyof T>>(name: string, initContent: T, key?: string): Namespace<T> {
+        return new Namespace<T>(name, initContent, key);
+    }
+
     /**@internal */
     namespaces: { [key: string]: Namespace<any> } = {};
 
@@ -201,25 +232,27 @@ export class Storable {
     }
 
     /**@internal */
-    toData() {
+    toData(): { [key: string]: SerializedNamespaceData } {
         return this.entries().reduce((acc, [key, namespace]) => {
             acc[key] = namespace.toData();
             return acc;
-        }, {} as { [key: string]: StorableData });
+        }, {} as { [key: string]: SerializedNamespaceData });
     }
 
     /**@internal */
-    load(data: { [key: string]: StorableData }) {
+    load(data: { [key: string]: SerializedNamespaceData }) {
         if (!data) {
             console.warn("No data to load");
             return;
         }
         Object.entries(data).forEach(([key, content]) => {
-            if (this.namespaces[key]) {
-                this.namespaces[key].load(content);
-            } else {
-                this.namespaces[key] = new Namespace(key, content as any);
+            if (!this.namespaces[key]) {
+                // A namespace the save carries but nothing registered: a scene local, or a
+                // namespace from a version that had more of them. There are no authored
+                // defaults to preserve, so an empty one is the honest starting point.
+                this.namespaces[key] = new Namespace(key, {});
             }
+            this.namespaces[key].deserialize(content);
         });
     }
 

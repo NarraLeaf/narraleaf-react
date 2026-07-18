@@ -1,4 +1,4 @@
-import {Character} from "../elements/character";
+import {Character, Narrator} from "../elements/character";
 import {Condition, Lambda} from "../elements/condition";
 import {Control} from "@core/elements/control";
 import {Image} from "../elements/displayable/image";
@@ -16,14 +16,17 @@ import {Persistent} from "@core/elements/persistent";
 import {Service} from "@core/elements/service";
 import {Layer} from "@core/elements/layer";
 import {Video} from "@core/elements/video";
+import {NVLToken} from "../elements/nvl";
 
 export {
     Character,
+    Narrator,
     Condition,
     Control,
     Image,
     Lambda,
     Menu,
+    NVLToken,
     Scene,
     Script,
     Sentence,
@@ -38,3 +41,21 @@ export {
     Layer,
     Video,
 };
+
+export type {
+    LayeredDefinition,
+    LayerGroupDefinition,
+    LayerResolver,
+    LayerSlot,
+    LayerTagsOf,
+    LayerVariants,
+} from "../elements/displayable/image";
+export type { SentenceMetadata } from "../elements/character/sentence";
+export type {
+    CharacterPortraitConfig,
+    DialogAvatar,
+    DialogAvatarResolver,
+    DialogAvatarResolverContext,
+    DialogAvatarResolution,
+    DialogAvatarSource,
+} from "../elements/character/avatar";

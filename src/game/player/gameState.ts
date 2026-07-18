@@ -10,7 +10,7 @@ import {Storable} from "@core/elements/persistent/storable";
 import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 import {Sentence} from "@core/elements/character/sentence";
-import {SceneAction} from "@core/action/actions/sceneAction";
+import {SceneAction, type SceneSnapshot} from "@core/action/actions/sceneAction";
 import {Logger} from "@lib/util/logger";
 import {RuntimeGameError, RuntimeInternalError} from "@core/common/Utils";
 import {Story} from "@core/elements/story";
@@ -30,6 +30,47 @@ import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
 import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
 import { Displayable } from "../nlcore/elements/displayable/displayable";
 import { Transform } from "../nlcore/common/elements";
+import type { Character } from "@core/elements/character";
+import type { TransformDefinitions } from "@core/elements/transform/type";
+import type { NvlBlockOptions } from "@core/action/actionTypes";
+import {
+    normalizeCharacterPortraitConfig,
+    type NormalizedCharacterPortraitConfig,
+} from "@core/elements/character/avatar";
+
+export type NvlDialogEntry = {
+    id: string;
+    actionId: string;
+    character: Character | null;
+    sentence: Sentence;
+    text: string;
+};
+
+export type NvlDialogPhase = "idle" | "typing" | "awaitAdvance";
+
+/**
+ * Transient tracking record for the currently displayed ADV dialog line.
+ * Rebuilt naturally on load/undo because the pending say action re-executes;
+ * never serialized.
+ */
+export type AdvDialogState = {
+    dialogId: string;
+    actionId: string | null;
+    /** True once the sentence finished displaying (typing done or skipped to full text). */
+    ended: boolean;
+};
+
+export type NvlState = {
+    active: boolean;
+    visible: boolean;
+    sessionId: string | null;
+    dialogs: NvlDialogEntry[];
+    options: NvlBlockOptions | null;
+    activeDialogId: string | null;
+    phase: NvlDialogPhase;
+    pendingAdvance: boolean;
+    isTyping: boolean;
+};
 
 type Legacy_PlayerStateElement = {
     texts: Clickable<TextElement>[];
@@ -54,6 +95,25 @@ export type PlayerStateElement = {
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Chosen>[];
 };
+export type NvlStateData = {
+    active: boolean;
+    visible: boolean;
+    sessionId: string | null;
+    options?: NvlBlockOptions | null;
+    activeDialogId?: string | null;
+    phase?: NvlDialogPhase;
+    pendingAdvance?: boolean;
+    dialogIds?: string[];
+    dialogs?: NvlDialogEntryData[];
+};
+
+export type NvlDialogEntryData = {
+    id: string;
+    actionId?: string;
+    text: string;
+    characterId: string | null;
+};
+
 export type PlayerStateData = {
     scenes: {
         sceneId: string;
@@ -68,6 +128,11 @@ export type PlayerStateData = {
     }[],
     audio: AudioManagerDataRaw;
     videos: [videoId: string, videoState: VideoStateRaw][];
+    nvlState?: NvlStateData;
+};
+export type PresentationSnapshot = {
+    scenes: SceneSnapshot[];
+    nvlState: NvlState;
 };
 /**@internal */
 export type PlayerStateElementSnapshot = {
@@ -88,10 +153,21 @@ interface StageUtils {
 type GameStateEvents = {
     "event:state.end": [];
     "event:state.player.skip": [force?: boolean];
+    "event:state.player.lineEnd": [];
+    "event:state.dialog.change": [];
     "event:state.player.requestFlush": [];
+    "event:state.player.stageClick": [];
+    "event:state.scene.mount": [scene: Scene];
+    "event:state.scene.unmount": [scene: Scene];
     "event.state.onExpose": [unknown, ExposedState[ExposedStateType]];
     "event:state.onRender": [];
     "event:state:flushPreloadedScenes": [];
+    "event:state.nvl.enter": [sessionId: string, options: NvlBlockOptions | null];
+    "event:state.nvl.exit": [];
+    "event:state.nvl.dialogComplete": [dialogId: string];
+    "event:state.nvl.dialogAppend": [entry: NvlDialogEntry];
+    "event:state.nvl.visibilityChange": [visible: boolean, options?: Partial<TransformDefinitions.CommonTransformProps>];
+    "event:state.nvl.change": [state: NvlState];
 };
 
 /**
@@ -102,10 +178,21 @@ export class GameState {
     static EventTypes: { [K in keyof GameStateEvents]: K } = {
         "event:state.end": "event:state.end",
         "event:state.player.skip": "event:state.player.skip",
+        "event:state.player.lineEnd": "event:state.player.lineEnd",
+        "event:state.dialog.change": "event:state.dialog.change",
         "event:state.player.requestFlush": "event:state.player.requestFlush",
+        "event:state.player.stageClick": "event:state.player.stageClick",
+        "event:state.scene.mount": "event:state.scene.mount",
+        "event:state.scene.unmount": "event:state.scene.unmount",
         "event.state.onExpose": "event.state.onExpose",
         "event:state.onRender": "event:state.onRender",
         "event:state:flushPreloadedScenes": "event:state:flushPreloadedScenes",
+        "event:state.nvl.enter": "event:state.nvl.enter",
+        "event:state.nvl.exit": "event:state.nvl.exit",
+        "event:state.nvl.dialogComplete": "event:state.nvl.dialogComplete",
+        "event:state.nvl.dialogAppend": "event:state.nvl.dialogAppend",
+        "event:state.nvl.visibilityChange": "event:state.nvl.visibilityChange",
+        "event:state.nvl.change": "event:state.nvl.change",
     };
     private state: PlayerState = {
         sounds: [],
@@ -113,6 +200,18 @@ export class GameState {
         srcManagers: [],
         elements: [],
     };
+    private nvlState: NvlState = {
+        active: false,
+        visible: false,
+        sessionId: null,
+        dialogs: [],
+        options: null,
+        activeDialogId: null,
+        phase: "idle",
+        pendingAdvance: false,
+        isTyping: false,
+    };
+    private _suppressNextNvlTyping = false;
     currentHandling: CalledActionResult | null = null;
     stage: StageUtils;
     game: Game;
@@ -133,6 +232,9 @@ export class GameState {
     public readonly actionHistory: ActionHistoryManager;
     public readonly gameHistory: GameHistoryManager;
     public pageRouter: null = null;
+    private stageClickBuffer: { timestamp: number } | null = null;
+    private readonly nvlAdvanceWaiters: Map<string, () => void> = new Map();
+    private advDialogState: AdvDialogState | null = null;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
@@ -273,6 +375,41 @@ export class GameState {
         return this.state.elements[this.state.elements.length - 1]?.scene || null;
     }
 
+    public getCurrentScene(): Scene | null {
+        return this.state.elements[0]?.scene || null;
+    }
+
+    public findCurrentPortraitForCharacter(character: Character): NormalizedCharacterPortraitConfig | null {
+        const portraits = (character.config.portraits || [])
+            .map(normalizeCharacterPortraitConfig);
+        if (!portraits.length) {
+            return null;
+        }
+
+        const scene = this.getLastScene();
+        const element = scene ? this.findElementByScene(scene) : null;
+        if (!element) {
+            return null;
+        }
+
+        const portraitByImage = new Map(
+            portraits.map(portrait => [portrait.image, portrait])
+        );
+        const layers = Array.from(element.layers.values());
+        for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex--) {
+            const displayables = layers[layerIndex];
+            for (let displayableIndex = displayables.length - 1; displayableIndex >= 0; displayableIndex--) {
+                const displayable = displayables[displayableIndex];
+                const portrait = portraitByImage.get(displayable as NormalizedCharacterPortraitConfig["image"]);
+                if (portrait && this.isDisplayableVisible(displayable)) {
+                    return portrait;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public sceneExists(scene?: Scene): boolean {
         if (!scene) return !!this.getLastScene();
         return this.state.elements.some(s => s.scene === scene);
@@ -343,7 +480,10 @@ export class GameState {
             id,
             words,
         }, () => {
-            texts.splice(texts.indexOf(action as any), 1);
+            const index = texts.indexOf(action as any);
+            if (index !== -1) {
+                texts.splice(index, 1);
+            }
             if (afterClick) afterClick();
         });
         texts.push(action);
@@ -395,6 +535,418 @@ export class GameState {
         };
     }
 
+    /**
+     * Enter NVL mode
+     * @param options - Optional block options for transitions
+     */
+    public enterNvlMode(options?: NvlBlockOptions | null): this {
+        const sessionId = this.idManager.generateId();
+        this.nvlState = {
+            active: true,
+            visible: true,
+            sessionId,
+            dialogs: [],
+            options: options || null,
+            activeDialogId: null,
+            phase: "idle",
+            pendingAdvance: false,
+            isTyping: false,
+        };
+        this.events.emit(GameState.EventTypes["event:state.nvl.enter"], sessionId, options || null);
+        this.events.emit(GameState.EventTypes["event:state.nvl.visibilityChange"], true, options?.showTransition);
+        this.emitNvlStateChange();
+        return this;
+    }
+
+    /**
+     * Exit NVL mode
+     * @param options - Optional block options for transitions
+     */
+    public exitNvlMode(options?: NvlBlockOptions | null): this {
+        const hideOptions = options?.hideTransition || this.nvlState.options?.hideTransition;
+        this.nvlState = {
+            active: false,
+            visible: false,
+            sessionId: null,
+            dialogs: [],
+            options: null,
+            activeDialogId: null,
+            phase: "idle",
+            pendingAdvance: false,
+            isTyping: false,
+        };
+        this.nvlAdvanceWaiters.clear();
+        this.events.emit(GameState.EventTypes["event:state.nvl.visibilityChange"], false, hideOptions);
+        this.events.emit(GameState.EventTypes["event:state.nvl.exit"]);
+        this.emitNvlStateChange();
+        return this;
+    }
+
+    /**
+     * Set NVL layer visibility without exiting NVL mode
+     * @param visible - Whether to show or hide the NVL layer
+     * @param options - Optional transition properties
+     */
+    public setNvlVisibility(visible: boolean, options?: Partial<TransformDefinitions.CommonTransformProps>): this {
+        this.nvlState = {
+            ...this.nvlState,
+            visible,
+        };
+        this.events.emit(GameState.EventTypes["event:state.nvl.visibilityChange"], visible, options);
+        this.emitNvlStateChange();
+        return this;
+    }
+
+    /**
+     * Append a dialog to the NVL dialog list
+     * @param entry - The dialog entry to append
+     */
+    public appendNvlDialog(entry: NvlDialogEntry): this {
+        this.nvlState.dialogs = [...this.nvlState.dialogs, entry];
+        this.events.emit(GameState.EventTypes["event:state.nvl.dialogAppend"], entry);
+        this.emitNvlStateChange();
+        return this;
+    }
+
+    /**
+     * Remove a dialog from the NVL dialog list
+     * @param id - The dialog id to remove
+     */
+    public removeNvlDialog(id: string): this {
+        const index = this.nvlState.dialogs.findIndex(dialog => dialog.id === id);
+        if (index === -1) {
+            return this;
+        }
+        const dialogs = [...this.nvlState.dialogs];
+        const [removed] = dialogs.splice(index, 1);
+        this.nvlState.dialogs = dialogs;
+        this.events.emit(GameState.EventTypes["event:state.nvl.dialogAppend"], removed);
+        if (this.nvlState.activeDialogId === id) {
+            this.nvlState.activeDialogId = null;
+            this.nvlState.phase = "idle";
+            this.nvlState.pendingAdvance = false;
+            this.syncNvlDerivedState();
+        }
+        this.emitNvlStateChange();
+        return this;
+    }
+
+    /**
+     * Get current NVL dialogs
+     */
+    public getNvlDialogs(): NvlDialogEntry[] {
+        return this.nvlState.dialogs;
+    }
+
+    /**
+     * Check if currently in NVL mode
+     */
+    public isNvlMode(): boolean {
+        return this.nvlState.active;
+    }
+
+    /**
+     * Get NVL state
+     */
+    public getNvlState(): NvlState {
+        return this.nvlState;
+    }
+
+    /**
+     * Create a snapshot of the current NVL state.
+     */
+    public createNvlSnapshot(): NvlState {
+        return {
+            active: this.nvlState.active,
+            visible: this.nvlState.visible,
+            sessionId: this.nvlState.sessionId,
+            dialogs: this.nvlState.dialogs.map(dialog => ({ ...dialog })),
+            options: this.nvlState.options ? { ...this.nvlState.options } : null,
+            activeDialogId: this.nvlState.activeDialogId,
+            phase: this.nvlState.phase,
+            pendingAdvance: this.nvlState.pendingAdvance,
+            isTyping: this.nvlState.isTyping,
+        };
+    }
+
+    public createPresentationSnapshot(): PresentationSnapshot {
+        return {
+            scenes: this.state.elements.map(({ scene }) => SceneAction.createSceneSnapshot(scene, this)),
+            nvlState: this.createNvlSnapshot(),
+        };
+    }
+
+    /**
+     * Restore NVL state and refresh UI.
+     */
+    public restoreNvlSnapshot(snapshot: NvlState): this {
+        const restoredActiveDialogId = snapshot.activeDialogId
+            && snapshot.dialogs.some(dialog => dialog.id === snapshot.activeDialogId)
+            ? snapshot.activeDialogId
+            : null;
+        this.nvlState = {
+            active: snapshot.active,
+            visible: snapshot.visible,
+            sessionId: snapshot.sessionId,
+            dialogs: snapshot.dialogs.map(dialog => ({ ...dialog })),
+            options: snapshot.options ? { ...snapshot.options } : null,
+            activeDialogId: restoredActiveDialogId,
+            phase: restoredActiveDialogId ? "awaitAdvance" : "idle",
+            pendingAdvance: false,
+            isTyping: false,
+        };
+        this.syncNvlDerivedState();
+
+        if (this.nvlState.active) {
+            this.events.emit(GameState.EventTypes["event:state.nvl.enter"], this.nvlState.sessionId || "", this.nvlState.options);
+            this.events.emit(
+                GameState.EventTypes["event:state.nvl.visibilityChange"],
+                this.nvlState.visible,
+                this.nvlState.visible ? this.nvlState.options?.showTransition : this.nvlState.options?.hideTransition
+            );
+        } else {
+            this.events.emit(
+                GameState.EventTypes["event:state.nvl.visibilityChange"],
+                false,
+                this.nvlState.options?.hideTransition
+            );
+            this.events.emit(GameState.EventTypes["event:state.nvl.exit"]);
+        }
+        this.emitNvlStateChange();
+        return this;
+    }
+
+    public restorePresentationSnapshot(snapshot: PresentationSnapshot): this {
+        snapshot.scenes.forEach((sceneSnapshot) => {
+            SceneAction.restoreSceneSnapshot(sceneSnapshot, this);
+        });
+        this.restoreNvlSnapshot(snapshot.nvlState);
+        return this;
+    }
+
+    /**
+     * Clear NVL dialogs
+     */
+    public clearNvlDialogs(): this {
+        this.nvlState.dialogs = [];
+        this.emitNvlStateChange();
+        return this;
+    }
+
+    public setNvlActiveDialog(dialogId: string | null, isTyping: boolean): this {
+        this.nvlState.activeDialogId = dialogId;
+        this.nvlState.phase = dialogId ? (isTyping ? "typing" : "awaitAdvance") : "idle";
+        this.nvlState.pendingAdvance = false;
+        this.syncNvlDerivedState();
+        this.emitNvlStateChange();
+        return this;
+    }
+
+    public setNvlTyping(isTyping: boolean): this {
+        this.nvlState.phase = isTyping
+            ? "typing"
+            : this.nvlState.activeDialogId
+                ? "awaitAdvance"
+                : "idle";
+        this.syncNvlDerivedState();
+        this.emitNvlStateChange();
+        return this;
+    }
+
+    public getNvlDialog(dialogId: string): NvlDialogEntry | null {
+        return this.nvlState.dialogs.find(dialog => dialog.id === dialogId) || null;
+    }
+
+    public getActiveNvlDialogForAction(actionId: string): NvlDialogEntry | null {
+        if (!this.nvlState.activeDialogId) {
+            return null;
+        }
+        const active = this.getNvlDialog(this.nvlState.activeDialogId);
+        if (!active || active.actionId !== actionId) {
+            return null;
+        }
+        return active;
+    }
+
+    public getLatestNvlDialogForAction(actionId: string): NvlDialogEntry | null {
+        for (let i = this.nvlState.dialogs.length - 1; i >= 0; i--) {
+            const dialog = this.nvlState.dialogs[i];
+            if (dialog.actionId === actionId) {
+                return dialog;
+            }
+        }
+        return null;
+    }
+
+    public allocateNvlDialogId(actionId: string): string {
+        let maxIndex = -1;
+        for (const dialog of this.nvlState.dialogs) {
+            if (dialog.actionId !== actionId) {
+                continue;
+            }
+            const suffix = dialog.id.startsWith(`${actionId}:`)
+                ? Number.parseInt(dialog.id.slice(actionId.length + 1), 10)
+                : Number.NaN;
+            if (!Number.isNaN(suffix)) {
+                maxIndex = Math.max(maxIndex, suffix);
+            }
+        }
+        return `${actionId}:${maxIndex + 1}`;
+    }
+
+    public ensureNvlDialog(entry: NvlDialogEntry): { created: boolean; entry: NvlDialogEntry } {
+        const existing = this.getNvlDialog(entry.id);
+        if (existing) {
+            existing.character = entry.character;
+            existing.sentence = entry.sentence;
+            existing.text = entry.text;
+            this.events.emit(GameState.EventTypes["event:state.nvl.dialogAppend"], existing);
+            this.emitNvlStateChange();
+            return {
+                created: false,
+                entry: existing,
+            };
+        }
+        this.appendNvlDialog(entry);
+        return {
+            created: true,
+            entry,
+        };
+    }
+
+    public activateNvlDialog(dialogId: string, phase: Exclude<NvlDialogPhase, "idle"> = "typing", preserveProgress: boolean = true): this {
+        const shouldPreserve = preserveProgress
+            && this.nvlState.activeDialogId === dialogId
+            && this.nvlState.phase !== "idle";
+        if (!shouldPreserve) {
+            this.nvlState.activeDialogId = dialogId;
+            this.nvlState.phase = phase;
+            this.nvlState.pendingAdvance = false;
+            this.syncNvlDerivedState();
+            this.emitNvlStateChange();
+        }
+        return this;
+    }
+
+    public waitForNvlAdvance(dialogId: string, resolve: () => void): LiveGameEventToken {
+        this.nvlAdvanceWaiters.set(dialogId, resolve);
+        return {
+            cancel: () => {
+                if (this.nvlAdvanceWaiters.get(dialogId) === resolve) {
+                    this.nvlAdvanceWaiters.delete(dialogId);
+                }
+            },
+        };
+    }
+
+    public requestNvlAdvance(dialogId: string): "ignore" | "typing" | "advance" {
+        if (!this.nvlState.active || this.nvlState.activeDialogId !== dialogId) {
+            return "ignore";
+        }
+        if (this.nvlState.phase === "typing") {
+            return "typing";
+        }
+        if (this.nvlState.phase === "awaitAdvance") {
+            this.resolveNvlAdvance(dialogId);
+            return "advance";
+        }
+        return "ignore";
+    }
+
+    public requestNvlSkip(dialogId: string): "ignore" | "typing" | "advance" {
+        return this.requestNvlAdvance(dialogId);
+    }
+
+    public completeNvlTyping(dialogId: string): boolean {
+        if (!this.nvlState.active || this.nvlState.activeDialogId !== dialogId) {
+            return false;
+        }
+        this.nvlState.phase = "awaitAdvance";
+        this.nvlState.pendingAdvance = false;
+        this.syncNvlDerivedState();
+        this.events.emit(GameState.EventTypes["event:state.nvl.dialogComplete"], dialogId);
+        this.emitNvlStateChange();
+        return true;
+    }
+
+    public settleNvlDialog(dialogId: string): this {
+        if (this.nvlState.activeDialogId === dialogId) {
+            this.nvlState.activeDialogId = null;
+            this.nvlState.phase = "idle";
+            this.nvlState.pendingAdvance = false;
+            this.syncNvlDerivedState();
+            this.emitNvlStateChange();
+        }
+        return this;
+    }
+
+    public suppressNextNvlTyping(): this {
+        this._suppressNextNvlTyping = true;
+        return this;
+    }
+
+    public consumeNvlTypingSuppression(): boolean {
+        if (!this._suppressNextNvlTyping) {
+            return false;
+        }
+        this._suppressNextNvlTyping = false;
+        return true;
+    }
+
+    /**
+     * Track the ADV dialog created by a say action. Emits `event:state.dialog.change`.
+     */
+    public beginAdvDialog(dialogId: string, actionId: string | null): this {
+        this.advDialogState = { dialogId, actionId, ended: false };
+        this.events.emit(GameState.EventTypes["event:state.dialog.change"]);
+        return this;
+    }
+
+    /**
+     * Mark the tracked ADV dialog as fully displayed. No-op when the dialog id
+     * does not match the tracked one (e.g. DialogState reused outside ADV flow).
+     */
+    public completeAdvDialogTyping(dialogId: string | undefined): this {
+        if (!dialogId || !this.advDialogState || this.advDialogState.dialogId !== dialogId) {
+            return this;
+        }
+        if (!this.advDialogState.ended) {
+            this.advDialogState.ended = true;
+            this.events.emit(GameState.EventTypes["event:state.dialog.change"]);
+        }
+        return this;
+    }
+
+    /**
+     * Clear the tracked ADV dialog when the line is advanced past or cancelled.
+     */
+    public settleAdvDialog(dialogId: string): this {
+        if (this.advDialogState?.dialogId === dialogId) {
+            this.advDialogState = null;
+            this.events.emit(GameState.EventTypes["event:state.dialog.change"]);
+        }
+        return this;
+    }
+
+    public getAdvDialogState(): AdvDialogState | null {
+        return this.advDialogState;
+    }
+
+    public recordStageClick(): this {
+        this.stageClickBuffer = { timestamp: Date.now() };
+        return this;
+    }
+
+    public consumeStageClick(maxAgeMs: number = 200): boolean {
+        if (!this.stageClickBuffer) {
+            return false;
+        }
+        const { timestamp } = this.stageClickBuffer;
+        const age = Date.now() - timestamp;
+        this.stageClickBuffer = null;
+        return age >= 0 && age <= maxAgeMs;
+    }
+
     public createDisplayable(
         displayable: LogicAction.DisplayableElements,
         scene: Scene | null = null,
@@ -435,7 +987,8 @@ export class GameState {
     }
 
     public forceReset() {
-        this.state.elements.forEach(({scene}) => {
+        const activeElements = [...this.state.elements];
+        activeElements.forEach(({scene}) => {
             this.offSrcManager(scene.srcManager);
             this.removeScene(scene);
             scene.events.clear();
@@ -443,6 +996,18 @@ export class GameState {
         this.state.elements = [];
         this.state.srcManagers = [];
         this.state.videos = [];
+        this.nvlState = {
+            active: false,
+            visible: false,
+            sessionId: null,
+            dialogs: [],
+            options: null,
+            activeDialogId: null,
+            phase: "idle",
+            pendingAdvance: false,
+            isTyping: false,
+        };
+        this.nvlAdvanceWaiters.clear();
         this.audioManager.reset();
         this.timelines.abortAll();
         this.gameHistory.reset();
@@ -510,6 +1075,12 @@ export class GameState {
             timeline.attachChild(task);
 
             state.updateStyleSync();
+            // `updateStyleSync` only re-applies imperative props; a layered image's sources are
+            // React props, and the memoized element no longer re-renders on the surrounding
+            // forceUpdate (this runs after undo/restore) — flush it explicitly.
+            if ("flush" in state) {
+                state.flush();
+            }
         });
         this.timelines.attachTimeline(timeline);
 
@@ -623,6 +1194,22 @@ export class GameState {
                 v.getId(),
                 v.toData(),
             ]),
+            nvlState: {
+                active: this.nvlState.active,
+                visible: this.nvlState.visible,
+                sessionId: this.nvlState.sessionId,
+                options: this.nvlState.options ? { ...this.nvlState.options } : null,
+                activeDialogId: this.nvlState.activeDialogId,
+                phase: this.nvlState.phase,
+                pendingAdvance: this.nvlState.pendingAdvance,
+                dialogIds: this.nvlState.dialogs.map(d => d.id),
+                dialogs: this.nvlState.dialogs.map(d => ({
+                    id: d.id,
+                    actionId: d.actionId,
+                    text: d.text,
+                    characterId: d.character ? d.character.getId() : null,
+                })),
+            },
         };
     }
 
@@ -665,6 +1252,41 @@ export class GameState {
             video.fromData(state);
             return video;
         });
+
+        if (data.nvlState) {
+            const restoredDialogs = (data.nvlState.dialogs || []).map((dialog) => {
+                const character = dialog.characterId
+                    ? (elementMap.get(dialog.characterId) as Character | undefined) || null
+                    : null;
+                const text = dialog.text || "";
+                return {
+                    id: dialog.id,
+                    actionId: dialog.actionId || dialog.id,
+                    character,
+                    sentence: new Sentence(text, { character }),
+                    text,
+                } satisfies NvlDialogEntry;
+            });
+            this.nvlState = {
+                active: data.nvlState.active,
+                visible: data.nvlState.visible,
+                sessionId: data.nvlState.sessionId,
+                dialogs: restoredDialogs,
+                options: data.nvlState.options || null,
+                activeDialogId: data.nvlState.activeDialogId || null,
+                phase: data.nvlState.phase || (data.nvlState.activeDialogId ? "awaitAdvance" : "idle"),
+                pendingAdvance: data.nvlState.pendingAdvance || false,
+                isTyping: false,
+            };
+            this.syncNvlDerivedState();
+            if (this.nvlState.active) {
+                this.events.emit(GameState.EventTypes["event:state.nvl.enter"], this.nvlState.sessionId || "", this.nvlState.options);
+            }
+            if (this.nvlState.visible) {
+                this.events.emit(GameState.EventTypes["event:state.nvl.visibilityChange"], true, this.nvlState.options?.showTransition);
+            }
+            this.emitNvlStateChange();
+        }
     }
 
     public getLastSceneIfNot(scene: Scene | null | void) {
@@ -720,6 +1342,40 @@ export class GameState {
                 element.reset();
             });
         });
+    }
+
+    private syncNvlDerivedState(): void {
+        this.nvlState.isTyping = this.nvlState.phase === "typing";
+        if (!this.nvlState.activeDialogId) {
+            this.nvlState.phase = "idle";
+            this.nvlState.pendingAdvance = false;
+            this.nvlState.isTyping = false;
+        }
+    }
+
+    private emitNvlStateChange(): void {
+        this.syncNvlDerivedState();
+        this.events.emit(GameState.EventTypes["event:state.nvl.change"], this.getNvlState());
+        this.stage.update();
+    }
+
+    private resolveNvlAdvance(dialogId: string): boolean {
+        const waiter = this.nvlAdvanceWaiters.get(dialogId);
+        if (!waiter) {
+            return false;
+        }
+        this.nvlAdvanceWaiters.delete(dialogId);
+        this.nvlState.activeDialogId = null;
+        this.nvlState.phase = "idle";
+        this.nvlState.pendingAdvance = false;
+        this.syncNvlDerivedState();
+        this.emitNvlStateChange();
+        waiter();
+        return true;
+    }
+
+    private isDisplayableVisible(displayable: LogicAction.DisplayableElements): boolean {
+        return (displayable.transformState.get().opacity ?? 0) > 0;
     }
 
     private createWaitableAction<A extends Record<any, any>, T = undefined>(action: A, after?: (arg0: T) => void) {

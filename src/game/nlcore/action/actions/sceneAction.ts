@@ -1,6 +1,6 @@
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import type {Scene, SceneDataRaw} from "@core/elements/scene";
-import {GameState, PlayerStateElementSnapshot} from "@player/gameState";
+import {GameState, PlayerStateElementSnapshot, NvlState} from "@player/gameState";
 import {Awaitable, SkipController} from "@lib/util/data";
 import type {CalledActionResult} from "@core/gameTypes";
 import {ContentNode} from "@core/action/tree/actionTree";
@@ -12,12 +12,13 @@ import {ImageTransition} from "@core/elements/transition/transitions/image/image
 import {ImageAction} from "@core/action/actions/imageAction";
 import {ActionSearchOptions} from "@core/types";
 import {ExposedState, ExposedStateType} from "@player/type";
+import type { TransformDefinitions } from "@core/elements/transform/type";
 import { Sound } from "@core/elements/sound";
 import { ImageDataRaw } from "@core/elements/displayable/image";
 import { ActionExecutionInjection, ExecutedActionResult } from "../action";
 import { StackModelRawData } from "../stackModel";
 
-type SceneSnapshot = {
+export type SceneSnapshot = {
     state: SceneDataRaw | null;
     local: Record<string, any>;
     element: PlayerStateElementSnapshot;
@@ -124,6 +125,38 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         this.callee.state.backgroundImage.reset();
     }
 
+    applyNvlVisibility(
+        gameState: GameState,
+        visible: boolean,
+        options: Partial<TransformDefinitions.CommonTransformProps> | undefined,
+        injection: ActionExecutionInjection,
+    ): CalledActionResult | Awaitable<CalledActionResult, CalledActionResult> {
+        gameState.setNvlVisibility(visible, options);
+
+        const duration = Math.max(0, options?.duration || 0);
+        if (duration === 0) {
+            return super.executeAction(gameState, injection) as CalledActionResult;
+        }
+
+        const next = super.executeAction(gameState, injection) as CalledActionResult;
+        const awaitable = new Awaitable<CalledActionResult, CalledActionResult>(v => v);
+        let timer: NodeJS.Timeout | null = null;
+
+        awaitable.registerSkipController(new SkipController(() => {
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
+            return next;
+        }));
+
+        timer = gameState.setTimeout(() => {
+            timer = null;
+            awaitable.resolve(next);
+        }, duration);
+        return awaitable;
+    }
+
     public executeAction(gameState: GameState, injection: ActionExecutionInjection): ExecutedActionResult {
         if (this.type === SceneActionTypes.action) {
             return super.executeAction(gameState, injection);
@@ -203,11 +236,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 action: this,
                 stackModel: injection.stackModel
             }, (prevMusic) => {
-                if (prevMusic) exposed.setBackgroundMusic(prevMusic, 0);
+                exposed.setBackgroundMusic(prevMusic, 0);
             }, [originalMusic]);
 
             exposed.setBackgroundMusic(sound, fade || 0);
-            this.callee.state.backgroundMusic = sound;
 
             return super.executeAction(gameState, injection);
         } else if (this.type === SceneActionTypes.preUnmount) {
@@ -225,6 +257,78 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             }
 
             return this.applyTransition(gameState, transition, injection);
+        } else if (this.type === SceneActionTypes.nvlBlock) {
+            const [actions, options] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlBlock"]>).getContent();
+            
+            const preNvlSnapshot = gameState.createNvlSnapshot();
+            gameState.enterNvlMode(options);
+            gameState.actionHistory.push<[NvlState]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevSnapshot) => {
+                gameState.restoreNvlSnapshot(prevSnapshot);
+            }, [preNvlSnapshot]);
+
+            if (actions.length === 0) {
+                return {
+                    type: this.type,
+                    node: this.contentNode.getChild(),
+                };
+            }
+
+            return [
+                {
+                    type: this.type,
+                    node: this.contentNode.getChild(),
+                },
+                {
+                    type: this.type,
+                    node: actions[0].contentNode,
+                }
+            ];
+        } else if (this.type === SceneActionTypes.nvlShow) {
+            const [options] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlShow"]>).getContent();
+            const previousVisible = gameState.getNvlState().visible;
+            const result = this.applyNvlVisibility(gameState, true, options, injection);
+            const timeline = Awaitable.isAwaitable(result) ? gameState.timelines.attachTimeline(result) : undefined;
+            gameState.actionHistory.push<[boolean]>({
+                action: this,
+                stackModel: injection.stackModel,
+                timeline,
+            }, (prevVisible) => {
+                gameState.setNvlVisibility(prevVisible);
+            }, [previousVisible]);
+
+            return result;
+        } else if (this.type === SceneActionTypes.nvlHide) {
+            const [options] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlHide"]>).getContent();
+            const previousVisible = gameState.getNvlState().visible;
+            const result = this.applyNvlVisibility(gameState, false, options, injection);
+            const timeline = Awaitable.isAwaitable(result) ? gameState.timelines.attachTimeline(result) : undefined;
+            gameState.actionHistory.push<[boolean]>({
+                action: this,
+                stackModel: injection.stackModel,
+                timeline,
+            }, (prevVisible) => {
+                gameState.setNvlVisibility(prevVisible);
+            }, [previousVisible]);
+
+            return result;
+        } else if (this.type === SceneActionTypes.nvlEnd) {
+            const [options] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlEnd"]>).getContent();
+            const exitSnapshot = gameState.createNvlSnapshot();
+            gameState.actionHistory.push<[NvlState]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevSnapshot) => {
+                gameState.restoreNvlSnapshot(prevSnapshot);
+            }, [exitSnapshot]);
+            gameState.exitNvlMode(options || null);
+            
+            return {
+                type: this.type,
+                node: null
+            };
         }
 
         throw new Error("Unknown scene action type: " + this.type);
@@ -232,8 +336,6 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
 
     getFutureActions(story: Story, searchOptions: ActionSearchOptions = {}): LogicAction.Actions[] {
         if (this.type === SceneActionTypes.jumpTo && searchOptions.allowFutureScene !== false) {
-            // It doesn't care about the actions after jumpTo
-            // because they won't be executed
             const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
             const scene = story.getScene(targetScene, true);
 
@@ -244,6 +346,13 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             const sceneRootNode = story.getScene(targetScene, true).getSceneRoot()?.contentNode;
             return sceneRootNode?.action ? [sceneRootNode.action] : [];
         }
+        
+        if (this.type === SceneActionTypes.nvlBlock) {
+            const [actions] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlBlock"]>).getContent();
+            const childActions = super.getFutureActions(story, searchOptions);
+            return [...(actions ?? []), ...childActions];
+        }
+
         const action = this.contentNode.getChild()?.action;
         return action ? [action] : [];
     }

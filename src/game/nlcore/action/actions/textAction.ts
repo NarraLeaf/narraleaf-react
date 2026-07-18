@@ -31,7 +31,13 @@ export class TextAction<T extends typeof TextActionTypes[keyof typeof TextAction
         } else if (this.type === TextActionTypes.setFontSize) {
             const originalFontSize = this.callee.state.fontSize;
             this.callee.state.fontSize = (this.contentNode as ContentNode<TextActionContentType["text:setFontSize"]>).getContent()[0];
-            state.getExposedStateForce<ExposedStateType.text>(this.callee).flush();
+            const exposed = state.getExposedStateForce<ExposedStateType.text>(this.callee);
+            exposed.flush();
+            // Unlike the text itself, which is rendered as a child and so follows from the flush
+            // alone, the font size is written to the span imperatively — re-rendering never
+            // re-applies it. Without this the instant form (`setFontSize(size)`, no duration)
+            // would store the new size and leave the old one on screen.
+            exposed.updateStyleSync();
 
             state.actionHistory.push<[number]>(historyProps, (prevFontSize) => {
                 this.callee.state.fontSize = prevFontSize;

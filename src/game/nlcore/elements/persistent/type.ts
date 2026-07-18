@@ -8,12 +8,23 @@ export type BaseStorableType = number | boolean | string | undefined | null | Da
 export type UnserializableStorableType = Date;
 /**@internal */
 export type BaseStorableTypeName = "any" | "date";
-/**@internal */
 export type StorableType = BaseStorableType | Record<string, BaseStorableType> | Array<BaseStorableType>;
-/**@internal */
+/**
+ * A single stored value as it appears in a saved game. Values are tagged on the way out so
+ * that types JSON cannot express (currently `Date`) survive the round-trip.
+ *
+ * This is part of the on-disk save format rather than an implementation detail: it is what
+ * {@link SavedGame}'s `store` actually contains. Read it through `Namespace`, never by hand.
+ */
 export type WrappedStorableData<T extends StorableType = any> = {
     type: BaseStorableTypeName;
     data: T;
+}
+/**
+ * One namespace's contents in a saved game: every value wrapped by {@link WrappedStorableData}.
+ */
+export type SerializedNamespaceData = {
+    [key: string]: WrappedStorableData;
 }
 /**@internal */
 export type StorableTypeSerializer<T, U extends StorableType = any> = (value: T) => WrappedStorableData<U>;

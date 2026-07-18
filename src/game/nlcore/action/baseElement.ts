@@ -1,5 +1,5 @@
-import {ElementStateRaw} from "@core/elements/story";
-import {LogicAction} from "@core/action/logicAction";
+import type {ElementStateRaw} from "@core/elements/story";
+import type {LogicAction} from "@core/action/logicAction";
 
 export class BaseElement {
     /**@internal */
@@ -35,4 +35,3 @@ export class BaseElement {
         return actions;
     }
 }
-

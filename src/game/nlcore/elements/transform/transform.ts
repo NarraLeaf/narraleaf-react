@@ -1,5 +1,5 @@
 import React from "react";
-import type { CommonDisplayableConfig, CommonImagePosition } from "@core/types";
+import type { CommonImagePosition } from "@core/types";
 import { ImagePosition } from "@core/types";
 import { animate } from "motion/react";
 import type {
@@ -50,7 +50,7 @@ type OverwriteHandler<T> = (value: Partial<TransformDefinitions.Types>) => T;
 
 /**@internal */
 export class TransformState<T extends TransformDefinitions.Types> {
-    static DefaultTransformState = new ConfigConstructor<CommonDisplayableConfig>({
+    static DefaultTransformState = new ConfigConstructor<TransformDefinitions.ImageTransformProps>({
         scaleX: 1,
         scaleY: 1,
         zoom: 1,
@@ -58,6 +58,15 @@ export class TransformState<T extends TransformDefinitions.Types> {
         position: new CommonPosition(CommonPositionType.Center),
         opacity: 0,
         alt: "",
+        maskImage: undefined,
+        maskSize: undefined,
+        maskPosition: undefined,
+        maskRepeat: undefined,
+        maskMode: undefined,
+        clipPath: undefined,
+        filter: undefined,
+        backdropFilter: undefined,
+        mixBlendMode: undefined,
     });
 
     static TransformStateSerializer = new Serializer<
@@ -188,7 +197,7 @@ export class TransformState<T extends TransformDefinitions.Types> {
     }
 }
 
-export class Transform<T extends TransformDefinitions.Types = CommonDisplayableConfig> {
+export class Transform<T extends TransformDefinitions.Types = TransformDefinitions.Types> {
     /**@internal */
     static defaultConfig: TransformDefinitions.TransformConfig = {
         sync: true,
@@ -259,7 +268,7 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
      * @param config - The config for the transform.
      * @returns A new transform with the given config.
      */
-    public static create<T extends TransformDefinitions.Types = CommonDisplayableConfig>(config?: Partial<TransformDefinitions.TransformConfig>): Transform<T> {
+    public static create<T extends TransformDefinitions.Types = TransformDefinitions.Types>(config?: Partial<TransformDefinitions.TransformConfig>): Transform<T> {
         return new Transform<T>([], config);
     }
 
@@ -267,7 +276,8 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
     public static positionToCSS(
         position: RawPosition | IPosition | undefined,
         invertY?: boolean | undefined,
-        invertX?: boolean | undefined
+        invertX?: boolean | undefined,
+        dimensions?: { width: number; height: number }
     ): CSSProps {
         if (!position) {
             return {};
@@ -276,10 +286,11 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
             return PositionUtils.D2PositionToCSS(
                 PositionUtils.rawPositionToCoord2D(position),
                 invertX,
-                invertY
+                invertY,
+                dimensions
             );
         }
-        return PositionUtils.D2PositionToCSS(position.toCSS(), invertX, invertY);
+        return PositionUtils.D2PositionToCSS(position.toCSS(), invertX, invertY, dimensions);
     }
 
     /**@internal */
@@ -341,13 +352,43 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
     static constructStyle<T extends TransformDefinitions.Types>(state: GameState, props: Partial<T>, overwrites?: OverwriteDefinition): DOMKeyframesDefinition {
         const { invertY, invertX } = state.getStory().getInversionConfig();
         const { overwrite } = overwrites || {};
+        // Fold pixel offsets into design-relative percentages so positions stay
+        // resolution-independent and remain animatable by `motion`.
+        const config = state.game?.config;
+        const dimensions = config && config.width > 0 && config.height > 0
+            ? { width: config.width, height: config.height }
+            : undefined;
         return {
-            ...Transform.positionToCSS(props.position, invertY, invertX),
+            ...Transform.positionToCSS(props.position, invertY, invertX, dimensions),
             opacity: props.opacity,
             color: ("fontColor" in props && props.fontColor) ? toHex((props as TransformDefinitions.TextTransformProps).fontColor!) : undefined,
             transform: Transform.propToCSSTransform(state, props),
+            ...Transform.constructVisualEffectStyle(props),
             ...(overwrite ? overwrite(props) : {}),
         } satisfies DOMKeyframesDefinition;
+    }
+
+    /**@internal */
+    static constructVisualEffectStyle<T extends TransformDefinitions.Types>(props: Partial<T>): CSSProps {
+        const visualProps = props as Partial<TransformDefinitions.VisualEffectTransformProps>;
+
+        return {
+            maskImage: visualProps.maskImage,
+            WebkitMaskImage: visualProps.maskImage,
+            maskSize: visualProps.maskSize,
+            WebkitMaskSize: visualProps.maskSize,
+            maskPosition: visualProps.maskPosition,
+            WebkitMaskPosition: visualProps.maskPosition,
+            maskRepeat: visualProps.maskRepeat,
+            WebkitMaskRepeat: visualProps.maskRepeat,
+            maskMode: visualProps.maskMode,
+            WebkitMaskMode: visualProps.maskMode,
+            clipPath: visualProps.clipPath,
+            filter: visualProps.filter,
+            backdropFilter: visualProps.backdropFilter,
+            WebkitBackdropFilter: visualProps.backdropFilter,
+            mixBlendMode: visualProps.mixBlendMode,
+        } as CSSProps;
     }
 
     /**@internal */
@@ -446,6 +487,13 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
 
         token.then(onComplete, ((arg0: unknown) => {
             gameState.logger.error("Failed to animate transform. " + (arg0?.toString?.() || ""));
+            // Settle to the final pose anyway: leaving the state locked and the awaitable pending
+            // wedges the element (and the action that awaits it) forever.
+            try {
+                onComplete();
+            } catch {
+                awaitable.resolve();
+            }
         }) as any);
         token.play();
 
@@ -680,6 +728,69 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
         });
     }
 
+    /**
+     * Set visual effect fields in the current staging sequence.
+     */
+    public effect(effect: TransformDefinitions.VisualEffectTransformProps): this {
+        for (const key of Object.keys(effect) as (keyof TransformDefinitions.VisualEffectTransformProps)[]) {
+            this.pushChange({
+                key: key as StringKeyOf<TransformDefinitions.Types>,
+                props: effect[key] as any,
+            });
+        }
+        return this;
+    }
+
+    /**
+     * Set the CSS mask image of the current staging sequence.
+     */
+    public maskImage(maskImage: TransformDefinitions.Types["maskImage"]): this {
+        return this.pushChange({
+            key: "maskImage",
+            props: maskImage,
+        });
+    }
+
+    /**
+     * Set the CSS clip-path of the current staging sequence.
+     */
+    public clipPath(clipPath: TransformDefinitions.Types["clipPath"]): this {
+        return this.pushChange({
+            key: "clipPath",
+            props: clipPath,
+        });
+    }
+
+    /**
+     * Set the CSS filter of the current staging sequence.
+     */
+    public filter(filter: TransformDefinitions.Types["filter"]): this {
+        return this.pushChange({
+            key: "filter",
+            props: filter,
+        });
+    }
+
+    /**
+     * Set the CSS backdrop-filter of the current staging sequence.
+     */
+    public backdropFilter(backdropFilter: TransformDefinitions.Types["backdropFilter"]): this {
+        return this.pushChange({
+            key: "backdropFilter",
+            props: backdropFilter,
+        });
+    }
+
+    /**
+     * Set the CSS mix-blend-mode of the current staging sequence.
+     */
+    public mixBlendMode(mixBlendMode: TransformDefinitions.Types["mixBlendMode"]): this {
+        return this.pushChange({
+            key: "mixBlendMode",
+            props: mixBlendMode,
+        });
+    }
+
     /**@internal */
     private constructCommit(stagedChanges: Change<StringKeyOf<TransformDefinitions.Types>>[], options: TransformDefinitions.SequenceOptions): TransformDefinitions.Sequence<TransformDefinitions.Types> {
         const sequence: TransformDefinitions.Sequence<TransformDefinitions.Types> = {
@@ -741,7 +852,5 @@ export class Transform<T extends TransformDefinitions.Types = CommonDisplayableC
         return sign === "+" ? `+${result}` : `-${result}`;
     }
 }
-
-
 
 

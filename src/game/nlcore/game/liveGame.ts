@@ -1,7 +1,7 @@
 import { ConditionAction } from "@core/action/actions/conditionAction";
 import { ControlAction } from "@core/action/actions/controlAction";
 import { SceneAction } from "@core/action/actions/sceneAction";
-import { ControlActionTypes, SceneActionTypes } from "@core/action/actionTypes";
+import { CharacterActionTypes, ControlActionTypes, SceneActionTypes } from "@core/action/actionTypes";
 import { LogicAction } from "@core/action/logicAction";
 import { ContentNode, RawData } from "@core/action/tree/actionTree";
 import { RuntimeGameError, RuntimeInternalError } from "@core/common/Utils";
@@ -12,6 +12,8 @@ import { StorableType } from "@core/elements/persistent/type";
 import { Scene } from "@core/elements/scene";
 import { ElementStateRaw, Story } from "@core/elements/story";
 import { Game } from "@core/game";
+import { Sound } from "@core/elements/sound";
+import { SoundToken } from "@narraleaf/sound";
 import type { CalledActionResult, NotificationToken, SavedGame } from "@core/gameTypes";
 import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
 import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
@@ -189,6 +191,8 @@ export class LiveGame {
             throw new Error("No story loaded");
         }
 
+        this.game.hooks.trigger("beforeRestore", []);
+
         // Prevent the player from rolling the stack
         gameState.rollLock.lock();
 
@@ -210,7 +214,12 @@ export class LiveGame {
         const [actionMaps, elementMaps] = this.constructMaps();
 
         // restore storable
-        this._storable.clear().load(store);
+        // Re-register the authored namespaces before applying the save: a save only carries
+        // the keys that existed when it was written, so loading into freshly defaulted
+        // namespaces is what lets a key added since then keep its default (and lets
+        // `reset()` still mean the author's defaults rather than the save's contents).
+        this.initNamespaces();
+        this._storable.load(store);
 
         // restore elements
         elementStates.forEach(({ id, data }) => {
@@ -230,11 +239,16 @@ export class LiveGame {
 
         // restore stack model
         this.stackModel.deserialize(stackModel, actionMaps);
-        asyncStackModels.forEach(stack => this.asyncStackModels.add(StackModel.createStackModel(this, stack, actionMaps)));
-        this.asyncStackModels.forEach(stack => gameState.timelines.attachTimeline(stack.execute()));
+        asyncStackModels.forEach(stack => {
+            const stackModel = StackModel.createStackModel(this, stack, actionMaps);
+            this.asyncStackModels.add(stackModel);
+            gameState.timelines.attachTimeline(this.executeAsyncStackModel(stackModel));
+        });
 
         // restore services
         story.deserializeServices(services);
+
+        this.game.hooks.trigger("afterRestore", []);
 
         gameState.events.once(GameState.EventTypes["event:state.onRender"], () => {
             gameState.schedule(() => {
@@ -285,6 +299,10 @@ export class LiveGame {
             const [actionMaps] = this.constructMaps();
             const { rootStackSnapshot, stackModel } = actionHistory;
 
+            if (actionHistory.action.type === CharacterActionTypes.say && this.gameState.isNvlMode()) {
+                this.gameState.suppressNextNvlTyping();
+            }
+
             this.stackModel.deserialize(rootStackSnapshot, actionMaps);
             if (stackModel === this.stackModel) {
                 this.stackModel.push(StackModel.fromAction(actionHistory.action as LogicAction.Actions));
@@ -331,6 +349,16 @@ export class LiveGame {
             },
             promise,
         };
+    }
+
+    /**
+     * Play a sound immediately and return the SoundToken.
+     */
+    public playSound(sound: Sound | string | URL): Promise<SoundToken> {
+        this.assertGameState();
+        const resolved = sound instanceof URL ? sound.toString() : sound;
+        const target = typeof resolved === "string" ? new Sound({ src: resolved }) : resolved;
+        return this.gameState.audioManager.playSoundToken(target);
     }
 
     /**
@@ -663,6 +691,21 @@ export class LiveGame {
     }
 
     /**@internal */
+    executeAsyncStackModel(stack: StackModel): Awaitable<void> {
+        this.assertGameState();
+
+        const awaitable = stack.execute();
+        awaitable.onFailed(error => {
+            this.gameState.logger.error("Async StackModel", error);
+        });
+        awaitable.onSettled(() => {
+            this.asyncStackModels.delete(stack);
+        });
+
+        return awaitable;
+    }
+
+    /**@internal */
     createStackModel(value: (CalledActionResult | Awaitable<CalledActionResult>)[]): StackModel {
         const stack = new StackModel(this);
         stack.push(...value);
@@ -808,7 +851,7 @@ export class LiveGame {
                 },
                 elementStates: [],
                 services: {},
-                stackModel: [],
+                stackModel: { items: [] },
                 asyncStackModels: [],
             }
         };

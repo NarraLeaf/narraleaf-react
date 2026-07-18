@@ -56,9 +56,14 @@ export class PositionUtils {
         return arg === PositionUtils.Unknown;
     }
 
-    static D2PositionToCSS(pos: D2Position, invertX = false, invertY = false): CSSProps {
-        const posY = this.calc(pos.y, pos.yoffset);
-        const posX = this.calc(pos.x, pos.xoffset);
+    static D2PositionToCSS(
+        pos: D2Position,
+        invertX = false,
+        invertY = false,
+        dimensions?: { width: number; height: number }
+    ): CSSProps {
+        const posY = this.calc(pos.y, pos.yoffset, dimensions?.height);
+        const posX = this.calc(pos.x, pos.xoffset, dimensions?.width);
         const yRes = invertY ? {bottom: posY} : {top: posY};
         const xRes = invertX ? {right: posX} : {left: posX};
         return this.wrap({
@@ -67,15 +72,49 @@ export class PositionUtils {
         });
     }
 
-    static calc(pos: number | string, offset?: UnknownAble<number>): string {
+    /**
+     * Resolve a position component (base position + pixel offset) to a CSS length.
+     *
+     * When the design {@link dimension} (the game's base width or height for this axis) is
+     * known, the base position and its offset are folded into a single percentage of that
+     * dimension. This keeps offsets resolution-independent — they scale with the stage just
+     * like sizes do — and lets `motion` interpolate the result: a mixed `calc(% + px)` value
+     * cannot be animated on its percentage part, so the offset would otherwise be the only
+     * animatable piece and any align change would be silently dropped.
+     *
+     * Without a dimension it falls back to the legacy `calc(<pos> + <offset>px)` form.
+     */
+    static calc(pos: number | string, offset?: UnknownAble<number>, dimension?: number): string {
         if (!pos || PositionUtils.isUnknown(pos)) {
             return "auto";
         }
-        if (offset === undefined || PositionUtils.isUnknown(offset)) {
+        const hasOffset = !(offset === undefined || PositionUtils.isUnknown(offset));
+        if (typeof dimension === "number" && dimension > 0) {
+            const basePercent = PositionUtils.toPercent(pos, dimension);
+            if (basePercent !== null) {
+                const offsetPercent = hasOffset ? ((offset as number) / dimension) * 100 : 0;
+                const percent = Math.round((basePercent + offsetPercent) * 1e6) / 1e6;
+                return `${percent}%`;
+            }
+        }
+        if (!hasOffset) {
             return `calc(${pos} + 0px)`;
         }
         const left = typeof pos === "number" ? `${pos}px` : pos;
         return `calc(${left} + ${offset}px)`;
+    }
+
+    /**
+     * Express a position component as a percentage of the given design dimension.
+     * Accepts an existing percentage string (e.g. `"50%"`) or a pixel number, and returns
+     * `null` for any other form so the caller can fall back to the legacy representation.
+     */
+    static toPercent(pos: number | string, dimension: number): number | null {
+        if (typeof pos === "number") {
+            return dimension > 0 ? (pos / dimension) * 100 : null;
+        }
+        const match = /^(-?\d+(?:\.\d+)?)%$/.exec(pos.trim());
+        return match ? parseFloat(match[1]) : null;
     }
 
     static toCoord2D(pos: IPosition | D2Position): Coord2D {
@@ -85,10 +124,11 @@ export class PositionUtils {
             return pos;
         } else if (Align.isAlignPosition(pos)) {
             return Coord2D.fromAlignPosition(pos);
-        } else if (typeof pos === "object"
-            && ["x", "y", "xoffset", "yoffset"].some(key => key in pos)) {
-            const position = pos as D2Position;
-            return new Coord2D(position);
+        } else if (typeof pos === "object" && pos !== null
+            && ["x", "y", "xalign", "yalign", "xoffset", "yoffset"].some(key => key in pos)) {
+            // Delegate to the raw parser so a raw align object (which also carries offsets)
+            // keeps its alignment instead of being misread as a coordinate position.
+            return this.rawPositionToCoord2D(pos);
         } else {
             throw new Error("Invalid position type");
         }
@@ -125,8 +165,11 @@ export class PositionUtils {
     }
 
     static isRawAlignPosition(arg: any): arg is Partial<AlignPosition> {
-        return typeof arg === "object" && (
-            "xalign" in arg || "yalign" in arg || "xoffset" in arg || "yoffset" in arg
+        // Keyed on the align-specific fields only. Offsets are shared with Coord2D, so
+        // matching them here would make an align position (which also carries offsets)
+        // ambiguous with a coordinate position and silently drop its alignment.
+        return typeof arg === "object" && arg !== null && (
+            "xalign" in arg || "yalign" in arg
         );
     }
 
@@ -141,10 +184,12 @@ export class PositionUtils {
     static rawPositionToCoord2D(arg: any): Coord2D {
         if (this.isRawCommonPositionType(arg)) {
             return Coord2D.fromCommonPosition(new CommonPosition(arg));
+        } else if (this.isRawAlignPosition(arg)) {
+            // Align is checked before Coord2D: an align position may also carry offsets,
+            // and `new Coord2D` reads `x`/`y` (absent here), which would drop the align.
+            return Coord2D.fromAlignPosition(arg);
         } else if (this.isRawCoord2DPosition(arg)) {
             return new Coord2D(arg);
-        } else if (this.isRawAlignPosition(arg)) {
-            return Coord2D.fromAlignPosition(arg);
         }
         throw new Error("Invalid position type");
     }

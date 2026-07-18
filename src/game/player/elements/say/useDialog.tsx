@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useDialogContext } from "./context";
+import type { SentenceMetadata } from "@core/elements/character/sentence";
 import { Word } from "@lib/game/nlcore/common/elements";
 import { DialogState } from "./UIDialog";
 import { useFlush } from "../../lib/flush";
@@ -15,6 +16,8 @@ export type DialogContext = {
     text: string;
     /** Whether the dialog is the narrator */
     isNarrator: boolean;
+    /** User-provided runtime metadata from the current sentence, if any */
+    metadata?: SentenceMetadata;
 };
 
 /**
@@ -38,6 +41,7 @@ export function useDialog(): DialogContext {
         text,
         isNarrator: dialog.config.action.character === null
             || dialog.config.action.character.state.name === "",
+        metadata: dialog.config.action.sentence?.getMetadata(),
     };
 }
 

@@ -20,6 +20,9 @@
     "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
+      "narraleaf-react": [
+        "src/game/nlcore/common/core.ts"
+      ],
       "@lib/*": [
         "src/*"
       ],

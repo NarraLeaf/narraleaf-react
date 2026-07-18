@@ -1,6 +1,6 @@
 "use client";
 
-import React, {createContext, useContext, useEffect, useReducer, useState} from "react";
+import React, {createContext, useContext, useLayoutEffect, useReducer, useState} from "react";
 import {EventDispatcher} from "@lib/util/data";
 
 /**@internal */
@@ -138,11 +138,12 @@ export function useRatio(): { ratio: AspectRatio } {
     if (!RatioContext || !context) throw new Error("useRatio must be used within a RatioProvider");
     const {ratio} = context;
 
-    useEffect(() => {
+    useLayoutEffect(() => {
+        forceUpdate();
         return ratio.onUpdate(() => {
             forceUpdate();
         });
-    }, []);
+    }, [ratio]);
 
     return context;
 }

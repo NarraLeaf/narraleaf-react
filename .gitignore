@@ -36,6 +36,7 @@ Thumbs.db
 # Project specific
 ./test/
 dev.json
+.ignore/
 
 *-example.test.tsx
 *-ignore.test.js

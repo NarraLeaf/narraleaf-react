@@ -50,15 +50,20 @@ export class DisplayableAction<
                 state.logger.info("Displayable Transition", "Skipped");
                 return super.executeAction(state, injection) as CalledActionResult;
             }));
-        const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
-        const originalTransform = element.transformState.clone();
-        const task = exposed.applyTransform(transform, () => {
+        const resolveAction = () => {
+            if (awaitable.isSettled()) {
+                return;
+            }
             onFinished?.();
             awaitable.resolve(super.executeAction(state, injection) as CalledActionResult);
-        });
+        };
+        const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
+        const originalTransform = element.transformState.clone();
+        const task = exposed.applyTransform(transform, resolveAction);
         const timeline = state.timelines
             .attachTimeline(awaitable)
             .attachChild(task);
+        task.onCancelled(resolveAction);
 
         state.actionHistory.push<[TransformState<any>]>({
             action: this,
@@ -82,14 +87,19 @@ export class DisplayableAction<
                 state.logger.info("Displayable Transition", "Skipped");
                 return super.executeAction(state, injection) as CalledActionResult;
             }));
-        const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
-        const task = exposed.applyTransition(transition, () => {
+        const resolveAction = () => {
+            if (awaitable.isSettled()) {
+                return;
+            }
             onFinished?.();
             awaitable.resolve(super.executeAction(state, injection) as CalledActionResult);
-        });
+        };
+        const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
+        const task = exposed.applyTransition(transition, resolveAction);
         const timeline = state.timelines
             .attachTimeline(awaitable)
             .attachChild(task);
+        task.onCancelled(resolveAction);
             
         state.actionHistory.push<[]>({
             action: this,

@@ -6,7 +6,7 @@
 
 <h1 align="center">NarraLeaf-React</h1>
 
-<h4 align="center">A React visual novel player framework</h3>
+<h4 align="center">A React visual novel player framework</h4>
 
 <p align="center">English | <a href="docs/README.zh-CN.md">简体中文</a></p>
 
@@ -49,7 +49,7 @@ scene1.action([
 
   jD`Also, don't forget to check out the ${c("documentation", "#00f")}!`,
 
-  "By the way, the documentation is available on https://react.narraleaf.com/documentation",
+  "By the way, the documentation is available on https://www.narraleaf.com/docs/narraleaf-react",
   "You can also visit the website for demo and more information.",
 
   Menu.prompt("Start the journey")
@@ -65,7 +65,7 @@ scene1.action([
 ]);
 ```
 
-For more information, please visit [🛠React.NarraLeaf.com](https://react.narraleaf.com)
+For more information, please visit the [NarraLeaf-React documentation](https://www.narraleaf.com/docs/narraleaf-react).
 
 ## Get Started
 
@@ -77,61 +77,80 @@ npm install narraleaf-react
 
 ### Documentation
 
-- [Introduction](https://react.narraleaf.com/documentation/introduction)
-- [Quick Start](https://react.narraleaf.com/documentation/quick-start)
-- [Installation](https://react.narraleaf.com/documentation/installation)
-- [Basic](https://react.narraleaf.com/documentation/basic)
-  - [Create a Scene](https://react.narraleaf.com/documentation/basic/create-scene)
-  - [Add Actions](https://react.narraleaf.com/documentation/basic/add-actions)
-  - [Show Dialog](https://react.narraleaf.com/documentation/basic/show-dialog)
-  - [Show Image](https://react.narraleaf.com/documentation/basic/show-image)
-  - [Play Story](https://react.narraleaf.com/documentation/basic/play-story)
-  - [Make Choices](https://react.narraleaf.com/documentation/basic/make-choices)
-  - [Play Sound](https://react.narraleaf.com/documentation/basic/sound)
-  - [Store Data](https://react.narraleaf.com/documentation/basic/store-data)
-  - [Conditional](https://react.narraleaf.com/documentation/basic/conditional)
-  - [Voice](https://react.narraleaf.com/documentation/basic/voice)
-  - [Manage Preferences](https://react.narraleaf.com/documentation/basic/manage-preferences)
-- [Solutions](https://react.narraleaf.com/documentation/solutions)
-  - [Customizing the font](https://react.narraleaf.com/documentation/solutions/font)
-  - [Migration from Ren'Py](https://react.narraleaf.com/documentation/solutions/from-renpy)
-- [Core](https://react.narraleaf.com/documentation/core)
-  - [Elements](https://react.narraleaf.com/documentation/core/elements)
-    - [Scene](https://react.narraleaf.com/documentation/core/elements/scene)
-    - [Character](https://react.narraleaf.com/documentation/core/elements/character)
-      - [Sentence](https://react.narraleaf.com/documentation/core/elements/character/sentence)
-      - [Word](https://react.narraleaf.com/documentation/core/elements/character/word)
-      - [Pause](https://react.narraleaf.com/documentation/core/elements/character/pause)
-    - [Image](https://react.narraleaf.com/documentation/core/elements/image)
-    - [Sound](https://react.narraleaf.com/documentation/core/elements/sound)
-    - [Menu](https://react.narraleaf.com/documentation/core/elements/menu)
-    - [Script](https://react.narraleaf.com/documentation/core/elements/script)
-    - [Condition](https://react.narraleaf.com/documentation/core/elements/condition)
-    - [Control](https://react.narraleaf.com/documentation/core/elements/control)
-    - [Text](https://react.narraleaf.com/documentation/core/elements/text)
-    - [Persistent](https://react.narraleaf.com/documentation/core/elements/persistent)
-    - [Story](https://react.narraleaf.com/documentation/core/elements/story)
-    - [Displayable](https://react.narraleaf.com/documentation/core/elements/displayable)
-    - [Layer](https://react.narraleaf.com/documentation/core/elements/layer)
-    - [Service](https://react.narraleaf.com/documentation/core/elements/service)
-    - [Video](https://react.narraleaf.com/documentation/core/elements/video)
-  - [Animation](https://react.narraleaf.com/documentation/core/animation)
-  - [Game](https://react.narraleaf.com/documentation/core/game)
-  - [Plugin](https://react.narraleaf.com/documentation/core/plugin)
-  - [Utils](https://react.narraleaf.com/documentation/core/utils)
-- [Player](https://react.narraleaf.com/documentation/player)
-  - [Player](https://react.narraleaf.com/documentation/player/player)
-  - [GameProviders](https://react.narraleaf.com/documentation/player/game-providers)
-  - Hooks
-  - [LayoutRouter](https://react.narraleaf.com/documentation/player/page-router)
-  - [Dialog](https://react.narraleaf.com/documentation/player/dialog)
-  - [Notification](https://react.narraleaf.com/documentation/player/notification)
-  - [Menu](https://react.narraleaf.com/documentation/player/menu)
+- [Introduction](https://www.narraleaf.com/docs/narraleaf-react)
+- [Quick Start](https://www.narraleaf.com/docs/narraleaf-react/quick-start)
+- [Installation](https://www.narraleaf.com/docs/narraleaf-react/installation)
+- [Basic](https://www.narraleaf.com/docs/narraleaf-react/basic)
+  - [Create a Scene](https://www.narraleaf.com/docs/narraleaf-react/basic/create-scene)
+  - [Add Actions](https://www.narraleaf.com/docs/narraleaf-react/basic/add-actions)
+  - [Show Dialog](https://www.narraleaf.com/docs/narraleaf-react/basic/show-dialog)
+  - [Show Image](https://www.narraleaf.com/docs/narraleaf-react/basic/show-image)
+  - [Play Story](https://www.narraleaf.com/docs/narraleaf-react/basic/play-story)
+  - [Make Choices](https://www.narraleaf.com/docs/narraleaf-react/basic/make-choices)
+  - [Play Sound](https://www.narraleaf.com/docs/narraleaf-react/basic/sound)
+  - [Store Data](https://www.narraleaf.com/docs/narraleaf-react/basic/store-data)
+  - [Conditional](https://www.narraleaf.com/docs/narraleaf-react/basic/conditional)
+  - [Voice](https://www.narraleaf.com/docs/narraleaf-react/basic/voice)
+  - [Manage Preferences](https://www.narraleaf.com/docs/narraleaf-react/basic/manage-preferences)
+- [Solutions](https://www.narraleaf.com/docs/narraleaf-react/solutions)
+  - [Customizing the Font](https://www.narraleaf.com/docs/narraleaf-react/solutions/font)
+  - [Migration from Ren'Py](https://www.narraleaf.com/docs/narraleaf-react/solutions/from-renpy)
+  - [Quick Menu](https://www.narraleaf.com/docs/narraleaf-react/solutions/quick-menu)
+  - [Dialog Avatar](https://www.narraleaf.com/docs/narraleaf-react/solutions/dialog-avatar)
+  - [Custom Dialog](https://www.narraleaf.com/docs/narraleaf-react/solutions/custom-dialog)
+  - [Custom NVL Dialog](https://www.narraleaf.com/docs/narraleaf-react/solutions/custom-nvl-dialog)
+  - [Custom Menu](https://www.narraleaf.com/docs/narraleaf-react/solutions/custom-menu)
+  - [Page Overlay Settings](https://www.narraleaf.com/docs/narraleaf-react/solutions/page-overlay-settings)
+  - [Save System with localStorage](https://www.narraleaf.com/docs/narraleaf-react/solutions/save-system-localstorage)
+  - [Custom Notification](https://www.narraleaf.com/docs/narraleaf-react/solutions/custom-notification)
+  - [Gallery Service with localStorage](https://www.narraleaf.com/docs/narraleaf-react/solutions/gallery-service-localstorage)
+- [Core](https://www.narraleaf.com/docs/narraleaf-react/core)
+  - [Elements](https://www.narraleaf.com/docs/narraleaf-react/core/elements)
+    - [Scene](https://www.narraleaf.com/docs/narraleaf-react/core/elements/scene)
+    - [Character](https://www.narraleaf.com/docs/narraleaf-react/core/elements/character)
+      - [Sentence](https://www.narraleaf.com/docs/narraleaf-react/core/elements/character/sentence)
+      - [Word](https://www.narraleaf.com/docs/narraleaf-react/core/elements/character/word)
+      - [Pause](https://www.narraleaf.com/docs/narraleaf-react/core/elements/character/pause)
+    - [Image](https://www.narraleaf.com/docs/narraleaf-react/core/elements/image)
+    - [Sound](https://www.narraleaf.com/docs/narraleaf-react/core/elements/sound)
+    - [Menu](https://www.narraleaf.com/docs/narraleaf-react/core/elements/menu)
+    - [Script](https://www.narraleaf.com/docs/narraleaf-react/core/elements/script)
+    - [Condition](https://www.narraleaf.com/docs/narraleaf-react/core/elements/condition)
+    - [Control](https://www.narraleaf.com/docs/narraleaf-react/core/elements/control)
+    - [Text](https://www.narraleaf.com/docs/narraleaf-react/core/elements/text)
+    - [Persistent](https://www.narraleaf.com/docs/narraleaf-react/core/elements/persistent)
+    - [Story](https://www.narraleaf.com/docs/narraleaf-react/core/elements/story)
+    - [Displayable](https://www.narraleaf.com/docs/narraleaf-react/core/elements/displayable)
+    - [Layer](https://www.narraleaf.com/docs/narraleaf-react/core/elements/layer)
+    - [Service](https://www.narraleaf.com/docs/narraleaf-react/core/elements/service)
+    - [Video](https://www.narraleaf.com/docs/narraleaf-react/core/elements/video)
+    - [Built-in Gallery](https://www.narraleaf.com/docs/narraleaf-react/core/elements/built-in/gallery)
+  - [Animation](https://www.narraleaf.com/docs/narraleaf-react/core/animation)
+    - [Transform](https://www.narraleaf.com/docs/narraleaf-react/core/animation/transform)
+    - [Transitions](https://www.narraleaf.com/docs/narraleaf-react/core/animation/transition)
+  - [Game](https://www.narraleaf.com/docs/narraleaf-react/core/game)
+    - [LiveGame](https://www.narraleaf.com/docs/narraleaf-react/core/game/live-game)
+    - [Storable](https://www.narraleaf.com/docs/narraleaf-react/core/game/storable)
+    - [Preference](https://www.narraleaf.com/docs/narraleaf-react/core/game/preference/preference)
+    - [Key Map](https://www.narraleaf.com/docs/narraleaf-react/core/game/key-map)
+    - [Hooks](https://www.narraleaf.com/docs/narraleaf-react/core/game/hooks)
+  - [Plugin](https://www.narraleaf.com/docs/narraleaf-react/core/plugin)
+  - [Utils](https://www.narraleaf.com/docs/narraleaf-react/core/utils)
+- [Player](https://www.narraleaf.com/docs/narraleaf-react/player)
+  - [Player](https://www.narraleaf.com/docs/narraleaf-react/player/player)
+  - [FixedAspectRatioContainer](https://www.narraleaf.com/docs/narraleaf-react/player/fixed-aspect-ratio-container)
+  - [GameProviders](https://www.narraleaf.com/docs/narraleaf-react/player/game-providers)
+  - [Hooks](https://www.narraleaf.com/docs/narraleaf-react/player/hooks)
+  - [LayoutRouter](https://www.narraleaf.com/docs/narraleaf-react/player/page-router)
+  - [Dialog](https://www.narraleaf.com/docs/narraleaf-react/player/dialog)
+  - [Notification](https://www.narraleaf.com/docs/narraleaf-react/player/notification)
+  - [Menu](https://www.narraleaf.com/docs/narraleaf-react/player/menu)
+  - [NvlContainer](https://www.narraleaf.com/docs/narraleaf-react/player/nvl-container)
 - About
-  - [License](https://react.narraleaf.com/documentation/info/license)
-  - [Incompatible Changes](https://react.narraleaf.com/documentation/info/incompatible-changes)
+  - [License](https://www.narraleaf.com/docs/narraleaf-react/info/license)
+  - [Incompatible Changes](https://www.narraleaf.com/docs/narraleaf-react/info/incompatible-changes)
 
-Read more in [🛠React.NarraLeaf.com](https://react.narraleaf.com)
+Read more in the [NarraLeaf-React documentation](https://www.narraleaf.com/docs/narraleaf-react).
 
 ## License
 
@@ -143,5 +162,4 @@ Read more in [🛠React.NarraLeaf.com](https://react.narraleaf.com)
 
 We welcome all contributions.  
 If you have any ideas, just open an issue or a pull request.
-
 

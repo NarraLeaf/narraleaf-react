@@ -1,4 +1,4 @@
-import {Color, CommonDisplayableConfig} from "@core/types";
+import {Color} from "@core/types";
 import {Serializer} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {LogicAction} from "@core/action/logicAction";
@@ -30,7 +30,7 @@ export type TextState = {
     text: string;
 };
 
-export interface ITextUserConfig extends CommonDisplayableConfig {
+export interface ITextUserConfig extends TransformDefinitions.TextTransformProps {
     /**
      * Where to align the text horizontally
      * @default "center"
@@ -136,6 +136,10 @@ export class Text
     /**
      * Set the text of the Text
      * @chainable
+     * @example
+     * ```ts
+     * text.setText("After that, another story happened...");
+     * ```
      */
     public setText(text: string): Proxied<Text, Chained<LogicAction.Actions>> {
         const chain = this.chain();
@@ -150,6 +154,10 @@ export class Text
     /**
      * Set the font color of the Text
      * @chainable
+     * @example
+     * ```ts
+     * element.setFontColor("#f00", 1000, "easeInOut");
+     * ```
      */
     public setFontColor(color: Color, duration: number = 0, easing?: TransformDefinitions.EasingDefinition): Proxied<Text, Chained<LogicAction.Actions>> {
         return this.transform(new Transform<TransformDefinitions.TextTransformProps>({
@@ -161,8 +169,12 @@ export class Text
     }
 
     /**
-     * Set the font color of the Text
+     * Set the font size of the Text
      * @chainable
+     * @example
+     * ```ts
+     * element.setFontSize(20, 1000, "easeInOut");
+     * ```
      */
     public setFontSize(fontSize: number, duration: number = 0, easing?: TransformDefinitions.EasingDefinition): Proxied<Text, Chained<LogicAction.Actions>> {
         return this.combineActions(new Control(), chain => {
@@ -180,7 +192,8 @@ export class Text
     }
 
     /**
-     * Use a layer for the Text, will override the layer in the text config
+     * Override the layer used to render this text.
+     * @param layer - The layer to assign to the text.
      */
     public useLayer(layer: Layer): this {
         this.userConfig.get().layer = layer;
@@ -249,5 +262,4 @@ export class Text
         }).get();
     }
 }
-
 

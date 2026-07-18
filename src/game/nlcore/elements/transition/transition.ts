@@ -32,19 +32,48 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
         // for some reason, controller.state isn't working,
         // so we have to keep track of the completed tasks
         let completed: number = 0;
+        let started = false;
+        let cancelled = false;
+        let completeRequested = false;
 
         const onUpdateListeners: ((values: AnimationDataTypeArray<U>) => void)[] = [];
         const onCompleteListeners: (() => void)[] = [];
         const onCancelListeners: (() => void)[] = [];
+        const settleToEnd = () => {
+            tasks.forEach((task, index) => {
+                values[index] = task.end;
+            });
+            completed = tasks.length;
+            onUpdateListeners.forEach(v => v(values));
+            onCompleteListeners.forEach(v => v());
+        };
         const complete = () => {
-            if (completed === tasks.length) {
+            if (completed === tasks.length || cancelled) {
+                return;
+            }
+            // Completion can be requested while the transition is still gated on its elements
+            // loading (a skip, or the next transition interrupting this one). There is no
+            // animation to fast-forward yet, and settling now would tear down a transition
+            // whose render may not even have committed — remember the request instead;
+            // `start()` (called once the elements are mounted and loaded) settles straight to
+            // the end state. The settled frame shows the target image, so waiting for its
+            // load/decode is correct even for a skip.
+            if (!started) {
+                completeRequested = true;
                 return;
             }
             controllers.forEach(controller => controller.complete());
         };
         const start = () => {
-            if (controllers.length > 0) {
-                throw new Error("Animation controllers are already started");
+            // Not an error: the load gate can lose the race against a cancel or an
+            // interrupting transition, and a settled animation must simply not start.
+            if (started || cancelled || completed === tasks.length) {
+                return;
+            }
+            started = true;
+            if (completeRequested) {
+                settleToEnd();
+                return;
             }
             tasks.forEach((task, index) => {
                 controllers.push(this.requestMotion(task, {
@@ -65,6 +94,7 @@ export abstract class Transition<T extends HTMLElement = HTMLElement, U extends 
             });
         };
         const cancel = () => {
+            cancelled = true;
             controllers.forEach(controller => controller.cancel());
             onCancelListeners.forEach(v => v());
         };

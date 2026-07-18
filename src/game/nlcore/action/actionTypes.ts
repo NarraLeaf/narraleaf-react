@@ -1,20 +1,20 @@
-import { LogicAction } from "@core/action/logicAction";
+import type { LogicAction } from "@core/action/logicAction";
 import type { Story } from "@core/elements/story";
-import type { ConditionData } from "@core/elements/condition";
-import { Color, ImageSrc } from "@core/types";
-import { Transform } from "@core/elements/transform/transform";
+import type { ConditionData, Lambda } from "@core/elements/condition";
+import type { Color, ImageSrc } from "@core/types";
+import type { Transform } from "@core/elements/transform/transform";
 import type { Scene } from "@core/elements/scene";
 import type { MenuData } from "@core/elements/menu";
-import { Awaitable, FlexibleTuple, SelectElementFromEach } from "@lib/util/data";
+import type { Awaitable, FlexibleTuple, SelectElementFromEach } from "@lib/util/data";
 import type { Sound } from "@core/elements/sound";
 import type { Script } from "@core/elements/script";
-import { Sentence } from "@core/elements/character/sentence";
+import type { Sentence } from "@core/elements/character/sentence";
 import type { TransformDefinitions } from "@core/elements/transform/type";
-import { Image, TagGroupDefinition } from "@core/elements/displayable/image";
-import { FadeOptions } from "@core/elements/type";
-import { Transition } from "@core/elements/transition/transition";
-import { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
-import { Layer } from "@core/elements/layer";
+import type { Image, TagGroupDefinition } from "@core/elements/displayable/image";
+import type { FadeOptions } from "@core/elements/type";
+import type { Transition } from "@core/elements/transition/transition";
+import type { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
+import type { Layer } from "@core/elements/layer";
 
 export const DisplayableActionTypes = {
     action: "displayable:action",
@@ -51,7 +51,15 @@ export const SceneActionTypes = {
     setBackgroundMusic: "scene:setBackgroundMusic",
     preUnmount: "scene:preUnmount",
     transitionToScene: "scene:transitionToScene",
+    nvlBlock: "scene:nvlBlock",
+    nvlShow: "scene:nvlShow",
+    nvlHide: "scene:nvlHide",
+    nvlEnd: "scene:nvlEnd",
 } as const;
+export type NvlBlockOptions = {
+    showTransition?: Partial<TransformDefinitions.CommonTransformProps>;
+    hideTransition?: Partial<TransformDefinitions.CommonTransformProps>;
+};
 export type SceneActionContentType = {
     [K in typeof SceneActionTypes[keyof typeof SceneActionTypes]]:
     K extends typeof SceneActionTypes["action"] ? Scene :
@@ -61,6 +69,10 @@ export type SceneActionContentType = {
     K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
     K extends typeof SceneActionTypes["preUnmount"] ? [] :
     K extends typeof SceneActionTypes["transitionToScene"] ? [ImageTransition, Scene | undefined, ImageSrc | Color | undefined] :
+    K extends typeof SceneActionTypes["nvlBlock"] ? [LogicAction.Actions[], NvlBlockOptions] :
+    K extends typeof SceneActionTypes["nvlShow"] ? [Partial<TransformDefinitions.CommonTransformProps>?] :
+    K extends typeof SceneActionTypes["nvlHide"] ? [Partial<TransformDefinitions.CommonTransformProps>?] :
+    K extends typeof SceneActionTypes["nvlEnd"] ? [NvlBlockOptions?] :
     any;
 }
 /* Story */
@@ -125,6 +137,7 @@ export const SoundActionTypes = {
     setRate: "sound:setRate",
     pause: "sound:pause",
     resume: "sound:resume",
+    mute: "sound:mute",
 } as const;
 export type SoundActionContentType = {
     [K in typeof SoundActionTypes[keyof typeof SoundActionTypes]]:
@@ -134,6 +147,7 @@ export type SoundActionContentType = {
     K extends "sound:setRate" ? [number] :
     K extends "sound:pause" ? [FadeOptions] :
     K extends "sound:resume" ? [FadeOptions] :
+    K extends "sound:mute" ? [boolean] :
     any;
 }
 export const ControlActionTypes = {
@@ -144,7 +158,10 @@ export const ControlActionTypes = {
     all: "control:all",
     allAsync: "control:allAsync",
     repeat: "control:repeat",
+    while: "control:while",
+    break: "control:break",
     sleep: "control:sleep",
+    waitForClick: "control:waitForClick",
 } as const;
 export type ControlActionContentType = {
     [K in typeof ControlActionTypes[keyof typeof ControlActionTypes]]:
@@ -155,7 +172,10 @@ export type ControlActionContentType = {
     K extends "control:parallel" ? [LogicAction.Actions[]] :
     K extends "control:allAsync" ? [LogicAction.Actions[]] :
     K extends "control:repeat" ? [LogicAction.Actions[], number] :
+    K extends "control:while" ? [LogicAction.Actions[], Lambda<boolean>] :
+    K extends "control:break" ? [] :
     K extends "control:sleep" ? [LogicAction.Actions[], number | Awaitable<any> | Promise<any>] :
+    K extends "control:waitForClick" ? [] :
     any;
 }
 export const TextActionTypes = {

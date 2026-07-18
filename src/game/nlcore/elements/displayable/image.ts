@@ -3,7 +3,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {RuntimeScriptError, Utils} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
 import {TransformState} from "../transform/transform";
-import {Color, CommonDisplayableConfig, ImageSrc, StaticImageData} from "@core/types";
+import {Color, ImageSrc, StaticImageData} from "@core/types";
 import {DisplayableActionContentType, DisplayableActionTypes, ImageActionContentType} from "@core/action/actionTypes";
 import {LogicAction} from "@core/game";
 import {EmptyObject} from "@core/elements/transition/type";
@@ -34,7 +34,7 @@ type ImageConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | nu
     isWearable: boolean;
     name: string;
     autoInit: boolean;
-    src: Tag extends TagGroupDefinition ? TagDefinitionObject<Tag> : null;
+    src: Tag extends TagGroupDefinition ? ResolvedSrcDefinition : null;
     autoFit: boolean;
     layer: Layer | undefined;
     isBackground: boolean;
@@ -46,8 +46,11 @@ type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | nul
     darkness: number;
 };
 
-export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | null>
-    extends CommonDisplayableConfig {
+export interface IImageUserConfig<
+    Tag extends TagGroupDefinition | null = TagGroupDefinition | null,
+    Layers extends LayerGroupDefinition = LayerGroupDefinition,
+>
+    extends TransformDefinitions.ImageTransformProps {
     /**
      * The name of the image, only for debugging purposes
      */
@@ -60,7 +63,7 @@ export interface IImageUserConfig<Tag extends TagGroupDefinition | null = TagGro
     /**
      * Image Src, see [Image](https://react.narraleaf.com/documentation/core/elements/image) for more information
      */
-    src: ImageSrcType<Tag>;
+    src: ImageSrcType<Tag> | LayeredDefinition<Layers>;
     /**
      * Auto resize image's width to fit the screen
      * @default false
@@ -85,9 +88,58 @@ export type ImageDataRaw = {
 export type TagGroupDefinition = string[][];
 export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectElementFromEach<T>) => string;
 
+/**
+ * A set of mutually exclusive variants for one layer, keyed by tag.
+ *
+ * `null` means the layer draws nothing for that tag.
+ */
+export type LayerVariants = Record<string, string | null>;
+/**
+ * Derives a layer's src from the currently active tags. Declares no tags of its own.
+ */
+export type LayerResolver = (tags: ReadonlySet<string>) => string | null;
+/**
+ * One slot of a layered image, from bottom to top. Either a constant src, `null`,
+ * a {@link LayerVariants} map, or a {@link LayerResolver}.
+ */
+export type LayerSlot = string | null | LayerVariants | LayerResolver;
+export type LayerGroupDefinition = readonly LayerSlot[];
+/**
+ * The union of every tag declared by a layer stack.
+ */
+export type LayerTagsOf<L> = L extends readonly (infer E)[]
+    ? (E extends LayerResolver ? never : E extends LayerVariants ? keyof E & string : never)
+    : never;
+/**
+ * Layered image src, see [Image](https://react.narraleaf.com/documentation/core/elements/image).
+ */
+export type LayeredDefinition<L extends LayerGroupDefinition = LayerGroupDefinition> = {
+    /**
+     * The layer stack, from bottom to top. Array order is the stacking order.
+     */
+    layers: L;
+    /**
+     * One tag per variant layer, in any order.
+     */
+    defaults: readonly LayerTagsOf<L>[];
+};
+
+/**
+ * @internal
+ * Both src shapes normalize to this: tags always resolve through `groups`/`defaults`,
+ * and only the final tags-to-src step differs (`resolve` for pre-composited, `slots` for layered).
+ */
+export type ResolvedSrcDefinition = {
+    groups: TagGroupDefinition;
+    defaults: string[];
+    resolve: TagSrcResolver<TagGroupDefinition> | null;
+    slots: readonly LayerSlot[] | null;
+};
+
 
 export class Image<
-    Tags extends TagGroupDefinition | null = TagGroupDefinition | null
+    Tags extends TagGroupDefinition | null = TagGroupDefinition | null,
+    const Layers extends LayerGroupDefinition = LayerGroupDefinition
 >
     extends Displayable<ImageDataRaw, Image, TransformDefinitions.ImageTransformProps>
     implements EventfulDisplayable {
@@ -143,8 +195,8 @@ export class Image<
 
     /**@internal */
     static getInitialSrc(userConfig: IImageUserConfig): string | Color | SelectElementFromEach<TagGroupDefinition> {
-        if (this.isTagDefinition(userConfig.src)) {
-            return [...userConfig.src.defaults];
+        if (this.isLayeredDefinition(userConfig.src) || this.isTagDefinition(userConfig.src)) {
+            return [...userConfig.src.defaults] as SelectElementFromEach<TagGroupDefinition>;
         }
 
         const userSrc = userConfig.src;
@@ -164,12 +216,32 @@ export class Image<
     }
 
     /**@internal */
-    static isTagDefinition(src: ImageSrcType): src is TagDefinitionObject<TagGroupDefinition> {
+    static isLayeredSrc(image: Image): boolean {
+        return !!image.config.src?.slots;
+    }
+
+    /**@internal */
+    static isSrcDefinitionObject(src: ImageSrcType | LayeredDefinition): src is
+        TagDefinitionObject<TagGroupDefinition> | LayeredDefinition {
         return typeof src === "object"
             && src !== null
             && !Utils.isImageSrc(src)
-            && !Utils.isColor(src)
-            && "defaults" in src;
+            && !Utils.isColor(src);
+    }
+
+    /**@internal */
+    static isLayeredDefinition(src: ImageSrcType | LayeredDefinition): src is LayeredDefinition {
+        return this.isSrcDefinitionObject(src) && "layers" in src;
+    }
+
+    /**@internal */
+    static isTagDefinition(src: ImageSrcType | LayeredDefinition): src is TagDefinitionObject<TagGroupDefinition> {
+        return this.isSrcDefinitionObject(src) && "resolve" in src;
+    }
+
+    /**@internal */
+    static isLayerVariants(slot: LayerSlot): slot is LayerVariants {
+        return typeof slot === "object" && slot !== null;
     }
 
     /**@internal */
@@ -182,7 +254,9 @@ export class Image<
     public static getSrcURL(image: Image | string): string | null {
         if (typeof image === "string") {
             return image;
-        } else if (Image.isTagSrc(image)) {
+        } else if (Image.isLayeredSrc(image)) {
+            return null;
+        } else if (Image.isTagSrc(image) && image.config.src.resolve) {
             return Image.getSrcFromTags(image.state.currentSrc as string[], image.config.src.resolve);
         } else if (Image.isStaticSrc(image)) {
             if (Utils.isStaticImageData(image.state.currentSrc)) {
@@ -203,6 +277,61 @@ export class Image<
         return tagResolver(...tags);
     }
 
+    /**
+     * @internal
+     * Resolve tags into one src per layer, bottom to top. Defaults to the image's current tags.
+     * A `null` entry means that layer draws nothing.
+     */
+    public static getSrcURLs(image: Image, tags?: string[]): (string | null)[] {
+        const slots = image.config.src?.slots;
+        if (!slots) {
+            return [];
+        }
+        const tagSet: ReadonlySet<string> = new Set(tags ?? image.state.currentSrc as string[]);
+        return slots.map(slot => Image.resolveLayerSlot(slot, tagSet));
+    }
+
+    /**@internal */
+    public static resolveLayerSlot(slot: LayerSlot, tags: ReadonlySet<string>): string | null {
+        if (slot === null || typeof slot === "string") {
+            return slot;
+        }
+        if (typeof slot === "function") {
+            return slot(tags);
+        }
+        for (const [tag, src] of Object.entries(slot)) {
+            if (tags.has(tag)) {
+                return src;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @internal
+     * Every src a layer stack can ever show. Layers are independent, so this is the sum of
+     * all variants rather than their cross product. Resolver slots are opaque and skipped.
+     */
+    public static getAllLayerSrc(image: Image): string[] {
+        const slots = image.config.src?.slots;
+        if (!slots) {
+            return [];
+        }
+        const result: string[] = [];
+        for (const slot of slots) {
+            if (typeof slot === "string") {
+                result.push(slot);
+            } else if (Image.isLayerVariants(slot)) {
+                for (const src of Object.values(slot)) {
+                    if (src !== null) {
+                        result.push(src);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
     /**@internal */
     public static fromSrc(src: string): Image {
         return new Image({
@@ -219,7 +348,24 @@ export class Image<
     /**@internal */
     private readonly userConfig: Config<IImageUserConfig<Tags>, { position: IPosition }>;
 
-    constructor(config: Partial<IImageUserConfig<Tags>> = {}) {
+    /**
+     * Construct an image element. The config can describe either static sources or tagged outfits, but not both.
+     * @param config - Image metadata such as tags, source, layer, and wearables.
+     * @example
+     * ```ts
+     * const image = new Image({
+     *   src: {
+     *     layers: [
+     *       "body.png",
+     *       {happy: "happy.png", sad: "sad.png"},
+     *       {shirt: "shirt.png", coat: "coat.png"},
+     *     ],
+     *     defaults: ["happy", "shirt"],
+     *   }
+     * });
+     * ```
+     */
+    constructor(config: Partial<IImageUserConfig<Tags, Layers>> = {}) {
         super();
         const userConfig = Image.DefaultUserConfig.create(config);
         const imageConfig = this.createImageConfig(userConfig);
@@ -251,7 +397,12 @@ export class Image<
 
     public char(tags: SelectElementFromEach<Tags> | FlexibleTuple<SelectElementFromEach<Tags>>, transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
 
-    public char(arg0: ImageSrc | Color | SelectElementFromEach<Tags> | FlexibleTuple<SelectElementFromEach<Tags>>, transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>> {
+    public char(tags: LayerTagsOf<Layers>[], transition?: ImageTransition): Proxied<Image, Chained<LogicAction.Actions>>;
+
+    public char(
+        arg0: ImageSrc | Color | SelectElementFromEach<Tags> | FlexibleTuple<SelectElementFromEach<Tags>> | LayerTagsOf<Layers>[],
+        transition?: ImageTransition
+    ): Proxied<Image, Chained<LogicAction.Actions>> {
         return this.combineActions(new Control(), chain => {
             if (Utils.isImageSrc(arg0) || Utils.isColor(arg0)) {
                 if (Utils.isColor(arg0) && !this.config.isBackground) {
@@ -286,8 +437,13 @@ export class Image<
     }
 
     /**
-     * Add a wearable to the image
-     * @param children - Wearable image or images
+     * Add wearable images that move with this image.
+     * @param children - A wearable image or an array of wearables.
+     * @example
+     * ```ts
+     * const hat = new Image({ src: "hat.png" });
+     * image.addWearable(hat);
+     * ```
      */
     public addWearable(children: Image | Image[]): this {
         const wearables = Array.isArray(children) ? children : [children];
@@ -304,9 +460,7 @@ export class Image<
     }
 
     /**
-     * Add a wearable to the image
-     *
-     * Alias of {@link Image.addWearable}
+     * Alias of {@link Image.addWearable}.
      * @param children - Wearable image or images
      */
     public wear(children: Image | Image[]): this {
@@ -314,17 +468,19 @@ export class Image<
     }
 
     /**
-     * Bind this image to a parent image as a wearable
-     * @param parent - The parent image
+     * Bind this image as a wearable child of another image.
+     * @param parent - The parent image that should carry this wearable.
+     * @example
+     * ```ts
+     * childImage.bindWearable(parentImage);
+     * ```
      */
     public bindWearable(parent: Image): this {
         return parent.addWearable([this]) as this;
     }
 
     /**
-     * Bind this image to a parent image as a wearable
-     *
-     * Alias of {@link Image.bindWearable}
+     * Alias of {@link Image.bindWearable}.
      * @param parent - The parent image
      */
     public asWearableOf(parent: Image): this {
@@ -332,7 +488,8 @@ export class Image<
     }
 
     /**
-     * Use layer for the image, will override the layer in the image config
+     * Assign a layer to the image, overriding the config.
+     * @param layer - Layer instance or `null` to remove the override.
      */
     public useLayer(layer: Layer | null): this {
         this.userConfig.get().layer = layer || undefined;
@@ -514,12 +671,36 @@ export class Image<
 
     /**@internal */
     private registerSrc(): this {
-        if (Image.isTagSrc(this)) {
-            this.srcManager.registerRawSrc(Image.getSrcFromTags(this.config.src.defaults, this.config.src.resolve));
+        const src = this.config.src;
+        if (src?.slots) {
+            Image.getAllLayerSrc(this as Image).forEach(layerSrc => this.srcManager.registerRawSrc(layerSrc));
+        } else if (src?.resolve) {
+            this.srcManager.registerRawSrc(Image.getSrcFromTags(src.defaults, src.resolve));
         } else if (Utils.isImageSrc(this.state.currentSrc)) {
             this.srcManager.registerRawSrc(Utils.srcToURL(this.state.currentSrc));
         }
         return this;
+    }
+
+    /**@internal */
+    private static normalizeSrcDefinition(src: ImageSrcType | LayeredDefinition): ResolvedSrcDefinition | null {
+        if (Image.isLayeredDefinition(src)) {
+            return {
+                groups: src.layers.filter(Image.isLayerVariants).map(slot => Object.keys(slot)),
+                defaults: [...src.defaults],
+                resolve: null,
+                slots: src.layers,
+            };
+        }
+        if (Image.isTagDefinition(src)) {
+            return {
+                groups: src.groups,
+                defaults: [...src.defaults],
+                resolve: src.resolve,
+                slots: null,
+            };
+        }
+        return null;
     }
 
     /**@internal */
@@ -529,9 +710,7 @@ export class Image<
         const userConfigRaw = userConfig.get();
         return Image.DefaultImageConfig.create({
             ...userConfigRaw,
-            src: Image.isTagDefinition(userConfigRaw.src)
-                ? userConfigRaw.src
-                : null,
+            src: Image.normalizeSrcDefinition(userConfigRaw.src),
         });
     }
 
@@ -560,7 +739,7 @@ export class Image<
         }
         if (Image.isTagSrc(this)) {
             // invalid-tag-group-definition error
-            const src: TagDefinition<TagGroupDefinition> = this.config.src;
+            const src: ResolvedSrcDefinition = this.config.src;
             const seen: Set<string> = new Set();
             for (const tags of src.groups) {
                 for (const tag of tags) {
@@ -583,6 +762,19 @@ export class Image<
                     throw new Error(`Tag not found\nTag "${tag}" is not defined in tagDefinitions\nError found in config.tag.defaults`);
                 }
                 tagMap.get(tag)?.forEach(t => usedTags.add(t));
+            }
+
+            // layer-without-default error
+            if (src.slots) {
+                const chosen = new Set(src.defaults);
+                for (const group of src.groups) {
+                    if (!group.some(tag => chosen.has(tag))) {
+                        throw new RuntimeScriptError(
+                            "Layer has no default\n" +
+                            `The layer with tags "${group.join(", ")}" needs exactly one of them listed in src.defaults`
+                        );
+                    }
+                }
             }
         }
 

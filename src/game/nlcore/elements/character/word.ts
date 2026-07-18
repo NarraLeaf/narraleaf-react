@@ -22,6 +22,15 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
         return obj instanceof Word;
     }
 
+    /**
+     * Create a word with an explicit color or re-color an existing word.
+     * @example
+     * ```ts
+     * Word.color("Hello", "#f00");
+     * ```
+     * @param text - The existing word or raw text.
+     * @param color - The CSS color to apply.
+     */
     public static color(text: string | Word, color: Color): Word {
         if (Word.isWord(text)) {
             return text.copy().assign({color});
@@ -29,6 +38,10 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
         return new Word(text, {color});
     }
 
+    /**
+     * Return a bold version of the provided word.
+     * @param text - The text or word to bold.
+     */
     public static bold(text: string | Word): Word {
         if (Word.isWord(text)) {
             return text.copy().assign({bold: true});
@@ -36,6 +49,10 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
         return new Word(text, {bold: true});
     }
 
+    /**
+     * Return an italic version of the provided word.
+     * @param text - The text or word to italicize.
+     */
     public static italic(text: string | Word): Word {
         if (Word.isWord(text)) {
             return text.copy().assign({italic: true});
@@ -56,6 +73,11 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
     /**@internal */
     config: Partial<WordConfig>;
 
+    /**
+     * Wrap raw data (string, dynamic function, or pause) into a `Word` for sentences.
+     * @param text - The payload shown in dialogue, which may be static, dynamic, or a pause.
+     * @param config - Optional styling settings such as color, ruby, and cps.
+     */
     constructor(text: T, config: Partial<WordConfig> = {}) {
         this.text = text;
         this.config = deepMerge<Partial<WordConfig>>(Word.defaultConfig, config);
@@ -108,6 +130,10 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
         return Pause.isPause(this.text);
     }
 
+    /**
+     * Render the text value if it is a plain string.
+     * @returns The raw string, or an empty string for dynamic content.
+     */
     toString(): string {
         if (typeof this.text === "string") {
             return this.text;

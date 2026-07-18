@@ -8,7 +8,7 @@ import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, SoundType, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
 import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
-import {ActionStatements, Control, Persistent, Story, Transition} from "@core/common/core";
+import {Control} from "@core/elements/control";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
@@ -22,6 +22,13 @@ import {ImageTransition} from "@core/elements/transition/transitions/image/image
 import {StaticScriptWarning, Utils} from "@core/common/Utils";
 import {Layer} from "@core/elements/layer";
 import { Narrator } from "./character";
+import { NVLToken } from "./nvl";
+import type { TransformDefinitions } from "@core/elements/transform/type";
+import type { NvlBlockOptions } from "@core/action/actionTypes";
+import type {ActionStatements} from "@core/elements/type";
+import type {Persistent} from "@core/elements/persistent";
+import type {Story} from "@core/elements/story";
+import {Transition} from "@core/elements/transition/transition";
 
 /**@internal */
 export type SceneConfig = {
@@ -63,7 +70,6 @@ export interface ISceneUserConfig {
 
 export type JumpConfig = {
     transition: ImageTransition;
-    unloadScene: boolean;
 }
 
 type ChainableAction = Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>> | LogicAction.Actions;
@@ -157,12 +163,6 @@ export class Scene extends Constructable<
             );
         }
     }
-
-    /**@internal */
-    static DefaultSceneState = new ConfigConstructor<SceneState>({
-        backgroundImage: new Image(),
-        backgroundMusic: null,
-    });
 
     /**@internal */
     static isScene(object: any): object is Scene {
@@ -268,8 +268,16 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Set background, if {@link transition} is provided, it'll be applied
+     * Update the scene background immediately or via transition.
+     * @param background - Color or image source to render.
+     * @param transition - Optional animation applied while swapping backgrounds.
      * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     scene.setBackground("#000", new FadeIn(1000))
+     * ]);
+     * ```
      */
     public setBackground(background: Color | ImageSrc, transition?: ImageTransition): ChainedScene {
         const chain = this.chain();
@@ -277,19 +285,24 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Jump to the specified scene
+     * Jump to another scene and discard the current one.
      *
-     * After calling the method, you **won't** be able to return to the context of the scene that called the jump,
-     * so the scene will be unloaded
-     *
-     * Any operations after the jump operation won't be executed
+     * After the jump the calling scene is unloaded and any actions that follow are ignored.
+     * @param scene - The destination scene instance.
+     * @param config - Optional transition config (or transition object).
      * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     scene.jumpTo(nextScene, new FadeIn(800))
+     * ]);
+     * ```
      */
     public jumpTo(scene: Scene, config: Partial<JumpConfig> | JumpConfig["transition"] = {}): ChainableAction {
         return this.combineActions(new Control({
             allowFutureScene: false,
         }), chain => {
-            const defaultJumpConfig: Partial<JumpConfig> = {unloadScene: true};
+            const defaultJumpConfig: Partial<JumpConfig> = {};
             const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig,
                 config instanceof Transition
                     ? {transition: config} satisfies Partial<JumpConfig>
@@ -302,19 +315,21 @@ export class Scene extends Constructable<
                     new ContentNode<SceneActionContentType["scene:preUnmount"]>().setContent([])
                 ))
                 .chain(this._initScene(scene))
-                ._transitionToScene(jumpConfig.transition, scene.state.backgroundImage.state.currentSrc);
-            if (jumpConfig.unloadScene) {
-                chain.chain(this._exit());
-            }
+                ._transitionToScene(jumpConfig.transition, scene.state.backgroundImage.state.currentSrc)
+                .chain(this._exit());
             return chain;
         })._jumpTo(scene);
     }
 
     /**
-     * Set background music
-     * @param sound Target music
-     * @param fade If set, the fade-out effect will be applied to the previous music, and the fade-in effect will be applied to the current music, with a duration of {@link fade} milliseconds
+     * Set the scene background music, optionally fading the previous track.
+     * @param sound - The BGM or `null` to stop the music.
+     * @param fade - Duration of the cross-fade, in milliseconds.
      * @chainable
+     * @example
+     * ```ts
+     * scene.setBackgroundMusic(Sound.bgm("theme.mp3"), 500);
+     * ```
      */
     public setBackgroundMusic(sound: Sound | null, fade?: number): ChainedScene {
         return this.chain(new SceneAction<typeof SceneActionTypes["setBackgroundMusic"]>(
@@ -325,7 +340,87 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Add actions to the scene
+     * Create an NVL (Novel) mode block for displaying accumulated dialog.
+     * In NVL mode, dialogs are stacked on screen rather than replacing each other.
+     * @param actions - Actions to execute within NVL mode, or a callback receiving an NVLToken
+     * @chainable
+     * @example
+     * ```ts
+     * scene.nvl([
+     *     character.say("First line"),
+     *     character.say("Second line"),
+     *     character.say("Third line"),
+     * ]);
+     * ```
+     * @example
+     * ```ts
+     * scene.nvl(nvl => [
+     *     nvl.show({ duration: 500 }),
+     *     character.say("Line 1"),
+     *     character.say("Line 2"),
+     *     nvl.hide({ duration: 500 }),
+     * ]);
+     * ```
+     */
+    public nvl(actions: ActionStatements | ((nvl: NVLToken) => ActionStatements)): ChainableAction;
+    public nvl(options: Partial<TransformDefinitions.CommonTransformProps>, actions: ActionStatements | ((nvl: NVLToken) => ActionStatements)): ChainableAction;
+    public nvl(
+        optionsOrActions: Partial<TransformDefinitions.CommonTransformProps> | ActionStatements | ((nvl: NVLToken) => ActionStatements),
+        actionsArg?: ActionStatements | ((nvl: NVLToken) => ActionStatements)
+    ): ChainableAction {
+        let options: Partial<TransformDefinitions.CommonTransformProps> | undefined;
+        let actions: ActionStatements | ((nvl: NVLToken) => ActionStatements);
+
+        if (actionsArg !== undefined) {
+            options = optionsOrActions as Partial<TransformDefinitions.CommonTransformProps>;
+            actions = actionsArg;
+        } else {
+            options = undefined;
+            actions = optionsOrActions as ActionStatements | ((nvl: NVLToken) => ActionStatements);
+        }
+
+        const nvlToken = new NVLToken(this);
+        const resolvedActions = typeof actions === "function" ? actions(nvlToken) : actions;
+        const flatActions = this.narrativeToActions(resolvedActions);
+
+        const nvlBlockOptions: NvlBlockOptions = {
+            showTransition: options,
+            hideTransition: options,
+        };
+        const nvlExitAction = new SceneAction<typeof SceneActionTypes.nvlEnd>(
+            this.chain() as any,
+            SceneActionTypes.nvlEnd,
+            new ContentNode<SceneActionContentType["scene:nvlEnd"]>().setContent([nvlBlockOptions])
+        );
+        const nvlActions = [...flatActions, nvlExitAction];
+
+        super.constructNodes(nvlActions);
+
+        const nvlBlockAction = new SceneAction<typeof SceneActionTypes.nvlBlock>(
+            this.chain() as any,
+            SceneActionTypes.nvlBlock,
+            new ContentNode<SceneActionContentType["scene:nvlBlock"]>().setContent([
+                nvlActions,
+                nvlBlockOptions
+            ])
+        );
+
+        return this.chain(nvlBlockAction);
+    }
+
+    /**
+     * Register the list of actions (or an action-generating callback) that this scene will execute.
+     * @param actions - Either a list of actions or a factory that receives the scene and returns actions.
+     * @returns The scene instance, allowing chaining.
+     * @example
+     * ```ts
+     * story.entry(
+     *   new Scene("scene-1").action(scene => [
+     *     scene.setBackground("#000"),
+     *     Control.sleep(1000)
+     *   ])
+     * );
+     * ```
      */
     public action(actions: ActionStatements): this;
 
@@ -337,7 +432,13 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Manually register image sources
+     * Manually register image URLs so the story knows to preload them.
+     * @param src - One or more image URLs to cache ahead of time.
+     * @returns The scene so calls can be chained.
+     * @example
+     * ```ts
+     * scene.preloadImage(["bg-night.png", "bg-day.png"]);
+     * ```
      */
     public preloadImage(src: string | string[]): this {
         if (!Utils.isImageSrc(src)) {
@@ -542,9 +643,32 @@ export class Scene extends Constructable<
     /**@internal */
     assignActionId(story: Story) {
         const actions = this.getAllChildren(story, this.sceneRoot || [], {allowFutureScene: true});
+        const usedIds = new Set<string>();
 
-        actions.forEach((action, i) => {
-            action.setId(`a-${i}`);
+        actions.forEach(action => {
+            const staticId = action.getStaticId();
+            if (!staticId) {
+                return;
+            }
+            if (usedIds.has(staticId)) {
+                throw new StaticScriptWarning(`Duplicate static action id: ${staticId}`);
+            }
+            usedIds.add(staticId);
+        });
+
+        let nextId = 0;
+        const nextGeneratedId = () => {
+            let id = `a-${nextId++}`;
+            while (usedIds.has(id)) {
+                id = `a-${nextId++}`;
+            }
+            usedIds.add(id);
+            return id;
+        };
+
+        actions.forEach(action => {
+            const staticId = action.getStaticId();
+            action.resolveId(staticId || nextGeneratedId());
         });
     }
 
@@ -568,12 +692,16 @@ export class Scene extends Constructable<
             if (typeof voices === "function") {
                 const voice = voices(id);
                 if (typeof voice === "string") {
-                    return voice;
+                    return Sound.voice(voice);
                 }
                 Scene.validateVoice(voice);
                 return voice;
             }
-            return voices[id] || null;
+            const voice = voices[id];
+            if (typeof voice === "string") {
+                return Sound.voice(voice);
+            }
+            return voice || null;
         }
         return null;
     }
@@ -612,18 +740,24 @@ export class Scene extends Constructable<
             );
         }
 
-        return Scene.DefaultSceneState.create().assign({
-            backgroundImage: this.state?.backgroundImage ? this.state.backgroundImage.reset() : (new Image({
+        const backgroundImage = this.state?.backgroundImage
+            ? this.state.backgroundImage.reset()
+            : (new Image({
                 src: userConfig.background,
                 opacity: 1,
                 autoFit: true,
                 name: `[[Background Image of ${this.config.name}]]`,
                 layer: this.config.defaultBackgroundLayer,
-            })._setIsBackground(true)),
-            ...(userConfig.backgroundMusic ? {
-                backgroundMusic: this.state?.backgroundMusic ? this.state.backgroundMusic.reset() : userConfig.backgroundMusic,
-            } : {}),
-        }).get();
+            })._setIsBackground(true));
+
+        const backgroundMusic = userConfig.backgroundMusic
+            ? (this.state?.backgroundMusic ? this.state.backgroundMusic.reset() : userConfig.backgroundMusic)
+            : null;
+
+        return {
+            backgroundImage,
+            backgroundMusic,
+        };
     }
 
     /**@internal */

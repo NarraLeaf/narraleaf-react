@@ -23,15 +23,30 @@ export class ServiceSkeleton<
     } = {};
 
     /**
-     * Register an action handler
-     * @param key action type
-     * @param handler handler, the arguments are the same as the action content type
+     * Register an action handler.
+     * @param key - The action key to handle.
+     * @param handler - Callback invoked when the action fires.
+     * @example
+     * ```ts
+     * this.on("add", (ctx, name) => {
+     *   console.log("Adding", name);
+     * });
+     * ```
      */
     public on<K extends StringKeyOf<Content>>(key: K, handler: ServiceHandler<Content[K]>): this {
         this._registerActionHandler(key, handler);
         return this;
     }
 
+    /**
+     * Trigger a registered service action to be executed in a scene.
+     * @param type - Action key registered with `on`.
+     * @param args - Arguments for the action handler.
+     * @example
+     * ```ts
+     * service.trigger("myAction", "foo", 123);
+     * ```
+     */
     public trigger<K extends StringKeyOf<Content>>(type: K, ...args: Content[K]): Proxied<this, Chained<ServiceAction, this>> {
         const chain = this.chain();
         return chain.chain(this._createAction(chain as any, type, args)) as unknown as Proxied<this, Chained<ServiceAction, this>>;
@@ -112,15 +127,14 @@ export abstract class Service<
     RawData extends Record<string, SerializableData> | null = Record<string, any>,
 > extends ServiceSkeletonMask<Content, RawData> {
     /**
-     * Serialize the service to data
-     *
-     * **Note**: data must be JSON serializable, return null if nothing needs to be saved
+     * Serialize the service to JSON-serializable data.
+     * Return `null` when nothing needs to be saved.
      */
     abstract serialize?(): RawData | null;
 
     /**
-     * Load data to the service
-     * @param data data exported from toData
+     * Restore data previously produced by `serialize`.
+     * @param data - Serialized payload that matches the service storage format.
      */
     abstract deserialize?(data: RawData): void;
 }
