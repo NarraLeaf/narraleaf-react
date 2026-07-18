@@ -1,5 +1,5 @@
 import {Image as GameImage} from "@core/elements/displayable/image";
-import React, {forwardRef, useImperativeHandle, useRef, useState} from "react";
+import React, {forwardRef, useCallback, useImperativeHandle, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import AspectScaleImage from "@player/elements/image/AspectScaleImage";
 import clsx from "clsx";
@@ -185,6 +185,7 @@ function ImageComponent(
         applyTransition,
         applyTransform,
         updateStyleSync,
+        flush,
         deps,
     } = useDisplayable<ImageTransition, HTMLImageElement>({
         element: image,
@@ -261,9 +262,15 @@ function ImageComponent(
         applyTransition,
         events,
         updateStyleSync,
+        flush,
     }, [...deps]);
 
-    function handleWidthChange(width: number, height: number) {
+    /* Stable identities: these are handed to AspectScaleImage/LayerStack as `onSizeChanged` /
+       `onLoad`, whose sizing effect re-runs on every identity change. A fresh closure per render
+       is what once turned every stage flush into a redundant size pass across all on-stage
+       images; with a stable callback, the effect re-runs only when an element's role genuinely
+       changes (a settled transition promoting its target to the sizing element). */
+    const handleWidthChange = useCallback((width: number, height: number) => {
         if (containerRef.current) {
             events.emit("event:image.onLoad");
             Object.assign(containerRef.current.style, {
@@ -271,11 +278,11 @@ function ImageComponent(
                 height: `${height}px`,
             });
         }
-    }
+    }, [events]);
 
-    function handleOnLoad() {
+    const handleOnLoad = useCallback(() => {
         events.emit("event:image.onLoad");
-    }
+    }, [events]);
 
     return (
         /* No `layout` here: the wrapper's transform is written imperatively, frame by frame,

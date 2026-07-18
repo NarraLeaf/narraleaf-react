@@ -138,7 +138,11 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
                     stackModel: injection.stackModel
                 }, handleUndo);
 
+                // A layered image's sources are React props, so this swap needs a re-render of
+                // the element itself — and the memoized Image no longer re-renders on the stage
+                // cascade alone, so ask the element to flush directly.
                 state.stage.update();
+                state.getExposedState<ExposedStateType.image>(this.callee)?.flush();
                 return super.executeAction(state, injection);
             }
 

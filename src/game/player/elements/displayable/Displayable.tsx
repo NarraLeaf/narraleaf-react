@@ -50,6 +50,7 @@ export type DisplayableHookResult<TransitionType extends Transition<U>, U extend
     applyTransform: (transform: Transform, resolve: () => void) => Timeline;
     applyTransition: (transition: Transition, resolve: () => void) => Timeline;
     updateStyleSync: () => void;
+    flush: () => void;
     deps: React.DependencyList;
 };
 
@@ -96,7 +97,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         }
 
         const {controller, task} = transitionTask;
-        const eventToken = controller.onUpdate((values: AnimationDataTypeArray<TransitionAnimationType[]>) => {
+        const applyFrame = (values: AnimationDataTypeArray<TransitionAnimationType[]>) => {
             refs.current.forEach(([ref], i) => {
                 const currentResolve = task.resolve[i];
                 const resolver = typeof currentResolve === "function" ? currentResolve : currentResolve.resolver;
@@ -113,9 +114,36 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
                 );
                 assignProperties(ref, propOverwrite ? propOverwrite(mergedProps) : mergedProps);
             });
+        };
+        const eventToken = controller.onUpdate(applyFrame);
+
+        // Paint the exact start pose before the animation is allowed to run. The resolvers are
+        // the only source of some of the groups' props — notably the incoming element's `src` —
+        // so without this frame the target sits unstyled (and srcless) until the first
+        // animation tick, and the load gate below would deadlock on an image that was never
+        // given a source.
+        applyFrame(task.animations.map((animation) => animation.start) as AnimationDataTypeArray<TransitionAnimationType[]>);
+
+        // Gate the start on every group being loaded and decoded. The gate must be taken here,
+        // in the commit that mounted the groups: `applyTransition` replaces the refs before
+        // React attaches them, so a gate taken there reads `null` refs and waits on nothing —
+        // which is exactly how transitions used to race their images' decodes and reveal blank
+        // frames. `stale` covers replacement/unmount; a settled or cancelled controller makes
+        // `start()` a no-op on its own.
+        let stale = false;
+        Promise.all(refs.current.map(([ref]) => {
+            const loadableElement = ref.current;
+            return loadableElement?.waitForLoad ? loadableElement.waitForLoad() : Promise.resolve();
+        })).then(() => {
+            if (!stale) {
+                controller.start();
+            }
         });
 
-        return eventToken.cancel;
+        return () => {
+            stale = true;
+            eventToken.cancel();
+        };
     }, [transitionTask]);
 
     useEffect(() => {
@@ -275,8 +303,18 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         controller.onCanceled(() => {
             timeline.abort();
             setTransitionTask(null);
-            
+
             gameState.logger.debug("Displayable", "Transition cancelled", newTransition);
+        });
+        // Registered before the animation can possibly start: completion can be requested while
+        // the transition is still gated on its elements loading (a skip, or the next transition
+        // interrupting this one), and it must settle this task either way.
+        controller.onComplete(() => {
+            resetRefs();
+            setTransitionTask(null);
+            onTransition?.(newTransition);
+            resolve();
+            awaitable.resolve();
         });
         gameState.timelines.attachTimeline(timeline);
         setTransitionTask({
@@ -308,26 +346,9 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         }
         currentKey.current = nextKey;
 
-        // Wait for all elements to load before starting the animation
-        const loadPromises = refs.current.map(([ref]) => {
-            const loadableElement = ref.current;
-            if (loadableElement?.waitForLoad) {
-                return loadableElement.waitForLoad();
-            }
-            return Promise.resolve();
-        });
-
-        Promise.all(loadPromises).then(() => {
-            controller.start();
-            controller.onComplete(() => {
-                resetRefs();
-                setTransitionTask(null);
-                onTransition?.(newTransition);
-                resolve();
-                awaitable.resolve();
-            });
-        });
-
+        // The animation is not started here: the transition's groups only mount in the commit
+        // that renders this task, so the layout effect that sees them mounted applies the start
+        // frame and starts the controller once every element has loaded.
         return timeline;
     }
 
@@ -370,6 +391,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         applyTransform,
         applyTransition: applyTransition as (transition: Transition, resolve: () => void) => Timeline,
         updateStyleSync,
+        flush,
         deps: [transformToken, transitionTask, refs],
     };
 }

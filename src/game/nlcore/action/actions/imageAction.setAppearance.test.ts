@@ -54,4 +54,34 @@ describe("image:setAppearance without a transition", () => {
 
         expect(image.state.currentSrc).toEqual(["normal", "casual"]);
     });
+
+    it("flushes a layered image so the swapped layers actually render", () => {
+        // A layered image's sources are React props, so the swap needs a re-render of the
+        // element itself. The stage cascade no longer reaches it (the Image element is
+        // memoized), so the action must ask the element to flush directly.
+        const image = new Image({
+            src: {
+                layers: ["/assets/base.png", { youki: "/assets/youki.png", nattou: "/assets/nattou.png" }],
+                defaults: ["youki"],
+            },
+        } as never);
+        const flush = vi.fn();
+        const update = vi.fn();
+        const state = {
+            getExposedState: () => ({ flush }),
+            actionHistory: { push: vi.fn() },
+            logger: { debug: vi.fn() },
+            stage: { update },
+        };
+
+        new ImageAction(
+            { getSelf: () => image } as never,
+            ImageActionTypes.setAppearance,
+            new ContentNode().setContent([["nattou"], undefined]) as never,
+        ).executeAction(state as never, { stackModel: {} } as never);
+
+        expect(image.state.currentSrc).toEqual(["nattou"]);
+        expect(update).toHaveBeenCalled();
+        expect(flush).toHaveBeenCalled();
+    });
 });

@@ -29,6 +29,7 @@ export type ExposedState = {
     [ExposedStateType.image]: {
         createWearable: (wearable: Image) => void;
         disposeWearable: (wearable: Image) => void;
+        flush: () => void;
         events: EventDispatcher<ImageEvents>;
         initDisplayable: (onResolve: () => void) => Timeline;
         applyTransform: (transform: Transform, onResolve: () => void) => Timeline;

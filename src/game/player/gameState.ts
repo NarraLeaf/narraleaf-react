@@ -1075,6 +1075,12 @@ export class GameState {
             timeline.attachChild(task);
 
             state.updateStyleSync();
+            // `updateStyleSync` only re-applies imperative props; a layered image's sources are
+            // React props, and the memoized element no longer re-renders on the surrounding
+            // forceUpdate (this runs after undo/restore) — flush it explicitly.
+            if ("flush" in state) {
+                state.flush();
+            }
         });
         this.timelines.attachTimeline(timeline);
 

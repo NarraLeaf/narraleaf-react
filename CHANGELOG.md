@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Transitions to a differently-sized image no longer leave the element mispositioned. When a transition settled, the incoming image was promoted to the element that sizes the displayable's container — but the size guard added in 0.13.2 keyed only on the computed size, which had not changed from the incoming image's own point of view, so the promotion notification was swallowed and the container silently kept the *previous* image's dimensions. The element's centering and layout are derived from that container, so the new image jumped at the settle instant and stayed offset until something else resized it. Applying a size and reporting it to the parent are now tracked separately: a size the same callback has already been told about is still skipped (that redundancy was the 0.13.2 render-loop fix), but a *new* sizing callback is always notified.
+
+- Changing a layered image's appearance without a transition paints again. The layered form of `char(tags)` relies on a re-render to hand the element its new layer sources (they are React props, unlike a plain image's imperative `src`), and the memoization added in 0.13.2 stopped the stage-wide update from reaching it — the swap was stored and saved but the old appearance stayed on screen. The action (and the undo/restore repaint pass) now asks the element itself to flush. Swaps with a transition were never affected.
+
+- A transition now genuinely waits for its incoming image to load *and decode* before the animation starts. The pre-transition wait captured its element references synchronously, before React had mounted the transition's elements, so it waited on nothing and the animation raced the image load — a large or not-yet-preloaded image could dissolve in as a blank, pop in mid-animation, or flash at the wrong moment. The wait is now taken in the commit that mounts the transition's elements, which also lets the transition paint its exact start pose (including handing the incoming element its source) before a single animation frame runs. Skipping a transition while it is still waiting settles it as soon as the image is ready instead of being ignored; a source that fails to load no longer wedges the transition.
+
+- A freshly mounted transition image no longer paints one stretched frame at the full stage size before its real size is known. Its width/height now start at zero — painting nothing — until the loaded bitmap's dimensions are applied.
+
 ## [0.13.2]
 
 ### Fixed

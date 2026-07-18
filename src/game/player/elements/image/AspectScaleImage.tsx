@@ -18,15 +18,22 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
 }, ref) => {
     const imgRef = useRef<HTMLImageElement>(null);
     const {ratio} = useRatio();
-    const [width, setWidth] = React.useState<number>(() => ratio.state.width);
-    const [height, setHeight] = React.useState<number>(() => ratio.state.height);
-    // Remember the last size we actually applied. `updateWidth` is re-invoked on every settled
-    // render (the sizing effect re-runs whenever the parent hands it a fresh `onSizeChanged`
-    // closure), and it calls `onSizeChanged` -> `handleWidthChange` -> `emit(onLoad)`, which can
-    // schedule another render. When the computed size hasn't changed, repeating that work does
-    // nothing but feed a render loop that amplifies with the number of on-stage images. Skipping the
-    // redundant apply keeps the element correct while breaking the loop.
+    // 0 until the bitmap's real size is known: a fresh element paints nothing rather than one
+    // stretched frame at the stage size (these attributes only apply between mount and the first
+    // `updateWidth`, which follows the load event).
+    const [width, setWidth] = React.useState<number>(0);
+    const [height, setHeight] = React.useState<number>(0);
+    // Remember the last size we actually applied. `updateWidth` re-runs on renders, ratio updates
+    // and src mutations, and re-applying an unchanged size only risks feeding a render loop that
+    // amplifies with the number of on-stage images. Skipping the redundant apply keeps the element
+    // correct while breaking the loop.
     const lastAppliedRef = useRef<{ w: number; h: number; ar: string } | null>(null);
+    // The callback we last reported the size to. It can change identity while the size does not —
+    // when a transition settles, this element is promoted to the one that sizes the parent
+    // container (`onSizeChanged` flips from `undefined` to the parent's handler), and the parent's
+    // stored size is stale even though ours isn't. A guard keyed on the size alone swallowed that
+    // notification and left the container at the previous image's size.
+    const lastNotifiedRef = useRef<((width: number, height: number) => void) | null>(null);
     const game = useGame();
     const isLoadedRef = useRef(false);
     const loadPromiseRef = useRef<Promise<void> | null>(null);
@@ -115,18 +122,23 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
                 newAspectRatio = "auto";
             }
 
-            // Nothing changed since we last applied — repeating the work only risks a render loop.
             const last = lastAppliedRef.current;
-            if (last && last.w === newWidth && last.h === newHeight && last.ar === newAspectRatio) {
+            const sizeChanged = !last || last.w !== newWidth || last.h !== newHeight || last.ar !== newAspectRatio;
+            const callbackChanged = !!onSizeChanged && lastNotifiedRef.current !== onSizeChanged;
+            // Nothing changed and the same callback already knows this size — repeating the work
+            // only risks a render loop.
+            if (!sizeChanged && !callbackChanged) {
                 return;
             }
-            lastAppliedRef.current = { w: newWidth, h: newHeight, ar: newAspectRatio };
 
-            setWidth(newWidth);
-            setHeight(newHeight);
-            imgRef.current.style.aspectRatio = newAspectRatio;
-
+            if (sizeChanged) {
+                lastAppliedRef.current = { w: newWidth, h: newHeight, ar: newAspectRatio };
+                setWidth(newWidth);
+                setHeight(newHeight);
+                imgRef.current.style.aspectRatio = newAspectRatio;
+            }
             if (onSizeChanged) {
+                lastNotifiedRef.current = onSizeChanged;
                 onSizeChanged(newWidth, newHeight);
             }
         }
@@ -145,10 +157,23 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
         }
     }
 
+    function handleOnError() {
+        // A source that fails still settles the load: the pre-transition gate waits on
+        // `waitForLoad`, and a broken url must not wedge the transition forever. The decode
+        // fallback inside `waitForLoad` tolerates an undecodable bitmap.
+        isLoadedRef.current = true;
+        if (loadResolveRef.current) {
+            loadResolveRef.current();
+            loadResolveRef.current = null;
+            loadPromiseRef.current = null;
+        }
+    }
+
     return (
         <img
             ref={imgRef}
             onLoad={handleOnLoad}
+            onError={handleOnError}
             width={width}
             height={height}
             alt={""}
