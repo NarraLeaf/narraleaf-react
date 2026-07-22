@@ -544,6 +544,25 @@ export class StackModel {
         return this.waitingAction;
     }
 
+    /**
+     * Return the unsettled Awaitable currently at the top of the stack, if any.
+     *
+     * Unlike {@link getTopSync} (which returns the top {@link CalledActionResult} and skips
+     * awaitables), this exposes the awaitable the player is suspended on — used by
+     * {@link LiveGame.fastForward} to await a step's settle before advancing to the next line.
+     * @internal
+     */
+    public getWaitingAwaitable(): Awaitable<CalledActionResult> | null {
+        if (this.stack.isEmpty()) {
+            return null;
+        }
+        const peek = this.stack.peek();
+        if (peek && Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(peek) && !peek.isSettled()) {
+            return peek;
+        }
+        return null;
+    }
+
     public getTopSync(): CalledActionResult | null {
         if (this.stack.isEmpty()) {
             return null;

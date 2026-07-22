@@ -456,6 +456,75 @@ export class LiveGame {
         this.gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
     }
 
+    /**
+     * Fast-forward playback to the next menu (or the end of the story).
+     *
+     * Every line in between is executed for real, so the backlog and its restore snapshots
+     * accumulate exactly as in normal play — only faster and silent. Audio is muted for the
+     * duration, in-flight transitions are settled immediately, and timed pauses (`Control.sleep`,
+     * auto-forward) resolve at once. It stops as soon as a menu is waiting for a choice, so the
+     * choice itself is always left to the player.
+     *
+     * Because history accumulates the whole way, {@link getHistory} and
+     * {@link restoreToHistory} cover the fast-forwarded span just like normal play.
+     *
+     * ```typescript
+     * // Jump ahead to the next decision point.
+     * await game.getLiveGame().fastForward();
+     * ```
+     *
+     * @param options.until - `"menu"` (default) stops at the next menu; `"end"` runs until the
+     *                         story finishes.
+     * @param options.maxSteps - safety bound on the number of advance steps (defaults to the
+     *                           `maxStackModelLoop` config).
+     * @returns why it stopped: `"menu"`, `"end"` (the stack drained), or `"maxSteps"`.
+     */
+    public async fastForward(options: {
+        until?: "menu" | "end";
+        maxSteps?: number;
+    } = {}): Promise<{ reason: "menu" | "end" | "maxSteps" }> {
+        this.assertGameState();
+        const gameState = this.gameState;
+        const until = options.until ?? "menu";
+        const maxSteps = options.maxSteps ?? gameState.game.config.maxStackModelLoop;
+
+        const previousVolume = gameState.audioManager.getGlobalVolume();
+        gameState.audioManager.setGlobalVolume(0);
+        gameState.setFastForwarding(true);
+
+        try {
+            let steps = 0;
+            while (steps++ < maxSteps) {
+                // Stop conditions are checked before advancing further.
+                if (until === "menu" && gameState.hasActiveMenu()) {
+                    return { reason: "menu" };
+                }
+                if (this.stackModel.isEmpty()) {
+                    return { reason: "end" };
+                }
+
+                const awaitable = this.stackModel.getWaitingAwaitable();
+                if (awaitable) {
+                    // Suspended on a say / waitForClick: force-skip it and wait for the step to
+                    // settle before the next skip, so the line's history entry and its snapshot
+                    // are captured against a stable stack rather than a mid-mutation one.
+                    const settled = new Promise<void>(resolve => awaitable.onSettled(() => resolve()));
+                    gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
+                    await settled;
+                } else {
+                    // Not suspended (a run of synchronous actions, or a just-settled step not yet
+                    // re-driven): pump the drain and yield a microtask.
+                    gameState.stage.next();
+                    await Promise.resolve();
+                }
+            }
+            return { reason: "maxSteps" };
+        } finally {
+            gameState.setFastForwarding(false);
+            gameState.audioManager.setGlobalVolume(previousVolume);
+        }
+    }
+
     private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {
         this.assertGameState();
         this.assertPlayerElement();

@@ -235,6 +235,7 @@ export class GameState {
     private stageClickBuffer: { timestamp: number } | null = null;
     private readonly nvlAdvanceWaiters: Map<string, () => void> = new Map();
     private advDialogState: AdvDialogState | null = null;
+    private _fastForwarding: boolean = false;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
@@ -377,6 +378,33 @@ export class GameState {
 
     public getCurrentScene(): Scene | null {
         return this.state.elements[0]?.scene || null;
+    }
+
+    /**
+     * Whether the game is currently being fast-forwarded (see {@link LiveGame.fastForward}).
+     * While set, timed pauses resolve immediately so the fast-forward is not held up by
+     * scripted delays.
+     * @internal
+     */
+    public isFastForwarding(): boolean {
+        return this._fastForwarding;
+    }
+
+    /**@internal */
+    public setFastForwarding(value: boolean): void {
+        this._fastForwarding = value;
+    }
+
+    /**
+     * Whether a menu is currently on screen awaiting a choice.
+     * @internal
+     */
+    public hasActiveMenu(): boolean {
+        const scene = this.getLastScene();
+        if (!scene) {
+            return false;
+        }
+        return (this.findElementByScene(scene)?.menus.length ?? 0) > 0;
     }
 
     public findCurrentPortraitForCharacter(character: Character): NormalizedCharacterPortraitConfig | null {

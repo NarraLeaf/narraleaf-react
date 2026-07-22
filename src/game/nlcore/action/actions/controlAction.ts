@@ -177,6 +177,16 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             };
         } else if (this.type === ControlActionTypes.sleep) {
             const [, content] = (this.contentNode as ContentNode<ControlActionContentType["control:sleep"]>).getContent();
+
+            // During fast-forward, timed pauses resolve immediately so "skip to next choice"
+            // is not held up by scripted delays.
+            if (gameState.isFastForwarding()) {
+                return {
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                };
+            }
+
             let sleepAwaitable: Awaitable<void>;
 
             if (typeof content === "number") {
