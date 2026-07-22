@@ -7,8 +7,18 @@ import { PlayerStateData } from "@player/gameState";
 import { GuardConfig } from "@player/guard";
 import React from "react";
 import { StackModel, StackModelRawData } from "./action/stackModel";
+import type { GameElementHistory } from "./action/gameHistory";
 import { MenuComponent, NotificationComponent, NvlDialogComponent, SayComponent } from "./common/player";
 import { LiveGameEventToken } from "./types";
+
+/**
+ * Current save format version.
+ *
+ * - v1 (undefined on the save): core resume state only, no backlog history.
+ * - v2: adds `game.history`, a full backlog where every entry carries a self-contained
+ *   restore snapshot, so loading a save keeps the backlog and any past line can be restored.
+ */
+export const SAVE_FORMAT_VERSION = 2;
 
 export interface SavedGameMetaData {
     /**
@@ -35,18 +45,62 @@ export interface SavedGameMetaData {
      * The hash of the story is used to check whether the stories are compatible.
      */
     storyHash: string;
+    /**
+     * The save format version (see {@link SAVE_FORMAT_VERSION}).
+     *
+     * Absent on legacy (v1) saves written before backlog history existed.
+     */
+    version?: number;
+}
+
+/**
+ * The core, resumable game state — everything needed to restore the game to a point,
+ * **without** the backlog history.
+ *
+ * This is the unit captured per backlog entry (see {@link SerializedGameHistory}); it is
+ * deliberately history-free so that per-entry snapshots do not nest the whole backlog inside
+ * themselves (which would make saves grow exponentially).
+ */
+export interface SerializedGameState {
+    store: { [key: string]: SerializedNamespaceData; };
+    elementStates: RawData<ElementStateRaw>[];
+    stage: PlayerStateData;
+    services: { [key: string]: unknown; };
+    stackModel: StackModelRawData;
+    asyncStackModels: StackModelRawData[];
+}
+
+/**
+ * A single persisted backlog line: the rendered say/menu content, a stable action anchor, and a
+ * self-contained snapshot that restores the game to exactly this line.
+ */
+export interface SerializedGameHistory {
+    /**
+     * Stable action id anchor (`action.getId()`). Used to re-bind the entry to the live story on
+     * load; entries whose action no longer exists (script changed) are dropped from the backlog.
+     */
+    actionId: string | null;
+    element: GameElementHistory;
+    isPending?: boolean;
+    /**
+     * Core game state captured when this line was reached. Restoring it returns the game to this
+     * exact line. `null` when a snapshot could not be captured (the line stays visible but is not
+     * restorable).
+     */
+    snapshot: SerializedGameState | null;
 }
 
 export interface SavedGame {
     name: string;
     meta: SavedGameMetaData;
-    game: {
-        store: { [key: string]: SerializedNamespaceData; };
-        elementStates: RawData<ElementStateRaw>[];
-        stage: PlayerStateData;
-        services: { [key: string]: unknown; };
-        stackModel: StackModelRawData;
-        asyncStackModels: StackModelRawData[];
+    game: SerializedGameState & {
+        /**
+         * Full backlog with per-entry restore snapshots (save format v2+).
+         *
+         * Absent on legacy saves; a missing/empty history simply means loading starts with an
+         * empty backlog, exactly as before this feature existed.
+         */
+        history?: SerializedGameHistory[];
     };
 }
 

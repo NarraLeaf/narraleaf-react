@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### _Feature_
+
+- The backlog now survives saving and loading, and any past line in it can be restored to — including after a save is loaded. Until now the history NarraLeaf keeps (the one behind the backlog and behind `liveGame.undo`) was accumulated only while the game ran and discarded when a save was loaded, so a freshly loaded game — or a game reached by jumping into it — began with an empty backlog and nothing to go back to. Saves now carry the full backlog, and every backlog line also stores a self-contained snapshot of the game at that point. As a result `getHistory()` is populated the moment `deserialize` returns, and a new method restores the game to any line in it:
+
+  ```typescript
+  const history = game.getHistory();
+  // Jump the game back to a past line, even one from a loaded save.
+  game.getLiveGame().restoreToHistory(history[0].token);
+  ```
+
+  `restoreToHistory(token)` does not rely on the in-memory undo history that `undo` walks (which is made of closures over live objects and cannot be serialized), so it is what works across a save/load boundary. `undo` is unchanged and remains the nicer choice for stepping back during live play; `restoreToHistory` returns `false` if the line has no restore snapshot.
+
+  The save format is now versioned — `meta.version` is `2` for saves written by this release. Saves written before it load unchanged and simply start with an empty backlog, and `SavedGame.game` gains an optional `history` field (see [SavedGame](https://narraleaf.com/docs/narraleaf-react/core/types/SavedGame)). Because each remembered line carries a snapshot, saves are larger, roughly in proportion to how far back the backlog reaches — bounded by `maxActionHistory`.
+
 ### Fixed
 
 - Transitions to a differently-sized image no longer leave the element mispositioned. When a transition settled, the incoming image was promoted to the element that sizes the displayable's container — but the size guard added in 0.13.2 keyed only on the computed size, which had not changed from the incoming image's own point of view, so the promotion notification was swallowed and the container silently kept the *previous* image's dimensions. The element's centering and layout are derived from that container, so the new image jumped at the settle instant and stayed offset until something else resized it. Applying a size and reporting it to the parent are now tracked separately: a size the same callback has already been told about is still skipped (that redundancy was the 0.13.2 render-loop fix), but a *new* sizing callback is always notified.

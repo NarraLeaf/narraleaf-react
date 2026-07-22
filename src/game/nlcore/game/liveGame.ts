@@ -14,7 +14,8 @@ import { ElementStateRaw, Story } from "@core/elements/story";
 import { Game } from "@core/game";
 import { Sound } from "@core/elements/sound";
 import { SoundToken } from "@narraleaf/sound";
-import type { CalledActionResult, NotificationToken, SavedGame } from "@core/gameTypes";
+import type { CalledActionResult, NotificationToken, SavedGame, SerializedGameState } from "@core/gameTypes";
+import { SAVE_FORMAT_VERSION } from "@core/gameTypes";
 import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
 import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
 import { GameState } from "@player/gameState";
@@ -131,7 +132,6 @@ export class LiveGame {
      */
     public serialize(): SavedGame {
         this.assertGameState();
-        const gameState = this.gameState;
 
         const story = this.story;
         if (!story) {
@@ -142,16 +142,10 @@ export class LiveGame {
             throw new Error("Failed when trying to serialize the game: The game has not started");
         }
 
-        // get all element states
-        const store = this._storable.toData();
-        const stage = gameState.toData();
-        const elementStates: RawData<ElementStateRaw>[] = story.getAllElementStates();
-        const stackModel: StackModelRawData = this.stackModel.serialize();
-        const asyncStackModels: StackModelRawData[] = Array.from(this.asyncStackModels).map(stack => stack.serialize());
-
         return {
             name: this.currentSavedGame.name,
             meta: {
+                version: SAVE_FORMAT_VERSION,
                 created: this.currentSavedGame.meta.created,
                 updated: Date.now(),
                 id: this.currentSavedGame.meta.id,
@@ -160,14 +154,62 @@ export class LiveGame {
                 storyHash: story.hash(),
             },
             game: {
-                store,
-                stage,
-                elementStates,
-                stackModel,
-                asyncStackModels,
-                services: story.serializeServices(),
+                ...this.serializeGameState(),
+                history: this.gameState.gameHistory.serialize(),
             },
         } satisfies SavedGame;
+    }
+
+    /**
+     * Serialize the core, resumable game state (store, elements, stage, execution stacks)
+     * **without** the backlog history.
+     *
+     * This is the shared unit used both by {@link serialize} and by the per-backlog-entry
+     * snapshots that power {@link restoreToHistory}; keeping it history-free is what prevents
+     * per-entry snapshots from nesting the whole backlog inside themselves.
+     *
+     * @internal
+     */
+    public serializeGameState(): SerializedGameState {
+        this.assertGameState();
+        const gameState = this.gameState;
+
+        const story = this.story;
+        if (!story) {
+            throw new Error("No story loaded");
+        }
+
+        const store = this._storable.toData();
+        const stage = gameState.toData();
+        const elementStates: RawData<ElementStateRaw>[] = story.getAllElementStates();
+        const stackModel: StackModelRawData = this.stackModel.serialize();
+        const asyncStackModels: StackModelRawData[] = Array.from(this.asyncStackModels).map(stack => stack.serialize());
+
+        return {
+            store,
+            stage,
+            elementStates,
+            stackModel,
+            asyncStackModels,
+            services: story.serializeServices(),
+        };
+    }
+
+    /**
+     * Best-effort capture of the core game state for a backlog entry.
+     *
+     * Never throws: a line that cannot be snapshotted just becomes non-restorable rather than
+     * breaking playback. Called on every say/menu as the backlog grows.
+     *
+     * @internal
+     */
+    public captureGameState(): SerializedGameState | null {
+        try {
+            return this.serializeGameState();
+        } catch (e) {
+            this.gameState?.logger.warn("LiveGame.captureGameState", e);
+            return null;
+        }
     }
 
     /**
@@ -248,6 +290,10 @@ export class LiveGame {
         // restore services
         story.deserializeServices(services);
 
+        // restore backlog history (save format v2+; legacy saves carry none). Entries are re-bound
+        // to live actions and dropped if their action no longer exists in the current story.
+        gameState.gameHistory.load(savedGame.game.history ?? [], actionMaps);
+
         this.game.hooks.trigger("afterRestore", []);
 
         gameState.events.once(GameState.EventTypes["event:state.onRender"], () => {
@@ -321,6 +367,46 @@ export class LiveGame {
             this.gameState.logger.warn("LiveGame.undo", "No action found");
             this.gameLock.off(lock.unlock());
         }
+    }
+
+    /**
+     * Restore the game to a past backlog line.
+     *
+     * Unlike {@link undo}, this works **after loading a save**: it does not rely on the
+     * (non-serializable) undo stack. Every backlog entry carries a self-contained state snapshot,
+     * so restoring re-applies that snapshot and trims the backlog back to that line.
+     *
+     * @param token - the backlog entry token (as returned by {@link getHistory})
+     * @returns `true` if the line was restored, `false` if the token is unknown or the entry has
+     *          no restore snapshot.
+     */
+    public restoreToHistory(token: string): boolean {
+        this.assertGameState();
+
+        const entry = this.gameState.gameHistory.getByToken(token);
+        if (!entry) {
+            this.gameState.logger.warn("LiveGame.restoreToHistory", "No history entry for token", token);
+            return false;
+        }
+        if (!entry.snapshot) {
+            this.gameState.logger.warn("LiveGame.restoreToHistory", "History entry has no restore snapshot", token);
+            return false;
+        }
+
+        // Trim the backlog to this line, then restore the entry's core snapshot. We reuse
+        // deserialize() wholesale by synthesizing a SavedGame whose core is the entry snapshot and
+        // whose history is the trimmed prefix, so the resume path stays identical to loading a save.
+        const prefix = this.gameState.gameHistory.serializeUntil(token);
+        const synthetic: SavedGame = {
+            name: this.currentSavedGame?.name ?? "",
+            meta: this.currentSavedGame?.meta ?? this.getNewSavedGame().meta,
+            game: {
+                ...entry.snapshot,
+                history: prefix,
+            },
+        };
+        this.deserialize(synthetic);
+        return true;
     }
 
     /**@internal */
