@@ -22,7 +22,7 @@ import { GameState } from "@player/gameState";
 import { Options } from "html-to-image/lib/types";
 import { ActionExecutionInjection, ExecutedActionResult } from "../action/action";
 import { GameHistory } from "../action/gameHistory";
-import { StackModel, StackModelRawData } from "../action/stackModel";
+import { StackModel, StackModelRawData, StackSnapshot } from "../action/stackModel";
 
 /**@internal */
 type LiveGameEvent = {
@@ -50,6 +50,19 @@ type LiveGameEvent = {
          */
         text: string;
     }];
+    "event:action.current": [{
+        /**
+         * The id of the action that just began executing (as assigned by the story compiler),
+         * or null for an action with no id. Fires for every executed action, including those
+         * inside parallel/async branches — subscribers that only care about top-level lines
+         * should filter by their own id set.
+         */
+        actionId: string | null,
+        /**
+         * The action's type (e.g. `"character:say"`).
+         */
+        actionType: string | null,
+    }];
 };
 
 export class LiveGame {
@@ -62,6 +75,7 @@ export class LiveGame {
     static EventTypes = {
         "event:character.prompt": "event:character.prompt",
         "event:menu.choose": "event:menu.choose",
+        "event:action.current": "event:action.current",
     } as const;
 
     public game: Game;
@@ -86,6 +100,8 @@ export class LiveGame {
     private readonly _storable: Storable;
     /**@internal */
     private mapCache: [actionMap: Map<string, LogicAction.Actions>, elementMap: Map<string, LogicAction.GameElement>] | null = null;
+    /**@internal the id of the most recently executed action (drives the Studio play head) */
+    private _currentActionId: string | null = null;
 
     /**@internal */
     constructor(game: Game) {
@@ -607,6 +623,43 @@ export class LiveGame {
     }
 
     /**
+     * **Experimental.** Subscribe to the current-action-id stream: fires each time an action
+     * begins executing, carrying its id and type. Intended for an external play head (e.g. the
+     * Studio timeline) to follow along. Fires for branch/async actions too — filter by your own
+     * id set if you only track top-level lines.
+     *
+     * @returns a token; call `token.cancel()` to unsubscribe.
+     */
+    public onCurrentActionChange(fc: LiveGameEventHandler<LiveGameEvent["event:action.current"]>): LiveGameEventToken {
+        return this.events.on(LiveGame.EventTypes["event:action.current"], fc);
+    }
+
+    /**
+     * **Experimental.** The id of the most recently executed action, or null before the first
+     * action runs. A pull-based companion to {@link onCurrentActionChange}.
+     */
+    public getCurrentActionId(): string | null {
+        return this._currentActionId;
+    }
+
+    /**
+     * **Experimental, read-only.** A top-first snapshot of the current execution stacks for a
+     * call-stack / debug view: the root stack plus any in-flight async stacks (`Control.doAsync`
+     * / `Control.allAsync`). The shape is a convenience projection, not a stability contract — do
+     * not serialize it (use {@link serialize} for saves). Returns empty frames before the game
+     * starts.
+     */
+    public getStackSnapshot(): { root: StackSnapshot; async: StackSnapshot[] } {
+        if (!this.stackModel) {
+            return { root: { frames: [] }, async: [] };
+        }
+        return {
+            root: this.stackModel.snapshot(),
+            async: Array.from(this.asyncStackModels).map(stack => stack.snapshot()),
+        };
+    }
+
+    /**
      * Start a new game
      */
     public newGame() {
@@ -904,6 +957,14 @@ export class LiveGame {
         if (!this.stackModel) {
             throw new Error("Stack model is not initialized");
         }
+
+        // Publish the current play head before running the action. Studio reverse-maps the id to a
+        // block via its actionIdBindings; the event fires for every action, branch actions included.
+        this._currentActionId = action.getId();
+        this.events.emit(LiveGame.EventTypes["event:action.current"], {
+            actionId: action.getId(),
+            actionType: action.type,
+        });
 
         const nextAction = action.executeAction(state, injection);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
