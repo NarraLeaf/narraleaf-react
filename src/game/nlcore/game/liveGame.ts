@@ -957,8 +957,10 @@ export class LiveGame {
                 if (current.getChild()?.action) queue.push(current.getChild()!.action!);
                 current = content[0]?.contentNode || null;
             }
-            if (current.action) actions.push(current.action);
-            current = current.getChild();
+            // An empty Control.do([]) body leaves `current` null here; fall through to the queued
+            // continuation instead of dereferencing null.
+            if (current?.action) actions.push(current.action);
+            current = current?.getChild() || null;
         }
 
         return actions;

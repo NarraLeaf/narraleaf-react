@@ -37,11 +37,17 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         const contentNode = this.contentNode as ContentNode<ControlActionContentType[T]>;
         const [content] = contentNode.getContent() as [LogicAction.Actions[]];
         if (this.type === ControlActionTypes.do) {
+            if (content.length === 0) {
+                return { type: this.type, node: this.contentNode.getChild() };
+            }
             return [
                 { type: this.type, node: this.contentNode.getChild() },
                 { type: this.type, node: content[0].contentNode }
             ];
         } else if (this.type === ControlActionTypes.doAsync) {
+            if (content.length === 0) {
+                return super.executeAction(gameState, injection);
+            }
             const awaitable = ControlAction.executeActionsAsync(gameState, content[0]);
             gameState.timelines.attachTimeline(awaitable);
 
