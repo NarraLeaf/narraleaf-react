@@ -585,6 +585,26 @@ export class StackModel {
         return null;
     }
 
+    /**
+     * The id of the top-most action-bearing item on the stack, or `null` if the stack holds
+     * no action (empty, or only awaitables with no underlying action).
+     *
+     * Unlike {@link getTopSync} this never throws: it walks past any awaitables/links on top
+     * and returns the first {@link CalledActionResult}'s action id. Used by
+     * {@link LiveGame.fastForward} to detect when a requested action id has surfaced as the
+     * next thing to run, and as a lightweight read-only probe of the play head.
+     * @internal
+     */
+    public peekTopActionId(): string | null {
+        for (let i = this.stack.size() - 1; i >= 0; i--) {
+            const item = this.stack.get(i);
+            if (StackModel.isCalledActionResult(item)) {
+                return item.node?.action?.getId() ?? null;
+            }
+        }
+        return null;
+    }
+
     executeActions(result: CalledActionResult): CalledActionResult | Awaitable<CalledActionResult> | null {
         if (!result.node?.action) return null;
         const executed = this.liveGame.executeAction(this.liveGame.getGameStateForce(), result.node.action, {
