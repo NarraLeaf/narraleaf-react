@@ -46,6 +46,11 @@ export class Control extends Actionable {
 
     /**
      * Execute actions concurrently, resolving once any finishes.
+     *
+     * Each entry runs as its own parallel branch, so a single chained statement (e.g.
+     * `image.pos(a).pos(b)`) is split into multiple branches and they will conflict when
+     * they target the same element. Wrap sequential steps in `Control.do([...])` to keep
+     * them in one branch.
      * @param actions - Actions to run in parallel.
      * @chainable
      * @example
@@ -59,6 +64,11 @@ export class Control extends Actionable {
 
     /**
      * Execute actions concurrently and wait until all finish.
+     *
+     * Each entry runs as its own parallel branch, so a single chained statement (e.g.
+     * `image.pos(a).pos(b)`) is split into multiple branches and they will conflict when
+     * they target the same element. Wrap sequential steps in `Control.do([...])` to keep
+     * them in one branch.
      * @param actions - Actions to run at the same time.
      * @chainable
      * @example
@@ -72,6 +82,11 @@ export class Control extends Actionable {
 
     /**
      * Execute actions concurrently and continue without waiting.
+     *
+     * Each entry runs as its own parallel branch, so a single chained statement (e.g.
+     * `image.pos(a).pos(b)`) is split into multiple branches and they will conflict when
+     * they target the same element. Wrap sequential steps in `Control.do([...])` to keep
+     * them in one branch.
      * @param actions - Actions to fire simultaneously.
      * @chainable
      */
@@ -183,7 +198,10 @@ export class Control extends Actionable {
      * @chainable
      */
     public repeat(times: number, actions: ActionStatements): ChainedControl {
-        return this.push(ControlAction.ActionTypes.repeat, actions, times);
+        // repeat/while feed their body to a StackModel loop, which pushes each body action onto
+        // the stack independently and asserts (checkActionChain) the body is NOT chained. So keep
+        // the body unchained here — unlike do/doAsync, which walk the body via child links.
+        return this.pushUnchained(ControlAction.ActionTypes.repeat, actions, times);
     }
 
     /**
@@ -266,11 +284,13 @@ export class Control extends Actionable {
         actions: ActionStatements,
         lambda: Lambda<boolean>
     ): ChainedControl {
+        // Body is left unchained: the while-loop StackModel pushes each body action independently
+        // and asserts the body is not chained (see repeat/checkActionChain).
         const flatted = this.narrativeToActions(actions);
         const action = new ControlAction(
             this.chain(),
             type,
-            new ContentNode().setContent([this.construct(flatted), lambda])
+            new ContentNode().setContent([flatted, lambda])
         );
         return this.chain(action);
     }
