@@ -15,6 +15,7 @@ import {Pause} from "@core/elements/character/pause";
 import {Persistent} from "@core/elements/persistent";
 import {Service} from "@core/elements/service";
 import {Layer} from "@core/elements/layer";
+import {Camera} from "@core/elements/camera";
 import {Video} from "@core/elements/video";
 import {NVLToken} from "../elements/nvl";
 
@@ -39,6 +40,7 @@ export {
     Persistent,
     Service,
     Layer,
+    Camera,
     Video,
 };
 

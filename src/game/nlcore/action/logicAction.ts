@@ -50,14 +50,15 @@ import type {ServiceSkeleton} from "@core/elements/service";
 import type {ServiceAction, ServiceActionContentType} from "@core/action/serviceAction";
 import type {Layer} from "@core/elements/layer";
 import type {LayerAction} from "@core/action/actions/layerAction";
+import type {Camera} from "@core/elements/camera";
 import type {ExposedStateType} from "@player/type";
 import type {Video} from "@core/elements/video";
 import type {VideoAction} from "@core/action/actions/videoAction";
 
 // Define the interface first
 export interface LogicActionInterface {
-    DisplayableElements: Text | Image | Layer | AbstractDisplayable<any, any>;
-    DisplayableExposed: ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text;
+    DisplayableElements: Text | Image | Layer | Camera | AbstractDisplayable<any, any>;
+    DisplayableExposed: ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text | ExposedStateType.camera;
     GameElement: Character
         | Scene
         | Story
@@ -68,6 +69,8 @@ export interface LogicActionInterface {
         | Sound
         | Control
         | Text
+        | Layer
+        | Camera
         | AbstractDisplayable<any, any>
         | Persistent<any>
         | ServiceSkeleton
@@ -125,8 +128,8 @@ export const LogicAction = {
 
 // Define and export the namespace type
 export namespace LogicAction {
-    export type DisplayableElements = Text | Image | Layer | AbstractDisplayable<any, any>;
-    export type DisplayableExposed = ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text;
+    export type DisplayableElements = Text | Image | Layer | Camera | AbstractDisplayable<any, any>;
+    export type DisplayableExposed = ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text | ExposedStateType.camera;
     export type GameElement = Character
         | Scene
         | Story
@@ -137,6 +140,8 @@ export namespace LogicAction {
         | Sound
         | Control
         | Text
+        | Layer
+        | Camera
         | AbstractDisplayable<any, any>
         | Persistent<any>
         | ServiceSkeleton
