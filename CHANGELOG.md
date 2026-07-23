@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.16.0]
+
+### _Feature_
+
+- A **Camera** now transforms the whole stage as one unit. `story.camera` is a single, always-present camera that applies a transform — pan, zoom, rotate, scale, opacity — and a darken/color-grade to every scene, its backgrounds and sprites, and any playing video together, while the dialog box, menus, and NVL layer stay fixed. It persists across scene changes and is captured by save/load like any other element.
+
+  ```ts
+  const story = new Story("entry");
+
+  scene.action([
+      story.camera.zoom(2, 800, "easeInOut"),   // zoom the whole stage in
+      story.camera.pan({ xalign: 0.3 }, 800),   // slide the view across
+      story.camera.rotate(3, 400),              // tilt
+      story.camera.darken(0.6, 500),            // dim the stage
+      jS`It's getting dark...`,
+      story.camera.reset(600),                  // return to the neutral pose
+  ]);
+  ```
+
+  The camera reuses the same `Transform` pipeline as images and layers, so every chainable transform method it inherits — `pos`/`pan`, `zoom`, `scale`, `rotate`, `opacity`, `transform`, `filter`, `effect` — works on it, alongside two camera helpers: `darken(amount, duration?, easing?)` (a shortcut for a `brightness(1 - amount)` filter, `0` normal … `1` black) and `reset(duration?, easing?)` (back to centred, zoom `1`, no rotation, no filter). Because `darken` drives the single CSS `filter` channel, combine it with other filters by writing the full string yourself via `camera.filter(...)`.
+
+  There is exactly one camera per story; pass your own only to set its initial pose:
+
+  ```ts
+  const story = new Story("entry", { camera: new Camera({ zoom: 1.2 }) });
+  ```
+
+  `Camera` is exported from `narraleaf-react`.
+
+### Fixed
+
+- `Control.do([])` and `Control.doAsync([])` no longer crash on an empty action list. An empty `do` body threw twice — once during preload prediction and once on execution — and an empty `doAsync` body threw on execution; all three now advance past the empty statement. (`any`, `all`, and `allAsync` already handled empty lists.)
+
+- `Control.repeat(times, actions)` and `Control.whileLoop(condition, actions)` no longer throw `Invalid action chain` when the loop body has more than one statement. The body was chained at authoring time while the loop runtime requires it unchained, so every multi-statement `repeat`/`while` body failed at runtime — only single-statement bodies worked. Loop bodies are now left unchained and run as intended.
+
 ## [0.15.0]
 
 ### _Feature_
