@@ -231,7 +231,7 @@ export const VideoActionTypes = {
 export type VideoActionContentType = {
     [K in typeof VideoActionTypes[keyof typeof VideoActionTypes]]:
     K extends "video:action" ? any :
-    K extends "video:show" | "video:hide" | "video:play" | "video:pause" | "video:stop" ? [] :
+    K extends "video:show" | "video:hide" | "video:play" | "video:pause" | "video:stop" | "video:resume" ? [] :
     K extends "video:seek" ? [number] :
     any;
 }

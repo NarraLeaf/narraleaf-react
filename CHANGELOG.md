@@ -1,5 +1,38 @@
 # Changelog
 
+## [Unreleased]
+
+### _Feature_
+
+- The video element gained `pause()`, `resume()`, `stop()`, and `seek()`, so a video can now be driven by hand instead of only played start-to-finish. Until now only `show()`, `hide()`, and `play()` were reachable from a story, even though the underlying playback controls were already wired end to end — the actions and their exposed handlers existed, but no chainable method reached them. All four are chainable like the rest:
+
+  ```ts
+  const video = new Video({ src: "/intro.webm", muted: true });
+
+  scene.action([
+      video.show(),
+      video.play(),   // plays and waits for the clip to finish
+  ]);
+
+  // ...or drive it manually:
+  scene.action([
+      video.seek(5),     // jump to 5s
+      video.pause(),
+      video.resume(),    // resume without waiting for the end
+      video.stop(),      // end playback now
+  ]);
+  ```
+
+  `play()` still waits for the video to reach its end; `resume()` returns as soon as playback restarts. `stop()` ends a `play()` that is currently waiting, so cutting a video short lets the story continue instead of blocking on the clip's natural end.
+
+### Fixed
+
+- A video whose source fails to load no longer freezes the game. A video's playback controls are exposed to the story only once its element reports it can play; a source that 404s or uses an unsupported codec fires an error instead of that ready signal, and the error was ignored — so every action on the video, `show()` included, waited on a ready state that never arrived, and with `allowSkipVideo` off (the default) nothing could recover it. A load error is now reported through the logger and the controls are exposed in a degraded state: `show()`/`hide()` still work and `play()` resolves immediately, so a broken asset simply does not appear and the story keeps advancing.
+
+- A video that is hidden, replaced by a scene change, or otherwise unmounted while it is still playing no longer wedges the story. `play()` resolves when the clip ends or is stopped, but unmounting the element removed those listeners without ever resolving, leaving the awaiting `play()` pending forever. Unmounting now settles any in-flight `play()`.
+
+- A video whose media was ready before its element finished mounting — a cached, `blob:`, or `data:` source that had already fired its ready event — no longer risks the same never-exposed hang: the element reconciles against the current ready/error state on mount rather than waiting only for a future event. Relatedly, `resume()` no longer hangs or leaves an unhandled rejection when the browser blocks playback.
+
 ## [0.14.0]
 
 ### _Feature_
