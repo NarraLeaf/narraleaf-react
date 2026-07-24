@@ -22,7 +22,7 @@ import { GameState } from "@player/gameState";
 import { Options } from "html-to-image/lib/types";
 import { ActionExecutionInjection, ExecutedActionResult } from "../action/action";
 import { GameHistory } from "../action/gameHistory";
-import { StackModel, StackModelRawData } from "../action/stackModel";
+import { StackModel, StackModelRawData, StackSnapshot } from "../action/stackModel";
 
 /**@internal */
 type LiveGameEvent = {
@@ -50,6 +50,19 @@ type LiveGameEvent = {
          */
         text: string;
     }];
+    "event:action.current": [{
+        /**
+         * The id of the action that just began executing (as assigned by the story compiler),
+         * or null for an action with no id. Fires for every executed action, including those
+         * inside parallel/async branches — subscribers that only care about top-level lines
+         * should filter by their own id set.
+         */
+        actionId: string | null,
+        /**
+         * The action's type (e.g. `"character:say"`).
+         */
+        actionType: string | null,
+    }];
 };
 
 export class LiveGame {
@@ -62,6 +75,7 @@ export class LiveGame {
     static EventTypes = {
         "event:character.prompt": "event:character.prompt",
         "event:menu.choose": "event:menu.choose",
+        "event:action.current": "event:action.current",
     } as const;
 
     public game: Game;
@@ -86,6 +100,8 @@ export class LiveGame {
     private readonly _storable: Storable;
     /**@internal */
     private mapCache: [actionMap: Map<string, LogicAction.Actions>, elementMap: Map<string, LogicAction.GameElement>] | null = null;
+    /**@internal the id of the most recently executed action (drives the Studio play head) */
+    private _currentActionId: string | null = null;
 
     /**@internal */
     constructor(game: Game) {
@@ -474,19 +490,36 @@ export class LiveGame {
      * ```
      *
      * @param options.until - `"menu"` (default) stops at the next menu; `"end"` runs until the
-     *                         story finishes.
+     *                         story finishes; `{ actionId }` runs until that action surfaces as
+     *                         the next thing to execute and stops **just before** running it
+     *                         (so the play head is positioned at that line). A menu that blocks
+     *                         the path, the stack draining, or the step cap all stop early — the
+     *                         result then reports `reachedTarget: false` so the caller can tell an
+     *                         unreachable / already-passed id from a successful jump.
      * @param options.maxSteps - safety bound on the number of advance steps (defaults to the
      *                           `maxStackModelLoop` config).
-     * @returns why it stopped: `"menu"`, `"end"` (the stack drained), or `"maxSteps"`.
+     * @returns why it stopped: `"action"` (reached `until.actionId`), `"menu"`, `"end"` (the stack
+     *          drained), or `"maxSteps"`. When an `actionId` target was requested, `reachedTarget`
+     *          is also set (`true` only for reason `"action"`).
+     *
+     * Note: only the root execution stack is scanned for the target — an id buried inside an
+     * in-flight parallel (`Control.all`/`any`) or async branch is not a stop point.
      */
     public async fastForward(options: {
-        until?: "menu" | "end";
+        until?: "menu" | "end" | { actionId: string };
         maxSteps?: number;
-    } = {}): Promise<{ reason: "menu" | "end" | "maxSteps" }> {
+    } = {}): Promise<{ reason: "menu" | "end" | "maxSteps" | "action"; reachedTarget?: boolean }> {
         this.assertGameState();
         const gameState = this.gameState;
         const until = options.until ?? "menu";
+        const targetId = typeof until === "object" ? until.actionId : null;
+        // A menu we cannot pass without a choice ends both an explicit "menu" run and any
+        // action-id jump (the target is unreachable until the player decides).
+        const stopAtMenu = until === "menu" || targetId !== null;
         const maxSteps = options.maxSteps ?? gameState.game.config.maxStackModelLoop;
+        // reachedTarget is only meaningful for an action-id jump; omit it otherwise so the
+        // existing `{ reason }` shape is preserved for "menu"/"end" callers.
+        const missedTarget = targetId !== null ? { reachedTarget: false } : {};
 
         const previousVolume = gameState.audioManager.getGlobalVolume();
         gameState.audioManager.setGlobalVolume(0);
@@ -496,11 +529,14 @@ export class LiveGame {
             let steps = 0;
             while (steps++ < maxSteps) {
                 // Stop conditions are checked before advancing further.
-                if (until === "menu" && gameState.hasActiveMenu()) {
-                    return { reason: "menu" };
+                if (targetId !== null && this.stackModel.peekTopActionId() === targetId) {
+                    return { reason: "action", reachedTarget: true };
+                }
+                if (stopAtMenu && gameState.hasActiveMenu()) {
+                    return { reason: "menu", ...missedTarget };
                 }
                 if (this.stackModel.isEmpty()) {
-                    return { reason: "end" };
+                    return { reason: "end", ...missedTarget };
                 }
 
                 const awaitable = this.stackModel.getWaitingAwaitable();
@@ -518,7 +554,7 @@ export class LiveGame {
                     await Promise.resolve();
                 }
             }
-            return { reason: "maxSteps" };
+            return { reason: "maxSteps", ...missedTarget };
         } finally {
             gameState.setFastForwarding(false);
             gameState.audioManager.setGlobalVolume(previousVolume);
@@ -584,6 +620,43 @@ export class LiveGame {
      */
     public onMenuChoose(fc: LiveGameEventHandler<LiveGameEvent["event:menu.choose"]>): LiveGameEventToken {
         return this.events.on(LiveGame.EventTypes["event:menu.choose"], fc);
+    }
+
+    /**
+     * **Experimental.** Subscribe to the current-action-id stream: fires each time an action
+     * begins executing, carrying its id and type. Intended for an external play head (e.g. the
+     * Studio timeline) to follow along. Fires for branch/async actions too — filter by your own
+     * id set if you only track top-level lines.
+     *
+     * @returns a token; call `token.cancel()` to unsubscribe.
+     */
+    public onCurrentActionChange(fc: LiveGameEventHandler<LiveGameEvent["event:action.current"]>): LiveGameEventToken {
+        return this.events.on(LiveGame.EventTypes["event:action.current"], fc);
+    }
+
+    /**
+     * **Experimental.** The id of the most recently executed action, or null before the first
+     * action runs. A pull-based companion to {@link onCurrentActionChange}.
+     */
+    public getCurrentActionId(): string | null {
+        return this._currentActionId;
+    }
+
+    /**
+     * **Experimental, read-only.** A top-first snapshot of the current execution stacks for a
+     * call-stack / debug view: the root stack plus any in-flight async stacks (`Control.doAsync`
+     * / `Control.allAsync`). The shape is a convenience projection, not a stability contract — do
+     * not serialize it (use {@link serialize} for saves). Returns empty frames before the game
+     * starts.
+     */
+    public getStackSnapshot(): { root: StackSnapshot; async: StackSnapshot[] } {
+        if (!this.stackModel) {
+            return { root: { frames: [] }, async: [] };
+        }
+        return {
+            root: this.stackModel.snapshot(),
+            async: Array.from(this.asyncStackModels).map(stack => stack.snapshot()),
+        };
     }
 
     /**
@@ -884,6 +957,14 @@ export class LiveGame {
         if (!this.stackModel) {
             throw new Error("Stack model is not initialized");
         }
+
+        // Publish the current play head before running the action. Studio reverse-maps the id to a
+        // block via its actionIdBindings; the event fires for every action, branch actions included.
+        this._currentActionId = action.getId();
+        this.events.emit(LiveGame.EventTypes["event:action.current"], {
+            actionId: action.getId(),
+            actionType: action.type,
+        });
 
         const nextAction = action.executeAction(state, injection);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
