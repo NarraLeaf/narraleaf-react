@@ -12,6 +12,7 @@ import {Sentence} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
 import {Text} from "@core/elements/displayable/text";
 import {Pause} from "@core/elements/character/pause";
+import {TextEvent} from "@core/elements/character/textEvent";
 import {Persistent} from "@core/elements/persistent";
 import {Service} from "@core/elements/service";
 import {Layer} from "@core/elements/layer";
@@ -37,6 +38,7 @@ export {
     Word,
     Text,
     Pause,
+    TextEvent,
     Persistent,
     Service,
     Layer,
@@ -53,6 +55,11 @@ export type {
     LayerVariants,
 } from "../elements/displayable/image";
 export type { SentenceMetadata } from "../elements/character/sentence";
+export type {
+    TextEventAppearance,
+    TextEventConfig,
+    TextEventExpression,
+} from "../elements/character/textEvent";
 export type {
     CharacterPortraitConfig,
     DialogAvatar,

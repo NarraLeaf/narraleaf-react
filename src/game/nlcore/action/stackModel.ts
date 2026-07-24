@@ -615,9 +615,8 @@ export class StackModel {
      * no action (empty, or only awaitables with no underlying action).
      *
      * Unlike {@link getTopSync} this never throws: it walks past any awaitables/links on top
-     * and returns the first {@link CalledActionResult}'s action id. Used by
-     * {@link LiveGame.fastForward} to detect when a requested action id has surfaced as the
-     * next thing to run, and as a lightweight read-only probe of the play head.
+     * and returns the first {@link CalledActionResult}'s action id. A lightweight read-only
+     * probe of the play head.
      * @internal
      */
     public peekTopActionId(): string | null {
@@ -626,6 +625,29 @@ export class StackModel {
             if (StackModel.isCalledActionResult(item)) {
                 return item.node?.action?.getId() ?? null;
             }
+        }
+        return null;
+    }
+
+    /**
+     * The id of the action sitting at the execution front — the very top item, but only when it
+     * is a plain {@link CalledActionResult} (an action about to run). Returns `null` when the top
+     * is a suspended {@link Awaitable} (a step still in progress) or the stack is empty.
+     *
+     * Unlike {@link peekTopActionId} this does **not** walk past awaitables: a continuation buried
+     * beneath an in-flight step (e.g. the tail of a `Control.do([...])` whose first child is still
+     * running) is not reported. {@link LiveGame.fastForward} uses this so an `actionId` target only
+     * matches once the target is genuinely the next thing to execute, never while it is still
+     * suspended under an in-progress step.
+     * @internal
+     */
+    public peekExecutingActionId(): string | null {
+        if (this.stack.isEmpty()) {
+            return null;
+        }
+        const peek = this.stack.peek();
+        if (peek && StackModel.isCalledActionResult(peek)) {
+            return peek.node?.action?.getId() ?? null;
         }
         return null;
     }

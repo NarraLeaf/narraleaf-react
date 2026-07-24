@@ -2,6 +2,7 @@ import type { GameState, NvlDialogEntry, NvlState } from "@player/gameState";
 import type { TransformDefinitions } from "@core/elements/transform/type";
 import type { Word } from "@core/elements/character/word";
 import type { Pausing } from "@core/elements/character/pause";
+import type { TextEvent } from "@core/elements/character/textEvent";
 import React from "react";
 
 export type NvlDialogProxy = {
@@ -9,7 +10,7 @@ export type NvlDialogProxy = {
     index: number;
     isActive: boolean;
     gameState: GameState;
-    words: Word<Pausing | string>[];
+    words: Word<Pausing | string | TextEvent>[];
     useTypeEffect: boolean;
 };
 

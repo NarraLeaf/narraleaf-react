@@ -82,6 +82,7 @@ describe("LiveGame current-action stream (WI-3 ①)", () => {
                 return { cancel: () => void 0 };
             },
             emit: (_type: string, payload: unknown) => handlers.forEach(h => h(payload)),
+            hasListeners: () => handlers.length > 0,
         };
         return lg;
     }
@@ -107,6 +108,19 @@ describe("LiveGame current-action stream (WI-3 ①)", () => {
         const lg = partialLiveGame();
         const token = lg.onCurrentActionChange(() => void 0);
         expect(typeof token.cancel).toBe("function");
+    });
+
+    it("updates getCurrentActionId even with no subscriber (payload build is skipped, not the id)", () => {
+        // WI-0 nit: the per-action payload is only allocated when someone is listening, but the
+        // pull-based play head must still track the current id for a later getCurrentActionId().
+        const lg = partialLiveGame();
+        let emitted = 0;
+        const realEmit = lg.events.emit;
+        lg.events.emit = (...args: unknown[]) => { emitted++; return realEmit(...args); };
+
+        lg.executeAction({}, fakeAction("solo"), {});
+        expect(lg.getCurrentActionId()).toBe("solo");
+        expect(emitted).toBe(0); // no listeners → no emit / no payload allocation
     });
 });
 

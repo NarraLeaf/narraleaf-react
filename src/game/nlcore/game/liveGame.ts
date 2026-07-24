@@ -528,8 +528,11 @@ export class LiveGame {
         try {
             let steps = 0;
             while (steps++ < maxSteps) {
-                // Stop conditions are checked before advancing further.
-                if (targetId !== null && this.stackModel.peekTopActionId() === targetId) {
+                // Stop conditions are checked before advancing further. peekExecutingActionId (not
+                // peekTopActionId) is used so the target only matches when it is genuinely the next
+                // thing to run — never while it is still buried under an in-progress step (e.g. the
+                // continuation of a do-block whose first child is still awaiting).
+                if (targetId !== null && this.stackModel.peekExecutingActionId() === targetId) {
                     return { reason: "action", reachedTarget: true };
                 }
                 if (stopAtMenu && gameState.hasActiveMenu()) {
@@ -960,11 +963,14 @@ export class LiveGame {
 
         // Publish the current play head before running the action. Studio reverse-maps the id to a
         // block via its actionIdBindings; the event fires for every action, branch actions included.
+        // This is the per-action hot path, so the payload is only built when someone is listening.
         this._currentActionId = action.getId();
-        this.events.emit(LiveGame.EventTypes["event:action.current"], {
-            actionId: action.getId(),
-            actionType: action.type,
-        });
+        if (this.events.hasListeners(LiveGame.EventTypes["event:action.current"])) {
+            this.events.emit(LiveGame.EventTypes["event:action.current"], {
+                actionId: action.getId(),
+                actionType: action.type,
+            });
+        }
 
         const nextAction = action.executeAction(state, injection);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {

@@ -3,6 +3,7 @@ import type {GameState} from "@player/gameState";
 import {Sentence} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
 import {Pausing} from "@core/elements/character/pause";
+import {TextEvent} from "@core/elements/character/textEvent";
 import {Chosen} from "@player/type";
 
 export interface MenuElementProps {
@@ -10,7 +11,7 @@ export interface MenuElementProps {
     choices: Choice[];
     afterChoose: (choice: Chosen) => void;
     state: GameState;
-    words: Word<Pausing | string>[] | null;
+    words: Word<Pausing | string | TextEvent>[] | null;
     renderPrompt?: boolean;
 }
 
@@ -19,5 +20,5 @@ export interface IUserMenuProps {
 }
 
 export type ChoiceEvaluated = Choice & {
-    words: Word<Pausing | string>[];
+    words: Word<Pausing | string | TextEvent>[];
 };
