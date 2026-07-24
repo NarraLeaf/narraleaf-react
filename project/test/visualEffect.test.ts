@@ -5,7 +5,8 @@ import { Image } from "../../src/game/nlcore/elements/displayable/image";
 import { Layer } from "../../src/game/nlcore/elements/layer";
 import { Scene } from "../../src/game/nlcore/elements/scene";
 import { Story } from "../../src/game/nlcore/elements/story";
-import { MaskTransition } from "../../src/game/nlcore/elements/transition/transitions/image/maskTransition";
+import { Mask } from "../../src/game/nlcore/elements/transition/transitions/image/mask";
+import { Reveal } from "../../src/game/nlcore/elements/transition/transitions/image/reveal";
 import { Transform } from "../../src/game/nlcore/elements/transform/transform";
 import { blink, effectLayer, vignette } from "../../src/built-in";
 
@@ -254,8 +255,8 @@ describe("visual effect transform", () => {
         expect(reverse.finalState.get().clipPath).toBe("inset(0 0 0 100%)");
     });
 
-    it("applies mask transition clip-paths to the target image", () => {
-        const circle = MaskTransition.circle({duration: 800})
+    it("applies hard-edged reveal masks to the target image", () => {
+        const circle = new Reveal({duration: 800, pattern: Mask.iris({feather: 0})})
             ._setPrevSrc("/prev.png")
             ._setTargetSrc("/next.png");
         const circleTask = circle.createTask();
@@ -264,16 +265,16 @@ describe("visual effect transform", () => {
 
         expect(circlePrev.src).toBe("/prev.png");
         expect(circleTarget.src).toBe("/next.png");
-        expect(circleTarget.style.clipPath).toBe("circle(75% at 50% 50%)");
+        expect(circleTarget.style.maskImage).toBe("radial-gradient(circle at 50% 50%, #000 75%, transparent 75%)");
 
-        const wipe = MaskTransition.wipe({
+        const wipe = new Reveal({
             duration: 800,
-            direction: "bottom",
+            pattern: Mask.wipe({direction: "bottom", feather: 0}),
         })._setPrevSrc("/prev.png")._setTargetSrc("/next.png");
         const wipeTask = wipe.createTask();
         const wipeTarget = resolveTransition(wipeTask.resolve[1], 0.25);
 
-        expect(wipeTarget.style.clipPath).toBe("inset(75% 0 0 0)");
+        expect(wipeTarget.style.maskImage).toBe("linear-gradient(to bottom, #000 25%, transparent 25%)");
     });
 
     it("creates a reusable scene effect layer", () => {

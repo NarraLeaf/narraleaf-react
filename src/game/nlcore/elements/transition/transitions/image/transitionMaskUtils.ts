@@ -2,12 +2,12 @@ import {CSSProps} from "@core/elements/transition/type";
 import {TransformDefinitions} from "@core/elements/transform/type";
 
 /**
- * Shared, side-effect-free helpers for the mask/gradient driven image
- * transitions ({@link SoftWipe}, {@link Blinds}, {@link SoftIris},
- * {@link ThroughColor}). Kept internal — not exported from the package barrel.
+ * Shared, side-effect-free helpers for the mask-driven transition machinery
+ * ({@link Mask}, {@link ThroughColor}). Kept internal — not exported from the
+ * package barrel.
  */
 
-/** Orientation of {@link Blinds} slats / {@link ThroughColor} blinds pattern. */
+/** Orientation of the {@link Mask.blinds} slats. */
 export type BlindsOrientation = "horizontal" | "vertical";
 
 /** Clamp a value into the `[0, 1]` range. */
@@ -16,14 +16,14 @@ export function clamp01(value: number): number {
 }
 
 /** The `mask-image` triplet, mirrored to the `-webkit-` prefix for WebKit. */
-export function maskStyle(image: string): CSSProps {
+export function maskStyle(image: string, size = "100% 100%", repeat = "no-repeat"): CSSProps {
     return {
         maskImage: image,
         WebkitMaskImage: image,
-        maskSize: "100% 100%",
-        WebkitMaskSize: "100% 100%",
-        maskRepeat: "no-repeat",
-        WebkitMaskRepeat: "no-repeat",
+        maskSize: size,
+        WebkitMaskSize: size,
+        maskRepeat: repeat,
+        WebkitMaskRepeat: repeat,
     };
 }
 
@@ -59,45 +59,4 @@ export function wipeGradientDir(direction: TransformDefinitions.WipeDirection): 
 export function blindsAxis(orientation: BlindsOrientation): string {
     // Horizontal slats stack vertically → the gradient runs top-to-bottom.
     return orientation === "vertical" ? "to right" : "to bottom";
-}
-
-/**
- * Feathered linear wipe mask. `progress` 0 → fully hidden, 1 → fully covered;
- * the opaque edge sweeps with a soft transition band of width `feather` (%).
- */
-export function linearWipeMask(
-    direction: TransformDefinitions.WipeDirection,
-    feather: number,
-    progress: number,
-): string {
-    const f = Math.max(0, feather);
-    // Sweep the opaque edge from just before the start to just past the end so
-    // the reveal is total at the extremes.
-    const edge = -f + clamp01(progress) * (100 + f);
-    return `linear-gradient(${wipeGradientDir(direction)}, #000 ${edge}%, transparent ${edge + f}%)`;
-}
-
-/** Venetian slats mask. `progress` 0 → open (hidden), 1 → shut (covered). */
-export function blindsCoverMask(
-    orientation: BlindsOrientation,
-    slats: number,
-    progress: number,
-): string {
-    const pitch = 100 / Math.max(1, slats);
-    const cover = clamp01(progress) * pitch;
-    return `repeating-linear-gradient(${blindsAxis(orientation)}, #000 0, #000 ${cover}%, transparent ${cover}%, transparent ${pitch}%)`;
-}
-
-/** Iris that *covers* from the rim inward. `progress` 0 → hidden, 1 → covered. */
-export function irisCoverMask(center: string, feather: number, progress: number): string {
-    const f = Math.max(0, feather);
-    const r = (1 - clamp01(progress)) * 150; // transparent hole shrinks to nothing
-    return `radial-gradient(circle at ${center}, transparent ${r - f}%, #000 ${r}%)`;
-}
-
-/** Iris that *reveals* from the centre out. `progress` 0 → hidden, 1 → shown. */
-export function irisRevealMask(center: string, feather: number, progress: number): string {
-    const f = Math.max(0, feather);
-    const r = clamp01(progress) * 150; // opaque disc grows to cover
-    return `radial-gradient(circle at ${center}, #000 ${r - f}%, transparent ${r}%)`;
 }

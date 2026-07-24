@@ -4,9 +4,24 @@ import {TransformDefinitions} from "@core/elements/transform/type";
 
 type AnimationType = [TransitionAnimationType.Number];
 
+export type FontSizeOptions = {
+    /** Font size (px) the text transitions to. */
+    fontSize: number;
+    /** Duration in milliseconds. */
+    duration: number;
+    easing?: TransformDefinitions.EasingDefinition;
+};
+
 export class FontSize extends TextTransition<AnimationType> {
-    constructor(private textSize: number, private duration: number, private easing?: TransformDefinitions.EasingDefinition) {
+    private fontSize: number;
+    private duration: number;
+    private easing?: TransformDefinitions.EasingDefinition;
+
+    constructor(options: FontSizeOptions) {
         super();
+        this.fontSize = options.fontSize;
+        this.duration = options.duration;
+        this.easing = options.easing;
     }
 
     createTask(): TransitionTask<HTMLSpanElement, AnimationType> {
@@ -14,7 +29,7 @@ export class FontSize extends TextTransition<AnimationType> {
             animations: [{
                 type: TransitionAnimationType.Number,
                 start: this.getTextState().fontSize,
-                end: this.textSize,
+                end: this.fontSize,
                 duration: this.duration,
                 ease: this.easing,
             }],
@@ -29,6 +44,6 @@ export class FontSize extends TextTransition<AnimationType> {
     }
 
     copy(): FontSize {
-        return new FontSize(this.textSize, this.duration, this.easing);
+        return new FontSize({fontSize: this.fontSize, duration: this.duration, easing: this.easing});
     }
 }

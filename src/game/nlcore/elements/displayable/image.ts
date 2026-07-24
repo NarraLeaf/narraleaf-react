@@ -385,11 +385,11 @@ export class Image<
      * - Static image: the src will be a string or StaticImageData
      * @example
      * ```ts
-     * image.char("path/to/image.png", new Dissolve(1000));
+     * image.char("path/to/image.png", new Dissolve({duration: 1000}));
      * ```
      * @example
      * ```ts
-     * image.char(["happy", "t-shirt", "shorts"], new Dissolve(1000));
+     * image.char(["happy", "t-shirt", "shorts"], new Dissolve({duration: 1000}));
      * ```
      * @chainable
      */

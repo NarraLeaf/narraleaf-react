@@ -4,23 +4,40 @@ import {ImageTransition} from "@core/elements/transition/transitions/image/image
 
 type AnimationType = [TransitionAnimationType.Number];
 
+export type DarknessOptions = {
+    /** Darkness (0–1) the image starts from. */
+    from: number;
+    /** Darkness (0–1) the image ends at. */
+    to: number;
+    /** Duration in milliseconds. */
+    duration: number;
+    easing?: TransformDefinitions.EasingDefinition;
+};
+
+/**
+ * Darken the original image and fade in the target image at the same time.
+ * Internal: drives `image.darken(x, duration)`.
+ */
 export class Darkness extends ImageTransition<AnimationType> {
-    /**
-     * Darken the original image and fade in the target image at the same time.
-     * @param darkness darkness of the image, between 0 and 1
-     * @param duration duration in milliseconds
-     * @param easing easing definition or existing easing name
-     */
-    constructor(private prevDarkness: number, private targetDarkness: number, private duration: number, private easing?: TransformDefinitions.EasingDefinition) {
+    private from: number;
+    private to: number;
+    private duration: number;
+    private easing?: TransformDefinitions.EasingDefinition;
+
+    constructor(options: DarknessOptions) {
         super();
+        this.from = options.from;
+        this.to = options.to;
+        this.duration = options.duration;
+        this.easing = options.easing;
     }
 
     createTask(): TransitionTask<HTMLImageElement, AnimationType> {
         return {
             animations: [{
                 type: TransitionAnimationType.Number,
-                start: this.prevDarkness,
-                end: this.targetDarkness,
+                start: this.from,
+                end: this.to,
                 duration: this.duration,
                 ease: this.easing,
             }],
@@ -42,6 +59,6 @@ export class Darkness extends ImageTransition<AnimationType> {
     }
 
     copy(): Darkness {
-        return new Darkness(this.prevDarkness, this.targetDarkness, this.duration, this.easing);
+        return new Darkness({from: this.from, to: this.to, duration: this.duration, easing: this.easing});
     }
 }

@@ -4,14 +4,23 @@ import {ImageTransition} from "@core/elements/transition/transitions/image/image
 
 type AnimationType = [TransitionAnimationType.Number];
 
+export type DissolveOptions = {
+    /** Duration in milliseconds. */
+    duration: number;
+    easing?: TransformDefinitions.EasingDefinition;
+};
+
+/**
+ * Fade out the original image and fade in the target image at the same time.
+ */
 export class Dissolve extends ImageTransition<AnimationType> {
-    /**
-     * Fade out the original image and fade in the target image at the same time.
-     * @param duration duration in milliseconds
-     * @param easing easing definition or existing easing name
-     */
-    constructor(private duration: number, private easing?: TransformDefinitions.EasingDefinition) {
+    private duration: number;
+    private easing?: TransformDefinitions.EasingDefinition;
+
+    constructor(options: DissolveOptions) {
         super();
+        this.duration = options.duration;
+        this.easing = options.easing;
     }
 
     createTask(): TransitionTask<HTMLImageElement, AnimationType> {
@@ -39,6 +48,6 @@ export class Dissolve extends ImageTransition<AnimationType> {
     }
 
     copy(): Dissolve {
-        return new Dissolve(this.duration, this.easing);
+        return new Dissolve({duration: this.duration, easing: this.easing});
     }
 }

@@ -3,13 +3,11 @@ import {stackStyle} from "@player/elements/image/Image";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {Dissolve} from "@core/elements/transition/transitions/image/dissolve";
 import {FadeIn} from "@core/elements/transition/transitions/image/fadeIn";
-import {SoftWipe} from "@core/elements/transition/transitions/image/softWipe";
-import {SoftIris} from "@core/elements/transition/transitions/image/softIris";
-import {Blinds} from "@core/elements/transition/transitions/image/blinds";
 import {BlurDissolve} from "@core/elements/transition/transitions/image/blurDissolve";
 import {Push} from "@core/elements/transition/transitions/image/push";
 import {ThroughColor} from "@core/elements/transition/transitions/image/throughColor";
-import {MaskTransition} from "@core/elements/transition/transitions/image/maskTransition";
+import {Reveal} from "@core/elements/transition/transitions/image/reveal";
+import {Mask} from "@core/elements/transition/transitions/image/mask";
 import {Darkness} from "@core/elements/transition/transitions/image/darkness";
 import {GameState} from "@player/gameState";
 
@@ -22,20 +20,26 @@ function named(transition: ImageTransition, name: string): [string, ImageTransit
 }
 
 const TRANSITIONS: [string, ImageTransition][] = [
-    named(new Dissolve(300), "Dissolve"),
-    named(new FadeIn(300, [40, 40]), "FadeIn"),
-    named(new SoftWipe({duration: 300}), "SoftWipe"),
-    named(new SoftIris({duration: 300}), "SoftIris"),
-    named(new Blinds({duration: 300}), "Blinds"),
+    named(new Dissolve({duration: 300}), "Dissolve"),
+    named(new FadeIn({duration: 300, offset: [40, 40]}), "FadeIn"),
     named(new BlurDissolve({duration: 300}), "BlurDissolve"),
     named(new Push({duration: 300}), "Push"),
-    named(ThroughColor.fade({duration: 300, color: "#000000"}), "ThroughColor.fade"),
-    named(ThroughColor.wipe({duration: 300, color: "#000000"}), "ThroughColor.wipe"),
-    named(ThroughColor.blinds({duration: 300, color: "#000000"}), "ThroughColor.blinds"),
-    named(ThroughColor.iris({duration: 300, color: "#000000"}), "ThroughColor.iris"),
-    named(MaskTransition.circle({duration: 300}), "MaskTransition.circle"),
-    named(MaskTransition.wipe({duration: 300}), "MaskTransition.wipe"),
-    named(new Darkness(0, 1, 300), "Darkness"),
+    named(new ThroughColor({duration: 300, color: "#000000"}), "ThroughColor fade"),
+    named(new ThroughColor({duration: 300, pattern: Mask.wipe()}), "ThroughColor wipe"),
+    named(new ThroughColor({duration: 300, pattern: Mask.blinds()}), "ThroughColor blinds"),
+    named(new ThroughColor({duration: 300, pattern: Mask.iris(), inverted: true}), "ThroughColor iris"),
+    named(new ThroughColor({duration: 300, pattern: Mask.clock()}), "ThroughColor clock"),
+    named(new ThroughColor({duration: 300, pattern: Mask.fan(), uncover: "continue"}), "ThroughColor fan"),
+    named(new ThroughColor({duration: 300, pattern: Mask.barnDoor(), uncover: "continue"}), "ThroughColor barnDoor"),
+    named(new ThroughColor({duration: 300, pattern: Mask.dots({stagger: 0.5})}), "ThroughColor dots"),
+    named(new Reveal({duration: 300, pattern: Mask.wipe({direction: 135})}), "Reveal wipe"),
+    named(new Reveal({duration: 300, pattern: Mask.iris()}), "Reveal iris"),
+    named(new Reveal({duration: 300, pattern: Mask.blinds({feather: 4})}), "Reveal blinds"),
+    named(new Reveal({duration: 300, pattern: Mask.clock()}), "Reveal clock"),
+    named(new Reveal({duration: 300, pattern: Mask.fan()}), "Reveal fan"),
+    named(new Reveal({duration: 300, pattern: Mask.barnDoor()}), "Reveal barnDoor"),
+    named(new Reveal({duration: 300, pattern: Mask.dots({stagger: 0.5})}), "Reveal dots"),
+    named(new Darkness({from: 0, to: 1, duration: 300}), "Darkness"),
 ];
 
 /**

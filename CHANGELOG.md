@@ -55,6 +55,37 @@
 
   `Vfx` is exported from `narraleaf-react`.
 
+- The transition system was rebuilt around a single idea: **engines are instantiated, geometry is vocabulary**. Every transition is now constructed with `new X({options})`, and the mask geometry that used to be scattered across per-shape classes and static factories lives in one place — the static `Mask` vocabulary — passed to an engine as its `pattern`:
+
+  ```ts
+  import {Reveal, ThroughColor, Mask} from "narraleaf-react";
+
+  // direct A→B: the new image is revealed through the pattern
+  scene.setBackground(bg2, new Reveal({duration: 1200, pattern: Mask.clock()}));
+
+  // through black: cover → hold → uncover, same vocabulary
+  scene.jumpTo(next, new ThroughColor({duration: 1800, pattern: Mask.clock()}));
+
+  // no pattern = plain fade through the colour (hold: 0 = flash)
+  new ThroughColor({duration: 600, color: "#ffffff", hold: 0});
+  ```
+
+  - `Mask` factories: `wipe` (keyword or **any angle in degrees**), `barnDoor`, `iris` (`circle`/`ellipse`), `clock`, `fan`, `blinds` (any angle + feather), `dots` (tiled, with `stagger`); plus `Mask.invert(pattern)` and `Mask.toStyle(pattern, t)` for custom-transition authors. A hand-written `{mask(t, inverted?)}` object works anywhere a built-in pattern does. Every pattern is fully clear at `t = 0` and fully covered at `t = 1`, feather included, and `feather: 0` gives a hard edge.
+  - `Reveal` is the new direct-cut engine (the A→B counterpart of `ThroughColor`); both take the same patterns, so a scene change moves between the two families with a one-word edit.
+  - `ThroughColor` gained `inverted` (cover through the pattern's complementary orientation — `Mask.iris()` + `inverted: true` is the classic iris-to-black) and `uncover`: `"retreat"` (default; the pattern backs out the way it came), `"continue"` (the edge keeps travelling, so the pattern passes through the frame — a wipe exits out the far side, a clock hand completes a second lap), or a custom pattern for asymmetric cover/uncover.
+
+### _Incompatible Changes_
+
+- The per-shape transition classes and static factories were removed in favour of the engine + `Mask` vocabulary above:
+  - `new SoftWipe({duration, direction, feather})` → `new Reveal({duration, pattern: Mask.wipe({direction, feather})})`
+  - `new SoftIris({duration, center, feather})` → `new Reveal({duration, pattern: Mask.iris({center, feather})})`
+  - `new Blinds({duration, orientation, slats})` → `new Reveal({duration, pattern: Mask.blinds({orientation, slats})})`
+  - `MaskTransition.circle({duration, center})` → `new Reveal({duration, pattern: Mask.iris({center, feather: 0})})` (hard edges are `feather: 0`; the clip-path mechanism is gone, and `circle`'s partial `from`/`to` radii have no built-in equivalent — write a one-line custom pattern if needed)
+  - `MaskTransition.wipe({duration, direction})` → `new Reveal({duration, pattern: Mask.wipe({direction, feather: 0})})`
+  - `ThroughColor.fade({...})` → `new ThroughColor({...})`; `ThroughColor.wipe/.blinds` → `new ThroughColor({..., pattern: Mask.wipe(...)/Mask.blinds(...)})`; `ThroughColor.iris({center, feather, ...})` → `new ThroughColor({..., pattern: Mask.iris({center, feather}), inverted: true})` — note the `inverted: true`: the old factory closed rim-in, which is the pattern's inverted orientation.
+  - Removed option types: `SoftWipeOptions`, `SoftIrisOptions`, `BlindsOptions`, `MaskTransitionCircleOptions`, `MaskTransitionWipeOptions`, and the per-factory `ThroughColor*Options` (now a single `ThroughColorOptions`).
+- The remaining positional constructors moved to options objects: `new Dissolve(duration, easing?)` → `new Dissolve({duration, easing?})`, and `new FadeIn(duration, startPos?, easing?)` → `new FadeIn({duration, offset?, easing?})` (the start position parameter is now named `offset`).
+
 ### Fixed
 
 - `Control.do([])` and `Control.doAsync([])` no longer crash on an empty action list. An empty `do` body threw twice — once during preload prediction and once on execution — and an empty `doAsync` body threw on execution; all three now advance past the empty statement. (`any`, `all`, and `allAsync` already handled empty lists.)

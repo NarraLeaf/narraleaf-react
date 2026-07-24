@@ -1,5 +1,13 @@
 import {describe, expect, it} from "vitest";
-import {Blinds, BlurDissolve, Dissolve, FadeIn, MaskTransition, Push, SoftIris, SoftWipe, ThroughColor} from "narraleaf-react";
+import {
+    BlurDissolve,
+    Dissolve,
+    FadeIn,
+    Mask,
+    Push,
+    Reveal,
+    ThroughColor,
+} from "narraleaf-react";
 // Not exported from the barrel: internal, drives `image.darken(x, duration)`.
 import {Darkness} from "@core/elements/transition/transitions/image/darkness";
 
@@ -40,10 +48,9 @@ function prepared<T>(inst: T): T {
 // reset for it to `stackStyle`; if this list changes without that, the residue is back.
 describe("what a transition can leave on a layered stack", () => {
     const SETTLED_POSE_MUST_RESET = [
-        "clipPath",      // MaskTransition
         "filter",        // BlurDissolve, Darkness
-        "maskImage",     // SoftWipe, Blinds, SoftIris
-        "opacity",       // Dissolve, BlurDissolve, MaskTransition, ThroughColor, Darkness, FadeIn
+        "maskImage",     // Reveal
+        "opacity",       // Dissolve, BlurDissolve, ThroughColor, Darkness, FadeIn
         "translate",     // Push, FadeIn
         "WebkitMaskImage",
         // Inert on their own: they only take effect alongside a mask image, which is reset above.
@@ -59,19 +66,26 @@ describe("what a transition can leave on a layered stack", () => {
         return inst;
     };
     const everyTransition = () => [
-        new Dissolve(400),
-        new FadeIn(400, [30, 30]),
+        new Dissolve({duration: 400}),
+        new FadeIn({duration: 400, offset: [30, 30]}),
         new Push({duration: 400}),
-        new SoftWipe({duration: 400}),
-        new SoftIris({duration: 400}),
-        new Blinds({duration: 400}),
         new BlurDissolve({duration: 400}),
-        new Darkness(0, 0.5, 400),
-        MaskTransition.circle({duration: 400}),
-        ThroughColor.fade({duration: 400, color: "#000000"}),
-        ThroughColor.wipe({duration: 400, color: "#000000"}),
-        ThroughColor.iris({duration: 400, color: "#000000"}),
-        ThroughColor.blinds({duration: 400, color: "#000000"}),
+        new Darkness({from: 0, to: 0.5, duration: 400}),
+        new Reveal({duration: 400, pattern: Mask.wipe({direction: 135})}),
+        new Reveal({duration: 400, pattern: Mask.clock()}),
+        new Reveal({duration: 400, pattern: Mask.fan()}),
+        new Reveal({duration: 400, pattern: Mask.barnDoor()}),
+        new Reveal({duration: 400, pattern: Mask.dots({stagger: 0.5})}),
+        new Reveal({duration: 400, pattern: Mask.blinds({feather: 4})}),
+        new Reveal({duration: 400, pattern: Mask.iris({shape: "ellipse"})}),
+        new ThroughColor({duration: 400}),
+        new ThroughColor({duration: 400, pattern: Mask.wipe()}),
+        new ThroughColor({duration: 400, pattern: Mask.iris(), inverted: true}),
+        new ThroughColor({duration: 400, pattern: Mask.blinds()}),
+        new ThroughColor({duration: 400, pattern: Mask.clock()}),
+        new ThroughColor({duration: 400, pattern: Mask.fan(), uncover: "continue"}),
+        new ThroughColor({duration: 400, pattern: Mask.barnDoor(), uncover: "continue"}),
+        new ThroughColor({duration: 400, pattern: Mask.dots({stagger: 0.5})}),
     ].map(layered);
 
     it("writes nothing to a stack that the settled pose does not reset", () => {
@@ -107,40 +121,6 @@ describe("what a transition can leave on a layered stack", () => {
 });
 
 describe("built-in image transitions", () => {
-    it("SoftWipe: one 0→1 channel, prev current + target feathered mask", () => {
-        const task = prepared(new SoftWipe({duration: 400, direction: "right", feather: 15})).createTask() as any;
-        expect(task.animations).toHaveLength(1);
-        expect(task.animations[0]).toMatchObject({start: 0, end: 1, duration: 400});
-        expect(task.resolve).toHaveLength(2);
-        expect(keyOf(task.resolve[0])).toBe("current");
-        expect(keyOf(task.resolve[1])).toBe("target");
-        const mask = call(task.resolve[1], 0.5).style.maskImage as string;
-        expect(mask).toContain("linear-gradient(to right");
-        expect(mask).not.toContain("inset("); // not the hard clip-path wipe
-    });
-
-    it("SoftWipe: fully hidden at t=0 and fully revealed at t=1", () => {
-        const target = prepared(new SoftWipe({duration: 400, direction: "right", feather: 12})).createTask().resolve[1] as ResolverEntry;
-        expect(call(target, 1).style.maskImage).toContain("#000 100%");
-        expect(call(target, 0).style.maskImage).toContain("#000 -12%");
-    });
-
-    it("Blinds: target revealed through repeating slats that widen to full pitch", () => {
-        const task = prepared(new Blinds({duration: 400, orientation: "horizontal", slats: 8})).createTask() as any;
-        expect(task.resolve).toHaveLength(2);
-        expect(call(task.resolve[1], 0.5).style.maskImage).toContain("repeating-linear-gradient(to bottom");
-        expect(call(task.resolve[1], 1).style.maskImage).toContain("#000 12.5%"); // pitch = 100/8
-        expect(call(prepared(new Blinds({duration: 400, orientation: "vertical", slats: 8})).createTask().resolve[1] as ResolverEntry, 0.5).style.maskImage)
-            .toContain("repeating-linear-gradient(to right");
-    });
-
-    it("SoftIris: target revealed through an expanding feathered radial mask", () => {
-        const task = prepared(new SoftIris({duration: 400, center: "50% 50%", feather: 12})).createTask() as any;
-        expect(task.resolve).toHaveLength(2);
-        expect(call(task.resolve[1], 0.5).style.maskImage).toContain("radial-gradient(circle at 50% 50%");
-        expect(call(task.resolve[1], 1).style.maskImage).toContain("#000 138%"); // r=150, r-feather=138
-    });
-
     it("BlurDissolve: crossfades opacity while blurring out/in", () => {
         const task = prepared(new BlurDissolve({duration: 400, blur: 16})).createTask() as any;
         expect(task.resolve).toHaveLength(2);
@@ -162,13 +142,24 @@ describe("built-in image transitions", () => {
             .toBe("0px -100vh");
     });
 
+    describe("Dissolve", () => {
+        it("one 0→1 channel crossfading prev out and target in", () => {
+            const task = prepared(new Dissolve({duration: 400})).createTask() as any;
+            expect(task.animations).toHaveLength(1);
+            expect(task.animations[0]).toMatchObject({start: 0, end: 1, duration: 400});
+            expect(task.resolve).toHaveLength(2);
+            expect(call(task.resolve[0], 0.25).style.opacity).toBe(0.75);
+            expect(call(task.resolve[1], 0.25).style.opacity).toBe(0.25);
+        });
+    });
+
     describe("FadeIn", () => {
         // createTask only reads the story's inversion config off the game state.
         const gameStateWith = (invertX: boolean, invertY: boolean) => ({
             getStory: () => ({getInversionConfig: () => ({invertX, invertY})}),
         }) as any;
-        const fadeIn = (startPos: [number, number] = [120, -80], invertX = false, invertY = false) =>
-            prepared(new FadeIn(700, startPos)).createTask(gameStateWith(invertX, invertY));
+        const fadeIn = (offset: [number, number] = [120, -80], invertX = false, invertY = false) =>
+            prepared(new FadeIn({duration: 700, offset})).createTask(gameStateWith(invertX, invertY));
 
         it("one opacity channel plus an x/y offset channel, prev current + target", () => {
             const task = fadeIn() as any;
@@ -202,7 +193,7 @@ describe("built-in image transitions", () => {
         });
 
         it("defaults to no travel at all, only the fade", () => {
-            const target = fadeIn([0, 0]).resolve[1] as ResolverEntry;
+            const target = prepared(new FadeIn({duration: 700})).createTask(gameStateWith(false, false)).resolve[1] as ResolverEntry;
             expect(callWith(target, 0, 0, 0).style.translate).toBe("0px 0px");
             expect(callWith(target, 1, 0, 0).style.translate).toBe("0px 0px");
         });
@@ -215,9 +206,134 @@ describe("built-in image transitions", () => {
         });
     });
 
+    describe("Mask", () => {
+        // Every pattern must be fully transparent at t=0 and fully opaque at t=1,
+        // feather included, in both orientations. String endpoints pin that.
+        it("wipe: sweeps the feathered edge fully off both ends", () => {
+            const wipe = Mask.wipe({direction: "right", feather: 12});
+            expect(wipe.mask(0)).toBe("linear-gradient(to right, #000 -12%, transparent 0%)");
+            expect(wipe.mask(1)).toBe("linear-gradient(to right, #000 100%, transparent 112%)");
+            expect(wipe.mask(1, true)).toBe("linear-gradient(to right, transparent -12%, #000 0%)");
+            expect(Mask.wipe({direction: 135}).mask(0.5)).toContain("linear-gradient(135deg");
+        });
+
+        it("clock: a conic sweep, hard trailing edge, feathered leading edge", () => {
+            const clock = Mask.clock({feather: 24});
+            expect(clock.mask(0)).toBe("conic-gradient(from 0deg at 50% 50%, #000 0deg, transparent 0deg)");
+            expect(clock.mask(0.5)).toBe("conic-gradient(from 0deg at 50% 50%, #000 168deg, transparent 192deg)");
+            expect(clock.mask(1)).toBe("conic-gradient(from 0deg at 50% 50%, #000 360deg, transparent 384deg)");
+        });
+
+        it("clock: counterclockwise and inverted are the same reversal", () => {
+            const ccw = Mask.clock({feather: 24, direction: "counterclockwise"});
+            expect(ccw.mask(0.5)).toBe("conic-gradient(from 0deg at 50% 50%, transparent 168deg, #000 192deg)");
+            expect(ccw.mask(1)).toBe("conic-gradient(from 0deg at 50% 50%, transparent 0deg, #000 0deg)");
+            expect(Mask.clock({feather: 24}).mask(0.5, true)).toBe(ccw.mask(0.5));
+        });
+
+        it("fan: parallel sweeps, one per blade, meeting at full cover", () => {
+            const fan = Mask.fan({blades: 4, feather: 10});
+            expect(fan.mask(0.5)).toBe("repeating-conic-gradient(from 0deg at 50% 50%, #000 0deg, #000 40deg, transparent 50deg, transparent 90deg)");
+            expect(fan.mask(1)).toBe("repeating-conic-gradient(from 0deg at 50% 50%, #000 0deg, #000 90deg, transparent 90deg, transparent 90deg)");
+        });
+
+        it("barnDoor: two one-sided layers that union, so the bands may cross the centre", () => {
+            const doors = Mask.barnDoor({feather: 12});
+            expect(doors.mask(0.5)).toBe("linear-gradient(to right, #000 19%, transparent 31%), linear-gradient(to left, #000 19%, transparent 31%)");
+            expect(doors.mask(1)).toBe("linear-gradient(to right, #000 50%, transparent 62%), linear-gradient(to left, #000 50%, transparent 62%)");
+        });
+
+        it("barnDoor inverted: a centre bar that fades in instead of popping as a hairline", () => {
+            const doors = Mask.barnDoor({feather: 12});
+            // Early on the bar has not fully formed: peak alpha is capped below 1.
+            expect(doors.mask(0.1, true)).toContain("rgba(0,0,0,0.517) 50%");
+            expect(doors.mask(1, true)).toBe("linear-gradient(to right, transparent -12%, #000 0%, #000 100%, transparent 112%)");
+        });
+
+        it("dots: a tiled pattern carrying its own mask-size and mask-repeat", () => {
+            const dots = Mask.dots({rows: 6, cols: 10, feather: 20});
+            expect(dots.size).toBe("10% 16.667%");
+            expect(dots.repeat).toBe("repeat");
+            expect(dots.mask(0.5)).toBe("radial-gradient(circle farthest-corner at 50% 50%, #000 40%, transparent 60%)");
+            expect(dots.mask(1)).toBe("radial-gradient(circle farthest-corner at 50% 50%, #000 100%, transparent 120%)");
+        });
+
+        it("dots: stagger adds a delayed corner grid for a checker-like fill", () => {
+            const dots = Mask.dots({feather: 20, stagger: 0.5});
+            const layers = dots.mask(0.5).split("), ");
+            expect(layers).toHaveLength(2);
+            expect(layers[0]).toContain("at 50% 50%");
+            expect(layers[1]).toContain("at 0% 0%");
+        });
+
+        it("blinds: feathered slats collapse to the hard-edged geometry at feather 0", () => {
+            expect(Mask.blinds({slats: 8}).mask(0.5))
+                .toBe("repeating-linear-gradient(to bottom, #000 0, #000 6.25%, transparent 6.25%, transparent 12.5%)");
+            expect(Mask.blinds({orientation: 30, slats: 4, feather: 5}).mask(0.5))
+                .toContain("repeating-linear-gradient(30deg");
+        });
+
+        it("iris: reveals centre-out, and rim-in when inverted", () => {
+            const iris = Mask.iris({feather: 12});
+            expect(iris.mask(0.5)).toBe("radial-gradient(circle at 50% 50%, #000 63%, transparent 75%)");
+            expect(iris.mask(0.5, true)).toBe("radial-gradient(circle at 50% 50%, transparent 63%, #000 75%)");
+            expect(Mask.iris({shape: "ellipse"}).mask(0.5)).toContain("radial-gradient(ellipse at 50% 50%");
+        });
+
+        it("invert: swaps the natural and inverted orientations", () => {
+            const rimIn = Mask.invert(Mask.iris({feather: 12}));
+            expect(rimIn.mask(0.5)).toBe(Mask.iris({feather: 12}).mask(0.5, true));
+            expect(rimIn.mask(0.5, true)).toBe(Mask.iris({feather: 12}).mask(0.5));
+        });
+    });
+
+    describe("Reveal", () => {
+        it("one 0→1 channel, prev untouched + target masked by the pattern", () => {
+            const task = prepared(new Reveal({duration: 400, pattern: Mask.clock({feather: 24})})).createTask() as any;
+            expect(task.animations).toHaveLength(1);
+            expect(task.animations[0]).toMatchObject({start: 0, end: 1, duration: 400});
+            expect(task.resolve).toHaveLength(2);
+            expect(keyOf(task.resolve[0])).toBe("current");
+            expect(keyOf(task.resolve[1])).toBe("target");
+            expect(call(task.resolve[1], 0.5).style.maskImage)
+                .toBe("conic-gradient(from 0deg at 50% 50%, #000 168deg, transparent 192deg)");
+        });
+
+        it("fully hidden at t=0 and fully revealed at t=1, feather included", () => {
+            const target = prepared(new Reveal({duration: 400, pattern: Mask.wipe({direction: "right", feather: 12})})).createTask().resolve[1] as ResolverEntry;
+            expect(call(target, 0).style.maskImage).toContain("#000 -12%");
+            expect(call(target, 1).style.maskImage).toContain("#000 100%");
+        });
+
+        it("carries the pattern's tiling onto the mask style", () => {
+            const target = prepared(new Reveal({duration: 400, pattern: Mask.dots({rows: 6, cols: 10})})).createTask().resolve[1] as ResolverEntry;
+            const style = call(target, 0.5).style;
+            expect(style.maskSize).toBe("10% 16.667%");
+            expect(style.maskRepeat).toBe("repeat");
+            expect(style.WebkitMaskSize).toBe("10% 16.667%");
+        });
+
+        it("accepts a hand-written pattern", () => {
+            const target = prepared(new Reveal({
+                duration: 400,
+                pattern: {mask: (t) => `linear-gradient(#000 ${t * 100}%, transparent 100%)`},
+            })).createTask().resolve[1] as ResolverEntry;
+            expect(call(target, 0.25).style.maskImage).toBe("linear-gradient(#000 25%, transparent 100%)");
+        });
+
+        it("copy() returns an equivalent independent instance", () => {
+            const original = new Reveal({duration: 500, pattern: Mask.fan({blades: 6, feather: 8})});
+            const clone = original.copy();
+            expect(clone).not.toBe(original);
+            expect(clone).toBeInstanceOf(Reveal);
+            const targetAtMid = (inst: Reveal) => call(prepared(inst).createTask().resolve[1] as ResolverEntry, 0.5).style;
+            expect(targetAtMid(clone)).toEqual(targetAtMid(original));
+        });
+    });
+
     describe("ThroughColor", () => {
-        it("fade: adds a colour overlay layer that fully covers (opacity) at the hold", () => {
-            const task = prepared(ThroughColor.fade({duration: 600, color: "#000000", hold: 0.4})).createTask() as any;
+        it("without a pattern: a colour overlay that fully covers (opacity) at the hold", () => {
+            const task = prepared(new ThroughColor({duration: 600, color: "#000000", hold: 0.4})).createTask() as any;
             expect(task.resolve).toHaveLength(3);
             expect(keyOf(task.resolve[0])).toBe("current");
             expect(keyOf(task.resolve[1])).toBe("target");
@@ -234,27 +350,74 @@ describe("built-in image transitions", () => {
         });
 
         it("swaps the prev/target images under the colour at the midpoint", () => {
-            const task = prepared(ThroughColor.fade({duration: 600, color: "#000000", hold: 0.4})).createTask() as any;
+            const task = prepared(new ThroughColor({duration: 600, color: "#000000", hold: 0.4})).createTask() as any;
             expect(call(task.resolve[0], 0.2).style.opacity).toBe(1);
             expect(call(task.resolve[0], 0.8).style.opacity).toBe(0);
             expect(call(task.resolve[1], 0.2).style.opacity).toBe(0);
             expect(call(task.resolve[1], 0.8).style.opacity).toBe(1);
         });
 
-        it("honours the hold colour and masks per factory", () => {
-            expect(call(prepared(ThroughColor.fade({duration: 600, color: "#ffffff"})).createTask().resolve[2] as ResolverEntry, 0.5).style.backgroundColor).toBe("#ffffff");
-            expect(call(prepared(ThroughColor.wipe({duration: 600, direction: "right", feather: 15})).createTask().resolve[2] as ResolverEntry, 0.5).style.maskImage).toContain("linear-gradient(to right");
-            expect(call(prepared(ThroughColor.iris({duration: 600, center: "50% 50%"})).createTask().resolve[2] as ResolverEntry, 0.5).style.maskImage).toContain("radial-gradient(circle at 50% 50%");
-            expect(call(prepared(ThroughColor.blinds({duration: 600, orientation: "vertical", slats: 6})).createTask().resolve[2] as ResolverEntry, 0.5).style.maskImage).toContain("repeating-linear-gradient(to right");
+        it("honours the hold colour and the pattern geometry", () => {
+            const overlayAt = (inst: ThroughColor, t: number) =>
+                call(prepared(inst).createTask().resolve[2] as ResolverEntry, t).style;
+            expect(overlayAt(new ThroughColor({duration: 600, color: "#ffffff"}), 0.5).backgroundColor).toBe("#ffffff");
+            expect(overlayAt(new ThroughColor({duration: 600, pattern: Mask.wipe({direction: "right", feather: 15})}), 0.5).maskImage)
+                .toContain("linear-gradient(to right");
+            // inverted: true is the classic iris-to-black — the colour closes rim-in.
+            expect(overlayAt(new ThroughColor({duration: 600, pattern: Mask.iris(), inverted: true}), 0.175).maskImage)
+                .toContain("radial-gradient(circle at 50% 50%, transparent");
+            expect(overlayAt(new ThroughColor({duration: 600, pattern: Mask.blinds({orientation: "vertical", slats: 6})}), 0.5).maskImage)
+                .toContain("repeating-linear-gradient(to right");
+            expect(overlayAt(new ThroughColor({duration: 600, pattern: Mask.clock({feather: 24})}), 0.5).maskImage)
+                .toBe("conic-gradient(from 0deg at 50% 50%, #000 360deg, transparent 384deg)");
         });
 
         it("copy() returns an equivalent independent instance", () => {
-            const original = ThroughColor.wipe({duration: 600, color: "#123456", direction: "top", feather: 20, hold: 0.25});
+            const original = new ThroughColor({
+                duration: 600,
+                color: "#123456",
+                hold: 0.25,
+                pattern: Mask.wipe({direction: "top", feather: 20}),
+                uncover: "continue",
+            });
             const clone = original.copy();
             expect(clone).not.toBe(original);
             expect(clone).toBeInstanceOf(ThroughColor);
-            const overlayAtMid = (inst: ThroughColor) => call(inst.createTask().resolve[2] as ResolverEntry, 0.5).style;
-            expect(overlayAtMid(clone)).toEqual(overlayAtMid(original));
+            const overlayAt = (inst: ThroughColor, t: number) => call(inst.createTask().resolve[2] as ResolverEntry, t).style;
+            expect(overlayAt(clone, 0.5)).toEqual(overlayAt(original, 0.5));
+            expect(overlayAt(clone, 0.825)).toEqual(overlayAt(original, 0.825));
+        });
+    });
+
+    describe("ThroughColor uncover modes", () => {
+        // hold 0.3 → covering ends at 0.35, uncovering starts at 0.65.
+        it("retreat (default): the cover pattern backs out the way it came", () => {
+            const overlay = prepared(new ThroughColor({duration: 600, pattern: Mask.wipe({direction: "right", feather: 12})})).createTask().resolve[2] as ResolverEntry;
+            const covering = call(overlay, 0.175).style.maskImage as string; // cover 0.5
+            const uncovering = call(overlay, 0.825).style.maskImage as string; // cover 0.5
+            expect(uncovering).toBe(covering);
+            expect(uncovering).toContain("#000 44%");
+        });
+
+        it("continue: the edge keeps travelling instead of backing out", () => {
+            const overlay = prepared(new ThroughColor({duration: 600, pattern: Mask.wipe({direction: "right", feather: 12}), uncover: "continue"})).createTask().resolve[2] as ResolverEntry;
+            // Covering: opaque grows from the near side.
+            expect(call(overlay, 0.175).style.maskImage).toBe("linear-gradient(to right, #000 44%, transparent 56%)");
+            // Uncovering at the same coverage: the transparent region has entered
+            // from the near side — the inverted orientation of the same pattern.
+            expect(call(overlay, 0.825).style.maskImage).toBe("linear-gradient(to right, transparent 44%, #000 56%)");
+            // The switch happens behind a fully covered frame, so it is seamless.
+            expect(call(overlay, 0.65).style.maskImage).toBe("linear-gradient(to right, transparent -12%, #000 0%)");
+        });
+
+        it("a custom pattern uncovers through its own geometry", () => {
+            const overlay = prepared(new ThroughColor({
+                duration: 600,
+                pattern: Mask.clock(),
+                uncover: Mask.iris({feather: 12}),
+            })).createTask().resolve[2] as ResolverEntry;
+            expect(call(overlay, 0.175).style.maskImage).toContain("conic-gradient");
+            expect(call(overlay, 0.825).style.maskImage).toContain("radial-gradient");
         });
     });
 });

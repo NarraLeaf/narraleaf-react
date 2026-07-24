@@ -275,7 +275,7 @@ export class Scene extends Constructable<
      * @example
      * ```ts
      * scene.action([
-     *     scene.setBackground("#000", new FadeIn(1000))
+     *     scene.setBackground("#000", new FadeIn({duration: 1000}))
      * ]);
      * ```
      */
@@ -294,7 +294,7 @@ export class Scene extends Constructable<
      * @example
      * ```ts
      * scene.action([
-     *     scene.jumpTo(nextScene, new FadeIn(800))
+     *     scene.jumpTo(nextScene, new FadeIn({duration: 800}))
      * ]);
      * ```
      */

@@ -202,7 +202,7 @@ export class ImageAction<T extends typeof ImageActionTypes[keyof typeof ImageAct
             // requiring one here would silently drop the duration and jump instead.
             if (duration) {
                 const awaitable = new Awaitable<CalledActionResult>(v => v);
-                const transition = new Darkness(oldDarkness, darkness, duration, easing);
+                const transition = new Darkness({from: oldDarkness, to: darkness, duration, easing});
 
                 // Darkness animates the target element's brightness in place, so both sides of the
                 // transition show what is already on screen.
