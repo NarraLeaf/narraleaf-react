@@ -45,6 +45,27 @@ describe("StackModel.peekTopActionId", () => {
     });
 });
 
+describe("StackModel.peekExecutingActionId", () => {
+    it("returns null for an empty stack", () => {
+        expect(new StackModel(fakeLiveGame()).peekExecutingActionId()).toBeNull();
+    });
+
+    it("returns the top action id when the top item is a plain action", () => {
+        const s = new StackModel(fakeLiveGame());
+        s.push(pendingAction("a"));
+        s.push(pendingAction("b"));
+        expect(s.peekExecutingActionId()).toBe("b");
+    });
+
+    it("returns null when a suspended step sits on top — unlike peekTopActionId, it does not peek beneath", () => {
+        const s = new StackModel(fakeLiveGame());
+        s.push(pendingAction("a")); // a continuation buried under an in-progress step
+        s.push(new Awaitable<CalledActionResult>());
+        expect(s.peekExecutingActionId()).toBeNull();
+        expect(s.peekTopActionId()).toBe("a"); // the walk-past probe still surfaces the buried id
+    });
+});
+
 /**
  * Scripted play head: `ids` is the sequence of root actions; each stage.next() (or a skip of a
  * suspended step) advances the cursor by one. peekTopActionId reflects the cursor.
@@ -60,6 +81,9 @@ function scriptedGame(
     const stackModel = {
         isEmpty: () => cursor >= ids.length,
         peekTopActionId: () => (cursor < ids.length ? ids[cursor] : null),
+        // The execution front: null while the current line is suspended (an awaitable on top).
+        peekExecutingActionId: () =>
+            cursor < ids.length && !suspend.has(cursor) ? ids[cursor] : null,
         getWaitingAwaitable: () =>
             cursor < ids.length && suspend.has(cursor)
                 ? { onSettled: (cb: () => void) => { pendingSettle = cb; } }
@@ -127,6 +151,53 @@ describe("LiveGame.fastForward — until: { actionId }", () => {
         const lg = scriptedGame(["a", "b", "c", "d"]);
         const result = await lg.fastForward({ until: { actionId: "d" }, maxSteps: 2 });
         expect(result).toEqual({ reason: "maxSteps", reachedTarget: false });
+    });
+});
+
+/**
+ * WI-0 nit: a target buried under an in-progress step must not false-positive. The scripted
+ * cursor model above cannot express "target visible to peekTopActionId while an awaitable is on
+ * top", so this uses a bespoke two-phase stand-in — the shape the M4 review flagged as untestable.
+ */
+describe("LiveGame.fastForward — actionId buried under an in-progress step", () => {
+    it("waits for the in-progress step to settle before matching the continuation", async () => {
+        // Models Control.do([say, ...]) whose tail is the target 't': while the say runs, an
+        // awaitable sits on top and 't' is buried beneath. peekTopActionId would see 't' and stop
+        // immediately (the bug); peekExecutingActionId returns null until 't' surfaces to the front.
+        let phase = 0; // 0: in progress (awaitable on top); 1: settled ('t' at the execution front)
+        let pendingSettle: (() => void) | null = null;
+        const stackModel = {
+            isEmpty: () => false,
+            peekTopActionId: () => "t",
+            peekExecutingActionId: () => (phase === 0 ? null : "t"),
+            getWaitingAwaitable: () =>
+                phase === 0 ? { onSettled: (cb: () => void) => { pendingSettle = cb; } } : null,
+        };
+        const gameState = {
+            game: { config: { maxStackModelLoop: 100 } },
+            audioManager: { getGlobalVolume: () => 1, setGlobalVolume: () => void 0 },
+            setFastForwarding: () => void 0,
+            hasActiveMenu: () => false,
+            events: {
+                emit: () => {
+                    if (pendingSettle) {
+                        const cb = pendingSettle;
+                        pendingSettle = null;
+                        phase = 1; // the in-progress step settled; 't' surfaces to the front
+                        cb();
+                    }
+                },
+            },
+            stage: { next: () => void 0 },
+        };
+        const lg: any = Object.create(LiveGame.prototype);
+        lg.assertGameState = () => void 0;
+        lg.gameState = gameState;
+        lg.stackModel = stackModel;
+
+        const result = await lg.fastForward({ until: { actionId: "t" } });
+        expect(result).toEqual({ reason: "action", reachedTarget: true });
+        expect(phase).toBe(1); // proves it skipped the in-progress step, not false-matched at phase 0
     });
 });
 
