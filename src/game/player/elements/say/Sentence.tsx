@@ -15,7 +15,7 @@ import { useDialogContext } from "./context";
 import { DialogState } from "./UIDialog";
 import { useNvlDialogState } from "../nvl/useNvlDialogState";
 import type { NvlDialogEntry } from "@player/gameState";
-import { fireTextEventOnce } from "./textEventEffect";
+import { fireInstantRevealEvents, fireTextEventOnce } from "./textEventEffect";
 
 /**@internal */
 type SplitWord = {
@@ -280,14 +280,15 @@ function BaseText(
 
         return gameState.schedule(({ onCleanup }) => {
             if (!dialog.config.useTypeEffect) {
-                // Instant reveal: every position is crossed at once, so all text-event effects
-                // land immediately (the same "final state" the skip path produces).
-                const fired = new Set<TextEvent>();
-                for (const word of dialog.config.evaluatedWords) {
-                    if (word.isTextEvent()) {
-                        fireTextEventOnce(word.text, fired, gameState);
-                    }
-                }
+                // Instant reveal: every position is crossed at once, so all text-event effects land
+                // immediately (the same "final state" the skip path produces). The guard is the
+                // line's persistent set when present (NVL), so a re-mount of an already-revealed line
+                // replays neither the sound effects nor the stale expression.
+                fireInstantRevealEvents(
+                    dialog.config.evaluatedWords,
+                    dialog.config.firedTextEvents ?? new Set<TextEvent>(),
+                    gameState
+                );
                 dialog.dispatchComplete();
                 return;
             }
@@ -346,9 +347,11 @@ function BaseText(
         const mainTask = new Awaitable<void>();
         const timeline = new Timeline(mainTask).setGuard(gameState.guard);
         const seen = new Set<SplitWord>();
-        // Per-run idempotency guard for text-event tokens (contract 5): a token fires at most once
-        // for this typewriter run, whether it is reached by the roll or crossed by a skip.
-        const firedEvents = new Set<TextEvent>();
+        // Idempotency guard for text-event tokens (contract 5): a token fires at most once, whether
+        // it is reached by the roll or crossed by a skip. For NVL this is the line's persistent set,
+        // so a re-mount that re-enters the roll (or lands on the instant branch) never re-fires; ADV
+        // falls back to a per-run set.
+        const firedEvents = dialog!.config.firedTextEvents ?? new Set<TextEvent>();
         const interactionHandlers: Set<InteractionHandler> = new Set();
         const completeListeners: Set<VoidFunction> = new Set();
         const updater = textUpdater(dialog!.config.evaluatedWords);

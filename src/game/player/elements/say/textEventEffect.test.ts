@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 // Entry import keeps the element init order correct (see imageAction.setAppearance.test.ts).
 import { Image, Sentence, Sound, TextEvent } from "narraleaf-react";
-import { dispatchTextEvent, fireTextEventOnce } from "./textEventEffect";
+import { dispatchTextEvent, fireInstantRevealEvents, fireTextEventOnce } from "./textEventEffect";
 
 function tagImage() {
     return new Image({
@@ -124,5 +124,81 @@ describe("skip lands the final state (contract 3)", () => {
         }
 
         expect(img.state.currentSrc).toEqual(["angry", "school"]);
+    });
+});
+
+describe("fireInstantRevealEvents — re-mount replay guard (contract 5c + NVL re-mount)", () => {
+    it("lands the final state of every crossed token, in order (contract 5c)", () => {
+        const imgA = tagImage();
+        const imgB = tagImage();
+        const evA = TextEvent.expression(imgA, ["happy"]);
+        const evB = TextEvent.expression(imgB, ["angry"], { sound: Sound.sound("/se.mp3") });
+        const words = new Sentence(["a", evA, "b", evB, "c"]).evaluate({} as never);
+
+        const { state, play } = fakeState();
+        const firedNow = fireInstantRevealEvents(words, new Set<TextEvent>(), state as never);
+
+        expect(firedNow).toEqual([evA, evB]);
+        expect(imgA.state.currentSrc).toEqual(["happy", "school"]);
+        expect(imgB.state.currentSrc).toEqual(["angry", "school"]);
+        expect(play).toHaveBeenCalledTimes(1); // only evB carries an SE
+    });
+
+    it("a re-mount reusing the line's persistent guard replays no SE and no expression write", () => {
+        // Two NVL lines sharing one image: the backlog line (evA → happy) already fired; the active
+        // line has advanced the image to angry. Re-mounting the backlog line must not clobber it.
+        const img = tagImage();
+        const evA = TextEvent.expression(img, ["happy"], { sound: Sound.sound("/se.mp3") });
+        const words = new Sentence(["a", evA]).evaluate({} as never);
+
+        const { state, play, update } = fakeState();
+        const persistentGuard = new Set<TextEvent>();
+
+        // First reveal (the line was active): fires.
+        expect(fireInstantRevealEvents(words, persistentGuard, state as never)).toEqual([evA]);
+        // A newer line moved the shared image on to "angry".
+        img._setAppearanceSync(["angry"]);
+        expect(img.state.currentSrc).toEqual(["angry", "school"]);
+        play.mockClear();
+        update.mockClear();
+
+        // Re-mount of the same line (same persistent guard): fires nothing.
+        expect(fireInstantRevealEvents(words, persistentGuard, state as never)).toEqual([]);
+        expect(play).not.toHaveBeenCalled();      // no SE replay
+        expect(update).not.toHaveBeenCalled();    // no repaint
+        expect(img.state.currentSrc).toEqual(["angry", "school"]); // stale expression not written back
+    });
+
+    it("a roll-fired token is not re-fired by the instant branch on the same guard", () => {
+        // Mirrors the NVL typing→awaitAdvance re-mount: the roll fired the token, then the line
+        // re-mounts onto the instant branch. Sharing the per-line guard prevents a double fire.
+        const img = tagImage();
+        const ev = TextEvent.expression(img, ["happy"], { sound: Sound.sound("/se.mp3") });
+        const words = new Sentence(["a", ev]).evaluate({} as never);
+
+        const { state, play } = fakeState();
+        const persistentGuard = new Set<TextEvent>();
+
+        // The typewriter (roll) reached and fired the token.
+        fireTextEventOnce(ev, persistentGuard, state as never);
+        expect(play).toHaveBeenCalledTimes(1);
+        play.mockClear();
+
+        // The typing→awaitAdvance re-mount lands on the instant branch with the same guard.
+        expect(fireInstantRevealEvents(words, persistentGuard, state as never)).toEqual([]);
+        expect(play).not.toHaveBeenCalled();
+    });
+
+    it("a fresh reveal (new line / load) fires again with its own empty guard (replay safety)", () => {
+        const img = tagImage();
+        const ev = TextEvent.expression(img, ["happy"], { sound: Sound.sound("/se.mp3") });
+        const words = new Sentence(["a", ev]).evaluate({} as never);
+
+        const { state, play } = fakeState();
+
+        fireInstantRevealEvents(words, new Set<TextEvent>(), state as never);
+        fireInstantRevealEvents(words, new Set<TextEvent>(), state as never); // load starts empty
+
+        expect(play).toHaveBeenCalledTimes(2);
     });
 });

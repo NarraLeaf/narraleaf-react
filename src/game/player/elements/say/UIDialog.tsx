@@ -25,6 +25,13 @@ type DialogStateConfig = {
     evaluatedWords: Word<Pausing | string | TextEvent>[];
     gameState: GameState;
     suppressInitialAnimation?: boolean;
+    /**
+     * Persistent per-reveal text-event fire guard. When supplied (NVL entries pass the set stored on
+     * their long-lived {@link NvlDialogEntry}), a re-mount of the same line reuses it and so replays
+     * neither the sound effects nor the stale expression. Left undefined for ADV, whose dialog state
+     * is already memoized per action and falls back to a per-run set.
+     */
+    firedTextEvents?: Set<TextEvent>;
 };
 
 export class DialogState {

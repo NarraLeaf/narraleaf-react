@@ -10,6 +10,7 @@ import {Storable} from "@core/elements/persistent/storable";
 import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 import {Sentence} from "@core/elements/character/sentence";
+import type {TextEvent} from "@core/elements/character/textEvent";
 import {SceneAction, type SceneSnapshot} from "@core/action/actions/sceneAction";
 import {Logger} from "@lib/util/logger";
 import {RuntimeGameError, RuntimeInternalError} from "@core/common/Utils";
@@ -45,6 +46,13 @@ export type NvlDialogEntry = {
     character: Character | null;
     sentence: Sentence;
     text: string;
+    /**
+     * Runtime-only, per-line text-event fire guard. Lives on the long-lived entry (not the React
+     * dialog state, which is re-created on every re-mount) so the tokens a line reveals fire once and
+     * a re-mount replays nothing. Absent from {@link NvlDialogEntryData}, so a load starts a fresh
+     * reveal that fires again (replay safety). See {@link fireInstantRevealEvents}.
+     */
+    firedTextEvents?: Set<TextEvent>;
 };
 
 export type NvlDialogPhase = "idle" | "typing" | "awaitAdvance";
