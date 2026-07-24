@@ -18,6 +18,7 @@ import {Service} from "@core/elements/service";
 import {Layer} from "@core/elements/layer";
 import {Camera} from "@core/elements/camera";
 import {Video} from "@core/elements/video";
+import {Vfx} from "@core/elements/vfx";
 import {NVLToken} from "../elements/nvl";
 
 export {
@@ -44,7 +45,10 @@ export {
     Layer,
     Camera,
     Video,
+    Vfx,
 };
+
+export type {VfxConfig, VfxBlendMode, VfxFadeOptions} from "@core/elements/vfx";
 
 export type {
     LayeredDefinition,
