@@ -26,17 +26,23 @@ export function useNvlDialogState({
 }: UseNvlDialogStateParams) {
     const game = useGame();
     const [nextKeyBinding] = useKeyBinding(KeyBindingType.nextAction);
-    const [dialogState] = useState(() => new DialogState({
-        useTypeEffect,
-        action: {
-            sentence: entry.sentence,
-            character: entry.character,
-            words,
-            id: entry.id,
-        },
-        evaluatedWords: words,
-        gameState,
-    }));
+    const [dialogState] = useState(() => {
+        // The fire guard lives on the long-lived entry, not this dialog state (which is re-created on
+        // every re-mount), so a line's tokens fire once and a re-mount replays no sound / expression.
+        const firedTextEvents = entry.firedTextEvents ?? (entry.firedTextEvents = new Set<TextEvent>());
+        return new DialogState({
+            useTypeEffect,
+            action: {
+                sentence: entry.sentence,
+                character: entry.character,
+                words,
+                id: entry.id,
+            },
+            evaluatedWords: words,
+            gameState,
+            firedTextEvents,
+        });
+    });
 
     useEffect(() => {
         if (!isActive) {
