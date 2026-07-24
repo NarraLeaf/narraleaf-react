@@ -39,13 +39,19 @@ export default function Video(
         if (!ref.current) return;
 
         const videoElement = ref.current;
-        let isMounted = false;
+        let mounted = false;
+        // Resolvers for every in-flight play() call. On unmount we settle them so an awaiting
+        // play action can never hang after the element is gone (hide-during-play, scene change,
+        // dispose, save/load restore, ...).
+        const pendingPlays = new Set<() => void>();
 
         const invalidRef = () => new RuntimeGameError("Failed to add event listener, ref is not available\nat Video.tsx: useEffect");
 
-        const onCanPlay = () => {
-            if (isMounted || !videoElement) return;
-            isMounted = true;
+        // Mount the exposed video state exactly once. `errored` means the source failed to load, so
+        // there is nothing playable — play() then resolves immediately instead of waiting forever.
+        const mountVideoState = (errored: boolean) => {
+            if (mounted) return;
+            mounted = true;
 
             gameState.mountState<ExposedStateType.video>(video, {
                 show: () => {
@@ -59,42 +65,69 @@ export default function Video(
                 play: () => {
                     if (!ref.current) throw invalidRef();
 
-                    const videoElement = ref.current;
-                    videoElement.currentTime = 0;
+                    const el = ref.current;
+                    if (errored || el.error) {
+                        gameState.logger.error(
+                            "NarraLeaf-React: Video",
+                            "Cannot play a video whose source failed to load: " + video.config.src
+                        );
+                        return Promise.resolve();
+                    }
+
+                    el.currentTime = 0;
                     return new Promise<void>((resolve) => {
-                        gameState.schedule(({retry}) => {
-                            if (videoElement.readyState < 3) {
+                        let settled = false;
+                        let cancelSchedule: (() => void) | null = null;
+                        const listenerCleanups: (() => void)[] = [];
+
+                        // Single, idempotent exit path — resolves the action and tears every
+                        // listener/timer down, whether we end via `ended`, `stopped`, a play()
+                        // rejection, a playback `error`, or the component unmounting.
+                        const settle = () => {
+                            if (settled) return;
+                            settled = true;
+                            pendingPlays.delete(settle);
+                            if (cancelSchedule) cancelSchedule();
+                            listenerCleanups.forEach((cleanup) => cleanup());
+                            resolve();
+                        };
+                        pendingPlays.add(settle);
+
+                        cancelSchedule = gameState.schedule(({retry}) => {
+                            if (settled) return;
+
+                            if (el.readyState < 3) {
                                 const onLoadedData = () => {
-                                    videoElement.removeEventListener("loadeddata", onLoadedData);
+                                    el.removeEventListener("loadeddata", onLoadedData);
                                     retry();
                                 };
-                                videoElement.addEventListener("loadeddata", onLoadedData);
+                                el.addEventListener("loadeddata", onLoadedData);
+                                listenerCleanups.push(() => el.removeEventListener("loadeddata", onLoadedData));
                                 return;
                             }
 
-                            const onEnded = () => {
-                                cleanup();
-                                resolve();
+                            const onEnded = () => settle();
+                            const onStop = () => settle();
+                            const onError = () => {
+                                gameState.logger.error(
+                                    "NarraLeaf-React: Video",
+                                    "Video playback error: " + video.config.src
+                                );
+                                settle();
                             };
-    
-                            const onStop = () => {
-                                cleanup();
-                                resolve();
-                            };
-    
-                            const cleanup = () => {
-                                videoElement.removeEventListener("ended", onEnded);
-                                videoElement.removeEventListener("stopped", onStop);
-                            };
-    
-                            videoElement.addEventListener("ended", onEnded);
-                            videoElement.addEventListener("stopped", onStop);
-                            cleanups.push(cleanup);
-    
-                            videoElement.play().catch((err) => {
+
+                            el.addEventListener("ended", onEnded);
+                            el.addEventListener("stopped", onStop);
+                            el.addEventListener("error", onError);
+                            listenerCleanups.push(() => {
+                                el.removeEventListener("ended", onEnded);
+                                el.removeEventListener("stopped", onStop);
+                                el.removeEventListener("error", onError);
+                            });
+
+                            el.play().catch((err) => {
                                 gameState.logger.error("Failed to play video: " + err);
-                                cleanup();
-                                resolve();
+                                settle();
                             });
                         }, 10);
                     });
@@ -105,7 +138,9 @@ export default function Video(
                 },
                 resume: () => {
                     if (!ref.current) throw invalidRef();
-                    return ref.current.play();
+                    return ref.current.play().catch((err) => {
+                        gameState.logger.error("Failed to resume video: " + err);
+                    });
                 },
                 stop: () => {
                     if (!ref.current) throw invalidRef();
@@ -119,13 +154,35 @@ export default function Video(
             });
         };
 
-        const cleanups: (() => void)[] = [];
+        const onCanPlay = () => mountVideoState(false);
+        const onError = () => {
+            gameState.logger.error(
+                "NarraLeaf-React: Video",
+                `Failed to load video source: ${video.config.src}` +
+                (videoElement.error ? ` (media error code ${videoElement.error.code})` : "")
+            );
+            // Mount a degraded state so show()/play() resolve and the story keeps advancing.
+            mountVideoState(true);
+        };
+
         videoElement.addEventListener("canplay", onCanPlay);
+        videoElement.addEventListener("error", onError);
+
+        // The media may already be ready or already failed before this effect ran (cached, blob:,
+        // data: sources) — in which case neither `canplay` nor `error` will fire again. Reconcile
+        // against the current readyState/error so we never miss the one-shot mount.
+        if (videoElement.readyState >= 3) {
+            mountVideoState(false);
+        } else if (videoElement.error) {
+            onError();
+        }
 
         return () => {
-            isMounted = false;
             videoElement.removeEventListener("canplay", onCanPlay);
-            cleanups.forEach((cleanup) => cleanup());
+            videoElement.removeEventListener("error", onError);
+
+            // Settle any in-flight play() so its awaiting action can't hang after unmount.
+            pendingPlays.forEach((settle) => settle());
 
             if (videoElement.currentTime > 0) {
                 videoElement.pause();

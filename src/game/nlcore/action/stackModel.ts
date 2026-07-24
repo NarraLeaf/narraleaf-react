@@ -74,6 +74,31 @@ export type StackModelRawData = {
 };
 
 /**
+ * One frame of a read-only {@link StackModel.snapshot} — an action currently on the execution
+ * stack. A frame that is a concurrent group ({@link Control.all}/{@link Control.any}) also lists
+ * its branches (each a top-to-bottom frame list).
+ *
+ * **Experimental / read-only.** For tooling (Studio's call-stack view). The exact shape is not a
+ * stable contract and may change; do not serialize it or drive game logic from it.
+ */
+export type StackFrameSnapshot = {
+    actionId: string | null;
+    actionType: string | null;
+    branchWaitType?: StackModelWaiting["type"];
+    branches?: StackFrameSnapshot[][];
+};
+
+/**
+ * Read-only view of a StackModel's execution stack. `frames` are ordered top-first (the frame
+ * currently executing is `frames[0]`). See {@link StackFrameSnapshot} — experimental.
+ */
+export type StackSnapshot = {
+    tag?: string;
+    frames: StackFrameSnapshot[];
+    loop?: { type: StackModelLoopType; counter: number; limit?: number; broken: boolean };
+};
+
+/**
  * Nested Stack Model is a new concept designed to control serialization/deserialization of complex nested operations
  * 
  * Core concepts for saving state:
@@ -544,6 +569,25 @@ export class StackModel {
         return this.waitingAction;
     }
 
+    /**
+     * Return the unsettled Awaitable currently at the top of the stack, if any.
+     *
+     * Unlike {@link getTopSync} (which returns the top {@link CalledActionResult} and skips
+     * awaitables), this exposes the awaitable the player is suspended on — used by
+     * {@link LiveGame.fastForward} to await a step's settle before advancing to the next line.
+     * @internal
+     */
+    public getWaitingAwaitable(): Awaitable<CalledActionResult> | null {
+        if (this.stack.isEmpty()) {
+            return null;
+        }
+        const peek = this.stack.peek();
+        if (peek && Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(peek) && !peek.isSettled()) {
+            return peek;
+        }
+        return null;
+    }
+
     public getTopSync(): CalledActionResult | null {
         if (this.stack.isEmpty()) {
             return null;
@@ -564,6 +608,89 @@ export class StackModel {
             tried = true;
         }
         return null;
+    }
+
+    /**
+     * The id of the top-most action-bearing item on the stack, or `null` if the stack holds
+     * no action (empty, or only awaitables with no underlying action).
+     *
+     * Unlike {@link getTopSync} this never throws: it walks past any awaitables/links on top
+     * and returns the first {@link CalledActionResult}'s action id. A lightweight read-only
+     * probe of the play head.
+     * @internal
+     */
+    public peekTopActionId(): string | null {
+        for (let i = this.stack.size() - 1; i >= 0; i--) {
+            const item = this.stack.get(i);
+            if (StackModel.isCalledActionResult(item)) {
+                return item.node?.action?.getId() ?? null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The id of the action sitting at the execution front — the very top item, but only when it
+     * is a plain {@link CalledActionResult} (an action about to run). Returns `null` when the top
+     * is a suspended {@link Awaitable} (a step still in progress) or the stack is empty.
+     *
+     * Unlike {@link peekTopActionId} this does **not** walk past awaitables: a continuation buried
+     * beneath an in-flight step (e.g. the tail of a `Control.do([...])` whose first child is still
+     * running) is not reported. {@link LiveGame.fastForward} uses this so an `actionId` target only
+     * matches once the target is genuinely the next thing to execute, never while it is still
+     * suspended under an in-progress step.
+     * @internal
+     */
+    public peekExecutingActionId(): string | null {
+        if (this.stack.isEmpty()) {
+            return null;
+        }
+        const peek = this.stack.peek();
+        if (peek && StackModel.isCalledActionResult(peek)) {
+            return peek.node?.action?.getId() ?? null;
+        }
+        return null;
+    }
+
+    /**
+     * Read-only, top-first view of the execution stack for tooling (Studio's call-stack view).
+     * Awaitables are skipped; a concurrent group frame carries its branches recursively.
+     *
+     * **Experimental**: unlike {@link serialize} (a versioned save format), this is a convenience
+     * projection whose shape is not a stability contract. It never mutates the stack.
+     * @internal
+     */
+    public snapshot(): StackSnapshot {
+        const frames: StackFrameSnapshot[] = [];
+        for (let i = this.stack.size() - 1; i >= 0; i--) {
+            const item = this.stack.get(i);
+            if (!StackModel.isCalledActionResult(item)) {
+                continue;
+            }
+            const frame: StackFrameSnapshot = {
+                actionId: item.node?.action?.getId() ?? null,
+                actionType: item.node?.action?.type ?? null,
+            };
+            if (item.wait?.stackModels) {
+                frame.branchWaitType = item.wait.type;
+                frame.branches = item.wait.stackModels.map(stack => stack.snapshot().frames);
+            }
+            frames.push(frame);
+        }
+
+        const result: StackSnapshot = { frames };
+        if (this.__tag) {
+            result.tag = this.__tag;
+        }
+        if (this.loopConfig) {
+            result.loop = {
+                type: this.loopConfig.type,
+                counter: this.loopConfig.counter,
+                limit: this.loopConfig.limit,
+                broken: this.loopConfig.broken,
+            };
+        }
+        return result;
     }
 
     executeActions(result: CalledActionResult): CalledActionResult | Awaitable<CalledActionResult> | null {

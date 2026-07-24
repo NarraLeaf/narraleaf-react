@@ -5,11 +5,13 @@ import {ImageEvents} from "@player/elements/image/Image";
 import {Transform} from "@core/elements/transform/transform";
 import {Transition} from "@core/elements/transition/transition";
 import {Layer} from "@core/elements/layer";
+import {Camera} from "@core/elements/camera";
 import {Text} from "@core/elements/displayable/text";
 import {Displayable} from "@core/elements/displayable/displayable";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import {Video} from "@core/elements/video";
+import {Vfx, VfxFadeOptions} from "@core/elements/vfx";
 import { Timeline } from "./Tasks";
 
 export * from "@player/elements/type";
@@ -23,6 +25,8 @@ export enum ExposedStateType {
     layer = "narraleaf:layer",
     scene = "narraleaf:scene",
     video = "narraleaf:video",
+    vfx = "narraleaf:vfx",
+    camera = "narraleaf:camera",
 }
 
 export type ExposedState = {
@@ -49,6 +53,12 @@ export type ExposedState = {
         applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
         updateStyleSync: () => void;
     };
+    [ExposedStateType.camera]: {
+        initDisplayable: (onResolve: () => void) => Timeline;
+        applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
+        updateStyleSync: () => void;
+    };
     [ExposedStateType.scene]: {
         setBackgroundMusic: (music: Sound | null, fade: number) => Promise<void>;
     };
@@ -61,14 +71,23 @@ export type ExposedState = {
         stop: () => void;
         seek: (time: number) => void;
     };
+    [ExposedStateType.vfx]: {
+        show: (options?: VfxFadeOptions) => Promise<void>;
+        hide: (options?: VfxFadeOptions) => Promise<void>;
+        pause: () => void;
+        resume: () => void;
+        setRate: (rate: number) => void;
+    };
 };
 
 export type ExposedKeys = {
     [ExposedStateType.image]: Image | Displayable<any, any>;
     [ExposedStateType.text]: Text | Displayable<any, any>;
     [ExposedStateType.layer]: Layer | Displayable<any, any>;
+    [ExposedStateType.camera]: Camera | Displayable<any, any>;
     [ExposedStateType.scene]: Scene;
     [ExposedStateType.video]: Video;
+    [ExposedStateType.vfx]: Vfx;
 };
 
 export type { INotificationsProps } from "./elements/notification/type";

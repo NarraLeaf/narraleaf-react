@@ -24,6 +24,7 @@ import {GameStateGuard, GuardWarningType} from "@player/guard";
 import {LiveGameEventToken} from "@core/types";
 import * as htmlToImage from "html-to-image";
 import {Video, VideoStateRaw} from "@core/elements/video";
+import {Vfx, VfxStateRaw} from "@core/elements/vfx";
 import {Timeline, Timelines} from "@player/Tasks";
 import {Notification, NotificationManager} from "@player/lib/notification";
 import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
@@ -84,6 +85,7 @@ type ScheduleHandle = {
 export type PlayerState = {
     sounds: Sound[];
     videos: Video[];
+    vfx: Vfx[];
     srcManagers: SrcManager[];
     elements: PlayerStateElement[];
 };
@@ -128,6 +130,8 @@ export type PlayerStateData = {
     }[],
     audio: AudioManagerDataRaw;
     videos: [videoId: string, videoState: VideoStateRaw][];
+    /** Absent in saves created before 0.16.0; readers must tolerate the missing key. */
+    vfx?: [vfxId: string, vfxState: VfxStateRaw][];
     nvlState?: NvlStateData;
 };
 export type PresentationSnapshot = {
@@ -197,6 +201,7 @@ export class GameState {
     private state: PlayerState = {
         sounds: [],
         videos: [],
+        vfx: [],
         srcManagers: [],
         elements: [],
     };
@@ -235,6 +240,7 @@ export class GameState {
     private stageClickBuffer: { timestamp: number } | null = null;
     private readonly nvlAdvanceWaiters: Map<string, () => void> = new Map();
     private advDialogState: AdvDialogState | null = null;
+    private _fastForwarding: boolean = false;
 
     constructor(game: Game, stage: StageUtils) {
         this.stage = stage;
@@ -275,6 +281,29 @@ export class GameState {
 
     public getVideos(): Video[] {
         return this.state.videos;
+    }
+
+    public addVfx(vfx: Vfx): this {
+        this.state.vfx.push(vfx);
+        return this;
+    }
+
+    public removeVfx(vfx: Vfx): this {
+        const index = this.state.vfx.indexOf(vfx);
+        if (index === -1) {
+            this.logger.weakWarn("Vfx not found when removing", vfx.getId());
+            return this;
+        }
+        this.state.vfx.splice(index, 1);
+        return this;
+    }
+
+    public isVfxAdded(vfx: Vfx): boolean {
+        return this.state.vfx.includes(vfx);
+    }
+
+    public getVfx(): Vfx[] {
+        return this.state.vfx;
     }
 
     public findElementByScene(scene: Scene): PlayerStateElement | null {
@@ -377,6 +406,33 @@ export class GameState {
 
     public getCurrentScene(): Scene | null {
         return this.state.elements[0]?.scene || null;
+    }
+
+    /**
+     * Whether the game is currently being fast-forwarded (see {@link LiveGame.fastForward}).
+     * While set, timed pauses resolve immediately so the fast-forward is not held up by
+     * scripted delays.
+     * @internal
+     */
+    public isFastForwarding(): boolean {
+        return this._fastForwarding;
+    }
+
+    /**@internal */
+    public setFastForwarding(value: boolean): void {
+        this._fastForwarding = value;
+    }
+
+    /**
+     * Whether a menu is currently on screen awaiting a choice.
+     * @internal
+     */
+    public hasActiveMenu(): boolean {
+        const scene = this.getLastScene();
+        if (!scene) {
+            return false;
+        }
+        return (this.findElementByScene(scene)?.menus.length ?? 0) > 0;
     }
 
     public findCurrentPortraitForCharacter(character: Character): NormalizedCharacterPortraitConfig | null {
@@ -996,6 +1052,7 @@ export class GameState {
         this.state.elements = [];
         this.state.srcManagers = [];
         this.state.videos = [];
+        this.state.vfx = [];
         this.nvlState = {
             active: false,
             visible: false,
@@ -1194,6 +1251,10 @@ export class GameState {
                 v.getId(),
                 v.toData(),
             ]),
+            vfx: this.state.vfx.map(v => [
+                v.getId(),
+                v.toData(),
+            ]),
             nvlState: {
                 active: this.nvlState.active,
                 visible: this.nvlState.visible,
@@ -1251,6 +1312,15 @@ export class GameState {
             }
             video.fromData(state);
             return video;
+        });
+        // Saves created before 0.16.0 have no "vfx" key; tolerate its absence.
+        this.state.vfx = (data.vfx ?? []).map(([id, state]) => {
+            const vfx = elementMap.get(id) as Vfx;
+            if (!vfx) {
+                throw new RuntimeGameError("Vfx not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
+            }
+            vfx.fromData(state);
+            return vfx;
         });
 
         if (data.nvlState) {

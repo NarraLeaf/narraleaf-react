@@ -1,4 +1,5 @@
 import { Pausing } from "@core/elements/character/pause";
+import { TextEvent } from "@core/elements/character/textEvent";
 import { Word } from "@core/elements/character/word";
 import { Script } from "@lib/game/nlcore/common/elements";
 import { GameState } from "@lib/game/nlcore/common/game";
@@ -21,7 +22,7 @@ type DialogEvents = {
 type DialogStateConfig = {
     useTypeEffect: boolean;
     action: DialogAction;
-    evaluatedWords: Word<Pausing | string>[];
+    evaluatedWords: Word<Pausing | string | TextEvent>[];
     gameState: GameState;
     suppressInitialAnimation?: boolean;
 };

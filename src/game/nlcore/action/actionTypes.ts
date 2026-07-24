@@ -15,6 +15,7 @@ import type { FadeOptions } from "@core/elements/type";
 import type { Transition } from "@core/elements/transition/transition";
 import type { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
 import type { Layer } from "@core/elements/layer";
+import type { VfxFadeOptions } from "@core/elements/vfx";
 
 export const DisplayableActionTypes = {
     action: "displayable:action",
@@ -162,6 +163,8 @@ export const ControlActionTypes = {
     break: "control:break",
     sleep: "control:sleep",
     waitForClick: "control:waitForClick",
+    label: "control:label",
+    jump: "control:jump",
 } as const;
 export type ControlActionContentType = {
     [K in typeof ControlActionTypes[keyof typeof ControlActionTypes]]:
@@ -176,6 +179,8 @@ export type ControlActionContentType = {
     K extends "control:break" ? [] :
     K extends "control:sleep" ? [LogicAction.Actions[], number | Awaitable<any> | Promise<any>] :
     K extends "control:waitForClick" ? [] :
+    K extends "control:label" ? [string] :
+    K extends "control:jump" ? [string] :
     any;
 }
 export const TextActionTypes = {
@@ -231,7 +236,24 @@ export const VideoActionTypes = {
 export type VideoActionContentType = {
     [K in typeof VideoActionTypes[keyof typeof VideoActionTypes]]:
     K extends "video:action" ? any :
-    K extends "video:show" | "video:hide" | "video:play" | "video:pause" | "video:stop" ? [] :
+    K extends "video:show" | "video:hide" | "video:play" | "video:pause" | "video:stop" | "video:resume" ? [] :
     K extends "video:seek" ? [number] :
+    any;
+}
+/* Vfx */
+export const VfxActionTypes = {
+    action: "vfx:action",
+    show: "vfx:show",
+    hide: "vfx:hide",
+    pause: "vfx:pause",
+    resume: "vfx:resume",
+    setRate: "vfx:setRate",
+} as const;
+export type VfxActionContentType = {
+    [K in typeof VfxActionTypes[keyof typeof VfxActionTypes]]:
+    K extends "vfx:action" ? any :
+    K extends "vfx:show" | "vfx:hide" ? [VfxFadeOptions?] :
+    K extends "vfx:pause" | "vfx:resume" ? [] :
+    K extends "vfx:setRate" ? [number] :
     any;
 }

@@ -101,6 +101,56 @@ export class Video extends Actionable<VideoStateRaw> {
         ));
     }
 
+    /**
+     * Pause the video, keeping its current position.
+     * @chainable
+     */
+    pause(): ChainedVideo {
+        return this.chain(this.createAction(
+            VideoActionTypes.pause,
+            []
+        ));
+    }
+
+    /**
+     * Resume playback from the current position.
+     *
+     * Unlike {@link play}, this does not wait for the video to finish.
+     * @chainable
+     */
+    resume(): ChainedVideo {
+        return this.chain(this.createAction(
+            VideoActionTypes.resume,
+            []
+        ));
+    }
+
+    /**
+     * Stop the video: pause it and end any pending {@link play} so the story continues.
+     * @chainable
+     */
+    stop(): ChainedVideo {
+        return this.chain(this.createAction(
+            VideoActionTypes.stop,
+            []
+        ));
+    }
+
+    /**
+     * Seek to a specific time (in seconds).
+     * @chainable
+     * @example
+     * ```ts
+     * video.seek(3);
+     * ```
+     */
+    seek(time: number): ChainedVideo {
+        return this.chain(this.createAction(
+            VideoActionTypes.seek,
+            [time]
+        ));
+    }
+
     /**@internal */
     toData(): VideoStateRaw {
         return {

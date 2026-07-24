@@ -1,5 +1,6 @@
 import type { Character } from "@core/elements/character";
 import { Pause, Pausing } from "@core/elements/character/pause";
+import { TextEvent } from "@core/elements/character/textEvent";
 import { Word, WordConfig } from "@core/elements/character/word";
 import type { ScriptCtx } from "@core/elements/script";
 import { Sound } from "@core/elements/sound";
@@ -37,9 +38,10 @@ export type SentenceUserConfig = Partial<Omit<SentenceConfig, "voice"> & {
 }>;
 export type DynamicWord = (ctx: ScriptCtx) => DynamicWordResult;
 export type DynamicWordResult = string | Word | Pausing | (string | Word | Pausing)[];
-export type StaticWord<T extends string | DynamicWord | Pausing = string | DynamicWord | Pausing> =
+export type StaticWord<T extends string | DynamicWord | Pausing | TextEvent = string | DynamicWord | Pausing | TextEvent> =
     string
     | Pausing
+    | TextEvent
     | Word<T>;
 export type SingleWord = StaticWord | DynamicWord;
 export type SentencePrompt = SingleWord[] | SingleWord;
@@ -87,14 +89,14 @@ export class Sentence {
     }
 
     /**@internal */
-    static formatStaticWord<T extends string | DynamicWord | Pausing>(
+    static formatStaticWord<T extends string | DynamicWord | Pausing | TextEvent>(
         word: StaticWord<T | string> | StaticWord<T | string>[],
         config?: Partial<WordConfig>
-    ): Word<T | string | Pausing>[] {
+    ): Word<T | string | Pausing | TextEvent>[] {
         if (Array.isArray(word)) {
             return word.map(w => this.formatStaticWord(w, config)).flat(2);
         }
-        return [Word.isWord(word) ? word : new Word<T | string | Pausing>(word, config)];
+        return [Word.isWord(word) ? word : new Word<T | string | Pausing | TextEvent>(word, config)];
     }
 
 
@@ -111,6 +113,7 @@ export class Sentence {
             typeof obj === "string"
             || Word.isWord(obj)
             || Pause.isPause(obj)
+            || TextEvent.isTextEvent(obj)
             || typeof obj === "function"
         );
     }
@@ -177,8 +180,8 @@ export class Sentence {
     }
 
     /**@internal */
-    evaluate(ctx: ScriptCtx): Word<string | Pausing>[] {
-        const words: Word<string | Pausing>[] = [];
+    evaluate(ctx: ScriptCtx): Word<string | Pausing | TextEvent>[] {
+        const words: Word<string | Pausing | TextEvent>[] = [];
         for (let i = 0; i < this.text.length; i++) {
             const word = this.text[i].evaluate(ctx);
             words.push(...Sentence.formatStaticWord(word));

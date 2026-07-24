@@ -1,6 +1,170 @@
 # Changelog
 
-## [Unreleased]
+## [0.16.0]
+
+### _Feature_
+
+- A **Camera** now transforms the whole stage as one unit. `story.camera` is a single, always-present camera that applies a transform — pan, zoom, rotate, scale, opacity — and a darken/color-grade to every scene, its backgrounds and sprites, and any playing video together, while the dialog box, menus, and NVL layer stay fixed. It persists across scene changes and is captured by save/load like any other element.
+
+  ```ts
+  const story = new Story("entry");
+
+  scene.action([
+      story.camera.zoom(2, 800, "easeInOut"),   // zoom the whole stage in
+      story.camera.pan({ xalign: 0.3 }, 800),   // slide the view across
+      story.camera.rotate(3, 400),              // tilt
+      story.camera.darken(0.6, 500),            // dim the stage
+      jS`It's getting dark...`,
+      story.camera.reset(600),                  // return to the neutral pose
+  ]);
+  ```
+
+  The camera reuses the same `Transform` pipeline as images and layers, so every chainable transform method it inherits — `pos`/`pan`, `zoom`, `scale`, `rotate`, `opacity`, `transform`, `filter`, `effect` — works on it, alongside two camera helpers: `darken(amount, duration?, easing?)` (a shortcut for a `brightness(1 - amount)` filter, `0` normal … `1` black) and `reset(duration?, easing?)` (back to centred, zoom `1`, no rotation, no filter). Because `darken` drives the single CSS `filter` channel, combine it with other filters by writing the full string yourself via `camera.filter(...)`.
+
+  There is exactly one camera per story; pass your own only to set its initial pose:
+
+  ```ts
+  const story = new Story("entry", { camera: new Camera({ zoom: 1.2 }) });
+  ```
+
+  `Camera` is exported from `narraleaf-react`.
+
+- A new **Vfx** element plays a looping video as a full-screen overlay for particle and ambience effects — falling petals, light dust, rain, snow, fog, light flares — without canvas or WebGL. Two complementary asset routes are supported: **true-alpha** material (VP9 `yuva420p` alpha WebM, default `"normal"` blending) keeps colors faithful on any background and is the route for assets with dark or opaque pixels; **black-background glow** material (VP9 `yuv420p`) combined with `blendMode: "screen"` is 5–10× smaller and hardware-decodable, ideal for purely luminous effects (additive blending washes out dark pixels, so keep dark-edged assets on the alpha route). Loop assets should start and end on the same frame.
+
+  ```ts
+  import {Vfx} from "narraleaf-react";
+
+  // true-alpha material: faithful colors on any background (petals with dark edges)
+  const petals = new Vfx({src: "/fx/petals-alpha.webm"});
+
+  // black-background glow material + screen blending: tiny files, hardware decodable
+  const dust = new Vfx({src: "/fx/dust-black.webm", blendMode: "screen", opacity: 0.9});
+
+  scene.action([
+      petals.show({duration: 800}),   // fade in; the action waits for the fade
+      dust.show(),
+      character`The petals are falling...`,
+      petals.setPlaybackRate(0.5),    // slow drifting
+      dust.pause(),                   // freeze on the current frame
+      dust.resume(),
+      petals.hide({duration: 1200}),  // fade out, then stop and leave the stage
+  ]);
+  ```
+
+  `show(options?)` adds the overlay to the stage, waits for the first frame, and fades it in; `hide(options?)` fades it out, stops playback, and removes it — both accept `{duration?, easing?}` and complete instantly when the player skips. A source that fails to load logs an error and resolves immediately, so a broken asset never blocks the story. `pause()`/`resume()` freeze and continue the loop, and `setPlaybackRate(rate)` adjusts speed (the rate is not saved; a loaded game returns to `config.playbackRate`). The config also offers `loop` (default `true`), `muted` (default `true`; unmuted autoplay may be rejected by the browser), `opacity` (the fade-in target), `fit` (`"cover"` | `"contain"` | `"fill"`), and `zIndex` for ordering multiple overlays. Visible overlays are captured by save/load and re-appear — playing, or frozen if paused — without a fade. Vfx layers render above videos inside the stage camera boundary, so camera pan/zoom/shake moves the weather with the shot while the dialog UI stays fixed.
+
+  `Vfx` is exported from `narraleaf-react`.
+
+- The transition system was rebuilt around a single idea: **engines are instantiated, geometry is vocabulary**. Every transition is now constructed with `new X({options})`, and the mask geometry that used to be scattered across per-shape classes and static factories lives in one place — the static `Mask` vocabulary — passed to an engine as its `pattern`:
+
+  ```ts
+  import {Reveal, ThroughColor, Mask} from "narraleaf-react";
+
+  // direct A→B: the new image is revealed through the pattern
+  scene.setBackground(bg2, new Reveal({duration: 1200, pattern: Mask.clock()}));
+
+  // through black: cover → hold → uncover, same vocabulary
+  scene.jumpTo(next, new ThroughColor({duration: 1800, pattern: Mask.clock()}));
+
+  // no pattern = plain fade through the colour (hold: 0 = flash)
+  new ThroughColor({duration: 600, color: "#ffffff", hold: 0});
+  ```
+
+  - `Mask` factories: `wipe` (keyword or **any angle in degrees**), `barnDoor`, `iris` (`circle`/`ellipse`), `clock`, `fan`, `blinds` (any angle + feather), `dots` (tiled, with `stagger`); plus `Mask.invert(pattern)` and `Mask.toStyle(pattern, t)` for custom-transition authors. A hand-written `{mask(t, inverted?)}` object works anywhere a built-in pattern does. Every pattern is fully clear at `t = 0` and fully covered at `t = 1`, feather included, and `feather: 0` gives a hard edge.
+  - `Reveal` is the new direct-cut engine (the A→B counterpart of `ThroughColor`); both take the same patterns, so a scene change moves between the two families with a one-word edit.
+  - `ThroughColor` gained `inverted` (cover through the pattern's complementary orientation — `Mask.iris()` + `inverted: true` is the classic iris-to-black) and `uncover`: `"retreat"` (default; the pattern backs out the way it came), `"continue"` (the edge keeps travelling, so the pattern passes through the frame — a wipe exits out the far side, a clock hand completes a second lap), or a custom pattern for asymmetric cover/uncover.
+
+- **In-scene jumping** with `Control.label` and `Control.jump`. Until now the only way to redirect the story was `Scene.jumpTo`, which unloads the current scene and starts another. `Control.jump` moves the play head to a named point *inside the same scene* — nothing is unloaded or re-initialized, so backgrounds, sprites, and music stay exactly as they are.
+
+  Mark a point with `Control.label(name)` (an invisible marker that just passes through at runtime) and jump to it with `Control.jump(name)`:
+
+  ```ts
+  scene.action([
+      Control.label("start"),
+      character.say("Where to?"),
+      Menu.prompt("Choose")
+          .choose("Look around", [
+              character.say("Nothing here yet."),
+              Control.jump("start"),   // back to the label, same scene
+          ])
+          .choose("Leave", [
+              scene.jumpTo(nextScene),
+          ]),
+  ]);
+  ```
+
+  Label names are scoped to the scene they are declared in, so the same name can be reused across different scenes, and a jump can only target a label in its own scene. Both are validated at story-construction time: declaring the same label name twice in one scene, or jumping to a label that does not exist, fails the build rather than surfacing mid-play. Jumps are captured by save/load and undo like any other action.
+
+  `Control.jump` redirects the main story flow, so place it as the last action of a branch (e.g. a menu choice); for looping a scene, drive the loop through a menu or condition rather than jumping out of a `repeat`/`while` body. Both `label` and `jump` are available as chainable methods and as static `Control.label(...)` / `Control.jump(...)`.
+
+### _Incompatible Changes_
+
+- The per-shape transition classes and static factories were removed in favour of the engine + `Mask` vocabulary above:
+  - `new SoftWipe({duration, direction, feather})` → `new Reveal({duration, pattern: Mask.wipe({direction, feather})})`
+  - `new SoftIris({duration, center, feather})` → `new Reveal({duration, pattern: Mask.iris({center, feather})})`
+  - `new Blinds({duration, orientation, slats})` → `new Reveal({duration, pattern: Mask.blinds({orientation, slats})})`
+  - `MaskTransition.circle({duration, center})` → `new Reveal({duration, pattern: Mask.iris({center, feather: 0})})` (hard edges are `feather: 0`; the clip-path mechanism is gone, and `circle`'s partial `from`/`to` radii have no built-in equivalent — write a one-line custom pattern if needed)
+  - `MaskTransition.wipe({duration, direction})` → `new Reveal({duration, pattern: Mask.wipe({direction, feather: 0})})`
+  - `ThroughColor.fade({...})` → `new ThroughColor({...})`; `ThroughColor.wipe/.blinds` → `new ThroughColor({..., pattern: Mask.wipe(...)/Mask.blinds(...)})`; `ThroughColor.iris({center, feather, ...})` → `new ThroughColor({..., pattern: Mask.iris({center, feather}), inverted: true})` — note the `inverted: true`: the old factory closed rim-in, which is the pattern's inverted orientation.
+  - Removed option types: `SoftWipeOptions`, `SoftIrisOptions`, `BlindsOptions`, `MaskTransitionCircleOptions`, `MaskTransitionWipeOptions`, and the per-factory `ThroughColor*Options` (now a single `ThroughColorOptions`).
+- The remaining positional constructors moved to options objects: `new Dissolve(duration, easing?)` → `new Dissolve({duration, easing?})`, and `new FadeIn(duration, startPos?, easing?)` → `new FadeIn({duration, offset?, easing?})` (the start position parameter is now named `offset`).
+
+### Fixed
+
+- `Control.do([])` and `Control.doAsync([])` no longer crash on an empty action list. An empty `do` body threw twice — once during preload prediction and once on execution — and an empty `doAsync` body threw on execution; all three now advance past the empty statement. (`any`, `all`, and `allAsync` already handled empty lists.)
+
+- `Control.repeat(times, actions)` and `Control.whileLoop(condition, actions)` no longer throw `Invalid action chain` when the loop body has more than one statement. The body was chained at authoring time while the loop runtime requires it unchained, so every multi-statement `repeat`/`while` body failed at runtime — only single-statement bodies worked. Loop bodies are now left unchained and run as intended.
+
+## [0.15.0]
+
+### _Feature_
+
+- The video element gained `pause()`, `resume()`, `stop()`, and `seek()`, so a video can now be driven by hand instead of only played start-to-finish. Until now only `show()`, `hide()`, and `play()` were reachable from a story, even though the underlying playback controls were already wired end to end — the actions and their exposed handlers existed, but no chainable method reached them. All four are chainable like the rest:
+
+  ```ts
+  const video = new Video({ src: "/intro.webm", muted: true });
+
+  scene.action([
+      video.show(),
+      video.play(),   // plays and waits for the clip to finish
+  ]);
+
+  // ...or drive it manually:
+  scene.action([
+      video.seek(5),     // jump to 5s
+      video.pause(),
+      video.resume(),    // resume without waiting for the end
+      video.stop(),      // end playback now
+  ]);
+  ```
+
+  `play()` still waits for the video to reach its end; `resume()` returns as soon as playback restarts. `stop()` ends a `play()` that is currently waiting, so cutting a video short lets the story continue instead of blocking on the clip's natural end.
+
+### Fixed
+
+- A video whose source fails to load no longer freezes the game. A video's playback controls are exposed to the story only once its element reports it can play; a source that 404s or uses an unsupported codec fires an error instead of that ready signal, and the error was ignored — so every action on the video, `show()` included, waited on a ready state that never arrived, and with `allowSkipVideo` off (the default) nothing could recover it. A load error is now reported through the logger and the controls are exposed in a degraded state: `show()`/`hide()` still work and `play()` resolves immediately, so a broken asset simply does not appear and the story keeps advancing.
+
+- A video that is hidden, replaced by a scene change, or otherwise unmounted while it is still playing no longer wedges the story. `play()` resolves when the clip ends or is stopped, but unmounting the element removed those listeners without ever resolving, leaving the awaiting `play()` pending forever. Unmounting now settles any in-flight `play()`.
+
+- A video whose media was ready before its element finished mounting — a cached, `blob:`, or `data:` source that had already fired its ready event — no longer risks the same never-exposed hang: the element reconciles against the current ready/error state on mount rather than waiting only for a future event. Relatedly, `resume()` no longer hangs or leaves an unhandled rejection when the browser blocks playback.
+
+## [0.14.0]
+
+### _Feature_
+
+- The backlog now survives saving and loading, and any past line in it can be restored to — including after a save is loaded. Until now the history NarraLeaf keeps (the one behind the backlog and behind `liveGame.undo`) was accumulated only while the game ran and discarded when a save was loaded, so a freshly loaded game — or a game reached by jumping into it — began with an empty backlog and nothing to go back to. Saves now carry the full backlog, and every backlog line also stores a self-contained snapshot of the game at that point. As a result `getHistory()` is populated the moment `deserialize` returns, and a new method restores the game to any line in it:
+
+  ```typescript
+  const history = game.getHistory();
+  // Jump the game back to a past line, even one from a loaded save.
+  game.getLiveGame().restoreToHistory(history[0].token);
+  ```
+
+  `restoreToHistory(token)` does not rely on the in-memory undo history that `undo` walks (which is made of closures over live objects and cannot be serialized), so it is what works across a save/load boundary. `undo` is unchanged and remains the nicer choice for stepping back during live play; `restoreToHistory` returns `false` if the line has no restore snapshot.
+
+  The save format is now versioned — `meta.version` is `2` for saves written by this release. Saves written before it load unchanged and simply start with an empty backlog, and `SavedGame.game` gains an optional `history` field (see [SavedGame](https://narraleaf.com/docs/narraleaf-react/core/types/SavedGame)). Because each remembered line carries a snapshot, saves are larger, roughly in proportion to how far back the backlog reaches — bounded by `maxActionHistory`.
+
+- `liveGame.fastForward()` jumps ahead to the next menu, running every line in between for real so the backlog fills in along the way. Audio is muted, transitions settle at once, and timed pauses (`Control.sleep`, auto-forward) resolve immediately, so it reaches the next decision point quickly without omitting anything — the accumulated history is identical to having played through, which is why `restoreToHistory` then works across the fast-forwarded span. It stops *at* the menu, leaving the choice to the player; pass `{ until: "end" }` to run to the end of the story instead. It is async and returns why it stopped (`"menu"`, `"end"`, or `"maxSteps"`).
 
 ### Fixed
 

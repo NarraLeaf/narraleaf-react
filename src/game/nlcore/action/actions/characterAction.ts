@@ -191,6 +191,9 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     character: this.callee.state.name,
                 },
                 isPending: true,
+                // Snapshot the state at this line so the backlog can be restored to it after a
+                // save/load, when the closure-based undo stack is unavailable.
+                snapshot: liveGame.captureGameState(),
             });
 
             return awaitable;

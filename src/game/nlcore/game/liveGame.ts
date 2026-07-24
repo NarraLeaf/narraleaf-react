@@ -14,14 +14,15 @@ import { ElementStateRaw, Story } from "@core/elements/story";
 import { Game } from "@core/game";
 import { Sound } from "@core/elements/sound";
 import { SoundToken } from "@narraleaf/sound";
-import type { CalledActionResult, NotificationToken, SavedGame } from "@core/gameTypes";
+import type { CalledActionResult, NotificationToken, SavedGame, SerializedGameState } from "@core/gameTypes";
+import { SAVE_FORMAT_VERSION } from "@core/gameTypes";
 import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
 import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { Options } from "html-to-image/lib/types";
 import { ActionExecutionInjection, ExecutedActionResult } from "../action/action";
 import { GameHistory } from "../action/gameHistory";
-import { StackModel, StackModelRawData } from "../action/stackModel";
+import { StackModel, StackModelRawData, StackSnapshot } from "../action/stackModel";
 
 /**@internal */
 type LiveGameEvent = {
@@ -49,6 +50,19 @@ type LiveGameEvent = {
          */
         text: string;
     }];
+    "event:action.current": [{
+        /**
+         * The id of the action that just began executing (as assigned by the story compiler),
+         * or null for an action with no id. Fires for every executed action, including those
+         * inside parallel/async branches — subscribers that only care about top-level lines
+         * should filter by their own id set.
+         */
+        actionId: string | null,
+        /**
+         * The action's type (e.g. `"character:say"`).
+         */
+        actionType: string | null,
+    }];
 };
 
 export class LiveGame {
@@ -61,6 +75,7 @@ export class LiveGame {
     static EventTypes = {
         "event:character.prompt": "event:character.prompt",
         "event:menu.choose": "event:menu.choose",
+        "event:action.current": "event:action.current",
     } as const;
 
     public game: Game;
@@ -85,6 +100,8 @@ export class LiveGame {
     private readonly _storable: Storable;
     /**@internal */
     private mapCache: [actionMap: Map<string, LogicAction.Actions>, elementMap: Map<string, LogicAction.GameElement>] | null = null;
+    /**@internal the id of the most recently executed action (drives the Studio play head) */
+    private _currentActionId: string | null = null;
 
     /**@internal */
     constructor(game: Game) {
@@ -131,7 +148,6 @@ export class LiveGame {
      */
     public serialize(): SavedGame {
         this.assertGameState();
-        const gameState = this.gameState;
 
         const story = this.story;
         if (!story) {
@@ -142,16 +158,10 @@ export class LiveGame {
             throw new Error("Failed when trying to serialize the game: The game has not started");
         }
 
-        // get all element states
-        const store = this._storable.toData();
-        const stage = gameState.toData();
-        const elementStates: RawData<ElementStateRaw>[] = story.getAllElementStates();
-        const stackModel: StackModelRawData = this.stackModel.serialize();
-        const asyncStackModels: StackModelRawData[] = Array.from(this.asyncStackModels).map(stack => stack.serialize());
-
         return {
             name: this.currentSavedGame.name,
             meta: {
+                version: SAVE_FORMAT_VERSION,
                 created: this.currentSavedGame.meta.created,
                 updated: Date.now(),
                 id: this.currentSavedGame.meta.id,
@@ -160,14 +170,62 @@ export class LiveGame {
                 storyHash: story.hash(),
             },
             game: {
-                store,
-                stage,
-                elementStates,
-                stackModel,
-                asyncStackModels,
-                services: story.serializeServices(),
+                ...this.serializeGameState(),
+                history: this.gameState.gameHistory.serialize(),
             },
         } satisfies SavedGame;
+    }
+
+    /**
+     * Serialize the core, resumable game state (store, elements, stage, execution stacks)
+     * **without** the backlog history.
+     *
+     * This is the shared unit used both by {@link serialize} and by the per-backlog-entry
+     * snapshots that power {@link restoreToHistory}; keeping it history-free is what prevents
+     * per-entry snapshots from nesting the whole backlog inside themselves.
+     *
+     * @internal
+     */
+    public serializeGameState(): SerializedGameState {
+        this.assertGameState();
+        const gameState = this.gameState;
+
+        const story = this.story;
+        if (!story) {
+            throw new Error("No story loaded");
+        }
+
+        const store = this._storable.toData();
+        const stage = gameState.toData();
+        const elementStates: RawData<ElementStateRaw>[] = story.getAllElementStates();
+        const stackModel: StackModelRawData = this.stackModel.serialize();
+        const asyncStackModels: StackModelRawData[] = Array.from(this.asyncStackModels).map(stack => stack.serialize());
+
+        return {
+            store,
+            stage,
+            elementStates,
+            stackModel,
+            asyncStackModels,
+            services: story.serializeServices(),
+        };
+    }
+
+    /**
+     * Best-effort capture of the core game state for a backlog entry.
+     *
+     * Never throws: a line that cannot be snapshotted just becomes non-restorable rather than
+     * breaking playback. Called on every say/menu as the backlog grows.
+     *
+     * @internal
+     */
+    public captureGameState(): SerializedGameState | null {
+        try {
+            return this.serializeGameState();
+        } catch (e) {
+            this.gameState?.logger.warn("LiveGame.captureGameState", e);
+            return null;
+        }
     }
 
     /**
@@ -248,6 +306,10 @@ export class LiveGame {
         // restore services
         story.deserializeServices(services);
 
+        // restore backlog history (save format v2+; legacy saves carry none). Entries are re-bound
+        // to live actions and dropped if their action no longer exists in the current story.
+        gameState.gameHistory.load(savedGame.game.history ?? [], actionMaps);
+
         this.game.hooks.trigger("afterRestore", []);
 
         gameState.events.once(GameState.EventTypes["event:state.onRender"], () => {
@@ -323,6 +385,46 @@ export class LiveGame {
         }
     }
 
+    /**
+     * Restore the game to a past backlog line.
+     *
+     * Unlike {@link undo}, this works **after loading a save**: it does not rely on the
+     * (non-serializable) undo stack. Every backlog entry carries a self-contained state snapshot,
+     * so restoring re-applies that snapshot and trims the backlog back to that line.
+     *
+     * @param token - the backlog entry token (as returned by {@link getHistory})
+     * @returns `true` if the line was restored, `false` if the token is unknown or the entry has
+     *          no restore snapshot.
+     */
+    public restoreToHistory(token: string): boolean {
+        this.assertGameState();
+
+        const entry = this.gameState.gameHistory.getByToken(token);
+        if (!entry) {
+            this.gameState.logger.warn("LiveGame.restoreToHistory", "No history entry for token", token);
+            return false;
+        }
+        if (!entry.snapshot) {
+            this.gameState.logger.warn("LiveGame.restoreToHistory", "History entry has no restore snapshot", token);
+            return false;
+        }
+
+        // Trim the backlog to this line, then restore the entry's core snapshot. We reuse
+        // deserialize() wholesale by synthesizing a SavedGame whose core is the entry snapshot and
+        // whose history is the trimmed prefix, so the resume path stays identical to loading a save.
+        const prefix = this.gameState.gameHistory.serializeUntil(token);
+        const synthetic: SavedGame = {
+            name: this.currentSavedGame?.name ?? "",
+            meta: this.currentSavedGame?.meta ?? this.getNewSavedGame().meta,
+            game: {
+                ...entry.snapshot,
+                history: prefix,
+            },
+        };
+        this.deserialize(synthetic);
+        return true;
+    }
+
     /**@internal */
     public dispose() {
         this.events.clear();
@@ -368,6 +470,98 @@ export class LiveGame {
         this.assertGameState();
 
         this.gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
+    }
+
+    /**
+     * Fast-forward playback to the next menu (or the end of the story).
+     *
+     * Every line in between is executed for real, so the backlog and its restore snapshots
+     * accumulate exactly as in normal play — only faster and silent. Audio is muted for the
+     * duration, in-flight transitions are settled immediately, and timed pauses (`Control.sleep`,
+     * auto-forward) resolve at once. It stops as soon as a menu is waiting for a choice, so the
+     * choice itself is always left to the player.
+     *
+     * Because history accumulates the whole way, {@link getHistory} and
+     * {@link restoreToHistory} cover the fast-forwarded span just like normal play.
+     *
+     * ```typescript
+     * // Jump ahead to the next decision point.
+     * await game.getLiveGame().fastForward();
+     * ```
+     *
+     * @param options.until - `"menu"` (default) stops at the next menu; `"end"` runs until the
+     *                         story finishes; `{ actionId }` runs until that action surfaces as
+     *                         the next thing to execute and stops **just before** running it
+     *                         (so the play head is positioned at that line). A menu that blocks
+     *                         the path, the stack draining, or the step cap all stop early — the
+     *                         result then reports `reachedTarget: false` so the caller can tell an
+     *                         unreachable / already-passed id from a successful jump.
+     * @param options.maxSteps - safety bound on the number of advance steps (defaults to the
+     *                           `maxStackModelLoop` config).
+     * @returns why it stopped: `"action"` (reached `until.actionId`), `"menu"`, `"end"` (the stack
+     *          drained), or `"maxSteps"`. When an `actionId` target was requested, `reachedTarget`
+     *          is also set (`true` only for reason `"action"`).
+     *
+     * Note: only the root execution stack is scanned for the target — an id buried inside an
+     * in-flight parallel (`Control.all`/`any`) or async branch is not a stop point.
+     */
+    public async fastForward(options: {
+        until?: "menu" | "end" | { actionId: string };
+        maxSteps?: number;
+    } = {}): Promise<{ reason: "menu" | "end" | "maxSteps" | "action"; reachedTarget?: boolean }> {
+        this.assertGameState();
+        const gameState = this.gameState;
+        const until = options.until ?? "menu";
+        const targetId = typeof until === "object" ? until.actionId : null;
+        // A menu we cannot pass without a choice ends both an explicit "menu" run and any
+        // action-id jump (the target is unreachable until the player decides).
+        const stopAtMenu = until === "menu" || targetId !== null;
+        const maxSteps = options.maxSteps ?? gameState.game.config.maxStackModelLoop;
+        // reachedTarget is only meaningful for an action-id jump; omit it otherwise so the
+        // existing `{ reason }` shape is preserved for "menu"/"end" callers.
+        const missedTarget = targetId !== null ? { reachedTarget: false } : {};
+
+        const previousVolume = gameState.audioManager.getGlobalVolume();
+        gameState.audioManager.setGlobalVolume(0);
+        gameState.setFastForwarding(true);
+
+        try {
+            let steps = 0;
+            while (steps++ < maxSteps) {
+                // Stop conditions are checked before advancing further. peekExecutingActionId (not
+                // peekTopActionId) is used so the target only matches when it is genuinely the next
+                // thing to run — never while it is still buried under an in-progress step (e.g. the
+                // continuation of a do-block whose first child is still awaiting).
+                if (targetId !== null && this.stackModel.peekExecutingActionId() === targetId) {
+                    return { reason: "action", reachedTarget: true };
+                }
+                if (stopAtMenu && gameState.hasActiveMenu()) {
+                    return { reason: "menu", ...missedTarget };
+                }
+                if (this.stackModel.isEmpty()) {
+                    return { reason: "end", ...missedTarget };
+                }
+
+                const awaitable = this.stackModel.getWaitingAwaitable();
+                if (awaitable) {
+                    // Suspended on a say / waitForClick: force-skip it and wait for the step to
+                    // settle before the next skip, so the line's history entry and its snapshot
+                    // are captured against a stable stack rather than a mid-mutation one.
+                    const settled = new Promise<void>(resolve => awaitable.onSettled(() => resolve()));
+                    gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
+                    await settled;
+                } else {
+                    // Not suspended (a run of synchronous actions, or a just-settled step not yet
+                    // re-driven): pump the drain and yield a microtask.
+                    gameState.stage.next();
+                    await Promise.resolve();
+                }
+            }
+            return { reason: "maxSteps", ...missedTarget };
+        } finally {
+            gameState.setFastForwarding(false);
+            gameState.audioManager.setGlobalVolume(previousVolume);
+        }
     }
 
     private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {
@@ -429,6 +623,43 @@ export class LiveGame {
      */
     public onMenuChoose(fc: LiveGameEventHandler<LiveGameEvent["event:menu.choose"]>): LiveGameEventToken {
         return this.events.on(LiveGame.EventTypes["event:menu.choose"], fc);
+    }
+
+    /**
+     * **Experimental.** Subscribe to the current-action-id stream: fires each time an action
+     * begins executing, carrying its id and type. Intended for an external play head (e.g. the
+     * Studio timeline) to follow along. Fires for branch/async actions too — filter by your own
+     * id set if you only track top-level lines.
+     *
+     * @returns a token; call `token.cancel()` to unsubscribe.
+     */
+    public onCurrentActionChange(fc: LiveGameEventHandler<LiveGameEvent["event:action.current"]>): LiveGameEventToken {
+        return this.events.on(LiveGame.EventTypes["event:action.current"], fc);
+    }
+
+    /**
+     * **Experimental.** The id of the most recently executed action, or null before the first
+     * action runs. A pull-based companion to {@link onCurrentActionChange}.
+     */
+    public getCurrentActionId(): string | null {
+        return this._currentActionId;
+    }
+
+    /**
+     * **Experimental, read-only.** A top-first snapshot of the current execution stacks for a
+     * call-stack / debug view: the root stack plus any in-flight async stacks (`Control.doAsync`
+     * / `Control.allAsync`). The shape is a convenience projection, not a stability contract — do
+     * not serialize it (use {@link serialize} for saves). Returns empty frames before the game
+     * starts.
+     */
+    public getStackSnapshot(): { root: StackSnapshot; async: StackSnapshot[] } {
+        if (!this.stackModel) {
+            return { root: { frames: [] }, async: [] };
+        }
+        return {
+            root: this.stackModel.snapshot(),
+            async: Array.from(this.asyncStackModels).map(stack => stack.snapshot()),
+        };
     }
 
     /**
@@ -730,6 +961,17 @@ export class LiveGame {
             throw new Error("Stack model is not initialized");
         }
 
+        // Publish the current play head before running the action. Studio reverse-maps the id to a
+        // block via its actionIdBindings; the event fires for every action, branch actions included.
+        // This is the per-action hot path, so the payload is only built when someone is listening.
+        this._currentActionId = action.getId();
+        if (this.events.hasListeners(LiveGame.EventTypes["event:action.current"])) {
+            this.events.emit(LiveGame.EventTypes["event:action.current"], {
+                actionId: action.getId(),
+                actionType: action.type,
+            });
+        }
+
         const nextAction = action.executeAction(state, injection);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {
             return nextAction;
@@ -802,8 +1044,10 @@ export class LiveGame {
                 if (current.getChild()?.action) queue.push(current.getChild()!.action!);
                 current = content[0]?.contentNode || null;
             }
-            if (current.action) actions.push(current.action);
-            current = current.getChild();
+            // An empty Control.do([]) body leaves `current` null here; fall through to the queued
+            // continuation instead of dereferencing null.
+            if (current?.action) actions.push(current.action);
+            current = current?.getChild() || null;
         }
 
         return actions;

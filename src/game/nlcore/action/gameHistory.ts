@@ -1,3 +1,5 @@
+import { randId } from "@lib/util/data";
+import type { SerializedGameHistory, SerializedGameState } from "../gameTypes";
 import { Action } from "./action";
 import { ActionHistory, ActionHistoryManager } from "./actionHistory";
 
@@ -7,7 +9,7 @@ type GameHistoryAction = {
     isPending?: boolean;
 };
 
-type GameElementHistory =
+export type GameElementHistory =
     | {
         type: "say";
         text: string;
@@ -22,6 +24,12 @@ type GameElementHistory =
 
 export type GameHistory = GameHistoryAction & {
     element: GameElementHistory;
+    /**
+     * Self-contained core state captured when this line was reached, used to restore the game
+     * back to this backlog line (see {@link LiveGame.restoreToHistory}). Optional because a
+     * capture can fail, and legacy in-memory entries created before a snapshot was taken.
+     */
+    snapshot?: SerializedGameState | null;
 };
 
 export class GameHistoryManager {
@@ -49,8 +57,66 @@ export class GameHistoryManager {
         return this.history;
     }
 
+    getByToken(token: string): GameHistory | null {
+        return this.history.find(h => h.token === token) ?? null;
+    }
+
+    /**
+     * Serialize the whole backlog for persistence (save format v2).
+     */
+    serialize(): SerializedGameHistory[] {
+        return this.history.map(h => GameHistoryManager.toSerialized(h));
+    }
+
+    /**
+     * Serialize the backlog up to and including the entry with the given token.
+     *
+     * Used by restore-to-history to trim the backlog back to the restored line.
+     * Returns an empty array if the token is not found.
+     */
+    serializeUntil(token: string): SerializedGameHistory[] {
+        const index = this.history.findIndex(h => h.token === token);
+        if (index < 0) {
+            return [];
+        }
+        return this.history.slice(0, index + 1).map(h => GameHistoryManager.toSerialized(h));
+    }
+
+    /**
+     * Rebuild the backlog from persisted entries.
+     *
+     * Each entry is re-bound to a live {@link Action} through `actionMap`; entries whose action no
+     * longer exists (the script changed since the save) are dropped rather than throwing, so a
+     * still-loadable save degrades to a shorter backlog instead of failing.
+     */
+    load(entries: SerializedGameHistory[], actionMap: ReadonlyMap<string, Action>): void {
+        this.history = [];
+        for (const entry of entries) {
+            const action = entry.actionId != null ? actionMap.get(entry.actionId) : undefined;
+            if (!action) {
+                continue;
+            }
+            this.history.push({
+                token: randId(6),
+                action,
+                element: entry.element,
+                isPending: entry.isPending,
+                snapshot: entry.snapshot,
+            });
+        }
+    }
+
     reset() {
         this.history = [];
+    }
+
+    private static toSerialized(h: GameHistory): SerializedGameHistory {
+        return {
+            actionId: h.action.getId(),
+            element: h.element,
+            isPending: h.isPending,
+            snapshot: h.snapshot ?? null,
+        };
     }
 
     updateByToken(id: string, handler: (result: GameHistory | null) => void) {

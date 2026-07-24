@@ -46,6 +46,11 @@ export class Control extends Actionable {
 
     /**
      * Execute actions concurrently, resolving once any finishes.
+     *
+     * Each entry runs as its own parallel branch, so a single chained statement (e.g.
+     * `image.pos(a).pos(b)`) is split into multiple branches and they will conflict when
+     * they target the same element. Wrap sequential steps in `Control.do([...])` to keep
+     * them in one branch.
      * @param actions - Actions to run in parallel.
      * @chainable
      * @example
@@ -59,6 +64,11 @@ export class Control extends Actionable {
 
     /**
      * Execute actions concurrently and wait until all finish.
+     *
+     * Each entry runs as its own parallel branch, so a single chained statement (e.g.
+     * `image.pos(a).pos(b)`) is split into multiple branches and they will conflict when
+     * they target the same element. Wrap sequential steps in `Control.do([...])` to keep
+     * them in one branch.
      * @param actions - Actions to run at the same time.
      * @chainable
      * @example
@@ -72,6 +82,11 @@ export class Control extends Actionable {
 
     /**
      * Execute actions concurrently and continue without waiting.
+     *
+     * Each entry runs as its own parallel branch, so a single chained statement (e.g.
+     * `image.pos(a).pos(b)`) is split into multiple branches and they will conflict when
+     * they target the same element. Wrap sequential steps in `Control.do([...])` to keep
+     * them in one branch.
      * @param actions - Actions to fire simultaneously.
      * @chainable
      */
@@ -134,6 +149,49 @@ export class Control extends Actionable {
         return new Control().waitForClick();
     }
 
+    /**
+     * Mark a named point inside the current scene that {@link Control.jump} can jump to.
+     * A label is invisible at runtime — it simply passes through to the next action.
+     *
+     * Label names are scoped to the scene they are declared in, so the same name may be
+     * reused across different scenes. Declaring the same name twice in one scene is an error.
+     * @param name - The label name, unique within its scene.
+     * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     Control.label("intro"),
+     *     character.say("Let's begin."),
+     * ]);
+     * ```
+     */
+    public static label(name: string): ChainedControl {
+        return new Control().label(name);
+    }
+
+    /**
+     * Jump to a {@link Control.label} elsewhere in the same scene and resume playing from there.
+     *
+     * Unlike {@link Scene.jumpTo}, this stays inside the current scene — no scene is unloaded or
+     * re-initialized, only the play head moves. The jump target must be a label declared in the
+     * same scene, otherwise the story fails to build.
+     * @param name - The name of the target label, declared in the same scene.
+     * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     Control.label("start"),
+     *     menu("Again?", [
+     *         choice("Yes", [Control.jump("start")]),
+     *         choice("No", []),
+     *     ]),
+     * ]);
+     * ```
+     */
+    public static jump(name: string): ChainedControl {
+        return new Control().jump(name);
+    }
+
     constructor(/**@internal */public config: Partial<ControlConfig> = {}) {
         super();
     }
@@ -183,7 +241,10 @@ export class Control extends Actionable {
      * @chainable
      */
     public repeat(times: number, actions: ActionStatements): ChainedControl {
-        return this.push(ControlAction.ActionTypes.repeat, actions, times);
+        // repeat/while feed their body to a StackModel loop, which pushes each body action onto
+        // the stack independently and asserts (checkActionChain) the body is NOT chained. So keep
+        // the body unchained here — unlike do/doAsync, which walk the body via child links.
+        return this.pushUnchained(ControlAction.ActionTypes.repeat, actions, times);
     }
 
     /**
@@ -230,6 +291,32 @@ export class Control extends Actionable {
         return this.chain(action);
     }
 
+    /**
+     * Mark a named point inside the current scene that {@link Control.jump} can jump to.
+     * @chainable
+     */
+    public label(name: string): ChainedControl {
+        const action = new ControlAction(
+            this.chain(),
+            ControlAction.ActionTypes.label,
+            new ContentNode().setContent([name])
+        );
+        return this.chain(action);
+    }
+
+    /**
+     * Jump to a {@link Control.label} in the same scene and resume playing from there.
+     * @chainable
+     */
+    public jump(name: string): ChainedControl {
+        const action = new ControlAction(
+            this.chain(),
+            ControlAction.ActionTypes.jump,
+            new ContentNode().setContent([name])
+        );
+        return this.chain(action);
+    }
+
     /**@internal */
     private push(
         type: Values<typeof ControlAction.ActionTypes>,
@@ -266,11 +353,13 @@ export class Control extends Actionable {
         actions: ActionStatements,
         lambda: Lambda<boolean>
     ): ChainedControl {
+        // Body is left unchained: the while-loop StackModel pushes each body action independently
+        // and asserts the body is not chained (see repeat/checkActionChain).
         const flatted = this.narrativeToActions(actions);
         const action = new ControlAction(
             this.chain(),
             type,
-            new ContentNode().setContent([this.construct(flatted), lambda])
+            new ContentNode().setContent([flatted, lambda])
         );
         return this.chain(action);
     }

@@ -2,52 +2,43 @@ import {CSSProps, TransitionAnimationType, TransitionTask} from "@core/elements/
 import {TransformDefinitions} from "@core/elements/transform/type";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {Image} from "@core/elements/displayable/image";
-import {
-    BlindsOrientation,
-    blindsCoverMask,
-    clamp01,
-    irisCoverMask,
-    linearWipeMask,
-    maskStyle,
-    overlayBase,
-} from "@core/elements/transition/transitions/image/transitionMaskUtils";
+import {clamp01, overlayBase} from "@core/elements/transition/transitions/image/transitionMaskUtils";
+import {Mask, MaskPattern} from "@core/elements/transition/transitions/image/mask";
 
 type AnimationType = [TransitionAnimationType.Number];
 
-/** `null` = plain (drive the overlay opacity); a function = a coverage mask. */
-type CoverMask = ((cover: number) => string) | null;
+/**
+ * How the colour uncovers after the hold:
+ * - `"retreat"` — the cover pattern backs out the way it came (default).
+ * - `"continue"` — the edge keeps travelling in the same direction, so the
+ *   pattern passes *through* the frame (a wipe exits out the far side, an iris
+ *   that closed rim-in reopens centre-out, a clock hand completes a second lap).
+ * - a {@link MaskPattern} — the colour uncovers through an unrelated geometry
+ *   of its own (cover with a clock, uncover with a wipe, ...).
+ */
+export type ThroughColorUncover = "retreat" | "continue" | MaskPattern;
 
-type ThroughColorBaseOptions = {
+export type ThroughColorOptions = {
     /** Duration in milliseconds. */
     duration: number;
     /** Hold colour. @default "#000000" */
     color?: string;
     /** Fraction (0–1) of the duration spent fully covered by the colour. @default 0.3 */
     hold?: number;
+    /**
+     * The coverage geometry the colour covers the frame through. See
+     * {@link Mask}. Omit for a plain fade through the colour.
+     */
+    pattern?: MaskPattern;
+    /**
+     * Cover through the pattern's inverted orientation instead — e.g.
+     * `Mask.iris()` covers centre-out by default, and rim-in (the classic
+     * "iris to black") with `inverted: true`. @default false
+     */
+    inverted?: boolean;
+    /** How the colour uncovers after the hold. Ignored without a `pattern`. @default "retreat" */
+    uncover?: ThroughColorUncover;
     easing?: TransformDefinitions.EasingDefinition;
-};
-
-export type ThroughColorFadeOptions = ThroughColorBaseOptions;
-
-export type ThroughColorWipeOptions = ThroughColorBaseOptions & {
-    /** Direction the feathered edge travels toward. @default "left" */
-    direction?: TransformDefinitions.WipeDirection;
-    /** Width of the soft edge band, in percent. @default 12 */
-    feather?: number;
-};
-
-export type ThroughColorBlindsOptions = ThroughColorBaseOptions & {
-    /** Slat orientation. @default "horizontal" */
-    orientation?: BlindsOrientation;
-    /** Number of slats. @default 8 */
-    slats?: number;
-};
-
-export type ThroughColorIrisOptions = ThroughColorBaseOptions & {
-    /** Centre of the iris, as a CSS position. @default "50% 50%" */
-    center?: string;
-    /** Width of the soft edge band, in percent. @default 12 */
-    feather?: number;
 };
 
 /**
@@ -57,79 +48,47 @@ export type ThroughColorIrisOptions = ThroughColorBaseOptions & {
  * previous/target images simply swap opacity at the midpoint, unseen behind the
  * fully-covered frame.
  *
- * Created through its static factories (mirroring {@link MaskTransition}):
- * - {@link ThroughColor.fade}   — the overlay fades in/out (fade-to-black/white; `hold: 0` = flash).
- * - {@link ThroughColor.wipe}   — a feathered directional edge (soft wipe through the colour).
- * - {@link ThroughColor.blinds} — venetian slats (blinds through the colour).
- * - {@link ThroughColor.iris}   — a circle closing from the rim in (iris to the colour).
+ * The geometry lives entirely in the `pattern` option (see {@link Mask});
+ * without one, the colour simply fades in and out (fade-to-black/white, or a
+ * flash with `hold: 0`). {@link Reveal} is the direct-cut counterpart that
+ * takes the same patterns. The `uncover` option picks how the second half
+ * plays: see {@link ThroughColorUncover}.
  */
 export class ThroughColor extends ImageTransition<AnimationType> {
-    private constructor(
-        private duration: number,
-        private color: string,
-        private hold: number,
-        private coverMask: CoverMask,
-        private easing?: TransformDefinitions.EasingDefinition,
-    ) {
+    private duration: number;
+    private color: string;
+    private hold: number;
+    private pattern: MaskPattern | null;
+    private inverted: boolean;
+    private uncover: ThroughColorUncover;
+    private easing?: TransformDefinitions.EasingDefinition;
+
+    constructor(options: ThroughColorOptions) {
         super();
-    }
-
-    /** Fade the frame to a solid colour, hold, then fade to the target. */
-    static fade(options: ThroughColorFadeOptions): ThroughColor {
-        return new ThroughColor(
-            options.duration,
-            options.color ?? "#000000",
-            options.hold ?? 0.3,
-            null,
-            options.easing,
-        );
-    }
-
-    /** Cover the frame with a feathered directional edge, hold, then uncover. */
-    static wipe(options: ThroughColorWipeOptions): ThroughColor {
-        const direction = options.direction ?? "left";
-        const feather = options.feather ?? 12;
-        return new ThroughColor(
-            options.duration,
-            options.color ?? "#000000",
-            options.hold ?? 0.3,
-            (cover) => linearWipeMask(direction, feather, cover),
-            options.easing,
-        );
-    }
-
-    /** Cover the frame with venetian slats, hold, then uncover. */
-    static blinds(options: ThroughColorBlindsOptions): ThroughColor {
-        const orientation = options.orientation ?? "horizontal";
-        const slats = options.slats ?? 8;
-        return new ThroughColor(
-            options.duration,
-            options.color ?? "#000000",
-            options.hold ?? 0.3,
-            (cover) => blindsCoverMask(orientation, slats, cover),
-            options.easing,
-        );
-    }
-
-    /** Close a circle over the frame from the rim in, hold, then open it. */
-    static iris(options: ThroughColorIrisOptions): ThroughColor {
-        const center = options.center ?? "50% 50%";
-        const feather = options.feather ?? 12;
-        return new ThroughColor(
-            options.duration,
-            options.color ?? "#000000",
-            options.hold ?? 0.3,
-            (cover) => irisCoverMask(center, feather, cover),
-            options.easing,
-        );
+        this.duration = options.duration;
+        this.color = options.color ?? "#000000";
+        this.hold = options.hold ?? 0.3;
+        this.pattern = options.pattern ?? null;
+        this.inverted = options.inverted ?? false;
+        this.uncover = options.uncover ?? "retreat";
+        this.easing = options.easing;
     }
 
     /** Style for the colour overlay at a given coverage (0 = clear, 1 = fully covered). */
-    private coverStyle(cover: number): CSSProps {
-        if (!this.coverMask) {
+    private coverStyle(cover: number, uncovering: boolean): CSSProps {
+        if (!this.pattern) {
             return {...overlayBase(this.color), opacity: clamp01(cover)};
         }
-        return {...overlayBase(this.color), opacity: 1, ...maskStyle(this.coverMask(cover))};
+        const base: CSSProps = {...overlayBase(this.color), opacity: 1};
+        if (uncovering && this.uncover !== "retreat") {
+            if (this.uncover === "continue") {
+                // The complementary orientation at the same coverage keeps the
+                // edge travelling forward instead of backing it out.
+                return {...base, ...Mask.toStyle(this.pattern, cover, !this.inverted)};
+            }
+            return {...base, ...Mask.toStyle(this.uncover, cover)};
+        }
+        return {...base, ...Mask.toStyle(this.pattern, cover, this.inverted)};
     }
 
     createTask(): TransitionTask<HTMLImageElement, AnimationType> {
@@ -165,13 +124,21 @@ export class ThroughColor extends ImageTransition<AnimationType> {
                 // Colour overlay on top: cover → hold → uncover.
                 (progress: number) => ({
                     src: Image.DefaultImagePlaceholder,
-                    style: this.coverStyle(coverAt(progress)),
+                    style: this.coverStyle(coverAt(progress), progress >= openStart),
                 }),
             ],
         };
     }
 
     copy(): ThroughColor {
-        return new ThroughColor(this.duration, this.color, this.hold, this.coverMask, this.easing);
+        return new ThroughColor({
+            duration: this.duration,
+            color: this.color,
+            hold: this.hold,
+            pattern: this.pattern ?? undefined,
+            inverted: this.inverted,
+            uncover: this.uncover,
+            easing: this.easing,
+        });
     }
 }

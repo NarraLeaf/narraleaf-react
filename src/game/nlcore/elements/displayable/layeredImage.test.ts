@@ -104,7 +104,7 @@ describe("layered image - serialization", () => {
 
 describe("layered image - transitions", () => {
     function resolversOf(image: Image, tags: string[]) {
-        const transition = new Dissolve(500);
+        const transition = new Dissolve({duration: 500});
         transition
             ._setPrevLayers(Image.getSrcURLs(image))
             ._setTargetLayers(Image.getSrcURLs(image, tags));
@@ -134,7 +134,7 @@ describe("layered image - transitions", () => {
     });
 
     it("still injects src for a non-layered image", () => {
-        const transition = new Dissolve(500);
+        const transition = new Dissolve({duration: 500});
         transition._setPrevSrc("a.png")._setTargetSrc("b.png");
         const props = transition.createTask().resolve
             .map(r => (typeof r === "function" ? r : r.resolver)(0.5));

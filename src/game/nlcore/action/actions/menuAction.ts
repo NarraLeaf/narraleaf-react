@@ -71,6 +71,9 @@ export class MenuAction<T extends typeof MenuActionTypes[keyof typeof MenuAction
                 selected: null,
             },
             isPending: true,
+            // Snapshot the pre-choice menu state so the backlog can be restored to this menu after
+            // a save/load, when the closure-based undo stack is unavailable.
+            snapshot: gameState.getLiveGame().captureGameState(),
         });
 
         return awaitable;
