@@ -12,10 +12,13 @@ import {Sentence} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
 import {Text} from "@core/elements/displayable/text";
 import {Pause} from "@core/elements/character/pause";
+import {TextEvent} from "@core/elements/character/textEvent";
 import {Persistent} from "@core/elements/persistent";
 import {Service} from "@core/elements/service";
 import {Layer} from "@core/elements/layer";
+import {Camera} from "@core/elements/camera";
 import {Video} from "@core/elements/video";
+import {Vfx} from "@core/elements/vfx";
 import {NVLToken} from "../elements/nvl";
 
 export {
@@ -36,11 +39,16 @@ export {
     Word,
     Text,
     Pause,
+    TextEvent,
     Persistent,
     Service,
     Layer,
+    Camera,
     Video,
+    Vfx,
 };
+
+export type {VfxConfig, VfxBlendMode, VfxFadeOptions} from "@core/elements/vfx";
 
 export type {
     LayeredDefinition,
@@ -51,6 +59,11 @@ export type {
     LayerVariants,
 } from "../elements/displayable/image";
 export type { SentenceMetadata } from "../elements/character/sentence";
+export type {
+    TextEventAppearance,
+    TextEventConfig,
+    TextEventExpression,
+} from "../elements/character/textEvent";
 export type {
     CharacterPortraitConfig,
     DialogAvatar,

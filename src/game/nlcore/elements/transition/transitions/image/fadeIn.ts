@@ -5,6 +5,14 @@ import {GameState} from "@player/gameState";
 
 type AnimationType = [TransitionAnimationType.Number, TransitionAnimationType.Number, TransitionAnimationType.Number];
 
+export type FadeInOptions = {
+    /** Duration in milliseconds. */
+    duration: number;
+    /** Pixel offset the target travels in from, as `[x, y]`. @default [0, 0] */
+    offset?: [xOffset: number, yOffset: number];
+    easing?: TransformDefinitions.EasingDefinition;
+};
+
 /**
  * A fade in, optionally travelling from a pixel offset to rest.
  *
@@ -17,18 +25,15 @@ type AnimationType = [TransitionAnimationType.Number, TransitionAnimationType.Nu
  * survive the crossfade and displace the settled stack.
  */
 export class FadeIn extends ImageTransition<AnimationType> {
-    /**
-     * Fade in the target image with an optional position start position
-     * @param startPos start position offset
-     * @param duration duration in milliseconds
-     * @param easing easing definition or existing easing name
-     */
-    constructor(
-        private duration: number,
-        private startPos: [xOffset: number, yOffset: number] = [0, 0],
-        private easing?: TransformDefinitions.EasingDefinition
-    ) {
+    private duration: number;
+    private offset: [xOffset: number, yOffset: number];
+    private easing?: TransformDefinitions.EasingDefinition;
+
+    constructor(options: FadeInOptions) {
         super();
+        this.duration = options.duration;
+        this.offset = options.offset ?? [0, 0];
+        this.easing = options.easing;
     }
 
     createTask(gameState: GameState): TransitionTask<HTMLImageElement, AnimationType> {
@@ -46,14 +51,14 @@ export class FadeIn extends ImageTransition<AnimationType> {
                 },
                 {
                     type: TransitionAnimationType.Number,
-                    start: this.startPos[0],
+                    start: this.offset[0],
                     end: 0,
                     duration: this.duration,
                     ease: this.easing,
                 },
                 {
                     type: TransitionAnimationType.Number,
-                    start: this.startPos[1],
+                    start: this.offset[1],
                     end: 0,
                     duration: this.duration,
                     ease: this.easing,
@@ -72,6 +77,6 @@ export class FadeIn extends ImageTransition<AnimationType> {
     }
 
     copy(): FadeIn {
-        return new FadeIn(this.duration, this.startPos, this.easing);
+        return new FadeIn({duration: this.duration, offset: this.offset, easing: this.easing});
     }
 }

@@ -8,6 +8,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {Persistent, PersistentContent} from "@core/elements/persistent";
 import {Storable} from "@core/elements/persistent/storable";
 import {Service} from "@core/elements/service";
+import {Camera} from "@core/elements/camera";
 
 export enum Origins {
     topLeft = "top left",
@@ -18,6 +19,11 @@ export enum Origins {
 
 export interface IStoryConfig {
     origin: Origins;
+    /**
+     * The story's stage {@link Camera}. Omit to use a default camera; provide one only to set the
+     * initial pose. There is exactly one camera per story.
+     */
+    camera?: Camera;
 }
 
 /**@internal */
@@ -51,11 +57,34 @@ export class Story extends Constructable<
     persistent: Persistent<any>[] = [];
     /**@internal */
     services: Map<string, Service> = new Map();
+    /**@internal */
+    private readonly _camera: Camera;
 
-    constructor(name: string, config: IStoryConfig = Story.defaultConfig) {
+    constructor(name: string, config: Partial<IStoryConfig> = {}) {
         super();
         this.name = name;
-        this.config = deepMerge<IStoryConfig>(Story.defaultConfig, config);
+        // The camera is a live element, not plain config data — keep it out of the deep merge that
+        // clones the rest of the config, otherwise it would be flattened into a lifeless object.
+        const {camera, ...rest} = config;
+        this.config = deepMerge<IStoryConfig>(Story.defaultConfig, rest);
+        this._camera = camera ?? new Camera();
+    }
+
+    /**
+     * The story's stage camera.
+     *
+     * A single {@link Camera} that applies a transform and darken/color-grade to the whole stage
+     * as one unit, persisting across scene changes. Author camera actions like any other element:
+     * @example
+     * ```ts
+     * scene.action([
+     *     story.camera.zoom(1.5, 600),
+     *     story.camera.darken(0.5, 400),
+     * ]);
+     * ```
+     */
+    public get camera(): Camera {
+        return this._camera;
     }
 
     /**

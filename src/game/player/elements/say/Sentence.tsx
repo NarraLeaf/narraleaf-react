@@ -1,4 +1,5 @@
 import { Pause, Pausing } from "@core/elements/character/pause";
+import { TextEvent } from "@core/elements/character/textEvent";
 import { Sentence, type StaticWord } from "@core/elements/character/sentence";
 import { Word, WordConfig } from "@core/elements/character/word";
 import { Game, GameState } from "@lib/game/nlcore/common/game";
@@ -14,6 +15,7 @@ import { useDialogContext } from "./context";
 import { DialogState } from "./UIDialog";
 import { useNvlDialogState } from "../nvl/useNvlDialogState";
 import type { NvlDialogEntry } from "@player/gameState";
+import { fireTextEventOnce } from "./textEventEffect";
 
 /**@internal */
 type SplitWord = {
@@ -22,14 +24,18 @@ type SplitWord = {
     tag: any;
     tag2?: any;
     cps?: number;
-} | "\n" | Pausing;
+} | "\n" | Pausing | TextEvent;
 
-function* textUpdater(w: Word<string | Pausing>[]): Generator<SplitWord> {
-    const words: Word<string | Pausing>[] = [...w];
+function* textUpdater(w: Word<string | Pausing | TextEvent>[]): Generator<SplitWord> {
+    const words: Word<string | Pausing | TextEvent>[] = [...w];
     for (let i = 0; i < words.length; i++) {
         const word = words[i];
         if (Pause.isPause(word.text)) {
             yield Pause.from(word.text);
+            continue;
+        }
+        if (TextEvent.isTextEvent(word.text)) {
+            yield word.text;
             continue;
         }
 
@@ -61,7 +67,7 @@ type RollingTask = {
     onComplete: (listener: VoidFunction) => LiveGameEventToken;
 };
 
-type PureWord = Exclude<SplitWord, Pausing>;
+type PureWord = Exclude<SplitWord, Pausing | TextEvent>;
 type InteractionHandler = (preventDefault: () => void) => void;
 export type TextAppearanceProps = {
     /**
@@ -108,7 +114,7 @@ export interface TextsPreviewProps extends Omit<React.HTMLAttributes<HTMLDivElem
     /**
      * Already-evaluated words, useful when previewing dynamic sentence content.
      */
-    words?: Word<Pausing | string>[];
+    words?: Word<Pausing | string | TextEvent>[];
     /**
      * Whether the preview should use the rolling type effect.
      * @default true
@@ -156,11 +162,11 @@ type ResolvedTextsPreviewLoop = {
     delay: number;
 };
 
-function getGeneratedWords(words: Word<Pausing | string>[]): PureWord[] {
+function getGeneratedWords(words: Word<Pausing | string | TextEvent>[]): PureWord[] {
     const generator = textUpdater(words);
     const result: PureWord[] = [];
     for (const value of generator) {
-        if (Pause.isPause(value)) {
+        if (Pause.isPause(value) || TextEvent.isTextEvent(value)) {
             continue;
         }
         result.push(value);
@@ -170,7 +176,7 @@ function getGeneratedWords(words: Word<Pausing | string>[]): PureWord[] {
 
 function updateDisplayingWord(
     setDisplaying: React.Dispatch<React.SetStateAction<PureWord[]>>,
-    value: Exclude<SplitWord, Pausing>
+    value: Exclude<SplitWord, Pausing | TextEvent>
 ) {
     setDisplaying((prev) => {
         const last = prev[prev.length - 1];
@@ -188,8 +194,8 @@ function updateDisplayingWord(
 function getPreviewWords(
     text: TextsPreviewInput | undefined,
     sentence: Sentence | undefined,
-    words: Word<Pausing | string>[] | undefined
-): Word<Pausing | string>[] {
+    words: Word<Pausing | string | TextEvent>[] | undefined
+): Word<Pausing | string | TextEvent>[] {
     if (words) {
         return words;
     }
@@ -203,7 +209,7 @@ function getPreviewWords(
         if (typeof word.text === "function") {
             return [];
         }
-        return new Word<string | Pausing>(word.text, word.config);
+        return new Word<string | Pausing | TextEvent>(word.text, word.config);
     });
 }
 
@@ -274,6 +280,14 @@ function BaseText(
 
         return gameState.schedule(({ onCleanup }) => {
             if (!dialog.config.useTypeEffect) {
+                // Instant reveal: every position is crossed at once, so all text-event effects
+                // land immediately (the same "final state" the skip path produces).
+                const fired = new Set<TextEvent>();
+                for (const word of dialog.config.evaluatedWords) {
+                    if (word.isTextEvent()) {
+                        fireTextEventOnce(word.text, fired, gameState);
+                    }
+                }
                 dialog.dispatchComplete();
                 return;
             }
@@ -332,6 +346,9 @@ function BaseText(
         const mainTask = new Awaitable<void>();
         const timeline = new Timeline(mainTask).setGuard(gameState.guard);
         const seen = new Set<SplitWord>();
+        // Per-run idempotency guard for text-event tokens (contract 5): a token fires at most once
+        // for this typewriter run, whether it is reached by the roll or crossed by a skip.
+        const firedEvents = new Set<TextEvent>();
         const interactionHandlers: Set<InteractionHandler> = new Set();
         const completeListeners: Set<VoidFunction> = new Set();
         const updater = textUpdater(dialog!.config.evaluatedWords);
@@ -367,7 +384,7 @@ function BaseText(
                 },
             };
         };
-        const updateDisplaying = (value: Exclude<SplitWord, Pausing>) => {
+        const updateDisplaying = (value: Exclude<SplitWord, Pausing | TextEvent>) => {
             updateDisplayingWord(setDisplaying, value);
         };
 
@@ -388,6 +405,9 @@ function BaseText(
                     exited = true;
                     queue.push(value);
                     break;
+                } else if (TextEvent.isTextEvent(value)) {
+                    // A crossed token fires its effect (contract 3: skip lands the final state).
+                    fireTextEventOnce(value, firedEvents, gameState);
                 } else if (value === "\n") {
                     // Skip non-pause words
                     setDisplaying((prev) => [...prev, value]);
@@ -413,6 +433,13 @@ function BaseText(
                 if (done) {
                     exited = completed = true;
                     break;
+                }
+
+                // A text-event fires its effect the instant it is revealed (contract 2), then the
+                // typewriter moves on without rendering anything or waiting.
+                if (TextEvent.isTextEvent(value)) {
+                    fireTextEventOnce(value, firedEvents, gameState);
+                    continue;
                 }
 
                 // When the gamespeed or autoForward changes, the awaitable will be cancelled
@@ -533,7 +560,7 @@ function BaseText(
         fontStyle: sentence.config.italic ? "italic" : undefined,
     };
 
-    const calculateStyle = (word: Exclude<SplitWord, Pausing | "\n">): React.CSSProperties => ({
+    const calculateStyle = (word: Exclude<SplitWord, Pausing | TextEvent | "\n">): React.CSSProperties => ({
         fontWeight: word.config.bold
             ? resolvedFontWeightBold
             : sentence.config.bold
@@ -594,7 +621,7 @@ function BaseText(
 export type EntryTextsProps = BaseTextsProps & {
     entry: NvlDialogEntry;
     gameState: GameState;
-    words: Word<Pausing | string>[];
+    words: Word<Pausing | string | TextEvent>[];
     useTypeEffect: boolean;
     isActive: boolean;
 };
@@ -696,6 +723,9 @@ export function TextsPreview({
                     if (Pause.isPause(value)) {
                         const pause = Pause.from(value);
                         await wait((pause.config.duration ?? resolvedPauseDuration) / safeGameSpeed);
+                    } else if (TextEvent.isTextEvent(value)) {
+                        // Previews are side-effect free: a token reveals nothing and fires nothing.
+                        continue;
                     } else {
                         updateDisplayingWord(setDisplaying, value);
                         if (value === "\n") {
@@ -735,7 +765,7 @@ export function TextsPreview({
         fontFamily: sentenceConfig?.fontFamily ?? fontFamily,
         fontStyle: sentenceConfig?.italic ? "italic" : undefined,
     };
-    const calculateStyle = (word: Exclude<SplitWord, Pausing | "\n">): React.CSSProperties => ({
+    const calculateStyle = (word: Exclude<SplitWord, Pausing | TextEvent | "\n">): React.CSSProperties => ({
         fontWeight: word.config.bold
             ? resolvedFontWeightBold
             : sentenceConfig?.bold

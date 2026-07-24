@@ -29,7 +29,7 @@ import {
     SoundActionContentType, SoundActionTypes,
     StoryActionContentType,
     StoryActionTypes,
-    TextActionContentType, TextActionTypes, VideoActionContentType, VideoActionTypes
+    TextActionContentType, TextActionTypes, VfxActionContentType, VfxActionTypes, VideoActionContentType, VideoActionTypes
 } from "@core/action/actionTypes";
 import type {CharacterAction} from "@core/action/actions/characterAction";
 import type {SceneAction} from "@core/action/actions/sceneAction";
@@ -50,14 +50,17 @@ import type {ServiceSkeleton} from "@core/elements/service";
 import type {ServiceAction, ServiceActionContentType} from "@core/action/serviceAction";
 import type {Layer} from "@core/elements/layer";
 import type {LayerAction} from "@core/action/actions/layerAction";
+import type {Camera} from "@core/elements/camera";
 import type {ExposedStateType} from "@player/type";
 import type {Video} from "@core/elements/video";
 import type {VideoAction} from "@core/action/actions/videoAction";
+import type {Vfx} from "@core/elements/vfx";
+import type {VfxAction} from "@core/action/actions/vfxAction";
 
 // Define the interface first
 export interface LogicActionInterface {
-    DisplayableElements: Text | Image | Layer | AbstractDisplayable<any, any>;
-    DisplayableExposed: ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text;
+    DisplayableElements: Text | Image | Layer | Camera | AbstractDisplayable<any, any>;
+    DisplayableExposed: ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text | ExposedStateType.camera;
     GameElement: Character
         | Scene
         | Story
@@ -68,10 +71,13 @@ export interface LogicActionInterface {
         | Sound
         | Control
         | Text
+        | Layer
+        | Camera
         | AbstractDisplayable<any, any>
         | Persistent<any>
         | ServiceSkeleton
-        | Video;
+        | Video
+        | Vfx;
     Actions: TypedAction
         | CharacterAction
         | ConditionAction
@@ -87,7 +93,8 @@ export interface LogicActionInterface {
         | PersistentAction
         | ServiceAction
         | LayerAction
-        | VideoAction;
+        | VideoAction
+        | VfxAction;
     ActionTypes: Values<typeof CharacterActionTypes>
         | Values<typeof ConditionActionTypes>
         | Values<typeof ImageActionTypes>
@@ -102,7 +109,8 @@ export interface LogicActionInterface {
         | Values<typeof PersistentActionTypes>
         | StringKeyOf<ServiceActionContentType>
         | Values<typeof LayerActionTypes>
-        | Values<typeof VideoActionTypes>;
+        | Values<typeof VideoActionTypes>
+        | Values<typeof VfxActionTypes>;
     ActionContents: CharacterActionContentType
         & ConditionActionContentType
         & ImageActionContentType
@@ -117,7 +125,8 @@ export interface LogicActionInterface {
         & PersistentActionContentType
         & ServiceActionContentType
         & LayerActionContentType
-        & VideoActionContentType;
+        & VideoActionContentType
+        & VfxActionContentType;
 }
 
 export const LogicAction = {
@@ -125,8 +134,8 @@ export const LogicAction = {
 
 // Define and export the namespace type
 export namespace LogicAction {
-    export type DisplayableElements = Text | Image | Layer | AbstractDisplayable<any, any>;
-    export type DisplayableExposed = ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text;
+    export type DisplayableElements = Text | Image | Layer | Camera | AbstractDisplayable<any, any>;
+    export type DisplayableExposed = ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text | ExposedStateType.camera;
     export type GameElement = Character
         | Scene
         | Story
@@ -137,10 +146,13 @@ export namespace LogicAction {
         | Sound
         | Control
         | Text
+        | Layer
+        | Camera
         | AbstractDisplayable<any, any>
         | Persistent<any>
         | ServiceSkeleton
-        | Video;
+        | Video
+        | Vfx;
     export type Actions = TypedAction
         | CharacterAction
         | ConditionAction
@@ -156,7 +168,8 @@ export namespace LogicAction {
         | PersistentAction
         | ServiceAction
         | LayerAction
-        | VideoAction;
+        | VideoAction
+        | VfxAction;
     export type ActionTypes = Values<typeof CharacterActionTypes>
         | Values<typeof ConditionActionTypes>
         | Values<typeof ImageActionTypes>
@@ -171,7 +184,8 @@ export namespace LogicAction {
         | Values<typeof PersistentActionTypes>
         | StringKeyOf<ServiceActionContentType>
         | Values<typeof LayerActionTypes>
-        | Values<typeof VideoActionTypes>;
+        | Values<typeof VideoActionTypes>
+        | Values<typeof VfxActionTypes>;
     export type ActionContents = CharacterActionContentType
         & ConditionActionContentType
         & ImageActionContentType
@@ -186,7 +200,8 @@ export namespace LogicAction {
         & PersistentActionContentType
         & ServiceActionContentType
         & LayerActionContentType
-        & VideoActionContentType;
+        & VideoActionContentType
+        & VfxActionContentType;
 }
 
 // Export the type

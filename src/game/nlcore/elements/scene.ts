@@ -6,7 +6,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {EmptyObject} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, SoundType, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
-import {SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
+import {ControlActionTypes, SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
 import {Control} from "@core/elements/control";
 import {Chained, Proxied} from "@core/action/chain";
@@ -214,6 +214,12 @@ export class Scene extends Constructable<
     private readonly userConfig: Config<ISceneUserConfig, EmptyObject>;
     /**@internal */
     private _futureActions_: LogicAction.Actions[] = [];
+    /**
+     * Named jump points ({@link Control.label}) declared in this scene, keyed by label name.
+     * Built once at construction by {@link constructLabels}; used to resolve {@link Control.jump}.
+     * @internal
+     */
+    private labelMap: Map<string, LogicAction.Actions> = new Map();
 
     /**@internal */
     get __futureActions__() {
@@ -275,7 +281,7 @@ export class Scene extends Constructable<
      * @example
      * ```ts
      * scene.action([
-     *     scene.setBackground("#000", new FadeIn(1000))
+     *     scene.setBackground("#000", new FadeIn({duration: 1000}))
      * ]);
      * ```
      */
@@ -294,7 +300,7 @@ export class Scene extends Constructable<
      * @example
      * ```ts
      * scene.action([
-     *     scene.jumpTo(nextScene, new FadeIn(800))
+     *     scene.jumpTo(nextScene, new FadeIn({duration: 800}))
      * ]);
      * ```
      */
@@ -550,7 +556,59 @@ export class Scene extends Constructable<
         this.sceneRoot?.setContentNode(sceneRoot);
         this._futureActions_ = futureActions;
 
+        this.constructLabels(story);
+
         return this;
+    }
+
+    /**
+     * Collect this scene's {@link Control.label} markers and resolve every {@link Control.jump}
+     * to its target — both scoped to this scene (`allowFutureScene: false`), so label names are
+     * scene-local and a jump can only target a label declared in the same scene.
+     *
+     * Runs at construction so a duplicate label or an unknown jump target fails the build rather
+     * than surfacing mid-play.
+     * @internal
+     */
+    private constructLabels(story: Story): void {
+        const actions = this.getAllChildren(story, this.sceneRoot || [], {allowFutureScene: false});
+
+        const labels = new Map<string, LogicAction.Actions>();
+        for (const action of actions) {
+            if (action instanceof ControlAction && action.type === ControlActionTypes.label) {
+                const [name] = action.contentNode.getContent() as [string];
+                if (labels.has(name)) {
+                    throw new StaticScriptWarning(
+                        `Duplicate label "${name}" in scene "${this.config.name}". `
+                        + "Label names must be unique within a scene."
+                    );
+                }
+                labels.set(name, action);
+            }
+        }
+        this.labelMap = labels;
+
+        for (const action of actions) {
+            if (action instanceof ControlAction && action.type === ControlActionTypes.jump) {
+                const [name] = action.contentNode.getContent() as [string];
+                const target = labels.get(name);
+                if (!target) {
+                    throw new StaticScriptWarning(
+                        `Jump target label "${name}" not found in scene "${this.config.name}". `
+                        + "Control.jump can only jump to a Control.label declared in the same scene."
+                    );
+                }
+                (action as ControlAction<"control:jump">).setJumpTarget(target);
+            }
+        }
+    }
+
+    /**
+     * The {@link Control.label} action registered under `name` in this scene, or `null`.
+     * @internal
+     */
+    getLabel(name: string): LogicAction.Actions | null {
+        return this.labelMap.get(name) || null;
     }
 
     /**@internal */
