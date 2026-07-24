@@ -11,11 +11,30 @@ import { Game } from "@core/common/game";
 import { GameState } from "@player/gameState";
 import { Timeline } from "@player/Tasks";
 import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
-import { StackModel } from "@core/action/stackModel";
+import { StackModel, StackModelRawData } from "@core/action/stackModel";
+import { RuntimeInternalError } from "@core/common/Utils";
 
 export class ControlAction<T extends typeof ControlActionTypes[keyof typeof ControlActionTypes] = typeof ControlActionTypes[keyof typeof ControlActionTypes]>
     extends TypedAction<ControlActionContentType, T, Control> {
     static ActionTypes = ControlActionTypes;
+
+    /**
+     * Jump target resolved at story-construction time (see {@link Scene.constructLabels}).
+     * Only set on `control:jump` actions; the target is the `control:label` action to resume at.
+     * @internal
+     */
+    private _jumpTarget: LogicAction.Actions | null = null;
+
+    /**@internal */
+    setJumpTarget(target: LogicAction.Actions): this {
+        this._jumpTarget = target;
+        return this;
+    }
+
+    /**@internal */
+    getJumpTarget(): LogicAction.Actions | null {
+        return this._jumpTarget;
+    }
 
     public static executeActionsAsync(gameState: GameState, action: LogicAction.Actions): Awaitable<void> {
         const stackModel = gameState.game.getLiveGame().requestAsyncStackModel([{
@@ -289,6 +308,39 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             });
 
             return awaitable;
+        } else if (this.type === ControlActionTypes.label) {
+            // A label is an invisible marker: it just passes through to the next action.
+            return super.executeAction(gameState, injection);
+        } else if (this.type === ControlActionTypes.jump) {
+            // In-scene jump. Mirrors scene:jumpTo (clear the main stack, push the target node),
+            // but stays inside the current scene — nothing is unloaded or re-initialized, only the
+            // play head moves. The target is resolved once at construction (Scene.constructLabels).
+            const target = this._jumpTarget;
+            if (!target) {
+                const [name] = (this.contentNode as ContentNode<ControlActionContentType["control:jump"]>).getContent();
+                throw new RuntimeInternalError(`Jump target label "${name}" was not resolved. `
+                    + "This usually means the story was not constructed before playing.");
+            }
+
+            const liveGame = gameState.getLiveGame();
+            const stackSnapshot = liveGame.getStackModelForce().serialize();
+            gameState.actionHistory.push<[StackModelRawData]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevStackSnapshot) => {
+                const [actionMaps] = liveGame.constructMaps();
+                liveGame.getStackModelForce().deserialize(prevStackSnapshot, actionMaps);
+            }, [stackSnapshot]);
+
+            liveGame
+                .clearMainStack()
+                .getStackModelForce()
+                .push({
+                    type: this.type,
+                    node: target.contentNode
+                });
+
+            return null;
         }
 
         throw new Error("Unknown control action type: " + this.type);
@@ -299,8 +351,15 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             return [...super.getFutureActions(story, options)];
         }
 
-        // break and waitForClick have no body actions
-        if (this.type === ControlActionTypes.break || this.type === ControlActionTypes.waitForClick) {
+        // break/waitForClick have no body actions; label/jump carry a name string, not actions.
+        // A jump deliberately does NOT expand its target here — the target is reachable through the
+        // normal child chain, and following it would let backward jumps cycle the static walkers.
+        if (
+            this.type === ControlActionTypes.break
+            || this.type === ControlActionTypes.waitForClick
+            || this.type === ControlActionTypes.label
+            || this.type === ControlActionTypes.jump
+        ) {
             return super.getFutureActions(story, options);
         }
 
@@ -316,6 +375,12 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
         }
         if (this.type === ControlActionTypes.waitForClick) {
             return super.stringifyWithContent("Control", "waitForClick");
+        }
+        // label/jump carry a name string rather than a body of actions
+        if (this.type === ControlActionTypes.label || this.type === ControlActionTypes.jump) {
+            const [name] = this.contentNode.getContent() as [string];
+            const verb = this.type === ControlActionTypes.label ? "label" : "jump";
+            return super.stringifyWithContent("Control", `${verb}(${name})`);
         }
 
         const contentNode = this.contentNode as ContentNode<ControlActionContentType[T]>;

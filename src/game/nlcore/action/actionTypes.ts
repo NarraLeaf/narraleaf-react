@@ -163,6 +163,8 @@ export const ControlActionTypes = {
     break: "control:break",
     sleep: "control:sleep",
     waitForClick: "control:waitForClick",
+    label: "control:label",
+    jump: "control:jump",
 } as const;
 export type ControlActionContentType = {
     [K in typeof ControlActionTypes[keyof typeof ControlActionTypes]]:
@@ -177,6 +179,8 @@ export type ControlActionContentType = {
     K extends "control:break" ? [] :
     K extends "control:sleep" ? [LogicAction.Actions[], number | Awaitable<any> | Promise<any>] :
     K extends "control:waitForClick" ? [] :
+    K extends "control:label" ? [string] :
+    K extends "control:jump" ? [string] :
     any;
 }
 export const TextActionTypes = {
