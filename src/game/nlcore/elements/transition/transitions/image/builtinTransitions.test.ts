@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vitest";
 import {
     BlurDissolve,
+    Darkness,
     Dissolve,
     FadeIn,
     Mask,
@@ -8,8 +9,6 @@ import {
     Reveal,
     ThroughColor,
 } from "narraleaf-react";
-// Not exported from the barrel: internal, drives `image.darken(x, duration)`.
-import {Darkness} from "@core/elements/transition/transitions/image/darkness";
 
 // The resolver entries produced by asPrev/asTarget are wrapped as
 // `{ resolver, key }`; a bare resolver (the through-colour overlay layer) is a
@@ -112,7 +111,7 @@ describe("what a transition can leave on a layered stack", () => {
             const style = callWith(target, 1, 0, 0).style;
             if ("opacity" in style) expect(style.opacity, inst.constructor.name).toBe(1);
             if ("translate" in style) {
-                // Identity, whatever unit it is spelled in (Push travels in vw/vh, FadeIn in px).
+                // Identity, whatever unit it is spelled in (Push travels in %, FadeIn in px).
                 const axes = String(style.translate).split(" ").map(parseFloat);
                 expect(axes, inst.constructor.name).toEqual([0, 0]);
             }
@@ -130,16 +129,71 @@ describe("built-in image transitions", () => {
         expect(call(task.resolve[1], 1).style).toMatchObject({opacity: 1, filter: "blur(0px)"});
     });
 
-    it("Push: uses the independent `translate` property, no offset at rest", () => {
-        const task = prepared(new Push({duration: 400, direction: "left"})).createTask() as any;
-        expect(task.resolve).toHaveLength(2);
-        expect(call(task.resolve[0], 0).style.transform).toBeUndefined();
-        expect(call(task.resolve[0], 0).style.translate).toBe("0vw 0px");
-        expect(call(task.resolve[0], 1).style.translate).toBe("-100vw 0px");
-        expect(call(task.resolve[1], 0).style.translate).toBe("100vw 0px");
-        expect(call(task.resolve[1], 1).style.translate).toBe("0vw 0px");
-        expect(call(prepared(new Push({duration: 400, direction: "bottom"})).createTask().resolve[1] as ResolverEntry, 0).style.translate)
-            .toBe("0px -100vh");
+    describe("Push", () => {
+        // resolve[0] = asPrev (the outgoing image, exit phase);
+        // resolve[1] = asTarget (the incoming image, enter phase).
+        //
+        // Every travel is a percentage of the layer's *own* size, never a viewport unit. The driven
+        // element is the letterboxed transition stack wrapper (`inset: 0` in Image.tsx `stackStyle`),
+        // so a `vw`/`vh` travel is measured against the window and overshoots the stage whenever the
+        // window aspect differs from the design aspect, exposing the backdrop mid-slide. `%` is the
+        // identity at rest and lands exactly one stage width/height away at full travel.
+        const cases = [
+            {direction: "left", prevRest: "0% 0px", prevOff: "-100% 0px", targetOff: "100% 0px", targetRest: "0% 0px"},
+            {direction: "right", prevRest: "0% 0px", prevOff: "100% 0px", targetOff: "-100% 0px", targetRest: "0% 0px"},
+            {direction: "top", prevRest: "0px 0%", prevOff: "0px -100%", targetOff: "0px 100%", targetRest: "0px 0%"},
+            {direction: "bottom", prevRest: "0px 0%", prevOff: "0px 100%", targetOff: "0px -100%", targetRest: "0px 0%"},
+        ] as const;
+
+        for (const c of cases) {
+            it(`${c.direction}: slides both images a full % of the stage, identity at rest`, () => {
+                const task = prepared(new Push({duration: 400, direction: c.direction})).createTask() as any;
+                expect(task.resolve).toHaveLength(2);
+                const [prev, target] = task.resolve as ResolverEntry[];
+                // Uses the independent `translate` property, never `transform` (which would clobber
+                // the wrapper's base positioning).
+                expect(call(prev, 0).style.transform).toBeUndefined();
+                // Exit: at rest (t=0) → off toward `direction` (t=1).
+                expect(call(prev, 0).style.translate).toBe(c.prevRest);
+                expect(call(prev, 1).style.translate).toBe(c.prevOff);
+                // Enter: off the opposite edge (t=0) → at rest (t=1).
+                expect(call(target, 0).style.translate).toBe(c.targetOff);
+                expect(call(target, 1).style.translate).toBe(c.targetRest);
+                // The unit is percentages, never viewport units — the whole point of the fix.
+                expect(call(prev, 1).style.translate).not.toMatch(/vw|vh/);
+                expect(call(target, 0).style.translate).not.toMatch(/vw|vh/);
+            });
+        }
+    });
+
+    describe("Darkness", () => {
+        // Exported from the public barrel (imported above from "narraleaf-react"): the transition
+        // behind `image.darken(amount, duration)`. Smoke-tests construction + the driven channel;
+        // its behaviour is otherwise unchanged by the export.
+        it("one brightness channel running from `from` to `to`", () => {
+            const task = prepared(new Darkness({from: 0.2, to: 0.8, duration: 500})).createTask() as any;
+            expect(task.animations).toHaveLength(1);
+            expect(task.animations[0]).toMatchObject({start: 0.2, end: 0.8, duration: 500});
+            expect(task.resolve).toHaveLength(2);
+        });
+
+        it("darkens the incoming image via a brightness() filter, dropping the outgoing one", () => {
+            // resolve[0] is the target (darkened in place); resolve[1] is the prev (removed at once).
+            const [target, prev] = prepared(new Darkness({from: 0, to: 1, duration: 500})).createTask().resolve as ResolverEntry[];
+            expect(call(target, 0).style.filter).toBe("brightness(1)"); // darkness 0 → untouched
+            expect(call(target, 1).style.filter).toBe("brightness(0)"); // darkness 1 → fully black
+            expect(call(prev, 0).style.opacity).toBe(0);
+        });
+
+        it("copy() returns an equivalent independent instance", () => {
+            const original = new Darkness({from: 0.1, to: 0.6, duration: 300, easing: "easeOut"});
+            const clone = original.copy();
+            expect(clone).not.toBe(original);
+            expect(clone).toBeInstanceOf(Darkness);
+            const filterAt = (inst: Darkness, d: number) =>
+                call(prepared(inst).createTask().resolve[0] as ResolverEntry, d).style.filter;
+            expect(filterAt(clone, 0.5)).toBe(filterAt(original, 0.5));
+        });
     });
 
     describe("Dissolve", () => {

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.16.1]
+
+### _Feature_
+
+- The `Darkness` transition — which backs `image.darken(amount, duration)` by animating an image's brightness between two darkness levels — is now exported from `narraleaf-react` alongside the other built-in transitions. Its behaviour is unchanged; only the public export (and its `DarknessOptions` type) is new.
+
+### Fixed
+
+- `Push` now slides in percentages of the layer's own size instead of viewport units (`vw`/`vh`). The element a `Push` drives is the transition stack wrapper, which is `inset: 0` inside the letterboxed stage box, so a `100vw`/`100vh` travel is measured against the window and overshoots the stage whenever the window aspect ratio differs from the design aspect ratio — leaving both images off-stage mid-slide and exposing the backdrop behind them. Percentages are measured against the wrapper itself, so a full slide always lands exactly one stage width/height away regardless of window shape. The offset is still applied via the independent `translate` property (identity at rest), so nothing about the API changes.
+
 ## [0.16.0]
 
 ### _Feature_
