@@ -22,13 +22,14 @@ export type PushOptions = {
  * additively with the layer's base positioning instead of overriding it, and is
  * the identity at offset `0`, so neither image jumps at the start/end of the slide.
  *
- * Percentages — not viewport units — matter here: the element this drives is the
- * transition stack wrapper, which is `inset: 0` inside the letterboxed stage box
- * (see `Image.tsx` `stackStyle`). A `100vw`/`100vh` travel is measured against the
- * *window*, so whenever the window aspect differs from the design aspect the slide
- * overshoots the stage and exposes the backdrop mid-transition. `100%` is measured
- * against the wrapper itself, so a full slide lands exactly one stage width/height
- * away regardless of window shape.
+ * Percentages — not viewport units — matter here: whichever element this drives
+ * lives inside the letterboxed stage box. On the layered render path that element
+ * is the transition stack wrapper (`inset: 0`, see `Image.tsx` `stackStyle`); on the
+ * non-layered path the style is applied to the `<img>` itself. A `100vw`/`100vh`
+ * travel is measured against the *window*, so whenever the window aspect differs
+ * from the design aspect the slide overshoots the stage and exposes the backdrop
+ * mid-transition. `100%` is measured against that element, so either way a full
+ * slide lands exactly one stage width/height away regardless of window shape.
  */
 export class Push extends ImageTransition<AnimationType> {
     private duration: number;
