@@ -3,6 +3,7 @@ import type {GameState} from "@player/gameState";
 import {Sentence} from "@core/elements/character/sentence";
 import { Word } from "@core/elements/character/word";
 import { Pausing } from "@core/elements/character/pause";
+import { TextEvent } from "@core/elements/character/textEvent";
 import React from "react";
 import type { HTMLMotionProps } from "motion/react";
 
@@ -10,7 +11,7 @@ export interface SayElementProps {
     action: {
         sentence: Sentence | null;
         character: Character | null;
-        words: Word<Pausing | string>[] | null;
+        words: Word<Pausing | string | TextEvent>[] | null;
         id?: string;
     }
     /**
@@ -49,7 +50,7 @@ export interface DialogContext {
     action: {
         sentence: Sentence | null;
         character: Character | null;
-        words: Word<Pausing | string>[] | null;
+        words: Word<Pausing | string | TextEvent>[] | null;
     };
     state: DialogStateType;
 }
@@ -57,7 +58,7 @@ export interface DialogContext {
 export type DialogAction = {
     sentence: Sentence | null;
     character: Character | null;
-    words: Word<Pausing | string>[] | null;
+    words: Word<Pausing | string | TextEvent>[] | null;
     id?: string;
 }
 

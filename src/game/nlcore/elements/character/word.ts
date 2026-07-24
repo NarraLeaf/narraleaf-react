@@ -3,6 +3,7 @@ import {deepMerge} from "@lib/util/data";
 import {DynamicWord} from "@core/elements/character/sentence";
 import {ScriptCtx} from "@core/elements/script";
 import {Pause, Pausing} from "@core/elements/character/pause";
+import {TextEvent} from "@core/elements/character/textEvent";
 
 export type WordConfig = {
     className: string;
@@ -12,7 +13,7 @@ export type WordConfig = {
     cps?: number;  // characters per second
 } & Font;
 
-export class Word<T extends string | DynamicWord | Pausing = string | DynamicWord | Pausing> {
+export class Word<T extends string | DynamicWord | Pausing | TextEvent = string | DynamicWord | Pausing | TextEvent> {
     /**@internal */
     static defaultConfig: Partial<WordConfig> = {};
     /**@internal */
@@ -61,9 +62,9 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
     }
 
     /**@internal */
-    static getText(words: Word<Pausing | string>[]): string {
+    static getText(words: Word<Pausing | string | TextEvent>[]): string {
         return words
-            .filter(word => !word.isPause())
+            .filter(word => !word.isPause() && !word.isTextEvent())
             .map(word => word.toString())
             .join("");
     }
@@ -84,9 +85,11 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
     }
 
     /**@internal */
-    evaluate(ctx: ScriptCtx): Word<string | Pausing>[] {
+    evaluate(ctx: ScriptCtx): Word<string | Pausing | TextEvent>[] {
         if (Pause.isPause(this.text)) {
             return [this as Word<Pausing>];
+        } else if (TextEvent.isTextEvent(this.text)) {
+            return [this as Word<TextEvent>];
         } else if (typeof this.text === "function") {
             const texts: string | Word | Pausing | (string | Word | Pausing)[] = this.text(ctx);
             if (Array.isArray(texts)) {
@@ -128,6 +131,11 @@ export class Word<T extends string | DynamicWord | Pausing = string | DynamicWor
     /**@internal */
     isPause(): this is Word<Pausing> {
         return Pause.isPause(this.text);
+    }
+
+    /**@internal */
+    isTextEvent(): this is Word<TextEvent> {
+        return TextEvent.isTextEvent(this.text);
     }
 
     /**

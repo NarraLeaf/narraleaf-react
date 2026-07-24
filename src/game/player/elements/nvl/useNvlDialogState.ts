@@ -7,11 +7,12 @@ import { GameState } from "@player/gameState";
 import type { NvlDialogEntry } from "@player/gameState";
 import type { Word } from "@core/elements/character/word";
 import type { Pausing } from "@core/elements/character/pause";
+import type { TextEvent } from "@core/elements/character/textEvent";
 
 type UseNvlDialogStateParams = {
     entry: NvlDialogEntry;
     gameState: GameState;
-    words: Word<Pausing | string>[];
+    words: Word<Pausing | string | TextEvent>[];
     isActive: boolean;
     useTypeEffect: boolean;
 };

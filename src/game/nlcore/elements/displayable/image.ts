@@ -609,6 +609,33 @@ export class Image<
         return resultTags;
     }
 
+    /**
+     * Apply an appearance to the image STATE synchronously — no transition, no action history,
+     * no stack model. Mirrors the resolution {@link Image.char} performs before dispatching an
+     * `ImageAction`: a `src`/`Color` replaces `currentSrc` directly; a tag list resolves against
+     * the current appearance. The caller is responsible for the follow-up repaint
+     * (`stage.update()` + `updateStyleSync()`/`flush()`).
+     *
+     * Used by text-event tokens, whose effect must land on element state (which is serialized)
+     * without ever entering the execution stack.
+     * @internal
+     */
+    _setAppearanceSync(appearance: ImageSrc | Color | string[]): void {
+        if (Utils.isImageSrc(appearance) || Utils.isColor(appearance)) {
+            if (Utils.isColor(appearance) && !this.config.isBackground) {
+                throw new RuntimeScriptError("Color src is not allowed for non-background image");
+            }
+            this.state.currentSrc = appearance as typeof this.state.currentSrc;
+            return;
+        }
+        if (!Image.isTagSrc(this)) {
+            throw this._mixedSrcError();
+        }
+        const oldTags = this.state.currentSrc as string[];
+        const newTags = this.resolveTags(oldTags, appearance);
+        this.state.currentSrc = newTags as typeof this.state.currentSrc;
+    }
+
     /**@internal */
     _mixedSrcError(): TypeError {
         throw new RuntimeScriptError(

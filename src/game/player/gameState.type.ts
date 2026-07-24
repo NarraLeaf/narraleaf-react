@@ -3,6 +3,7 @@ import {Choice} from "@core/elements/menu";
 import {Sentence} from "@core/elements/character/sentence";
 import {Word} from "@core/elements/character/word";
 import {Pausing} from "@core/elements/character/pause";
+import {TextEvent} from "@core/elements/character/textEvent";
 
 /**@internal */
 export type Clickable<T, U = undefined> = {
@@ -14,11 +15,11 @@ export type TextElement = {
     character: Character | null;
     sentence: Sentence;
     id: string;
-    words: Word<Pausing | string>[];
+    words: Word<Pausing | string | TextEvent>[];
 };
 /**@internal */
 export type MenuElement = {
     prompt: Sentence | null;
     choices: Choice[];
-    words: Word<Pausing | string>[] | null;
+    words: Word<Pausing | string | TextEvent>[] | null;
 };
