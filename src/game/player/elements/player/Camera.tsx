@@ -41,6 +41,13 @@ export function Camera(
                 width: "100%",
                 height: "100%",
                 transformOrigin: "center",
+                // Clip the stage content to the stage rectangle *inside* the camera transform, so the
+                // clip rotates/scales/pans together with the camera. Without this the only clip is the
+                // stage viewport (mainContentRef), which never rotates — so a sprite that extends past
+                // the background (e.g. feet below the frame, normally hidden by the viewport) swings
+                // into view the moment the camera is rotated. The viewport still clips the transformed
+                // camera to the screen on top of this.
+                overflow: "hidden",
             }
         }],
     });
