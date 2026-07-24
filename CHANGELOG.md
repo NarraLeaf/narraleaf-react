@@ -29,6 +29,29 @@
 
   `Camera` is exported from `narraleaf-react`.
 
+- **In-scene jumping** with `Control.label` and `Control.jump`. Until now the only way to redirect the story was `Scene.jumpTo`, which unloads the current scene and starts another. `Control.jump` moves the play head to a named point *inside the same scene* — nothing is unloaded or re-initialized, so backgrounds, sprites, and music stay exactly as they are.
+
+  Mark a point with `Control.label(name)` (an invisible marker that just passes through at runtime) and jump to it with `Control.jump(name)`:
+
+  ```ts
+  scene.action([
+      Control.label("start"),
+      character.say("Where to?"),
+      Menu.prompt("Choose")
+          .choose("Look around", [
+              character.say("Nothing here yet."),
+              Control.jump("start"),   // back to the label, same scene
+          ])
+          .choose("Leave", [
+              scene.jumpTo(nextScene),
+          ]),
+  ]);
+  ```
+
+  Label names are scoped to the scene they are declared in, so the same name can be reused across different scenes, and a jump can only target a label in its own scene. Both are validated at story-construction time: declaring the same label name twice in one scene, or jumping to a label that does not exist, fails the build rather than surfacing mid-play. Jumps are captured by save/load and undo like any other action.
+
+  `Control.jump` redirects the main story flow, so place it as the last action of a branch (e.g. a menu choice); for looping a scene, drive the loop through a menu or condition rather than jumping out of a `repeat`/`while` body. Both `label` and `jump` are available as chainable methods and as static `Control.label(...)` / `Control.jump(...)`.
+
 ### Fixed
 
 - `Control.do([])` and `Control.doAsync([])` no longer crash on an empty action list. An empty `do` body threw twice — once during preload prediction and once on execution — and an empty `doAsync` body threw on execution; all three now advance past the empty statement. (`any`, `all`, and `allAsync` already handled empty lists.)

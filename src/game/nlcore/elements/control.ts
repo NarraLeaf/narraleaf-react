@@ -149,6 +149,49 @@ export class Control extends Actionable {
         return new Control().waitForClick();
     }
 
+    /**
+     * Mark a named point inside the current scene that {@link Control.jump} can jump to.
+     * A label is invisible at runtime — it simply passes through to the next action.
+     *
+     * Label names are scoped to the scene they are declared in, so the same name may be
+     * reused across different scenes. Declaring the same name twice in one scene is an error.
+     * @param name - The label name, unique within its scene.
+     * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     Control.label("intro"),
+     *     character.say("Let's begin."),
+     * ]);
+     * ```
+     */
+    public static label(name: string): ChainedControl {
+        return new Control().label(name);
+    }
+
+    /**
+     * Jump to a {@link Control.label} elsewhere in the same scene and resume playing from there.
+     *
+     * Unlike {@link Scene.jumpTo}, this stays inside the current scene — no scene is unloaded or
+     * re-initialized, only the play head moves. The jump target must be a label declared in the
+     * same scene, otherwise the story fails to build.
+     * @param name - The name of the target label, declared in the same scene.
+     * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     Control.label("start"),
+     *     menu("Again?", [
+     *         choice("Yes", [Control.jump("start")]),
+     *         choice("No", []),
+     *     ]),
+     * ]);
+     * ```
+     */
+    public static jump(name: string): ChainedControl {
+        return new Control().jump(name);
+    }
+
     constructor(/**@internal */public config: Partial<ControlConfig> = {}) {
         super();
     }
@@ -244,6 +287,32 @@ export class Control extends Actionable {
             this.chain(),
             ControlAction.ActionTypes.waitForClick,
             new ContentNode().setContent([])
+        );
+        return this.chain(action);
+    }
+
+    /**
+     * Mark a named point inside the current scene that {@link Control.jump} can jump to.
+     * @chainable
+     */
+    public label(name: string): ChainedControl {
+        const action = new ControlAction(
+            this.chain(),
+            ControlAction.ActionTypes.label,
+            new ContentNode().setContent([name])
+        );
+        return this.chain(action);
+    }
+
+    /**
+     * Jump to a {@link Control.label} in the same scene and resume playing from there.
+     * @chainable
+     */
+    public jump(name: string): ChainedControl {
+        const action = new ControlAction(
+            this.chain(),
+            ControlAction.ActionTypes.jump,
+            new ContentNode().setContent([name])
         );
         return this.chain(action);
     }
