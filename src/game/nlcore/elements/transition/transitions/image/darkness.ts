@@ -15,8 +15,12 @@ export type DarknessOptions = {
 };
 
 /**
- * Darken the original image and fade in the target image at the same time.
- * Internal: drives `image.darken(x, duration)`.
+ * A brightness-dim transition: swaps to the incoming image and animates its
+ * brightness from `1 - from` to `1 - to` (darkness `0` leaves it untouched, `1`
+ * drives it fully black), replacing the outgoing image at once.
+ *
+ * This is what backs `image.darken(amount, duration)` — darkening an image in
+ * place is expressed as a transition from its current darkness to the new one.
  */
 export class Darkness extends ImageTransition<AnimationType> {
     private from: number;

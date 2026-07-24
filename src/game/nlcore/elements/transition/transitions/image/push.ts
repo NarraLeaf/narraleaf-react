@@ -18,9 +18,18 @@ export type PushOptions = {
  * image slides out the opposite way, as if the camera panned.
  *
  * The offset is applied via the independent CSS `translate` property (not
- * `transform`) in viewport units. That composes additively with the layer's
- * base positioning instead of overriding it, and is the identity at offset `0`,
- * so neither image jumps at the start/end of the slide.
+ * `transform`) in **percentages of the layer's own size**. That composes
+ * additively with the layer's base positioning instead of overriding it, and is
+ * the identity at offset `0`, so neither image jumps at the start/end of the slide.
+ *
+ * Percentages — not viewport units — matter here: whichever element this drives
+ * lives inside the letterboxed stage box. On the layered render path that element
+ * is the transition stack wrapper (`inset: 0`, see `Image.tsx` `stackStyle`); on the
+ * non-layered path the style is applied to the `<img>` itself. A `100vw`/`100vh`
+ * travel is measured against the *window*, so whenever the window aspect differs
+ * from the design aspect the slide overshoots the stage and exposes the backdrop
+ * mid-transition. `100%` is measured against that element, so either way a full
+ * slide lands exactly one stage width/height away regardless of window shape.
  */
 export class Push extends ImageTransition<AnimationType> {
     private duration: number;
@@ -34,28 +43,28 @@ export class Push extends ImageTransition<AnimationType> {
         this.easing = options.easing;
     }
 
-    private axisUnit(): { axis: "x" | "y"; unit: "vw" | "vh"; sign: number } {
+    private axisSign(): { axis: "x" | "y"; sign: number } {
         switch (this.direction) {
         case "right":
-            return {axis: "x", unit: "vw", sign: 1};
+            return {axis: "x", sign: 1};
         case "top":
-            return {axis: "y", unit: "vh", sign: -1};
+            return {axis: "y", sign: -1};
         case "bottom":
-            return {axis: "y", unit: "vh", sign: 1};
+            return {axis: "y", sign: 1};
         case "left":
         default:
-            return {axis: "x", unit: "vw", sign: -1};
+            return {axis: "x", sign: -1};
         }
     }
 
     private translate(offset: number): CSSProps {
-        const {axis, unit} = this.axisUnit();
-        const value = `${offset}${unit}`;
+        const {axis} = this.axisSign();
+        const value = `${offset}%`;
         return {translate: axis === "x" ? `${value} 0px` : `0px ${value}`};
     }
 
     createTask(): TransitionTask<HTMLImageElement, AnimationType> {
-        const {sign} = this.axisUnit();
+        const {sign} = this.axisSign();
         return {
             animations: [{
                 type: TransitionAnimationType.Number,

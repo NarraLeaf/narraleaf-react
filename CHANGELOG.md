@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.16.1]
+
+### _Feature_
+
+- The `Darkness` transition — which backs `image.darken(amount, duration)` by animating an image's brightness between two darkness levels — is now exported from `narraleaf-react` alongside the other built-in transitions. Its behaviour is unchanged; only the public export (and its `DarknessOptions` type) is new.
+
+### Fixed
+
+- `Push` now slides in percentages of the layer's own size instead of viewport units (`vw`/`vh`). The element a `Push` drives lives inside the letterboxed stage box, so a `100vw`/`100vh` travel — measured against the *window* — overshoots the stage whenever the window aspect ratio differs from the design aspect ratio, leaving both images off-stage mid-slide and exposing the backdrop behind them. Percentages are measured against that element itself, so a full slide always lands exactly one stage width/height away regardless of window shape. The offset is still applied via the independent `translate` property (identity at rest), so nothing about the API changes.
+
+- Re-mounting the NVL dialog container no longer replays a finished line's text events. The NVL list re-keys an entry on every phase / active-entry change, so a line that had already been revealed re-mounted onto the instant-reveal path with a fresh fire guard — replaying its sound effects and writing its now-stale expression back over the portrait a later line had set, once per advance. The guard now lives on the long-lived NVL entry and is shared by the typewriter and instant paths, so each line's tokens fire exactly once however often the container re-mounts. It is runtime-only and is not part of the save, so loading a game still starts a fresh reveal that fires normally. The standard (ADV) dialog was never affected — its dialog state is already memoized per action.
+
+### Docs
+
+- Three public APIs that shipped in 0.16.0 were missing from its release notes and are documented under [0.16.0] as of this release: the `TextEvent` inline dialogue token, `fastForward({until: {actionId}})`, and the experimental read-only introspection surfaces (`onCurrentActionChange` / `getCurrentActionId` / `getStackSnapshot`). Nothing about them changed in 0.16.1 — if you are already on 0.16.0, you already have them.
+
 ## [0.16.0]
 
 ### _Feature_
@@ -96,6 +112,69 @@
   Label names are scoped to the scene they are declared in, so the same name can be reused across different scenes, and a jump can only target a label in its own scene. Both are validated at story-construction time: declaring the same label name twice in one scene, or jumping to a label that does not exist, fails the build rather than surfacing mid-play. Jumps are captured by save/load and undo like any other action.
 
   `Control.jump` redirects the main story flow, so place it as the last action of a branch (e.g. a menu choice); for looping a scene, drive the loop through a menu or condition rather than jumping out of a `repeat`/`while` body. Both `label` and `jump` are available as chainable methods and as static `Control.label(...)` / `Control.jump(...)`.
+
+- **Text events** fire an effect *inside* a line, at the moment the typewriter reveals it. Until now a portrait could only change between lines, so a mid-sentence expression change meant splitting the sentence in two. A `TextEvent` sits in a sentence's word stream the way `Pause` does — it renders nothing, and fires when the reveal reaches it:
+
+  ```ts
+  import {TextEvent} from "narraleaf-react";
+
+  scene.action([
+      alice.say([
+          "I told you ",
+          TextEvent.expression(aliceImage, ["angry"]),   // the portrait flips right here
+          "not to touch it.",
+      ]),
+      alice.say([
+          "...",
+          TextEvent.sound(sting),                        // a sting, no portrait change
+          " what was that?",
+      ]),
+  ]);
+  ```
+
+  `TextEvent.expression(image, appearance, {sound?})` switches `image` to `appearance` with no transition — the same forms `Image.char` accepts: a tag list (`["angry"]`), or a static `src`/`Color`. As with `char`, a bare string is read as a `src`, so a tag switch must be written as an array. `TextEvent.sound(sound)` is the sound-effect-only form, and `expression(..., {sound})` does both at the same point. The effect set is deliberately closed: a text event is not a general action escape hatch, and nothing it does is pushed onto the execution stack.
+
+  That restriction is what keeps the semantics predictable:
+
+  - **Skipping never drops an effect.** Skipping the typewriter — or an instant reveal that uncovers the whole sentence at once — fires every token it flies past, once each, in source order. The image ends in the appearance the *last* crossed token asked for, and every crossed sound effect plays once, so a skipped line lands in exactly the state it would have reached at typing speed.
+  - **A token fires once per reveal.** Re-visiting an already-fired token within the same reveal is a no-op: no double-played sound effect, no re-written expression.
+  - **Nothing is added to saves.** The effect rides on ordinary element state, which is already serialized, so text events need no save format of their own — and a `say` re-evaluated on load re-fires them naturally, which is what makes them replay-safe.
+
+  `TextEvent` is exported from `narraleaf-react`, along with the `TextEventAppearance`, `TextEventConfig`, and `TextEventExpression` types.
+
+- `liveGame.fastForward()` can now run to a **specific action** instead of only to the next menu or the end of the story. Pass `{until: {actionId}}` — the id the story compiler assigned to that action — and playback advances until that action surfaces as the next thing to execute, stopping *just before* it runs, so the play head is left parked on that line. This is what a "play from here" jump in an external editor is built on.
+
+  ```ts
+  const result = await game.getLiveGame().fastForward({until: {actionId: "act-42"}});
+
+  if (result.reason === "action") {
+      // parked on act-42, not yet executed
+  } else if (result.reachedTarget === false) {
+      // a menu blocked the path, the stack drained, or maxSteps was hit
+  }
+  ```
+
+  The result gains `"action"` as a stop reason and — only when an `actionId` target was requested — a `reachedTarget` flag, so an unreachable or already-passed id is distinguishable from a successful jump. A menu that blocks the path stops the run just as it does for `until: "menu"`, since the target cannot be reached until the player decides. Only the root execution stack is scanned: an id buried inside an in-flight `Control.all`/`any` or async branch is not a stop point. The `"menu"` and `"end"` forms are unchanged.
+
+- **Experimental read-only introspection** for external tooling that has to follow a running game — an editor play head, a call-stack view. Nothing here mutates runtime state, and everything here is explicitly experimental: the shapes are a convenience projection, not a stability contract, so do not serialize them or drive game logic from them.
+
+  ```ts
+  const liveGame = game.getLiveGame();
+
+  // push: fires as each action begins executing
+  const token = liveGame.onCurrentActionChange(({actionId, actionType}) => {
+      highlightRow(actionId);   // actionType is e.g. "character:say"
+  });
+  token.cancel();
+
+  // pull: the most recently executed action, or null before the first one runs
+  liveGame.getCurrentActionId();
+
+  // the current call stack, top-first
+  const {root, async} = liveGame.getStackSnapshot();
+  ```
+
+  `onCurrentActionChange(fc)` subscribes to the new `event:action.current` event and returns a cancellable token. It fires for *every* executed action, including those inside parallel and async branches, so a subscriber that only tracks top-level lines should filter by its own id set; `getCurrentActionId()` is the pull-based companion. `getStackSnapshot()` returns the root execution stack plus any in-flight async stacks (`Control.doAsync` / `Control.allAsync`), each a `StackSnapshot` whose `frames` are ordered top-first — a concurrent frame (`Control.all`/`any`) also lists its branches, and a loop frame carries its counter. It returns empty frames before the game starts. Saves still go through `serialize()`; a snapshot is not a save format. `StackSnapshot` and `StackFrameSnapshot` are exported from `narraleaf-react`.
 
 ### _Incompatible Changes_
 
