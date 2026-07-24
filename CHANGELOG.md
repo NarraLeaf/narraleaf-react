@@ -29,6 +29,32 @@
 
   `Camera` is exported from `narraleaf-react`.
 
+- A new **Vfx** element plays a looping video as a full-screen overlay for particle and ambience effects — falling petals, light dust, rain, snow, fog, light flares — without canvas or WebGL. Two complementary asset routes are supported: **true-alpha** material (VP9 `yuva420p` alpha WebM, default `"normal"` blending) keeps colors faithful on any background and is the route for assets with dark or opaque pixels; **black-background glow** material (VP9 `yuv420p`) combined with `blendMode: "screen"` is 5–10× smaller and hardware-decodable, ideal for purely luminous effects (additive blending washes out dark pixels, so keep dark-edged assets on the alpha route). Loop assets should start and end on the same frame.
+
+  ```ts
+  import {Vfx} from "narraleaf-react";
+
+  // true-alpha material: faithful colors on any background (petals with dark edges)
+  const petals = new Vfx({src: "/fx/petals-alpha.webm"});
+
+  // black-background glow material + screen blending: tiny files, hardware decodable
+  const dust = new Vfx({src: "/fx/dust-black.webm", blendMode: "screen", opacity: 0.9});
+
+  scene.action([
+      petals.show({duration: 800}),   // fade in; the action waits for the fade
+      dust.show(),
+      character`The petals are falling...`,
+      petals.setPlaybackRate(0.5),    // slow drifting
+      dust.pause(),                   // freeze on the current frame
+      dust.resume(),
+      petals.hide({duration: 1200}),  // fade out, then stop and leave the stage
+  ]);
+  ```
+
+  `show(options?)` adds the overlay to the stage, waits for the first frame, and fades it in; `hide(options?)` fades it out, stops playback, and removes it — both accept `{duration?, easing?}` and complete instantly when the player skips. A source that fails to load logs an error and resolves immediately, so a broken asset never blocks the story. `pause()`/`resume()` freeze and continue the loop, and `setPlaybackRate(rate)` adjusts speed (the rate is not saved; a loaded game returns to `config.playbackRate`). The config also offers `loop` (default `true`), `muted` (default `true`; unmuted autoplay may be rejected by the browser), `opacity` (the fade-in target), `fit` (`"cover"` | `"contain"` | `"fill"`), and `zIndex` for ordering multiple overlays. Visible overlays are captured by save/load and re-appear — playing, or frozen if paused — without a fade. Vfx layers render above videos inside the stage camera boundary, so camera pan/zoom/shake moves the weather with the shot while the dialog UI stays fixed.
+
+  `Vfx` is exported from `narraleaf-react`.
+
 ### Fixed
 
 - `Control.do([])` and `Control.doAsync([])` no longer crash on an empty action list. An empty `do` body threw twice — once during preload prediction and once on execution — and an empty `doAsync` body threw on execution; all three now advance past the empty statement. (`any`, `all`, and `allAsync` already handled empty lists.)

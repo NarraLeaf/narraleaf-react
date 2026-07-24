@@ -15,6 +15,7 @@ import type { FadeOptions } from "@core/elements/type";
 import type { Transition } from "@core/elements/transition/transition";
 import type { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
 import type { Layer } from "@core/elements/layer";
+import type { VfxFadeOptions } from "@core/elements/vfx";
 
 export const DisplayableActionTypes = {
     action: "displayable:action",
@@ -233,5 +234,22 @@ export type VideoActionContentType = {
     K extends "video:action" ? any :
     K extends "video:show" | "video:hide" | "video:play" | "video:pause" | "video:stop" | "video:resume" ? [] :
     K extends "video:seek" ? [number] :
+    any;
+}
+/* Vfx */
+export const VfxActionTypes = {
+    action: "vfx:action",
+    show: "vfx:show",
+    hide: "vfx:hide",
+    pause: "vfx:pause",
+    resume: "vfx:resume",
+    setRate: "vfx:setRate",
+} as const;
+export type VfxActionContentType = {
+    [K in typeof VfxActionTypes[keyof typeof VfxActionTypes]]:
+    K extends "vfx:action" ? any :
+    K extends "vfx:show" | "vfx:hide" ? [VfxFadeOptions?] :
+    K extends "vfx:pause" | "vfx:resume" ? [] :
+    K extends "vfx:setRate" ? [number] :
     any;
 }

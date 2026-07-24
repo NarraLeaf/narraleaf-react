@@ -14,6 +14,7 @@ import { default as SceneDialogs } from "@player/elements/scene/SceneDialogs";
 import { Camera as StageCamera } from "@player/elements/player/Camera";
 import { PlayerProps } from "@player/elements/type";
 import Video from "@player/elements/video/video";
+import Vfx from "@player/elements/vfx/Vfx";
 import { GameState } from "@player/gameState";
 import AspectRatio from "@player/lib/AspectRatio";
 import Cursor from "@player/lib/Cursor";
@@ -391,6 +392,10 @@ export default function Player(
                     <Isolated className={"absolute"} ref={mainContentRef} style={{
                         cursor: state.game.config.cursor ? "none" : "auto",
                         overflow: state.game.config.showOverflow ? "visible" : "hidden",
+                        // Contain mix-blend-mode compositing (Vfx overlays) inside the stage:
+                        // without an isolated stacking context, blended pixels over transparent
+                        // stage areas would mix with the host page background.
+                        isolation: "isolate",
                     }}>
                         {game.config.cursor && (
                             <Cursor
@@ -410,6 +415,16 @@ export default function Player(
                                     {state.getVideos().map((video, index) => (
                                         <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
                                             <Video gameState={state} video={video} />
+                                        </div>
+                                    ))}
+                                    {state.getVfx().map((vfx) => (
+                                        <div
+                                            className={"w-full h-full absolute"}
+                                            key={"vfx-" + vfx.getId()}
+                                            data-element-type={"vfx"}
+                                            style={{zIndex: vfx.config.zIndex}}
+                                        >
+                                            <Vfx gameState={state} vfx={vfx} />
                                         </div>
                                     ))}
                                 </StageCameraBoundary>
