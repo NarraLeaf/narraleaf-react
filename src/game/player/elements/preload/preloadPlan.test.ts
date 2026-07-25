@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import "@core/common/core";
 import { SrcManager } from "@core/action/srcManager";
 import type { Scene } from "@core/elements/scene";
+import { Sound } from "@core/elements/sound";
 import { planScenePreload } from "./preloadPlan";
 
 /**
@@ -54,12 +55,29 @@ describe("planScenePreload", () => {
     it("handles a scene with nothing to preload", () => {
         const plan = planScenePreload(sceneWith([], []));
 
-        expect(plan).toEqual({ critical: [], lookAhead: [], all: [] });
+        expect(plan).toEqual({ critical: [], lookAhead: [], all: [], criticalAudio: [] });
     });
 
     it("tolerates a scene without a src manager", () => {
         const plan = planScenePreload({} as unknown as Scene);
 
-        expect(plan).toEqual({ critical: [], lookAhead: [], all: [] });
+        expect(plan).toEqual({ critical: [], lookAhead: [], all: [], criticalAudio: [] });
+    });
+
+    it("carries this scene's sounds, and only this scene's", () => {
+        const bgm = new Sound({ src: "bgm.mp3" });
+        const laterBgm = new Sound({ src: "later.mp3" });
+        const srcManager = new SrcManager();
+        srcManager.register(bgm);
+        const future = new SrcManager();
+        future.register(laterBgm);
+        srcManager.registerFuture(future);
+
+        const plan = planScenePreload({ srcManager } as unknown as Scene);
+
+        // Sounds never gate the first frame, and look-ahead audio is not warmed at all: it belongs
+        // to a scene the player has not reached, and its own pass will pick it up.
+        expect(plan.criticalAudio).toEqual([bgm]);
+        expect(plan.critical).toEqual([]);
     });
 });

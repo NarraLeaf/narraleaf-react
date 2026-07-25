@@ -1,5 +1,6 @@
 import { SrcManager } from "@core/action/srcManager";
 import type { Scene } from "@core/elements/scene";
+import type { Sound } from "@core/elements/sound";
 
 export type ScenePreloadPlan = {
     /**
@@ -16,6 +17,12 @@ export type ScenePreloadPlan = {
     lookAhead: string[];
     /** Every url in the plan, in order — the set the cache should keep for this scene. */
     all: string[];
+    /**
+     * Sounds this scene registers. Warmed alongside the critical tier but never gated on: the
+     * audio context can be locked until the player interacts with the page (see
+     * `AudioManager.preload`), so waiting for these could wait forever.
+     */
+    criticalAudio: Sound[];
 };
 
 /**
@@ -52,5 +59,10 @@ export function planScenePreload(scene: Scene): ScenePreloadPlan {
         lookAhead.push(src);
     }
 
-    return { critical, lookAhead, all: [...critical, ...lookAhead] };
+    return {
+        critical,
+        lookAhead,
+        all: [...critical, ...lookAhead],
+        criticalAudio: criticalSrc.audio,
+    };
 }

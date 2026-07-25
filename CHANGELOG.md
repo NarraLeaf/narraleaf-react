@@ -10,6 +10,8 @@
 
 - **Preloaded images stay decoded.** A decoded bitmap only survives while something references it, so the throwaway element the preloader decoded through let the bitmap be evicted before the reveal — and the first visible frame decoded all over again. The critical tier now retains its decoded elements until the source leaves the cache. The look-ahead tier deliberately does not: a retained bitmap costs width × height × 4 bytes, which is worth paying for the scene that is about to paint and not for a whole reachable graph.
 
+- **The preloader warms the scene's sounds too**, via a new `AudioManager.preload(sound)` that fetches and decodes a source into the audio cache without playing it. A scene whose BGM is still being fetched when it opens stutters into its own first line, and the audio cache was the only place that could be fixed. Nothing waits for this and nothing should: the audio context stays locked until the browser's autoplay policy is satisfied by a user gesture, so an audio warm-up can legitimately sit pending on a page nobody has touched yet. It is started alongside the critical tier and lands on its own; a source that fails to load simply loads on first play as before. Only the current scene's sounds are warmed — look-ahead scenes' audio is left to their own pass.
+
 ### Fixed
 
 - The preload task pool no longer sleeps after its final batch. `preloadDelay` is there to pace *consecutive* batches, but the pool slept after every batch including the last, charging each preload pass an extra `preloadDelay` ms (100 ms by default) of pure idle time — and the initial pass gates the first painted frame, so that delay was directly visible as start-up latency.

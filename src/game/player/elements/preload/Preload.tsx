@@ -118,6 +118,14 @@ export function Preload(
         enqueue(criticalPool, plan.critical, "first scene", true);
         enqueue(lookAheadPool, plan.lookAhead, "look-ahead", false);
 
+        // This scene's sounds, started now and never waited for. A scene whose BGM is still being
+        // fetched when it opens stutters into its own first line, and the audio cache is the only
+        // place that can be fixed — but the audio context may be locked behind a user gesture, so
+        // nothing may block on it.
+        for (const sound of plan.criticalAudio) {
+            void state.audioManager.preload(sound);
+        }
+
         logGroup.end();
 
         void criticalPool.start().then(async () => {

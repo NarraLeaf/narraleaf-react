@@ -404,6 +404,30 @@ export class AudioManager {
         return this.state.has(sound);
     }
 
+    /**
+     * Fetch and decode a sound into the audio cache without playing it, so the first `play()` of
+     * this source starts on the same frame it is asked to instead of after a fetch and a decode.
+     *
+     * Deliberately **not** something to gate a loading screen on: the audio context only becomes
+     * ready once the browser's autoplay policy is satisfied by a user gesture, so this can sit
+     * pending indefinitely on a page nobody has interacted with yet. Start it and let it land —
+     * in practice the gesture that opens a menu unlocks the context long before the scene it
+     * belongs to is entered. Failures resolve quietly; the sound then loads on first play, exactly
+     * as it did before.
+     */
+    public preload(sound: SoundElement): Promise<void> {
+        return this.ready
+            .then(() => this.sound.load(sound.config.src))
+            .then(() => void 0)
+            .catch((error) => {
+                this.gameState.logger.weakWarn(
+                    "AudioManager",
+                    `Failed to preload sound (src: "${sound.config.src}")`,
+                    error,
+                );
+            });
+    }
+
     public reset(): void {
         this.state.forEach((state) => {
             state.token.stop();
