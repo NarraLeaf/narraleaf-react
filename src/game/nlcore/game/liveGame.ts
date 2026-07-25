@@ -473,13 +473,31 @@ export class LiveGame {
     }
 
     /**
+     * How long a single suspended step is given to settle before the fast-forward gives up on it
+     * and returns `{ reason: "stalled" }`. Overridable per call via `options.stepTimeout`.
+     * @internal
+     */
+    private static readonly FastForwardStepTimeout = 10_000;
+    /**
+     * How often the skip request is re-broadcast while waiting for a suspended step to settle.
+     * Roughly one animation frame: the components that honour a skip only exist once the renderer
+     * has committed the line, so the request has to outlive a render.
+     * @internal
+     */
+    private static readonly FastForwardSkipInterval = 16;
+
+    /**
      * Fast-forward playback to the next menu (or the end of the story).
      *
      * Every line in between is executed for real, so the backlog and its restore snapshots
      * accumulate exactly as in normal play — only faster and silent. Audio is muted for the
-     * duration, in-flight transitions are settled immediately, and timed pauses (`Control.sleep`,
-     * auto-forward) resolve at once. It stops as soon as a menu is waiting for a choice, so the
-     * choice itself is always left to the player.
+     * duration, and timed pauses (`Control.sleep`, auto-forward) resolve at once. It stops as soon
+     * as a menu is waiting for a choice, so the choice itself is always left to the player.
+     *
+     * Skipping a line is a *request* to the renderer, not a synchronous state change: it is
+     * re-issued until the line settles. A line that never responds (an unskippable in-flight
+     * media/transition step) ends the run with `"stalled"` rather than hanging — this method always
+     * settles.
      *
      * Because history accumulates the whole way, {@link getHistory} and
      * {@link restoreToHistory} cover the fast-forwarded span just like normal play.
@@ -498,9 +516,13 @@ export class LiveGame {
      *                         unreachable / already-passed id from a successful jump.
      * @param options.maxSteps - safety bound on the number of advance steps (defaults to the
      *                           `maxStackModelLoop` config).
+     * @param options.stepTimeout - how long (ms) a single line is given to settle before the run
+     *                              reports `"stalled"`. Defaults to 10000. Raise it if the story
+     *                              fast-forwards through long unskippable media.
      * @returns why it stopped: `"action"` (reached `until.actionId`), `"menu"`, `"end"` (the stack
-     *          drained), or `"maxSteps"`. When an `actionId` target was requested, `reachedTarget`
-     *          is also set (`true` only for reason `"action"`).
+     *          drained), `"maxSteps"`, or `"stalled"` (a line refused to settle). When an
+     *          `actionId` target was requested, `reachedTarget` is also set (`true` only for reason
+     *          `"action"`).
      *
      * Note: only the root execution stack is scanned for the target — an id buried inside an
      * in-flight parallel (`Control.all`/`any`) or async branch is not a stop point.
@@ -508,7 +530,8 @@ export class LiveGame {
     public async fastForward(options: {
         until?: "menu" | "end" | { actionId: string };
         maxSteps?: number;
-    } = {}): Promise<{ reason: "menu" | "end" | "maxSteps" | "action"; reachedTarget?: boolean }> {
+        stepTimeout?: number;
+    } = {}): Promise<{ reason: "menu" | "end" | "maxSteps" | "action" | "stalled"; reachedTarget?: boolean }> {
         this.assertGameState();
         const gameState = this.gameState;
         const until = options.until ?? "menu";
@@ -517,6 +540,7 @@ export class LiveGame {
         // action-id jump (the target is unreachable until the player decides).
         const stopAtMenu = until === "menu" || targetId !== null;
         const maxSteps = options.maxSteps ?? gameState.game.config.maxStackModelLoop;
+        const stepTimeout = options.stepTimeout ?? LiveGame.FastForwardStepTimeout;
         // reachedTarget is only meaningful for an action-id jump; omit it otherwise so the
         // existing `{ reason }` shape is preserved for "menu"/"end" callers.
         const missedTarget = targetId !== null ? { reachedTarget: false } : {};
@@ -547,9 +571,10 @@ export class LiveGame {
                     // Suspended on a say / waitForClick: force-skip it and wait for the step to
                     // settle before the next skip, so the line's history entry and its snapshot
                     // are captured against a stable stack rather than a mid-mutation one.
-                    const settled = new Promise<void>(resolve => awaitable.onSettled(() => resolve()));
-                    gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
-                    await settled;
+                    const settled = await LiveGame.settleSuspendedStep(gameState, awaitable, stepTimeout);
+                    if (!settled) {
+                        return { reason: "stalled", ...missedTarget };
+                    }
                 } else {
                     // Not suspended (a run of synchronous actions, or a just-settled step not yet
                     // re-driven): pump the drain and yield a microtask.
@@ -562,6 +587,73 @@ export class LiveGame {
             gameState.setFastForwarding(false);
             gameState.audioManager.setGlobalVolume(previousVolume);
         }
+    }
+
+    /**
+     * Drive one suspended step (a say, a `waitForClick`, an in-flight transition) to its settle.
+     *
+     * `event:state.player.skip` is a fire-and-forget broadcast, and the things that honour it —
+     * the mounted dialog, the mounted displayable — only exist once the renderer has *committed*
+     * the line. The fast-forward loop resumes on a microtask, well before that commit, so a single
+     * emit for a line the renderer has not painted yet reaches no listener at all and is dropped:
+     * nothing settles the step, and the loop parks on it forever. Re-issuing the request on a
+     * frame-ish interval makes the skip survive the render it has to outlive, and the deadline
+     * guarantees this returns even for a step that genuinely cannot be skipped.
+     *
+     * @returns `true` if the step settled, `false` if it outlived `timeout`.
+     * @internal
+     */
+    private static settleSuspendedStep(
+        gameState: GameState,
+        awaitable: Pick<Awaitable<CalledActionResult>, "onSettled">,
+        timeout: number,
+    ): Promise<boolean> {
+        return new Promise<boolean>(resolve => {
+            let done = false;
+            let timer: ReturnType<typeof setTimeout> | null = null;
+            // The stand-in awaitables used by the seam tests return nothing from onSettled, so the
+            // token is optional all the way down.
+            let token: { cancel?: () => void } | void = undefined;
+
+            const finish = (settled: boolean) => {
+                if (done) {
+                    return;
+                }
+                done = true;
+                if (timer !== null) {
+                    clearTimeout(timer);
+                    timer = null;
+                }
+                token?.cancel?.();
+                resolve(settled);
+            };
+
+            // An already-settled awaitable calls back synchronously — hence `token` being declared
+            // (and left undefined) before this line rather than after.
+            token = awaitable.onSettled(() => finish(true));
+            if (done) {
+                token?.cancel?.();
+                return;
+            }
+
+            const deadline = Date.now() + timeout;
+            const pump = () => {
+                if (done) {
+                    return;
+                }
+                gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
+                if (done) {
+                    // Settled synchronously: the common case, and it costs no extra frame.
+                    return;
+                }
+                if (Date.now() >= deadline) {
+                    finish(false);
+                    return;
+                }
+                timer = setTimeout(pump, LiveGame.FastForwardSkipInterval);
+            };
+            pump();
+        });
     }
 
     private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {

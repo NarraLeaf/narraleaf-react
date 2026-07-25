@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **`liveGame.fastForward()` no longer hangs forever, and always settles.** Skipping a line is a request broadcast to the renderer (`event:state.player.skip`), and the only things that can honour it — the mounted dialog, the mounted displayable — exist only once React has *committed* that line. The fast-forward loop resumed on a microtask, long before that commit, so for a line the renderer had not painted yet the single broadcast it sent reached no listener at all and was simply dropped. Nothing then settled the step, and the returned promise settled neither way: in practice the play head advanced two lines and stopped, with the caller still awaiting minutes later, the game stuck on that line, and — because the `finally` that restores them never ran — audio left muted and the game left permanently in fast-forward mode. This affected every host of the API and was not new in 0.17; the same two-step signature was measured on 0.16.1.
+
+  The skip request is now re-issued on a frame-ish interval until the step settles, so it survives the render it has to outlive. A line that settles on the first request still costs no extra frame.
+
+- **A step that genuinely cannot be skipped now ends the run instead of parking on it.** Each suspended line is given `stepTimeout` ms (default `10000`) to settle; if it does not, `fastForward` returns the new reason **`"stalled"`** — `{ reason: "stalled" }`, or `{ reason: "stalled", reachedTarget: false }` for an `actionId` jump — and restores volume and the fast-forward flag on the way out. `fastForward` now terminates in every case, so hosts can rely on the promise settling. Raise `stepTimeout` if your story fast-forwards through long unskippable media; the return type gained `"stalled"`, so an exhaustive `switch` over `reason` needs the extra arm.
+
 ## [0.17.0]
 
 ### _Feature_
