@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.17.1]
 
 ### Fixed
 
@@ -8,7 +8,13 @@
 
   The skip request is now re-issued on a frame-ish interval until the step settles, so it survives the render it has to outlive. A line that settles on the first request still costs no extra frame.
 
-- **A step that genuinely cannot be skipped now ends the run instead of parking on it.** Each suspended line is given `stepTimeout` ms (default `10000`) to settle; if it does not, `fastForward` returns the new reason **`"stalled"`** — `{ reason: "stalled" }`, or `{ reason: "stalled", reachedTarget: false }` for an `actionId` jump — and restores volume and the fast-forward flag on the way out. `fastForward` now terminates in every case, so hosts can rely on the promise settling. Raise `stepTimeout` if your story fast-forwards through long unskippable media; the return type gained `"stalled"`, so an exhaustive `switch` over `reason` needs the extra arm.
+- **A step that genuinely cannot be skipped now ends the run instead of parking on it.** Each suspended line is given `stepTimeout` ms (default `10000`) to settle; if it does not, `fastForward` returns the new reason **`"stalled"`** — `{ reason: "stalled" }`, or `{ reason: "stalled", reachedTarget: false }` for an `actionId` jump — and restores volume and the fast-forward flag on the way out. `fastForward` now terminates in every case, so hosts can rely on the promise settling.
+
+### Upgrading
+
+- **`fastForward()`'s `reason` gained `"stalled"`.** Runtime behaviour for the existing values is unchanged, but the return type is wider: an exhaustive `switch` over `reason` needs the extra arm to keep compiling. Hosts that ignore the result are unaffected.
+
+- **A run can now end early on an unskippable step.** In-flight `Control.sleep`, a transition declared `skipTransition: false`, and long video are not skippable, so a fast-forward that meets one waits out `stepTimeout` (default `10000` ms) and returns `"stalled"` instead of continuing past it. Previously the run hung there instead, so nothing that works today starts failing — but a host that treats any non-`"menu"` reason as success should now distinguish `"stalled"`. Raise `stepTimeout` for a story that fast-forwards through long unskippable media.
 
 ## [0.17.0]
 
