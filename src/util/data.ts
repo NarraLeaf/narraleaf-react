@@ -1047,6 +1047,13 @@ export class TaskPool {
         this.tasks.push(task);
     }
 
+    /**
+     * Number of tasks still queued (i.e. not yet handed to a running batch).
+     */
+    get size(): number {
+        return this.tasks.length;
+    }
+
     async start(): Promise<void> {
         const run = async () => {
             if (this.tasks.length === 0) {
@@ -1054,6 +1061,13 @@ export class TaskPool {
             }
             const tasks = this.tasks.splice(0, this.concurrency);
             await Promise.all(tasks.map(task => task()));
+            // `delay` paces consecutive batches; it is not a cooldown. Sleeping after the last
+            // batch charged every preload pass an extra `delay` ms for nothing — and the initial
+            // pass gates the first painted frame, so that idle time was directly visible as
+            // start-up latency.
+            if (this.tasks.length === 0) {
+                return;
+            }
             await sleep(this.delay);
             await run();
         };

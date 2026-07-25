@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### _Feature_
+
+- **The entry scene is now preloaded before the game is entered.** The preloader derives its work list from the *mounted* scene, and no scene is mounted until `liveGame.newGame()` — so a game that shows a main menu (or any UI) first gave it nothing to do, and the whole fetch → base64 → decode pass for the first scene landed between the player pressing "start" and the first painted frame. `Player` now registers `story.entryScene` as the preloading scene as soon as the story is loaded, which moves that work behind whatever the player is already looking at. `onPreloadComplete` / `whenPreloadComplete()` consequently fire earlier — while the menu is still up rather than after entering — which is what a host should gate its loading step on; `onFirstSceneReady` is unchanged and still requires a real mounted scene. Hosts that already call `gameState.preloadScene(...)` themselves are unaffected: the automatic registration only applies when no preloading scene and no mounted scene exist yet.
+
+- **The initial preload runs in two tiers.** The critical tier is what the scene about to paint registers directly — its own backgrounds and images, plus the immediate background of any scene it jumps to. It runs unpaced and is the only tier that gates `event:preloaded.complete`. The look-ahead tier is the full asset set of the scenes reachable from here (`srcManager.getFutureSrc()`); it runs after the critical tier, paced by `preloadDelay`, and nothing waits for it. Previously both were one pass, so a large story could not show its first frame until every reachable scene's images had been fetched and decoded — seconds of latency spent on assets the player was not about to see. The cache-eviction pass still runs once over the union of both tiers, and no longer runs at all for a superseded pass (which would have dropped the images the *current* scene had just cached).
+
+- **Preloaded images stay decoded.** A decoded bitmap only survives while something references it, so the throwaway element the preloader decoded through let the bitmap be evicted before the reveal — and the first visible frame decoded all over again. The critical tier now retains its decoded elements until the source leaves the cache. The look-ahead tier deliberately does not: a retained bitmap costs width × height × 4 bytes, which is worth paying for the scene that is about to paint and not for a whole reachable graph.
+
+### Fixed
+
+- The preload task pool no longer sleeps after its final batch. `preloadDelay` is there to pace *consecutive* batches, but the pool slept after every batch including the last, charging each preload pass an extra `preloadDelay` ms (100 ms by default) of pure idle time — and the initial pass gates the first painted frame, so that delay was directly visible as start-up latency.
+
 ## [0.16.1]
 
 ### _Feature_

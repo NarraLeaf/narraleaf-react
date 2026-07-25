@@ -208,6 +208,15 @@ export default function Player(
         if (story && !game.getLiveGame().isPlaying()) {
             game.getLiveGame().loadStory(story);
         }
+        // Warm the entry scene the moment the story is known, without entering it. Hosts that show
+        // a main menu (or any UI) before calling `newGame()` used to give the preloader nothing to
+        // work with — it needs a scene, and there is none until the game is entered — so the whole
+        // fetch/encode/decode pass landed between "start" and the first frame. Registering the
+        // entry scene as the preloading scene moves that work behind whatever the player is already
+        // looking at. `loadStory` above has already built the scene's src manager.
+        if (story?.entryScene && !state.getPreloadingScene() && !state.getLastScene()) {
+            state.preloadScene(story.entryScene);
+        }
         state.playerCurrent = containerRef.current;
         state.mainContentNode = mainContentRef.current;
 

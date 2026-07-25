@@ -8,6 +8,7 @@ import {useGame} from "@player/provider/game-state";
 import { Scene } from "@lib/game/nlcore/elements/scene";
 import { useFlush } from "../../lib/flush";
 import { LogicAction } from "@lib/game/nlcore/action/logicAction";
+import { planScenePreload } from "./preloadPlan";
 
 /**@internal */
 export function Preload(
@@ -40,7 +41,15 @@ export function Preload(
     /**
      * preload logic 2.0
      *
-     * Fetch the images and store them as base64 in the stack
+     * Fetch the images and store them as base64 in the stack.
+     *
+     * Split into two tiers. The critical tier is what the scene that is about to paint needs
+     * itself; it runs unpaced and is the only tier that gates `event:preloaded.complete`, i.e.
+     * the first painted frame. The look-ahead tier is every asset the scenes reachable from here
+     * need; it runs afterwards, paced by {@link GameConfig.preloadDelay}, and nothing waits for
+     * it. Before this split a game could not show its first frame until every reachable scene's
+     * images had been fetched, base64-encoded and decoded — seconds of latency on a large story,
+     * all of it spent on assets the player was not about to see.
      */
     useEffect(() => {
         if (typeof fetch === "undefined") {
@@ -69,56 +78,76 @@ export function Preload(
         }
 
         const timeStart = performance.now();
-        const sceneSrc = SrcManager.catSrc([
-            ...(lastScene.srcManager?.src || []),
-            ...(lastScene.srcManager?.getFutureSrc() || []),
-        ]);
-        const taskPool = new TaskPool(
+        const plan = planScenePreload(lastScene);
+        // The critical tier is on the path to the first frame, so it is not paced: `preloadDelay`
+        // exists to keep speculative look-ahead work from saturating the network, not to throttle
+        // assets the player is already waiting on.
+        const criticalPool = new TaskPool(game.config.preloadConcurrency, 0);
+        const lookAheadPool = new TaskPool(
             game.config.preloadConcurrency,
             game.config.preloadDelay,
         );
-        const loadedSrc: string[] = [];
         const logGroup = state.logger.group(LogTag, true);
-        const preloadingSrc: string[] = [];
+        let cancelled = false;
 
-        state.logger.debug(LogTag, "preloading:", sceneSrc, lastScene);
+        state.logger.debug(LogTag, "preloading:", plan, lastScene);
 
-        for (const image of sceneSrc.image) {
-            const src = SrcManager.getSrc(image);
-            if (!src) {
-                continue;
-            }
-            loadedSrc.push(src);
+        const enqueue = (pool: TaskPool, urls: string[], tier: string, retainDecoded: boolean) => {
+            urls.forEach((src, index) => {
+                if (cacheManager.has(src) || cacheManager.isPreloading(src)) {
+                    state.logger.debug(LogTag, `Image already loaded (${tier} ${index + 1}/${urls.length})`, src);
+                    return;
+                }
+                pool.addTask(() => new Promise(resolve => {
+                    cacheManager.preload(state, src, {retainDecoded})
+                        .onFinished(() => {
+                            state.logger.debug(LogTag, `Image loaded (${tier} ${index + 1}/${urls.length})`, src);
+                            resolve();
+                        })
+                        .onErrored(() => {
+                            state.logger.weakError(LogTag, `Failed to preload image (${tier} ${index + 1}/${urls.length})`, src);
+                            resolve();
+                        });
+                }));
+            });
+        };
 
-            if (cacheManager.has(src) || cacheManager.isPreloading(src) || preloadingSrc.includes(src)) {
-                state.logger.debug(LogTag, `Image already loaded (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
-                preloadingSrc.push(src);
-                continue;
-            }
-            preloadingSrc.push(src);
-            taskPool.addTask(() => new Promise(resolve => {
-                cacheManager.preload(state, src)
-                    .onFinished(() => {
-                        state.logger.debug(LogTag, `Image loaded (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
-                        resolve();
-                    })
-                    .onErrored(() => {
-                        state.logger.weakError(LogTag, `Failed to preload image (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
-                        resolve();
-                    });
-            }));
-        }
+        // Only the critical tier retains its decoded bitmaps: those are the ones that must paint
+        // without an asynchronous decode. Retaining the look-ahead tier's would mean holding a
+        // full-resolution bitmap for every reachable scene.
+        enqueue(criticalPool, plan.critical, "first scene", true);
+        enqueue(lookAheadPool, plan.lookAhead, "look-ahead", false);
 
         logGroup.end();
 
-        taskPool.start().then(() => {
-            state.logger.info(LogTag, "Image preload", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
+        void criticalPool.start().then(async () => {
+            state.logger.info(
+                LogTag,
+                "Image preload (first scene)",
+                `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`,
+            );
 
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
             if (game.config.waitForPreload) {
                 preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             }
-            cacheManager.filter(loadedSrc);
+
+            // A superseded pass must neither keep fetching for a scene that is gone nor run its
+            // eviction: `filter()` keeps only this pass's src list, so a stale one would drop the
+            // images the current scene just cached.
+            if (cancelled) {
+                return;
+            }
+            await lookAheadPool.start();
+            if (cancelled) {
+                return;
+            }
+            state.logger.info(
+                LogTag,
+                "Image preload (look-ahead)",
+                `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`,
+            );
+            cacheManager.filter(plan.all);
         });
 
         if (!game.config.waitForPreload) {
@@ -126,7 +155,10 @@ export function Preload(
         }
         preloaded.events.emit(Preloaded.EventTypes["event:preloaded.mount"]);
 
-        return onPreloaderUnmount;
+        return () => {
+            cancelled = true;
+            onPreloaderUnmount();
+        };
     }, [lastScene, story]);
 
     /**
