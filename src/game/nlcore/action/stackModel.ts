@@ -76,7 +76,13 @@ export type StackModelRawData = {
 /**
  * One frame of a read-only {@link StackModel.snapshot} — an action currently on the execution
  * stack. A frame that is a concurrent group ({@link Control.all}/{@link Control.any}) also lists
- * its branches (each a top-to-bottom frame list).
+ * its branches, each a whole {@link StackSnapshot}.
+ *
+ * `branches` used to be `StackFrameSnapshot[][]` — only each branch's `frames`. That silently threw
+ * away everything a nested stack knows about ITSELF: a `Control.repeat` runs as a nested StackModel,
+ * so its `loop` counter lived on a snapshot whose frames were kept and whose `loop` and `tag` were
+ * dropped on the way out. The counter was therefore unreachable from `getStackSnapshot()` no matter
+ * how a caller asked, which is exactly what a debug view most wants to show.
  *
  * **Experimental / read-only.** For tooling (Studio's call-stack view). The exact shape is not a
  * stable contract and may change; do not serialize it or drive game logic from it.
@@ -85,7 +91,7 @@ export type StackFrameSnapshot = {
     actionId: string | null;
     actionType: string | null;
     branchWaitType?: StackModelWaiting["type"];
-    branches?: StackFrameSnapshot[][];
+    branches?: StackSnapshot[];
 };
 
 /**
@@ -673,7 +679,9 @@ export class StackModel {
             };
             if (item.wait?.stackModels) {
                 frame.branchWaitType = item.wait.type;
-                frame.branches = item.wait.stackModels.map(stack => stack.snapshot().frames);
+                // The whole snapshot, not just `.frames`: a branch that is a loop carries its
+                // counter on the snapshot object, and taking only the frames dropped it.
+                frame.branches = item.wait.stackModels.map(stack => stack.snapshot());
             }
             frames.push(frame);
         }

@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.19.1]
+
+### _Fix_
+
+- **A nested stack's loop counter is reachable again.** `StackFrameSnapshot.branches` carried
+  `StackFrameSnapshot[][]` — each branch reduced to its `frames`. Everything a nested stack knew
+  about *itself* was thrown away on the way out, and that included `loop`.
+
+  This mattered more than it looks, because `Control.repeat` **is** a nested stack. Its counter is
+  set on the nested `StackModel`, so `snapshot()` attached it to the object that model returned —
+  and the only route from there to `getStackSnapshot()` was through the parent frame's `branches`,
+  which kept `.frames` and dropped the rest. The result: a debug view could see that a repeat was
+  running and could see the lines inside it, but could not learn which round it was on, no matter
+  how it asked. `tag` was lost the same way for async stacks below the top level.
+
+  `branches` is now `StackSnapshot[]`, so a branch arrives whole:
+
+  ```ts
+  const {root} = liveGame.getStackSnapshot();
+  const repeat = root.frames[0].branches?.[0];
+  repeat?.loop; // {type: "count", counter: 2, limit: 3, broken: false}
+  ```
+
+  **Breaking for anyone already reading `branches`** — `branches[i][0]` becomes
+  `branches[i].frames[0]`. The type is marked experimental and read-only precisely so a shape like
+  this can be corrected rather than duplicated into a parallel field; changing it is the honest fix.
+
 ## [0.19.0]
 
 ### _Feature_
