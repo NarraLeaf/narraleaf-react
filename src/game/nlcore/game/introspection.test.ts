@@ -50,8 +50,8 @@ describe("StackModel.snapshot (WI-3 ②)", () => {
         expect(snap.frames.map(f => f.actionId)).toEqual(["ctrl", "bottom"]);
         expect(snap.frames[0].branchWaitType).toBe("all");
         expect(snap.frames[0].branches).toHaveLength(2);
-        expect(snap.frames[0].branches?.[0][0].actionId).toBe("bA");
-        expect(snap.frames[0].branches?.[1][0].actionId).toBe("bB");
+        expect(snap.frames[0].branches?.[0].frames[0].actionId).toBe("bA");
+        expect(snap.frames[0].branches?.[1].frames[0].actionId).toBe("bB");
         // leaf frames carry no branches
         expect(snap.frames[1].branches).toBeUndefined();
     });
@@ -59,6 +59,31 @@ describe("StackModel.snapshot (WI-3 ②)", () => {
     it("surfaces loop configuration", () => {
         const loop = StackModel.createCountLoop(fakeLiveGame(), 3, []);
         expect(loop.snapshot().loop).toEqual({ type: "count", counter: 0, limit: 3, broken: false });
+    });
+
+    /**
+     * The reason `branches` carries whole snapshots rather than bare frame lists. A `Control.repeat`
+     * runs as a NESTED StackModel, so its loop counter is only ever reachable through a parent
+     * frame's `branches`; taking `.frames` there — as this did until 0.19.1 — dropped `loop` and
+     * `tag` and left the counter unreachable from `getStackSnapshot()` however the caller asked.
+     */
+    it("keeps a nested loop's counter reachable from the parent snapshot", () => {
+        const loop = StackModel.createCountLoop(fakeLiveGame(), 3, []);
+        const parent = new StackModel(fakeLiveGame());
+        parent.push(waitLink("all", [loop], "repeat-ctrl"));
+
+        const nested = parent.snapshot().frames[0].branches?.[0];
+
+        expect(nested?.loop).toEqual({ type: "count", counter: 0, limit: 3, broken: false });
+    });
+
+    it("keeps a nested stack's tag reachable from the parent snapshot", () => {
+        const tagged = new StackModel(fakeLiveGame(), "side-story");
+        tagged.push(pendingAction("inside"));
+        const parent = new StackModel(fakeLiveGame());
+        parent.push(waitLink("any", [tagged], "async-ctrl"));
+
+        expect(parent.snapshot().frames[0].branches?.[0].tag).toBe("side-story");
     });
 
     it("does not mutate the stack it describes", () => {
