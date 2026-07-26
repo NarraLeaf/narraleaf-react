@@ -4,6 +4,7 @@ import { GameState } from "../../common/game";
 import { LogicAction } from "../../game";
 import type { LiveGameEventToken } from "../../types";
 import { Control } from "../control";
+import { Image } from "../displayable/image";
 import { Layer } from "../layer";
 import { DynamicPersistent, Persistent } from "../persistent";
 import { Scene } from "../scene";
@@ -52,6 +53,18 @@ export class DevTools {
 
     public static getCurrentScene(gameState: GameState): Scene | null {
         return gameState.getCurrentScene();
+    }
+
+    /**
+     * The src of each of a layered image's layers, bottom to top, for the given tags (the image's
+     * current ones when omitted). `null` entries are layers that draw nothing; a non-layered image
+     * yields an empty array.
+     *
+     * A layered image has no single src to read — it is a stack — so an editor host that renders
+     * its own thumbnail of an on-stage element has to composite these itself, in order.
+     */
+    public static getLayerSrcs(image: Image, tags?: string[]): (string | null)[] {
+        return Image.getSrcURLs(image, tags);
     }
 
     /**

@@ -92,10 +92,21 @@ export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectEleme
  * A set of mutually exclusive variants for one layer, keyed by tag.
  *
  * `null` means the layer draws nothing for that tag.
+ *
+ * The tag set is the group's identity: every layer offering the *same* set of tags is driven by
+ * one group, which is how a single `char(["angry"])` moves the brows, the eyes and the mouth at
+ * once. To follow a group, repeat its whole tag set on the layer and use `null` for the tags
+ * where that layer draws nothing. Offering only part of a set instead declares a *different*
+ * group, and the shared tags then collide.
  */
 export type LayerVariants = Record<string, string | null>;
 /**
  * Derives a layer's src from the currently active tags. Declares no tags of its own.
+ *
+ * A resolver is opaque, so the srcs it can return are invisible to the preloader and are fetched
+ * on first use. Prefer {@link LayerVariants} — including for a layer that follows another layer's
+ * group, which no longer needs a resolver — and keep resolvers for sources that genuinely cannot
+ * be enumerated.
  */
 export type LayerResolver = (tags: ReadonlySet<string>) => string | null;
 /**
@@ -119,7 +130,8 @@ export type LayeredDefinition<L extends LayerGroupDefinition = LayerGroupDefinit
      */
     layers: L;
     /**
-     * One tag per variant layer, in any order.
+     * One tag per group, in any order. Layers that offer the same tag set share a group and so
+     * share that one default.
      */
     defaults: readonly LayerTagsOf<L>[];
 };
@@ -357,10 +369,14 @@ export class Image<
      *   src: {
      *     layers: [
      *       "body.png",
-     *       {happy: "happy.png", sad: "sad.png"},
      *       {shirt: "shirt.png", coat: "coat.png"},
+     *       // Both layers offer {happy, sad}, so one group drives them together.
+     *       {happy: "brows_happy.png", sad: "brows_sad.png"},
+     *       {happy: "mouth_happy.png", sad: "mouth_sad.png"},
+     *       // Follows the same group, and draws nothing while happy.
+     *       {happy: null, sad: "tears.png"},
      *     ],
-     *     defaults: ["happy", "shirt"],
+     *     defaults: ["shirt", "happy"],
      *   }
      * });
      * ```
@@ -658,9 +674,15 @@ export class Image<
     }
 
     /**@internal */
-    _invalidTagGroupDefinitionError(): Error {
+    _invalidTagGroupDefinitionError(tag?: string, layered = false): Error {
         throw new Error("Invalid tag group definition. " +
-            "Tags in groups must be unique and not conflicting with each other.");
+            "Tags in groups must be unique and not conflicting with each other." +
+            (tag ? `\nTag "${tag}" belongs to more than one group.` : "") +
+            (layered
+                ? "\nLayers offering the same tag set share one group, so a shared tag means two " +
+                "layers offer different sets. Repeat the whole set on every layer that follows " +
+                "the group, using null where that layer draws nothing."
+                : ""));
     }
 
     /**@internal */
@@ -709,11 +731,37 @@ export class Image<
         return this;
     }
 
+    /**
+     * @internal
+     * The tag groups a layer stack declares. A group is identified by its tag *set*, so layers
+     * offering the same tags collapse into one group rather than each declaring its own — that
+     * is what lets one group drive several layers (brows + eyes + mouth off a single "angry").
+     * Layer order decides nothing here; only the first layer to offer a set contributes the
+     * group's tag ordering, which the tag machinery does not depend on.
+     */
+    private static collectLayerGroups(layers: readonly LayerSlot[]): TagGroupDefinition {
+        const groups: string[][] = [];
+        const seen: Set<string> = new Set();
+        for (const slot of layers) {
+            if (!Image.isLayerVariants(slot)) {
+                continue;
+            }
+            const tags = Object.keys(slot);
+            const identity = [...tags].sort().join(" ");
+            if (seen.has(identity)) {
+                continue;
+            }
+            seen.add(identity);
+            groups.push(tags);
+        }
+        return groups;
+    }
+
     /**@internal */
     private static normalizeSrcDefinition(src: ImageSrcType | LayeredDefinition): ResolvedSrcDefinition | null {
         if (Image.isLayeredDefinition(src)) {
             return {
-                groups: src.layers.filter(Image.isLayerVariants).map(slot => Object.keys(slot)),
+                groups: Image.collectLayerGroups(src.layers),
                 defaults: [...src.defaults],
                 resolve: null,
                 slots: src.layers,
@@ -771,7 +819,7 @@ export class Image<
             for (const tags of src.groups) {
                 for (const tag of tags) {
                     if (seen.has(tag)) {
-                        throw this._invalidTagGroupDefinitionError();
+                        throw this._invalidTagGroupDefinitionError(tag, Boolean(src.slots));
                     }
                     seen.add(tag);
                 }
@@ -798,7 +846,7 @@ export class Image<
                     if (!group.some(tag => chosen.has(tag))) {
                         throw new RuntimeScriptError(
                             "Layer has no default\n" +
-                            `The layer with tags "${group.join(", ")}" needs exactly one of them listed in src.defaults`
+                            `The group with tags "${group.join(", ")}" needs exactly one of them listed in src.defaults`
                         );
                     }
                 }
