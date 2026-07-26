@@ -1,6 +1,6 @@
 {
   "name": "narraleaf-react",
-  "version": "0.17.1",
+  "version": "0.18.0",
   "description": "A React visual novel player framework",
   "type": "module",
   "main": "./dist/main.js",

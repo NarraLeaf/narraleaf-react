@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.18.0]
+
+### _Feature_
+
+- **One tag group can now drive several layers of a layered image.** A layered image derived its tag groups from its layers one-for-one — each variants layer declared its own group, and tags had to be globally unique — so a group could only ever move a single layer. That is the wrong shape for the thing layered sprites exist to do: "angry" is not a mouth, it is a mouth *and* a pair of brows *and* whatever else the artist split out, and expressing it meant either flattening those layers back into one image or falling back to a `LayerResolver` per follower, whose sources the preloader cannot see and therefore fetches mid-scene, on the frame the expression changes.
+
+  A group is now identified by its tag *set* rather than by the layer that offers it, so every layer offering the same tags is driven by one group:
+
+  ```ts
+  layers: [
+      {uniform: "u_body.png", casual: "c_body.png"},
+      {uniform: null,         casual: "jacket.png"},   // only the casual outfit has a jacket
+      {happy: "brows_happy.png", angry: "brows_angry.png"},
+      {happy: "mouth_happy.png", angry: "mouth_angry.png"},
+      {happy: null,              angry: "vein.png"},
+  ],
+  defaults: ["uniform", "happy"],
+  ```
+
+  `char(["angry"])` moves all three of the lower layers and leaves the outfit alone; `defaults` names one tag per *group*, not per layer. A follower is an ordinary variants layer, so its sources are enumerable and the existing preload pass covers them — the whole set is registered up front, and switching a tag still costs no fetch.
+
+  This also removes the reason to model an outfit as a separate image. A layer that draws nothing for some tags of a group it follows (the jacket above) is how a variant-specific layer is expressed, so one stack can carry a character's whole wardrobe and a change of clothes keeps the current expression and can cross-fade like any other tag change.
+
+- **`DevTools.getLayerSrcs(image, tags?)`** returns a layered image's per-layer srcs, bottom to top, with `null` for the layers that draw nothing. A layered image has no single src to read — it is a stack — so an editor host rendering its own thumbnail of an on-stage element previously had nothing to read at all.
+
+### Docs
+
+- `LayerResolver`'s opacity to the preloader is now stated on the type: the srcs a resolver can return are invisible to it and are fetched on first use. With followers no longer needing a resolver, this is a limitation of an escape hatch rather than of the common path.
+
+### Upgrading
+
+- **Nothing that was valid before changes behaviour.** Grouping only merges layers offering *identical* tag sets, and any two such layers were rejected outright by the old uniqueness check, so no working configuration is reinterpreted. What changes is that those configurations now load instead of throwing.
+
+- **Offering only part of a group's tags on a follower is an error, and it is the easy mistake to make.** A layer that lists `{angry: "vein.png"}` alone declares a *new* group whose only tag is `angry`, which then collides with the group that already owns it. Repeat the whole set and use `null` for the tags where the layer draws nothing (`{happy: null, angry: "vein.png"}`). The error names the offending tag and says so.
+
 ## [0.17.1]
 
 ### Fixed
