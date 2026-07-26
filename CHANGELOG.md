@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.19.0]
+
+### _Feature_
+
+- **The store now says when a value changes.** `Storable` had no notification of any kind: `namespace.set()` was an assignment and nothing else, so a host that wanted to react to a persistent value — light a badge when `gold` reaches 100, mirror a flag into an editor panel — had no way to learn about it except to read the whole store on a timer and diff it itself. Polling is the wrong shape for something the engine knows exactly: it is late by up to an interval, it burns work on the overwhelming majority of frames where nothing moved, and it cannot tell you what the value *was*.
+
+  `Storable` now reports every write:
+
+  ```ts
+  const storable = liveGame.getStorable();
+
+  // every change, anywhere
+  storable.onChange(({namespace, key, previous, next}) => {...});
+
+  // one namespace
+  storable.onChange("persistent:player", ({key, next}) => {...});
+
+  // one key
+  const token = storable.onChange("persistent:player", "gold", ({next}) => {
+      if (next === 100) achievements.unlock("rich");
+  });
+  token.cancel();
+  ```
+
+  The payload is `{namespace, key, previous, next}`, where `namespace` is the key the namespace is registered under — `"persistent:player"` for `new Persistent("player", ...)`, the same string `getNamespace()` takes. The listener runs after the new value is readable, so it can read the rest of the namespace and see a consistent state. `assign()` reports one change per key; `reset()` reports the return to each default, and reports a key written after construction as changing to `undefined`, because that is what `reset()` does to it.
+
+  Subscriptions live on the `Storable`, which is created once per `LiveGame` and never replaced, so they survive `newGame()` and loading a save even though both rebuild every namespace underneath them.
+
+- **A write that does not move the value reports nothing.** A line that re-asserts a flag it has already set, or a script that runs `assign` with the values already in place, would otherwise wake every listener on every pass. Equality is structural rather than by reference: a stored value is by definition serializable — a primitive, a `Date`, or a plain object/array of those — so comparing it costs no more than writing it to a save, and the ordinary idioms (`assign({...})`, `set(k, v => ({...v, gold: v.gold}))`, a value round-tripped through a host) rebuild the container even when nothing inside it moved. Dates compare by timestamp, not identity.
+
+- **Loading a save reports itself once instead of replaying every key.** A save carries every key of every namespace it knew about, so reporting a load as changes would turn one `deserialize()` into hundreds of callbacks describing a history the player never lived through — the values did not evolve, they were replaced wholesale. Bulk application instead fires **`onRestore`** exactly once, naming the namespaces involved:
+
+  ```ts
+  storable.onRestore(({namespaces}) => rereadMyDerivedView());
+  ```
+
+  This covers `liveGame.deserialize()` (one event for the whole save) and rewinding a single namespace to a snapshot, which is how a scene's locals are undone (one event naming that namespace). Ordinary play, where values do evolve one write at a time, still reports per-key changes.
+
+### Upgrading
+
+- **Nothing that was valid before changes behaviour**, and no existing signature moved. `onChange` / `onRestore` / `Storable.events` are new surface on a class that previously had none.
+
+- **A host that polls the store can stop.** Replace the timer with `onChange` for the values you care about and `onRestore` for the reload discontinuity. Watching a value across a save load takes both: `onChange` is deliberately silent during a load, so a listener that must also fire when a loaded save *arrives* already at the interesting value has to re-check it on `onRestore`.
+
 ## [0.18.0]
 
 ### _Feature_
