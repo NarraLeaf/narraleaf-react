@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.19.2]
+
+### _Fix_
+
+- **Dialog avatars are preloaded, and painted from the cache.** They were neither, and the two
+  halves compounded: an avatar was fetched the first time its character spoke, and then fetched and
+  decoded a second time when it was actually painted.
+
+  `Scene.registerSrc` walks the action graph collecting everything a scene will need, but it had no
+  branch for `CharacterAction` — so no avatar source, at any level, was ever registered. Meanwhile
+  `<Avatar>` rendered the resolved URL directly. That is not what `<Image>` does, and the difference
+  matters: the preloader stores each image as a base64 re-encoding and decodes *that*, so both the
+  bytes and the decoded bitmap live under the data URL and are reachable only through
+  `cacheManager.get()`. Rendering the original URL missed both.
+
+  The scene walk now collects every avatar it can know about ahead of time — the character's own,
+  each registered portrait's, and a sentence's per-line override:
+
+  ```ts
+  const alice = new Character("Alice")
+      .setAvatar("/avatars/alice.png")
+      .addPortrait(angrySprite, {avatar: "/avatars/angry.png"});
+
+  // Both are now warm before the scene paints, and swap without a decode.
+  alice.say("...");
+  ```
+
+  **A resolver's avatars stay invisible to the preloader**, for the same reason a layer resolver's
+  srcs are: the answer is derived from the portrait's live state, so what it may return cannot be
+  enumerated. Register those yourself:
+
+  ```ts
+  scene.preloadImage(["/avatars/happy.png", "/avatars/sad.png"]);
+  ```
+
+  `useAvatar()` is unchanged and still reports the resolved *source* URL — that is what identifies
+  an avatar to a caller, and a custom avatar component comparing it against its own asset table
+  keeps working. The cache lookup happens in `<Avatar>`, at render.
+
 ## [0.19.1]
 
 ### _Fix_

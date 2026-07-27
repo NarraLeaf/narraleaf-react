@@ -6,13 +6,15 @@ import {LogicAction} from "@core/action/logicAction";
 import {EmptyObject} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
 import {Sound, SoundDataRaw, SoundType, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
-import {ControlActionTypes, SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
+import {CharacterActionTypes, ControlActionTypes, SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
 import {Control} from "@core/elements/control";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
 import {SoundAction} from "@core/action/actions/soundAction";
+import {CharacterAction} from "@core/action/actions/characterAction";
+import {collectStaticAvatarSources} from "@core/elements/character/avatar";
 import {ControlAction} from "@core/action/actions/controlAction";
 import {Text} from "@core/elements/displayable/text";
 import {DynamicPersistent} from "@core/elements/persistent";
@@ -22,6 +24,7 @@ import {ImageTransition} from "@core/elements/transition/transitions/image/image
 import {StaticScriptWarning, Utils} from "@core/common/Utils";
 import {Layer} from "@core/elements/layer";
 import { Narrator } from "./character";
+import type { Sentence } from "@core/elements/character/sentence";
 import { NVLToken } from "./nvl";
 import type { TransformDefinitions } from "@core/elements/transform/type";
 import type { NvlBlockOptions } from "@core/action/actionTypes";
@@ -681,6 +684,17 @@ export class Scene extends Constructable<
                 }
             } else if (action instanceof SoundAction) {
                 this.srcManager.register(action.callee);
+            } else if (action instanceof CharacterAction) {
+                // Dialog avatars. Only the static ones can be seen from here - a resolver derives
+                // its answer from the portrait's live state, so what it may return is as invisible
+                // to this walk as a layer resolver's srcs are. Projects whose avatars are
+                // resolver-driven register them with `scene.preloadImage` themselves.
+                const sentence = action.type === CharacterActionTypes.say
+                    ? action.contentNode.getContent() as Sentence
+                    : null;
+                for (const avatar of collectStaticAvatarSources(action.callee, sentence)) {
+                    this.srcManager.register({type: "image", src: Utils.srcToURL(avatar)});
+                }
             } else if (action instanceof ControlAction) {
                 const controlAction = action as ControlAction;
                 const actions = controlAction.getFutureActions(story, {allowFutureScene: true});

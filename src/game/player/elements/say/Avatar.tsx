@@ -8,6 +8,7 @@ import type { Image } from "@core/elements/displayable/image";
 import clsx from "clsx";
 import React from "react";
 import { useDialogContext } from "./context";
+import { usePreloaded } from "@player/provider/preloaded";
 
 export type DialogAvatarContext = {
     visible: boolean;
@@ -62,17 +63,24 @@ export function Avatar({
     ...props
 }: React.ImgHTMLAttributes<HTMLImageElement>) {
     const avatar = useAvatar();
+    const { cacheManager } = usePreloaded();
 
     if (!avatar.visible || !avatar.src) {
         return null;
     }
+
+    // Render through the cache, exactly as `<Image>` does. The preloader stores a base64
+    // re-encoding and decodes *that*, so painting the original URL would miss both the bytes and
+    // the decoded bitmap, and pay for them again on the frame the speaker changes. `useAvatar`
+    // keeps reporting the source URL: that is what identifies the avatar to a caller.
+    const src = cacheManager.get(avatar.src) || avatar.src;
 
     return (
         <img
             {...props}
             data-element-type="dialog-avatar"
             className={clsx("dialog-avatar", className)}
-            src={avatar.src}
+            src={src}
             alt={alt ?? avatar.alt}
             style={{
                 width: 96,
