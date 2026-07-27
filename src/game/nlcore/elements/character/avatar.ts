@@ -3,6 +3,7 @@ import type { Character } from "@core/elements/character";
 import type { Image } from "@core/elements/displayable/image";
 import type { Sentence } from "@core/elements/character/sentence";
 import type { GameState } from "@player/gameState";
+import { Utils } from "@core/common/Utils";
 
 export type DialogAvatarSource = ImageSrc | null;
 
@@ -130,4 +131,34 @@ function emptyDialogAvatarResolution(
         character: ctx.character || null,
         portrait: ctx.portrait || null,
     };
+}
+
+/**
+ * Every avatar source a character can show that is knowable ahead of time.
+ *
+ * Only *static* sources are enumerable. A {@link DialogAvatarResolver} derives its answer from the
+ * portrait's live state, so what it can return is invisible from here — the same limitation, and
+ * for the same reason, as a layer {@link LayerResolver}. Callers that preload from this should say
+ * so, and a project whose avatars are resolver-driven has to register them itself.
+ *
+ * `false` is not an absence of a source, it is an instruction to show none; either way there is
+ * nothing to preload.
+ */
+export function collectStaticAvatarSources(
+    character: Character,
+    sentence?: Sentence | null,
+): ImageSrc[] {
+    const sources: ImageSrc[] = [];
+    const push = (avatar: DialogAvatar | false | undefined): void => {
+        if (avatar && typeof avatar !== "function" && Utils.isImageSrc(avatar)) {
+            sources.push(avatar);
+        }
+    };
+
+    push(sentence?.config.avatar);
+    push(character.config.avatar);
+    for (const portrait of character.config.portraits || []) {
+        push(normalizeCharacterPortraitConfig(portrait).avatar);
+    }
+    return sources;
 }
