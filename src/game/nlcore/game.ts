@@ -7,6 +7,7 @@ import { GameState } from "@player/gameState";
 import { GuardWarningType } from "@player/guard";
 import { DefaultElements } from "../player/elements/elements";
 import { Plugins, IGamePluginRegistry } from "./game/plugin/plugin";
+import { PuppetBackend, PuppetBackendRegistry } from "./game/puppet/puppetBackend";
 import { LayoutRouter } from "../player/lib/PageRouter/router";
 import { KeyMap } from "./game/keyMap";
 import { KeyBindingType } from "./game/types";
@@ -181,6 +182,7 @@ export class Game {
     public plugins: Plugins;
     public router: LayoutRouter;
     private readonly lifecycleEvents = new EventDispatcher<GameLifecycleEvents>();
+    private readonly puppetBackends = new PuppetBackendRegistry();
     private preloadCompleteContext: GameLifecycleEventContext | null = null;
     private firstSceneReadyContext: GameLifecycleEventContext | null = null;
 
@@ -243,6 +245,62 @@ export class Game {
             this.plugins.use(plugin).register(plugin);
         }
         return this;
+    }
+
+    /**
+     * Register a backend that draws {@link import("@core/elements/displayable/puppet").Puppet}
+     * elements.
+     *
+     * The engine ships no renderer and understands none: a puppet is a box it positions, layers,
+     * transforms and saves, and the backend registered here draws whatever belongs inside that box.
+     * Register before the game mounts — a puppet whose backend is missing keeps its place on the
+     * stage and draws nothing, warning once.
+     *
+     * Registering under a name already taken replaces the previous backend.
+     *
+     * This lives on `Game` rather than in the config on purpose: the config is deep-merged and can
+     * be frozen, and a backend is a live object with methods, not serialisable data. A plugin can
+     * call this from its own `register(game)`.
+     *
+     * @example
+     * ```ts
+     * game.registerPuppetBackend({
+     *     name: "my-renderer",
+     *     mount(container, ctx) {
+     *         const model = MyRenderer.create(container, ctx.resolveSrc(ctx.src), ctx.size);
+     *         return {
+     *             ready: () => model.loaded,
+     *             apply: (state) => model.setPose(state),
+     *             command: (name, payload) => model.run(name, payload),
+     *             resize: (size) => model.resize(size.width, size.height),
+     *             dispose: () => model.destroy(),
+     *         };
+     *     },
+     * });
+     * ```
+     */
+    public registerPuppetBackend(backend: PuppetBackend): this {
+        this.puppetBackends.register(backend);
+        return this;
+    }
+
+    /**
+     * The backend registered under the given name, or null.
+     */
+    public getPuppetBackend(name: string): PuppetBackend | null {
+        return this.puppetBackends.get(name);
+    }
+
+    /**
+     * The names of every registered puppet backend, in registration order.
+     */
+    public listPuppetBackends(): string[] {
+        return this.puppetBackends.list();
+    }
+
+    /**@internal */
+    public getPuppetBackendRegistry(): PuppetBackendRegistry {
+        return this.puppetBackends;
     }
 
     /**

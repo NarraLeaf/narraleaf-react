@@ -12,6 +12,7 @@ import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import {Video} from "@core/elements/video";
 import {Vfx, VfxFadeOptions} from "@core/elements/vfx";
+import {Puppet} from "@core/elements/displayable/puppet";
 import { Timeline } from "./Tasks";
 
 export * from "@player/elements/type";
@@ -27,6 +28,7 @@ export enum ExposedStateType {
     video = "narraleaf:video",
     vfx = "narraleaf:vfx",
     camera = "narraleaf:camera",
+    puppet = "narraleaf:puppet",
 }
 
 export type ExposedState = {
@@ -59,6 +61,13 @@ export type ExposedState = {
         applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
         updateStyleSync: () => void;
     };
+    [ExposedStateType.puppet]: {
+        initDisplayable: (onResolve: () => void) => Timeline;
+        applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
+        updateStyleSync: () => void;
+        flush: () => void;
+    };
     [ExposedStateType.scene]: {
         setBackgroundMusic: (music: Sound | null, fade: number) => Promise<void>;
     };
@@ -85,6 +94,7 @@ export type ExposedKeys = {
     [ExposedStateType.text]: Text | Displayable<any, any>;
     [ExposedStateType.layer]: Layer | Displayable<any, any>;
     [ExposedStateType.camera]: Camera | Displayable<any, any>;
+    [ExposedStateType.puppet]: Puppet | Displayable<any, any>;
     [ExposedStateType.scene]: Scene;
     [ExposedStateType.video]: Video;
     [ExposedStateType.vfx]: Vfx;

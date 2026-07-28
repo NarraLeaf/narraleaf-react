@@ -56,11 +56,12 @@ import type {Video} from "@core/elements/video";
 import type {VideoAction} from "@core/action/actions/videoAction";
 import type {Vfx} from "@core/elements/vfx";
 import type {VfxAction} from "@core/action/actions/vfxAction";
+import type {Puppet} from "@core/elements/displayable/puppet";
 
 // Define the interface first
 export interface LogicActionInterface {
-    DisplayableElements: Text | Image | Layer | Camera | AbstractDisplayable<any, any>;
-    DisplayableExposed: ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text | ExposedStateType.camera;
+    DisplayableElements: Text | Image | Layer | Camera | Puppet | AbstractDisplayable<any, any>;
+    DisplayableExposed: ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text | ExposedStateType.camera | ExposedStateType.puppet;
     GameElement: Character
         | Scene
         | Story
@@ -73,6 +74,7 @@ export interface LogicActionInterface {
         | Text
         | Layer
         | Camera
+        | Puppet
         | AbstractDisplayable<any, any>
         | Persistent<any>
         | ServiceSkeleton
@@ -134,8 +136,8 @@ export const LogicAction = {
 
 // Define and export the namespace type
 export namespace LogicAction {
-    export type DisplayableElements = Text | Image | Layer | Camera | AbstractDisplayable<any, any>;
-    export type DisplayableExposed = ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text | ExposedStateType.camera;
+    export type DisplayableElements = Text | Image | Layer | Camera | Puppet | AbstractDisplayable<any, any>;
+    export type DisplayableExposed = ExposedStateType.image | ExposedStateType.layer | ExposedStateType.text | ExposedStateType.camera | ExposedStateType.puppet;
     export type GameElement = Character
         | Scene
         | Story
@@ -148,6 +150,7 @@ export namespace LogicAction {
         | Text
         | Layer
         | Camera
+        | Puppet
         | AbstractDisplayable<any, any>
         | Persistent<any>
         | ServiceSkeleton

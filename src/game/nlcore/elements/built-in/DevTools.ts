@@ -5,9 +5,12 @@ import { LogicAction } from "../../game";
 import type { LiveGameEventToken } from "../../types";
 import { Control } from "../control";
 import { Image } from "../displayable/image";
+import { Puppet } from "../displayable/puppet";
 import { Layer } from "../layer";
 import { DynamicPersistent, Persistent } from "../persistent";
 import { Scene } from "../scene";
+import type { Game } from "../../game";
+import type { PuppetDescription, PuppetState, PuppetStatus } from "../../game/puppet/puppetBackend";
 
 /** Snapshot of the dialog line currently presented to the player (ADV or NVL). */
 export type DevToolsCurrentDialog = {
@@ -136,6 +139,112 @@ export class DevTools {
         const exposed = gameState.getExposedState(displayable as never) as { updateStyleSync?: () => void } | null;
         exposed?.updateStyleSync?.();
         gameState.flush();
+    }
+
+    /**
+     * The current state of a puppet's backend instance.
+     *
+     * `"missing-backend"` is the one an editor host should surface loudly: the element is on stage
+     * and behaving in every other respect, but nothing is drawing it, because the renderer the
+     * project depends on was never registered.
+     */
+    public static getPuppetStatus(puppet: Puppet): PuppetStatus {
+        return puppet._getStatus();
+    }
+
+    /**
+     * Subscribe to a puppet's status changes. The listener receives the new status.
+     */
+    public static onPuppetStatusChange(
+        puppet: Puppet,
+        listener: (status: PuppetStatus) => void,
+    ): LiveGameEventToken {
+        return puppet._onStatusChange(listener);
+    }
+
+    /**
+     * Ask a puppet's backend to describe its model — the motions, expressions, skins and parameters
+     * it can be driven with.
+     *
+     * This is what keeps model-format parsers out of an editor host: the inspector fills its
+     * dropdowns from the live instance. Returns null when the puppet is not mounted or its backend
+     * does not implement `describe`, in which case a host should fall back to free text.
+     */
+    public static async describePuppet(
+        gameState: GameState,
+        puppet: Puppet,
+    ): Promise<PuppetDescription | null> {
+        try {
+            return await puppet._describe();
+        } catch (e) {
+            gameState.logger.error("DevTools", "Puppet backend threw while describing itself", e);
+            return null;
+        }
+    }
+
+    /**
+     * Read a puppet's persistent state. Returns a copy, `params` and `slots` included, so a host can
+     * hold on to it without aliasing the element.
+     */
+    public static getPuppetState(puppet: Puppet): PuppetState {
+        return Puppet.normalizeState(puppet.state);
+    }
+
+    /**
+     * Overwrite a puppet's state and push it to the backend at once, without going through an
+     * action (so nothing lands in the story's history).
+     *
+     * By default the patch is merged over the current state, with `params` and `slots` merged key by
+     * key; with `merge: false` the state is replaced outright. Applying to an unmounted puppet is
+     * valid and does not warn — the state is complete by construction, so it is applied in full the
+     * next time the element mounts.
+     */
+    public static setPuppetState(
+        gameState: GameState,
+        puppet: Puppet,
+        patch: Partial<PuppetState>,
+        options: { merge?: boolean } = {},
+    ): void {
+        puppet.state = options.merge === false
+            ? Puppet.normalizeState(patch)
+            : Puppet.mergeState(puppet.state, patch);
+        puppet._applyState().catch((e) => {
+            gameState.logger.error("DevTools", "Puppet backend threw while applying state", e);
+        });
+        gameState.flush();
+    }
+
+    /**
+     * Run a named command on a puppet's backend and wait for it.
+     *
+     * The engine never interprets the command; it is the escape hatch for everything the persistent
+     * state deliberately does not model (one-shot motions, hit tests, lip sync). Resolves without
+     * doing anything when the puppet is not mounted.
+     */
+    public static async runPuppetCommand(
+        gameState: GameState,
+        puppet: Puppet,
+        name: string,
+        payload: unknown,
+    ): Promise<void> {
+        try {
+            const ran = await puppet._runCommand(name, payload);
+            if (!ran) {
+                gameState.logger.weakWarn(
+                    "DevTools",
+                    `Puppet command "${name}" was dropped: the puppet is not mounted.`
+                );
+            }
+        } catch (e) {
+            gameState.logger.error("DevTools", `Puppet backend threw while running "${name}"`, e);
+        }
+    }
+
+    /**
+     * The names of every puppet backend registered on this game.
+     */
+    public static listPuppetBackends(game: Game): string[] {
+        return game.listPuppetBackends();
     }
 
     /**

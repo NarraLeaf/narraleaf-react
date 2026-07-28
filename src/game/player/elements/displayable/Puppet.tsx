@@ -1,0 +1,214 @@
+import React, {useEffect, useMemo, useRef} from "react";
+import {GameState} from "@player/gameState";
+import {Puppet as GamePuppet} from "@core/elements/displayable/puppet";
+import type {PuppetInstance, PuppetSize} from "@core/game/puppet/puppetBackend";
+import {Transition} from "@core/elements/transition/transition";
+import Inspect from "@player/lib/Inspect";
+import {useDisplayable} from "@player/elements/displayable/Displayable";
+import {useExposeState} from "@player/lib/useExposeState";
+import {usePreloaded} from "@player/provider/preloaded";
+import {Utils} from "@core/common/Utils";
+import {ExposedStateType} from "@player/type";
+import {useFlush} from "@player/lib/flush";
+
+/**
+ * The engine's half of a puppet: a box, posed by the same machinery every displayable uses, with a
+ * host-registered backend drawing inside it.
+ *
+ * Everything below is written so that a backend cannot take the stage down with it. A missing
+ * backend, a `mount` that throws, a model that never loads — each of them leaves the element on
+ * stage, transformable and saveable, with a status an editor host can read and show.
+ *
+ * @internal
+ */
+export default function Puppet({state, puppet}: Readonly<{
+    state: GameState;
+    puppet: GamePuppet;
+}>) {
+    const [flush] = useFlush();
+    const {cacheManager} = usePreloaded();
+    const hostRef = useRef<HTMLDivElement | null>(null);
+    const size: PuppetSize = useMemo(
+        () => puppet._resolveSize({width: state.game.config.width, height: state.game.config.height}),
+        [puppet, state.game.config.width, state.game.config.height]
+    );
+    const sizeRef = useRef<PuppetSize>(size);
+    sizeRef.current = size;
+
+    const {
+        transformRef,
+        transitionRefs,
+        initDisplayable,
+        applyTransform,
+        applyTransition,
+        updateStyleSync,
+        deps,
+    } = useDisplayable<Transition<HTMLDivElement>, HTMLDivElement>({
+        element: puppet,
+        state: puppet.transformState,
+        skipTransform: state.game.config.allowSkipImageTransform,
+        skipTransition: state.game.config.allowSkipImageTransition,
+        transitionsProps: [
+            {
+                style: {
+                    position: "relative",
+                    width: `${size.width}px`,
+                    height: `${size.height}px`,
+                },
+            },
+        ],
+    });
+
+    useExposeState<ExposedStateType.puppet>(puppet, {
+        initDisplayable,
+        applyTransform,
+        applyTransition,
+        updateStyleSync,
+        flush,
+    }, [...deps]);
+
+    // Mount once, for as long as the element is on stage. A puppet cannot change its `src`, which is
+    // what makes this safe: there is no input here that could ask for a different model, so the
+    // backend's instance never has to be torn down and rebuilt underneath a live transform.
+    useEffect(() => {
+        const container = hostRef.current;
+        if (!container) {
+            return;
+        }
+
+        const game = state.game;
+        const backendName = puppet.config.backend;
+        const backend = game.getPuppetBackend(backendName);
+
+        if (!backend) {
+            // Users bring their own renderers, so a missing one is a normal state, not a crash.
+            puppet._setStatus("missing-backend");
+            game.getPuppetBackendRegistry().reportMissing(backendName, (message) => {
+                state.logger.warn("Puppet", message);
+            });
+            return () => {
+                puppet._setStatus("unmounted");
+            };
+        }
+
+        let instance: PuppetInstance;
+        try {
+            instance = backend.mount(container, {
+                src: puppet.config.src,
+                options: puppet.config.options,
+                size: sizeRef.current,
+                resolveSrc,
+                warn: (message: string, detail?: unknown) => {
+                    state.logger.warn("Puppet", message, detail);
+                },
+            });
+        } catch (e) {
+            puppet._setStatus("error");
+            state.logger.error(
+                "Puppet",
+                `Backend "${backendName}" threw while mounting "${puppet.config.src}"`, e
+            );
+            return () => {
+                puppet._setStatus("unmounted");
+            };
+        }
+
+        let disposed = false;
+        puppet._attachInstance(instance);
+        puppet._setStatus("loading");
+
+        // The whole state is pushed once here rather than replayed action by action — that is the
+        // point of `apply` taking a complete state, and it is what makes restoring a saved game a
+        // single call.
+        Promise.resolve()
+            .then(() => puppet._applyState())
+            .then(() => (typeof instance.ready === "function" ? instance.ready() : undefined))
+            .then(() => {
+                if (!disposed) {
+                    puppet._setStatus("ready");
+                }
+            })
+            .catch((e) => {
+                if (disposed) {
+                    return;
+                }
+                puppet._setStatus("error");
+                state.logger.error(
+                    "Puppet",
+                    `Backend "${backendName}" failed to load "${puppet.config.src}"`, e
+                );
+            });
+
+        return () => {
+            disposed = true;
+            puppet._attachInstance(null);
+            puppet._setStatus("unmounted");
+            try {
+                instance.dispose();
+            } catch (e) {
+                state.logger.error("Puppet", `Backend "${backendName}" threw while disposing`, e);
+            }
+        };
+    }, []);
+
+    // `size` is the same object on the mount pass, so the backend is not told to resize to the size
+    // it was just mounted at.
+    const lastSizeRef = useRef<PuppetSize>(size);
+    useEffect(() => {
+        const last = lastSizeRef.current;
+        if (last.width === size.width && last.height === size.height) {
+            return;
+        }
+        lastSizeRef.current = size;
+
+        const instance = puppet._getInstance();
+        if (!instance || typeof instance.resize !== "function") {
+            return;
+        }
+        try {
+            instance.resize(size);
+        } catch (e) {
+            state.logger.error("Puppet", `Backend "${puppet.config.backend}" threw while resizing`, e);
+        }
+    }, [size]);
+
+    /* The same resolution images get: anything warmed by `scene.preloadImage()` is served from the
+       preload cache (which stores a re-encoding under a data URL, reachable only through `get`),
+       and anything else is handed back untouched for the backend to fetch itself. */
+    function resolveSrc(src: string): string {
+        if (Utils.isDataURI(src)) {
+            return src;
+        }
+        return cacheManager.get(src) || src;
+    }
+
+    return (
+        <Inspect.Div data-element-type={"puppet"}>
+            {/* No `layout` here: the wrapper's transform is written imperatively, frame by frame,
+                by `transform.animate` — layout projection measures on any re-render and writes to
+                the same node, so the two fight mid-animation. */}
+            <Inspect.mDiv
+                tag={"puppet.container"}
+                color={"blue"}
+                border={"dashed"}
+                ref={transformRef}
+                className={"absolute"}
+            >
+                {transitionRefs.map(([ref, key]) => (
+                    <div
+                        key={key}
+                        ref={ref}
+                        className={puppet.config.className}
+                    >
+                        <div
+                            ref={hostRef}
+                            className={"w-full h-full"}
+                            data-puppet-id={puppet.getId()}
+                            data-puppet-backend={puppet.config.backend}
+                        />
+                    </div>
+                ))}
+            </Inspect.mDiv>
+        </Inspect.Div>
+    );
+}

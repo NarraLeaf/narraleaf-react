@@ -1,5 +1,95 @@
 # Changelog
 
+## [0.20.0]
+
+### _Feature_
+
+- **`Puppet`: a displayable the engine draws none of.** Animated character runtimes — Live2D, Spine,
+  or something written in-house — are licensed and distributed on their own terms, so this library
+  cannot bundle one. And a `<canvas>` dropped over the stage by hand is not a substitute: it knows
+  nothing about where the character stands, which layer it is on, what the camera is doing, or what
+  a saved game should contain. Everything an author actually wants from a character on stage lives
+  on the engine's side of that line, and every project that has reached for an external renderer has
+  had to rebuild it.
+
+  So the engine now ships the half it can: a box. `Puppet` is a `Displayable` like any other — `pos`,
+  `zoom`, `scale`, `rotate`, `opacity`, `show`, `hide`, layers, the camera, undo and the saved game
+  all apply to it unchanged — and the inside of the box is handed to a backend you register. The
+  engine never looks in: `src`, `options`, command names and payloads are opaque values it stores,
+  forwards and serialises.
+
+  ```ts
+  import {Puppet} from "narraleaf-react";
+
+  game.registerPuppetBackend({
+      name: "my-renderer",
+      mount(container, ctx) {
+          const model = MyRenderer.create(container, ctx.resolveSrc(ctx.src), ctx.size);
+          return {
+              ready: () => model.loaded,
+              apply: (state) => model.setPose(state),   // a complete state, never a diff
+              command: (name, payload) => model.run(name, payload),
+              resize: (size) => model.resize(size.width, size.height),
+              dispose: () => model.destroy(),
+          };
+      },
+  });
+
+  const alice = new Puppet({
+      backend: "my-renderer",
+      src: "models/alice/alice.model.json",
+      size: {width: 900, height: 1200},   // defaults to the stage size
+      position: {xalign: 0.3},
+      motion: "idle",
+  });
+
+  scene.action([
+      alice.show({duration: 400}),
+      alice.pos({xalign: 0.6}, 800, "easeInOut"),
+  ]);
+  ```
+
+  **`apply` takes a complete `PuppetState`, never a delta**, and that one decision is what makes
+  loading a saved game trivial: the engine rebuilds the state from the save and applies it once,
+  instead of replaying every pose change that ever happened to the model. `PuppetState` is
+  `{motion, expression, skin, params, slots}` — the three ideas every 2D character renderer has,
+  plus free numeric and string maps for whatever is proprietary. Nothing one-shot belongs in it;
+  those go through `command()`, which doubles as the escape hatch for hit tests, lip sync and
+  everything else the state deliberately does not model. Keys written by a newer engine survive a
+  load here untouched rather than crashing it.
+
+  A backend may also implement `describe()`, reporting the motions, expressions, skins and parameters
+  a model actually has. It is optional, and it exists so an editor can fill its dropdowns from the
+  live model rather than writing a parser for a model format it has no business parsing.
+
+  **A puppet cannot change its `src`.** Changing the model means a new element: the backend's
+  instance lives exactly as long as the element is on stage, and swapping a model out from under a
+  live transform is not worth what that lifetime would cost. For the same reason `Puppet` has no
+  transitions of its own in this release — `show()` and `hide()` fade the box with opacity.
+
+  **A missing backend is a normal state, not a crash.** Anyone shipping this will eventually forget
+  to register a backend, or ship to someone who did. When nothing answers to `config.backend` the
+  element still takes its place on the stage, still transforms, still saves and restores — it simply
+  draws nothing, and the engine warns once per backend name rather than once per element.
+
+  New public surface: `Puppet`, `Game.registerPuppetBackend` / `Game.getPuppetBackend` /
+  `Game.listPuppetBackends`, and the types `PuppetBackend`, `PuppetMountContext`, `PuppetInstance`,
+  `PuppetState`, `PuppetDescription`, `PuppetSize`, `PuppetStatus`, `IPuppetUserConfig` and
+  `PuppetConfig`.
+
+  **The story cannot drive a puppet yet.** There are no `setMotion` / `setExpression` / `command`
+  chainable actions in this release: a puppet is posed by its constructor config, by a save, or by an
+  editor host. Those actions are the next step, and they are held back on purpose so the shape of the
+  command surface can be settled against real authoring rather than guessed at.
+
+- **`DevTools` can drive a puppet imperatively.** This is not public API — `DevTools` is the seam
+  editor hosts use, and it moves with their needs — but it is recorded here because those hosts
+  depend on it: `getPuppetStatus`, `onPuppetStatusChange`, `describePuppet`, `getPuppetState`,
+  `setPuppetState`, `runPuppetCommand` and `listPuppetBackends`. `setPuppetState` writes and applies
+  without going through an action, so nothing lands in the story's history, and it works on an
+  unmounted element too: the state is complete by construction, so it is applied in full the next
+  time that element mounts.
+
 ## [0.19.2]
 
 ### _Fix_

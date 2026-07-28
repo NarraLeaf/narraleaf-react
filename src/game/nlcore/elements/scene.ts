@@ -17,6 +17,7 @@ import {CharacterAction} from "@core/action/actions/characterAction";
 import {collectStaticAvatarSources} from "@core/elements/character/avatar";
 import {ControlAction} from "@core/action/actions/controlAction";
 import {Text} from "@core/elements/displayable/text";
+import {Puppet} from "@core/elements/displayable/puppet";
 import {DynamicPersistent} from "@core/elements/persistent";
 import {Config, ConfigConstructor} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
@@ -496,7 +497,7 @@ export class Scene extends Constructable<
             return v;
         }).flat(2);
 
-        const images: Image[] = [], texts: Text[] = [];
+        const images: Image[] = [], texts: Text[] = [], puppets: Puppet[] = [];
         this.getAllChildrenElements(story, userActions, {allowFutureScene: false}).forEach(element => {
             if (Chained.isChained(element)) {
                 return;
@@ -505,6 +506,8 @@ export class Scene extends Constructable<
                 images.push(element);
             } else if (element instanceof Text) {
                 texts.push(element);
+            } else if (element instanceof Puppet) {
+                puppets.push(element);
             }
         });
 
@@ -549,6 +552,7 @@ export class Scene extends Constructable<
                 return wearableImagesMap.get(image)!._initWearable(image);
             }),
             ...texts.map(text => (text as Text)._init()),
+            ...puppets.map(puppet => (puppet as Puppet)._init()),
             ...userActions,
         ];
 
