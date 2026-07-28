@@ -10,6 +10,7 @@ yarn.lock
 
 # TypeScript
 *.tsbuildinfo
+tsconfig.dts-check.json
 
 # Optional npm cache directory
 .npm

@@ -22,9 +22,10 @@
     "build": "cross-env NODE_ENV=production node esbuild.config.js",
     "build:dev": "rimraf dist && cross-env NODE_ENV=development node esbuild.config.js && tsc --emitDeclarationOnly && tsc-alias -p tsconfig.json && node project/postbuild.js",
     "postbuild": "tsc --emitDeclarationOnly && tsc-alias -p tsconfig.json",
+    "check:dts": "node project/check-dts.js",
     "lint": "eslint \"./src/**/*.{ts,tsx,js,jsx}\"",
     "lint:fix": "eslint --fix \"./src/**/*.{ts,tsx,js,jsx}\"",
-    "prepublishOnly": "npm run lint && rimraf dist && cross-env NODE_ENV=production node esbuild.config.js && tsc --emitDeclarationOnly && tsc-alias -p tsconfig.json",
+    "prepublishOnly": "npm run lint && rimraf dist && cross-env NODE_ENV=production node esbuild.config.js && tsc --emitDeclarationOnly && tsc-alias -p tsconfig.json && node project/check-dts.js",
     "typedoc": "typedoc src/index.ts --out doc",
     "prepare": "husky",
     "test": "vitest"

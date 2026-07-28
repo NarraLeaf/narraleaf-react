@@ -21,7 +21,7 @@
     "baseUrl": ".",
     "paths": {
       "narraleaf-react": [
-        "src/game/nlcore/common/core.ts"
+        "src/game/nlcore/common/core"
       ],
       "@lib/*": [
         "src/*"
@@ -45,5 +45,10 @@
   },
   "include": [
     "src/**/*"
-, "project/test/router.js", "project/test/router.test.js"  ]
+, "project/test/router.js", "project/test/router.test.js"  ],
+  "tsc-alias": {
+    "fileExtensions": {
+      "inputGlob": "d.{mts,cts,ts,tsx}"
+    }
+  }
 }

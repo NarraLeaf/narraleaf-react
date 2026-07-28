@@ -139,6 +139,40 @@
   unmounted element too: the state is complete by construction, so it is applied in full the next
   time that element mounts.
 
+### _Fix_
+
+- **The published declarations typecheck again.** This library is built with `stripInternal`, which
+  deletes any declaration marked `@internal` from the emitted `.d.ts`. It does not delete the
+  *references* to it. Every public signature that named an internal type went on naming it after the
+  name was gone, so the declaration files in the package referred to things they did not declare —
+  94 dangling references across 27 files, shipped in 0.19.2 and in releases before it.
+
+  It went unseen because `skipLibCheck: true` is the default posture of almost every TypeScript
+  project and it suppresses exactly this class of error. Turn it off, as a project that typechecks
+  its dependencies properly does, and the package does not check at all: `Cannot find name
+  'CameraDataRaw'` and ninety more like it, none of them in the consumer's own code and none of them
+  fixable from there.
+
+  Every type reachable from a public signature is now public, because it always was — a type a
+  method returns is part of the API whatever the comment above it claims. `ImageDataRaw`,
+  `CameraDataRaw`, `CharacterStateData`, `ConditionData`, `ControlConfig`, `LayerDataRaw`,
+  `PersistentContent`, `DynamicPersistentData`, `VideoState`, `VfxState` and `LiveGameEvent` are
+  among the names now exported. Where `@internal` was hiding a naming convenience rather than a
+  concept, the alias is inlined into the signatures that used it instead of being promoted: the
+  `Chained*` aliases become the chained types they stood for, and `PausingShortcut` becomes
+  `typeof Pause`. Nothing is renamed, no signature changes shape, and no runtime behaviour moves.
+
+  **The last three had a different cause.** `tsc-alias` rewrites this project's path aliases to
+  relative paths in the emitted output, but it leaves an alias untouched — silently — when it cannot
+  find the target under `dist/`. The alias for the package's own name pointed at a `.ts` file, which
+  is never there, so `dist/built-in.d.ts` and the screen-effect declarations shipped importing
+  `"narraleaf-react"` from inside `narraleaf-react`. They now use relative paths like every other
+  emitted file. The runtime bundles are unchanged: `built-in.js` still loads the engine from the
+  package entry rather than inlining a second copy of it.
+
+  A publish can no longer regress this. `prepublishOnly` now typechecks the emitted
+  `dist/**/*.d.ts` with `skipLibCheck: false` and stops the release if one reference dangles.
+
 ## [0.19.2]
 
 ### _Fix_
