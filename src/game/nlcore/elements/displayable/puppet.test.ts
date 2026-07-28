@@ -263,5 +263,20 @@ describe("Puppet element", () => {
 
             expect(listener.mock.calls.map(([status]) => status)).toEqual(["loading", "ready"]);
         });
+
+        it("lets a game author read the status and subscribe to it without DevTools", () => {
+            const puppet = makePuppet();
+            const seen: string[] = [];
+            const token = puppet.onStatusChange((status) => seen.push(status));
+
+            expect(puppet.getStatus()).toBe("unmounted");
+            puppet._setStatus("missing-backend");
+            expect(puppet.getStatus()).toBe("missing-backend");
+            token.cancel();
+            puppet._setStatus("error");
+            expect(puppet.getStatus()).toBe("error");
+
+            expect(seen).toEqual(["missing-backend"]);
+        });
     });
 });

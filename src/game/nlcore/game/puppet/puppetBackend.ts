@@ -78,15 +78,29 @@ export interface PuppetMountContext {
     /** The logical size of the box, in pixels. Later changes arrive via {@link PuppetInstance.resize}. */
     readonly size: PuppetSize;
     /**
-     * Resolve a relative source to a URL by the same rules images use — so anything warmed with
-     * `scene.preloadImage()` is served from the preload cache rather than fetched again.
+     * Resolve a source to a URL by the same rules images use: a data URI is returned unchanged, and
+     * anything else is looked up in the preload cache before being handed back untouched.
+     *
+     * So this serves whatever the author warmed with `scene.preloadImage()`, and nothing else.
+     * **A puppet's own `src` is not registered for preloading** — it is a model manifest, not an
+     * image, and the engine has no idea what textures it will pull in. A backend that wants its
+     * textures warmed has to have the author warm them by hand; everything not in the cache is a
+     * plain URL the backend fetches itself.
      */
     resolveSrc(src: string): string;
     /** Report a non-fatal problem. The engine logs it and keeps the stage alive; it never throws. */
     warn(message: string, detail?: unknown): void;
 }
 
-/** One mounted model. The engine holds this handle and nothing else. */
+/**
+ * One mounted model. The engine holds this handle and nothing else.
+ *
+ * Every member below that is not marked optional is **required**: implement all of them. The engine
+ * nevertheless checks `ready` and `resize` for existence before calling them, because this object
+ * crosses a boundary no compiler watches — it is built by the host, and a plain JavaScript host, or
+ * a `PuppetBackend` cast into place, can hand over an object that does not satisfy this contract.
+ * Those checks are damage control for a broken backend, not permission to leave the two out.
+ */
 export interface PuppetInstance {
     /** Resolves once the model is loaded and its first frame has been drawn. */
     ready(): Promise<void>;

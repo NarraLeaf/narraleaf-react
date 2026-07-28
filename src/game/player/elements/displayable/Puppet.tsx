@@ -122,6 +122,10 @@ export default function Puppet({state, puppet}: Readonly<{
         // single call.
         Promise.resolve()
             .then(() => puppet._applyState())
+            // `ready` is required by `PuppetInstance`, and the guard is deliberate all the same: the
+            // backend comes from the host, not from us, so nothing has typechecked it against the
+            // contract. A backend that omits `ready` reaches `ready` status right after `apply`
+            // instead of taking the stage down with a TypeError.
             .then(() => (typeof instance.ready === "function" ? instance.ready() : undefined))
             .then(() => {
                 if (!disposed) {
@@ -162,6 +166,9 @@ export default function Puppet({state, puppet}: Readonly<{
         lastSizeRef.current = size;
 
         const instance = puppet._getInstance();
+        // As with `ready` above: `resize` is required by the contract, but the contract is satisfied
+        // by host code the engine never sees. A backend that omits it simply never hears about the
+        // new size; it does not break the stage resize for everything else on it.
         if (!instance || typeof instance.resize !== "function") {
             return;
         }

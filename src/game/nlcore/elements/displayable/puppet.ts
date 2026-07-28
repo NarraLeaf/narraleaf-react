@@ -62,6 +62,17 @@ export interface IPuppetUserConfig extends TransformDefinitions.ImageTransformPr
      * scale, rotation) applies on top of it, exactly as it would to an image.
      */
     size: PuppetSize | null;
+    /**
+     * Class names for the box, applied to the element the transition wrapper renders — the one
+     * carrying the box's `position: relative` and its width and height.
+     *
+     * That is the **parent** of the container handed to
+     * {@link import("@core/game/puppet/puppetBackend").PuppetBackend.mount}, not the container
+     * itself: the backend owns the inside of the box and the engine empties it on dispose, so
+     * anything styled here has to sit outside it. Note also that the wrapper above it — the one the
+     * transform is written to — is not this element, so a class that sets `transform` here will be
+     * overwritten frame by frame.
+     */
     className?: string;
     /** Layer of the puppet. */
     layer?: Layer;
@@ -355,6 +366,45 @@ export class Puppet
     }
 
     /**
+     * What the backend drawing this puppet is currently doing.
+     *
+     * Two of the five are worth acting on. `"missing-backend"` means nothing answers to
+     * `config.backend`, and `"error"` means the backend threw or the model failed to load; in both
+     * cases the element is still on stage, still transforming and still saving — it is simply not
+     * being drawn. The engine cannot decide what that should mean for a game, so it reports rather
+     * than intervenes.
+     *
+     * The status describes the live instance and is not part of the saved game: a load re-mounts,
+     * and the status starts over from `"unmounted"`.
+     * @example
+     * ```ts
+     * if (alice.getStatus() === "missing-backend") {
+     *     // the renderer this project depends on was never registered
+     * }
+     * ```
+     */
+    public getStatus(): PuppetStatus {
+        return this.status;
+    }
+
+    /**
+     * Listen for this puppet's status changing, receiving the new status.
+     *
+     * A backend fails asynchronously — the element mounts, then the model does or does not load — so
+     * {@link Puppet.getStatus} alone cannot answer "did my renderer come up". Subscribe to be told.
+     * Dispose the returned token to stop listening.
+     * @example
+     * ```ts
+     * const token = alice.onStatusChange((status) => {
+     *     if (status === "error") console.warn("Alice is not being drawn");
+     * });
+     * ```
+     */
+    public onStatusChange(listener: (status: PuppetStatus) => void): LiveGameEventToken {
+        return this.events.on("event:puppet.statusChange", listener);
+    }
+
+    /**
      * Override the layer used to render this puppet.
      * @param layer - The layer to assign to the puppet.
      */
@@ -412,7 +462,7 @@ export class Puppet
 
     /**@internal */
     _getStatus(): PuppetStatus {
-        return this.status;
+        return this.getStatus();
     }
 
     /**@internal */
@@ -426,7 +476,7 @@ export class Puppet
 
     /**@internal */
     _onStatusChange(listener: (status: PuppetStatus) => void): LiveGameEventToken {
-        return this.events.on("event:puppet.statusChange", listener);
+        return this.onStatusChange(listener);
     }
 
     /**@internal */

@@ -72,10 +72,18 @@
   element still takes its place on the stage, still transforms, still saves and restores — it simply
   draws nothing, and the engine warns once per backend name rather than once per element.
 
-  New public surface: `Puppet`, `Game.registerPuppetBackend` / `Game.getPuppetBackend` /
-  `Game.listPuppetBackends`, and the types `PuppetBackend`, `PuppetMountContext`, `PuppetInstance`,
-  `PuppetState`, `PuppetDescription`, `PuppetSize`, `PuppetStatus`, `IPuppetUserConfig` and
-  `PuppetConfig`.
+  Quiet is not the same as silent, though, so a game can ask: `puppet.getStatus()` returns the
+  `PuppetStatus` of the live instance, and `puppet.onStatusChange(listener)` reports it changing.
+  A backend fails asynchronously — the element mounts, then the model does or does not load — so the
+  subscription is the half that answers "did my renderer come up", and `"missing-backend"` and
+  `"error"` are the two answers worth acting on. What to do about them is the game's decision, not
+  the engine's: a project that ships one renderer probably wants to say so on screen, and a project
+  where the renderer is optional certainly does not.
+
+  New public surface: `Puppet` (including `getStatus` and `onStatusChange`),
+  `Game.registerPuppetBackend` / `Game.getPuppetBackend` / `Game.listPuppetBackends`, and the types
+  `PuppetBackend`, `PuppetMountContext`, `PuppetInstance`, `PuppetState`, `PuppetDescription`,
+  `PuppetSize`, `PuppetStatus`, `IPuppetUserConfig` and `PuppetConfig`.
 
   A puppet is posed by its constructor config, by a saved game, by an editor host — and by the story,
   which is the next entry.
