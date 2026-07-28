@@ -3,14 +3,22 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {RuntimeScriptError} from "@core/common/Utils";
 import {Scene} from "@core/elements/scene";
 import {TransformState} from "@core/elements/transform/transform";
-import {DisplayableActionContentType, DisplayableActionTypes} from "@core/action/actionTypes";
+import {
+    DisplayableActionContentType,
+    DisplayableActionTypes,
+    PuppetActionContentType,
+    PuppetActionTypes,
+} from "@core/action/actionTypes";
 import {EmptyObject} from "@core/elements/transition/type";
 import {IPosition, PositionUtils} from "@core/elements/transform/position";
-import {EventDispatcher} from "@lib/util/data";
+import {EventDispatcher, Values} from "@lib/util/data";
 import {Displayable} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
+import {PuppetAction} from "@core/action/actions/puppetAction";
+import {Chained, Proxied} from "@core/action/chain";
+import {LogicAction} from "@core/action/logicAction";
 import {Layer} from "@core/elements/layer";
 import type {LiveGameEventToken} from "@core/types";
 import type {
@@ -69,6 +77,21 @@ export interface IPuppetUserConfig extends TransformDefinitions.ImageTransformPr
     slots: Record<string, string | null>;
 }
 
+/** How the story treats a one-shot {@link Puppet.command}. */
+export type PuppetCommandOptions = {
+    /**
+     * Wait for the backend to finish the command before the story moves on.
+     *
+     * Off by default. The engine cannot tell a motion worth a beat from a parameter nudge, and a
+     * backend that never resolves would otherwise park the story forever; opting in makes the wait
+     * the author's decision, and only where they meant it. A waiting command is skippable like any
+     * other timed action.
+     *
+     * @default false
+     */
+    await?: boolean;
+};
+
 /**@internal */
 export type PuppetDataRaw = {
     state: Record<string, any>;
@@ -99,6 +122,13 @@ export type PuppetEvents = {
  *     size: {width: 900, height: 1200},
  *     position: {xalign: 0.3},
  * });
+ *
+ * scene.action([
+ *     alice.show({duration: 400}),
+ *     alice.setMotion("idle"),
+ *     alice.setExpression("smile"),
+ *     alice.command("playMotion", {id: "wave"}, {await: true}),
+ * ]);
  * ```
  */
 export class Puppet
@@ -232,6 +262,99 @@ export class Puppet
     }
 
     /**
+     * Request a named motion — usually the loop the model settles into.
+     *
+     * This is persistent state, not a one-shot: it is saved, and re-applied in full the next time
+     * the model mounts. Pass `null` to clear it. A motion meant to play once and end belongs in
+     * {@link Puppet.command}.
+     *
+     * The story does not wait for the backend to take the pose.
+     * @chainable
+     * @example
+     * ```ts
+     * alice.setMotion("idle");
+     * ```
+     */
+    public setMotion(motion: string | null): Proxied<Puppet, Chained<LogicAction.Actions>> {
+        return this.chain(this.createAction(PuppetActionTypes.setMotion, [motion]));
+    }
+
+    /**
+     * Request a named expression, or `null` to clear it. Persistent state, like the motion.
+     * @chainable
+     * @example
+     * ```ts
+     * alice.setExpression("smile");
+     * ```
+     */
+    public setExpression(expression: string | null): Proxied<Puppet, Chained<LogicAction.Actions>> {
+        return this.chain(this.createAction(PuppetActionTypes.setExpression, [expression]));
+    }
+
+    /**
+     * Request a named skin or costume, or `null` to clear it. Persistent state, like the motion.
+     * @chainable
+     * @example
+     * ```ts
+     * alice.setSkin("winter");
+     * ```
+     */
+    public setSkin(skin: string | null): Proxied<Puppet, Chained<LogicAction.Actions>> {
+        return this.chain(this.createAction(PuppetActionTypes.setSkin, [skin]));
+    }
+
+    /**
+     * Set one numeric parameter, leaving every other parameter as it stands.
+     *
+     * What an id means is the backend's business — a rig parameter, a bone override, a blend weight.
+     * The engine only remembers it, saves it, and hands the whole map back on a load.
+     * @chainable
+     * @example
+     * ```ts
+     * alice.setParam("ParamAngleX", 12);
+     * ```
+     */
+    public setParam(id: string, value: number): Proxied<Puppet, Chained<LogicAction.Actions>> {
+        return this.chain(this.createAction(PuppetActionTypes.setParam, [id, value]));
+    }
+
+    /**
+     * Set one free string slot, leaving every other slot as it stands. `null` clears that slot.
+     *
+     * Slots are for the named things `motion` / `expression` / `skin` do not cover — an attachment
+     * point, a swapped-in prop, whatever a particular renderer calls its own.
+     * @chainable
+     * @example
+     * ```ts
+     * alice.setSlot("prop", "umbrella");
+     * ```
+     */
+    public setSlot(id: string, value: string | null): Proxied<Puppet, Chained<LogicAction.Actions>> {
+        return this.chain(this.createAction(PuppetActionTypes.setSlot, [id, value]));
+    }
+
+    /**
+     * Send the backend a command the engine neither models nor interprets.
+     *
+     * `name` and `payload` are forwarded verbatim. This is the escape hatch for everything
+     * {@link import("@core/game/puppet/puppetBackend").PuppetState} deliberately leaves out — a
+     * motion that plays once and ends, a hit test, lip sync. None of it is saved, so a command is
+     * not restored by a load and not taken back by an undo; anything that has to survive either
+     * belongs in the state, through the `set*` methods above.
+     *
+     * **The story does not wait unless it is asked to.** See {@link PuppetCommandOptions}.
+     * @chainable
+     * @example
+     * ```ts
+     * alice.command("playMotion", {id: "wave"});                  // the story moves straight on
+     * alice.command("playMotion", {id: "bow"}, {await: true});    // ...and here it waits for it
+     * ```
+     */
+    public command(name: string, payload?: unknown, options?: PuppetCommandOptions): Proxied<Puppet, Chained<LogicAction.Actions>> {
+        return this.chain(this.createAction(PuppetActionTypes.command, [name, payload, options]));
+    }
+
+    /**
      * Override the layer used to render this puppet.
      * @param layer - The layer to assign to the puppet.
      */
@@ -317,6 +440,20 @@ export class Puppet
     }
 
     /**
+     * Merge a patch into the state and return the state as it stood.
+     *
+     * The returned snapshot is complete, which is what lets an action undo itself with a single
+     * {@link Puppet._applyState} instead of replaying anything.
+     *
+     * @internal
+     */
+    _patchState(patch: Partial<PuppetState>): PuppetState {
+        const previous = Puppet.normalizeState(this.state);
+        this.state = Puppet.mergeState(this.state, patch);
+        return previous;
+    }
+
+    /**
      * Push the current state to the mounted backend. A no-op when nothing is mounted — the state is
      * applied in full the next time one is.
      *
@@ -357,6 +494,18 @@ export class Puppet
             return null;
         }
         return await instance.describe();
+    }
+
+    /**@internal */
+    private createAction<U extends Values<typeof PuppetActionTypes>>(
+        type: U,
+        content: PuppetActionContentType[U]
+    ): PuppetAction<U> {
+        return new PuppetAction<U>(
+            this.chain(),
+            type,
+            ContentNode.create(content)
+        );
     }
 
     /**@internal */

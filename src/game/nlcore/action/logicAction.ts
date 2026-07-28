@@ -22,6 +22,8 @@ import {
     ImageActionTypes, LayerActionContentType, LayerActionTypes,
     MenuActionContentType,
     MenuActionTypes, PersistentActionContentType, PersistentActionTypes,
+    PuppetActionContentType,
+    PuppetActionTypes,
     SceneActionContentType,
     SceneActionTypes,
     ScriptActionContentType,
@@ -57,6 +59,7 @@ import type {VideoAction} from "@core/action/actions/videoAction";
 import type {Vfx} from "@core/elements/vfx";
 import type {VfxAction} from "@core/action/actions/vfxAction";
 import type {Puppet} from "@core/elements/displayable/puppet";
+import type {PuppetAction} from "@core/action/actions/puppetAction";
 
 // Define the interface first
 export interface LogicActionInterface {
@@ -96,7 +99,8 @@ export interface LogicActionInterface {
         | ServiceAction
         | LayerAction
         | VideoAction
-        | VfxAction;
+        | VfxAction
+        | PuppetAction;
     ActionTypes: Values<typeof CharacterActionTypes>
         | Values<typeof ConditionActionTypes>
         | Values<typeof ImageActionTypes>
@@ -112,7 +116,8 @@ export interface LogicActionInterface {
         | StringKeyOf<ServiceActionContentType>
         | Values<typeof LayerActionTypes>
         | Values<typeof VideoActionTypes>
-        | Values<typeof VfxActionTypes>;
+        | Values<typeof VfxActionTypes>
+        | Values<typeof PuppetActionTypes>;
     ActionContents: CharacterActionContentType
         & ConditionActionContentType
         & ImageActionContentType
@@ -128,7 +133,8 @@ export interface LogicActionInterface {
         & ServiceActionContentType
         & LayerActionContentType
         & VideoActionContentType
-        & VfxActionContentType;
+        & VfxActionContentType
+        & PuppetActionContentType;
 }
 
 export const LogicAction = {
@@ -172,7 +178,8 @@ export namespace LogicAction {
         | ServiceAction
         | LayerAction
         | VideoAction
-        | VfxAction;
+        | VfxAction
+        | PuppetAction;
     export type ActionTypes = Values<typeof CharacterActionTypes>
         | Values<typeof ConditionActionTypes>
         | Values<typeof ImageActionTypes>
@@ -188,7 +195,8 @@ export namespace LogicAction {
         | StringKeyOf<ServiceActionContentType>
         | Values<typeof LayerActionTypes>
         | Values<typeof VideoActionTypes>
-        | Values<typeof VfxActionTypes>;
+        | Values<typeof VfxActionTypes>
+        | Values<typeof PuppetActionTypes>;
     export type ActionContents = CharacterActionContentType
         & ConditionActionContentType
         & ImageActionContentType
@@ -204,7 +212,8 @@ export namespace LogicAction {
         & ServiceActionContentType
         & LayerActionContentType
         & VideoActionContentType
-        & VfxActionContentType;
+        & VfxActionContentType
+        & PuppetActionContentType;
 }
 
 // Export the type

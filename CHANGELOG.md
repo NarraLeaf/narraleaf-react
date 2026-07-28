@@ -77,10 +77,51 @@
   `PuppetState`, `PuppetDescription`, `PuppetSize`, `PuppetStatus`, `IPuppetUserConfig` and
   `PuppetConfig`.
 
-  **The story cannot drive a puppet yet.** There are no `setMotion` / `setExpression` / `command`
-  chainable actions in this release: a puppet is posed by its constructor config, by a save, or by an
-  editor host. Those actions are the next step, and they are held back on purpose so the shape of the
-  command surface can be settled against real authoring rather than guessed at.
+  A puppet is posed by its constructor config, by a saved game, by an editor host — and by the story,
+  which is the next entry.
+
+- **A story can pose and command a puppet.** `Puppet` gains six chainable actions, and they divide
+  along exactly the line `PuppetState` draws.
+
+  Five of them edit that state: `setMotion`, `setExpression`, `setSkin`, `setParam(id, value)` and
+  `setSlot(id, value)`. Each writes its one field — `params` and `slots` merge key by key, so nudging
+  one parameter does not silently clear the rest — and then hands the backend the **whole** state.
+  That is not overhead, it is the point: what an author leaves behind is always a complete state, so
+  a load restores it in one `apply` and an undo reverses it in one more. Nothing is ever replayed.
+
+  The sixth, `command(name, payload?, options?)`, sends a one-shot the engine neither models nor
+  interprets. It leaves nothing behind, which is what makes it the right home for a motion that plays
+  once, a hit test, or lip sync — and equally why a load does not restore it and an undo does not
+  take it back. Anything that has to survive either belongs in the state.
+
+  ```ts
+  scene.action([
+      alice.show({duration: 400}),
+
+      alice.setMotion("idle"),
+      alice.setExpression("smile"),
+      alice.setParam("ParamAngleX", 12),
+      alice.setSlot("prop", "umbrella"),
+
+      alice.command("playMotion", {id: "wave"}),                 // the story moves straight on
+      alice.command("playMotion", {id: "bow"}, {await: true}),   // ...and here it waits for it
+      alice.setExpression(null),
+  ]);
+  ```
+
+  **Nothing waits unless it is asked to.** `{await: true}` is opt-in on `command`, and the `set*`
+  methods have no equivalent at all. The engine cannot tell a motion worth a beat from a parameter
+  nudge, and an author who writes `setExpression("smile")` before a line meant the line, not a pause
+  of whatever length the renderer decides to take. Defaulting the other way would hand every backend
+  that forgets to resolve the power to park a story; this way it can only stall the one command that
+  opted in, and that command is skippable like any other timed action.
+
+  A backend that throws, rejects, or was never registered is logged rather than fatal: the state
+  change still stands and is applied in full the next time the element mounts, and a command aimed at
+  a puppet that is not on stage warns instead of failing.
+
+  New action types: `puppet:setMotion`, `puppet:setExpression`, `puppet:setSkin`, `puppet:setParam`,
+  `puppet:setSlot`, `puppet:command`; new exported type `PuppetCommandOptions`.
 
 - **`DevTools` can drive a puppet imperatively.** This is not public API — `DevTools` is the seam
   editor hosts use, and it moves with their needs — but it is recorded here because those hosts

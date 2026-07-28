@@ -51,7 +51,11 @@ export {
 };
 
 export type {VfxConfig, VfxBlendMode, VfxFadeOptions} from "@core/elements/vfx";
-export type {IPuppetUserConfig, PuppetConfig} from "@core/elements/displayable/puppet";
+export type {
+    IPuppetUserConfig,
+    PuppetConfig,
+    PuppetCommandOptions,
+} from "@core/elements/displayable/puppet";
 export type {
     PuppetBackend,
     PuppetDescription,

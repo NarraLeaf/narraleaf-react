@@ -16,6 +16,7 @@ import type { Transition } from "@core/elements/transition/transition";
 import type { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
 import type { Layer } from "@core/elements/layer";
 import type { VfxFadeOptions } from "@core/elements/vfx";
+import type { PuppetCommandOptions } from "@core/elements/displayable/puppet";
 
 export const DisplayableActionTypes = {
     action: "displayable:action",
@@ -255,5 +256,26 @@ export type VfxActionContentType = {
     K extends "vfx:show" | "vfx:hide" ? [VfxFadeOptions?] :
     K extends "vfx:pause" | "vfx:resume" ? [] :
     K extends "vfx:setRate" ? [number] :
+    any;
+}
+/* Puppet */
+export const PuppetActionTypes = {
+    action: "puppet:action",
+    setMotion: "puppet:setMotion",
+    setExpression: "puppet:setExpression",
+    setSkin: "puppet:setSkin",
+    setParam: "puppet:setParam",
+    setSlot: "puppet:setSlot",
+    command: "puppet:command",
+} as const;
+export type PuppetActionContentType = {
+    [K in typeof PuppetActionTypes[keyof typeof PuppetActionTypes]]:
+    K extends "puppet:action" ? any :
+    K extends "puppet:setMotion" ? [motion: string | null] :
+    K extends "puppet:setExpression" ? [expression: string | null] :
+    K extends "puppet:setSkin" ? [skin: string | null] :
+    K extends "puppet:setParam" ? [id: string, value: number] :
+    K extends "puppet:setSlot" ? [id: string, value: string | null] :
+    K extends "puppet:command" ? [name: string, payload: unknown, options: PuppetCommandOptions | undefined] :
     any;
 }
