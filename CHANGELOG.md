@@ -215,6 +215,62 @@
   A publish can no longer regress this. `prepublishOnly` now typechecks the emitted
   `dist/**/*.d.ts` with `skipLibCheck: false` and stops the release if one reference dangles.
 
+- **A persistent value can hold a nested structure, and a `Date` anywhere inside it survives the
+  save.** `StorableType` allowed exactly one level: a primitive, or an object or array *of*
+  primitives. Nothing enforced that at runtime — `Namespace.isSerializable` recursed to any depth and
+  `set` stored what it was given — so an author writing
+
+  ```ts
+  const player = new Persistent("player", {
+      party: [] as {name: string; metAt: Date}[],
+  });
+  ```
+
+  got a type error, ignored it because the game worked, and then lost the data at the save. The save
+  format tagged the *whole* value `"any"` or `"date"` and had nowhere to record that the third
+  element of a list used to be a `Date`; `JSON.stringify` reduced it to a string on the way out and
+  the loader handed that string back. The value reloaded was not the value saved, and nothing said so.
+
+  `StorableType` is now recursive. Objects and arrays nest freely and only the leaves are
+  constrained — a primitive, `null`, `undefined` or a `Date` — because a save file is JSON and a
+  class instance, a `Map`, a function or a symbol has no representation in one. A `Date` at any depth
+  reloads as a `Date`, with its milliseconds.
+
+  It does this without an in-band marker. `data` in the save is plain JSON, and the two types JSON
+  loses are named *by position* in two new optional fields on `WrappedStorableData`: `dates` and
+  `undefineds`, each a list of paths like `[0, "metAt"]`. A sentinel object inside the value would
+  have been a shape an author could also store — and then their own data would decode as a date. A
+  position cannot collide with anything.
+
+  **Existing saves load unchanged.** Both lists are absent from every save written before they
+  existed, and a value carrying neither is returned exactly as the previous loader returned it. The
+  compatibility runs the other way too: a value made only of primitives, objects and arrays
+  serializes to the same bytes it always did, so a save this version writes is still a save 0.19
+  reads. The one deliberate change is that a root `Date` is written as ISO 8601 rather than
+  `Date.prototype.toString()`, which is what keeps its milliseconds; both parse, in both directions.
+  A nested `Date` in a *pre-existing* save is still the string it had already been reduced to — the
+  type was gone before this loader ever saw the file, and guessing that any ISO-shaped string used to
+  be a date would corrupt real strings.
+
+  The limits, all of them enforced when the value is written rather than when it is assigned:
+
+  - **Nesting is capped at 64 levels.** Past that the save fails with an error naming the position.
+    The encoder is recursive and an unbounded walk is a stack overflow reported from somewhere
+    unrelated; state that nests past 64 is a data-structure bug, not a save.
+  - **A value that refers back to itself is refused,** with an error naming the position. A save is a
+    tree. Cutting the back-edge would write a save that loads as a different object graph than the
+    one the author built, and they would find out much later. `Namespace.isSerializable` reports such
+    a value as `false` instead of recursing until the stack gives out, which is what it used to do.
+  - **A leaf that was never storable** — a function, a symbol, a `bigint`, a class instance — is
+    saved as `null` with a warning naming the position. It was being lost silently before; the key
+    now survives with a `null` in it, so the shape read back is the shape written.
+  - **Reference identity is not part of the value.** The same object stored at two positions saves as
+    two copies and reloads as two independent objects, the same bargain `JSON.stringify` makes.
+
+  One related change falls out of this: `Namespace.serialize()` and `toData()` now copy rather than
+  hand back the live objects, so a snapshot is a real snapshot and mutating a stored object cannot
+  reach back into one already taken.
+
 ## [0.19.2]
 
 ### _Fix_

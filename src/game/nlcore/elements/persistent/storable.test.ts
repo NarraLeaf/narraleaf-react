@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Namespace, Storable, StorableChange, StorableRestore } from "@core/elements/persistent/storable";
 
 /**
@@ -131,6 +131,309 @@ describe("Storable save round-trip", () => {
 
         expect(ns.get("visited")).toBe(false);
         expect(ns.get("count")).toBe(3);
+    });
+});
+
+/**
+ * A stored value nests as deep as the author likes, which the save format did not originally
+ * allow for: it tagged the whole value `"any"` or `"date"` and had nowhere to say that the
+ * third element of a list held a `Date`. These cover the scheme that replaced it — plain JSON
+ * in `data`, with the positions JSON cannot express named alongside it — and the two things
+ * that scheme has to get right: it has to read every save written before it existed, and it
+ * has to fail loudly rather than hang on data that cannot be written at all.
+ */
+describe("Namespace nested values", () => {
+    const save = (namespace: Namespace<any>): any => JSON.parse(JSON.stringify(namespace.serialize()));
+    const reload = (data: any): Namespace<any> => {
+        const namespace = new Namespace<any>("test", {});
+        namespace.load(data);
+        return namespace;
+    };
+    const written = (key: string, value: unknown): any => {
+        const namespace = new Namespace<any>("test", {});
+        namespace.set(key, value);
+        return namespace.serialize()[key];
+    };
+
+    it("round-trips a Date inside an object inside an array", () => {
+        const namespace = new Namespace<any>("test", {});
+        namespace.set("party", [
+            { name: "yuko", metAt: new Date("2020-01-02T03:04:05.123Z") },
+            { name: "mika", metAt: new Date("2021-06-07T08:09:10.456Z") },
+        ]);
+
+        const party = reload(save(namespace)).get("party") as any[];
+
+        expect(party[0].metAt).toBeInstanceOf(Date);
+        expect(party[1].metAt).toBeInstanceOf(Date);
+        expect(party[0].metAt.toISOString()).toBe("2020-01-02T03:04:05.123Z");
+        expect(party[1].metAt.toISOString()).toBe("2021-06-07T08:09:10.456Z");
+        expect(party[0].name).toBe("yuko");
+    });
+
+    it("names a nested Date by position instead of putting a marker inside the value", () => {
+        // The marker-in-the-value alternative is unsafe by construction: whatever object shape
+        // means "this was a Date" is a shape an author can also store, and then their data
+        // decodes as a date. A position cannot collide with anything.
+        expect(written("party", [{ metAt: new Date("2020-01-02T03:04:05.123Z") }])).toEqual({
+            type: "any",
+            data: [{ metAt: "2020-01-02T03:04:05.123Z" }],
+            dates: [[0, "metAt"]],
+        });
+    });
+
+    it("writes a value holding no Date and no undefined exactly as it always did", () => {
+        // The compatibility claim runs both ways: a save this version writes is still a save
+        // the previous one reads, for every value that had a representation there.
+        const wrapped = written("stats", { hp: 3, skills: ["slash", "parry"], nested: { deep: true } });
+
+        expect(Object.keys(wrapped)).toEqual(["type", "data"]);
+        expect(wrapped).toEqual({
+            type: "any",
+            data: { hp: 3, skills: ["slash", "parry"], nested: { deep: true } },
+        });
+    });
+
+    it("writes a root Date as ISO 8601, which keeps the milliseconds the old format dropped", () => {
+        const namespace = new Namespace<any>("test", {});
+        namespace.set("when", new Date("2020-01-02T03:04:05.123Z"));
+
+        expect(namespace.serialize().when).toEqual({ type: "date", data: "2020-01-02T03:04:05.123Z" });
+        expect((reload(save(namespace)).get("when") as Date).toISOString())
+            .toBe("2020-01-02T03:04:05.123Z");
+    });
+
+    it("round-trips empty arrays and empty objects", () => {
+        const namespace = new Namespace<any>("test", {});
+        namespace.set("empties", { list: [], map: {}, deep: [[], [{}]] });
+
+        const empties = reload(save(namespace)).get("empties") as any;
+
+        expect(empties).toEqual({ list: [], map: {}, deep: [[], [{}]] });
+        expect(Array.isArray(empties.list)).toBe(true);
+        expect(Array.isArray(empties.map)).toBe(false);
+    });
+
+    it("round-trips null and undefined at depth, keeping them apart", () => {
+        const namespace = new Namespace<any>("test", {});
+        namespace.set("bag", { nothing: null, missing: undefined, list: [null, undefined, 1] });
+
+        const bag = reload(save(namespace)).get("bag") as any;
+
+        expect(bag.nothing).toBe(null);
+        expect(bag.missing).toBe(undefined);
+        // JSON drops an undefined property outright; the position list is what puts the key
+        // back, so a reloaded object has the same shape as the one that was saved.
+        expect(Object.prototype.hasOwnProperty.call(bag, "missing")).toBe(true);
+        expect(bag.list[0]).toBe(null);
+        expect(bag.list[1]).toBe(undefined);
+        expect(bag.list[2]).toBe(1);
+    });
+
+    it("saves the same object reached twice as two independent copies", () => {
+        const shared = { hp: 3 };
+        const namespace = new Namespace<any>("test", {});
+        namespace.set("pair", [shared, shared]);
+
+        const pair = reload(save(namespace)).get("pair") as any[];
+
+        expect(pair).toEqual([{ hp: 3 }, { hp: 3 }]);
+        expect(pair[0]).not.toBe(pair[1]);
+    });
+
+    it("takes a snapshot later mutation cannot reach back into", () => {
+        const stats = { hp: 3 };
+        const namespace = new Namespace<any>("test", {});
+        namespace.set("stats", stats);
+        const snapshot = namespace.toData();
+
+        stats.hp = 99;
+
+        expect(reload(snapshot).get("stats")).toEqual({ hp: 3 });
+    });
+});
+
+describe("Namespace values that cannot be saved", () => {
+    const quietly = <T>(run: () => T): { result: T; warnings: string[] } => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => void 0);
+        try {
+            return { result: run(), warnings: warn.mock.calls.map(call => String(call[0])) };
+        } finally {
+            warn.mockRestore();
+        }
+    };
+
+    it("refuses to save a value that refers back to itself, naming where", () => {
+        // Rejected rather than repaired: cutting the back-edge would write a save that loads
+        // as a different object graph than the one the author built, and they would find out
+        // much later. `set` has already warned by this point.
+        const node: any = { name: "root" };
+        node.self = node;
+
+        const { result: namespace } = quietly(() => {
+            const created = new Namespace<any>("test", {});
+            created.set("node", node);
+            return created;
+        });
+
+        expect(() => namespace.serialize()).toThrow(/refers back to itself/);
+        expect(() => namespace.serialize()).toThrow(/\.self/);
+    });
+
+    it("reports a self-referring value as not serializable instead of recursing forever", () => {
+        const node: any = {};
+        node.self = node;
+
+        expect(Namespace.isSerializable(node)).toBe(false);
+    });
+
+    it("accepts a value reachable twice, which is not a cycle", () => {
+        const shared = { hp: 3 };
+
+        expect(Namespace.isSerializable({ a: shared, b: shared })).toBe(true);
+    });
+
+    it("stores a leaf that was never storable as null and says where it was", () => {
+        // The alternative, throwing, would cost the player a save over one stray value that
+        // was already being lost silently. The key survives with a null in it, so the shape
+        // the author reads back is the shape they wrote.
+        class Sword {
+            constructor(public readonly edge = "keen") {
+            }
+        }
+
+        const { result, warnings } = quietly(() => {
+            const namespace = new Namespace<any>("test", {});
+            namespace.set("bag", { gold: 1, onUse: () => 0, weapon: new Sword(), tag: Symbol("x") });
+            const reloaded = new Namespace<any>("test", {});
+            reloaded.load(JSON.parse(JSON.stringify(namespace.serialize())));
+            return reloaded.get("bag");
+        });
+
+        expect(result).toEqual({ gold: 1, onUse: null, weapon: null, tag: null });
+        expect(warnings.some(message => message.includes(".onUse"))).toBe(true);
+        expect(warnings.some(message => message.includes("Sword"))).toBe(true);
+    });
+
+    it("refuses a value nested past the depth cap rather than overflowing the stack", () => {
+        let deep: any = "bottom";
+        for (let index = 0; index < 200; index++) {
+            deep = { next: deep };
+        }
+
+        const { result: namespace } = quietly(() => {
+            const created = new Namespace<any>("test", {});
+            created.set("chain", deep);
+            return created;
+        });
+
+        expect(() => namespace.serialize()).toThrow(/nests deeper than 64/);
+    });
+
+    it("saves a value that stops short of the depth cap", () => {
+        let deep: any = "bottom";
+        for (let index = 0; index < 60; index++) {
+            deep = { next: deep };
+        }
+        const namespace = new Namespace<any>("test", {});
+        namespace.set("chain", deep);
+
+        const reloaded = new Namespace<any>("test", {});
+        reloaded.load(JSON.parse(JSON.stringify(namespace.serialize())));
+
+        let cursor: any = reloaded.get("chain");
+        for (let index = 0; index < 60; index++) {
+            cursor = cursor.next;
+        }
+        expect(cursor).toBe("bottom");
+    });
+});
+
+/**
+ * The save format changed; the saves did not. Everything here reads data this build never
+ * wrote, because the only useful proof of backward compatibility is one where the fixture
+ * cannot drift along with the writer.
+ */
+describe("Namespace reading saves written before values could nest", () => {
+    /**
+     * One namespace exactly as 0.19 serialized it, typed out by hand. Note two things the old
+     * writer did that are impossible to reproduce now: it emitted `Date.prototype.toString()`
+     * for a root `Date`, and it had no tag at all for a nested one — `JSON.stringify` turned
+     * that into an ISO string on the way out and the loader handed the string straight back.
+     */
+    const legacySave = {
+        "persistent:player": {
+            gold: { type: "any", data: 10 },
+            name: { type: "any", data: "yuko" },
+            seenIntro: { type: "any", data: false },
+            nothing: { type: "any", data: null },
+            // JSON drops an undefined property, so the writer's `data` key is simply absent
+            missing: { type: "any" },
+            stats: { type: "any", data: { hp: 3, mp: 1 } },
+            tags: { type: "any", data: ["brave", "poor"] },
+            born: { type: "date", data: "Thu Jan 02 2020 03:04:05 GMT+0000 (Coordinated Universal Time)" },
+            meta: { type: "any", data: { lastSaved: "2020-01-02T03:04:05.000Z" } },
+        },
+    } as any;
+
+    const loaded = (): Namespace<any> => {
+        const storable = new Storable();
+        storable.addNamespace(new Namespace<any>("persistent:player", { gold: 0, motto: "hi" }));
+        storable.load(JSON.parse(JSON.stringify(legacySave)));
+        return storable.getNamespace("persistent:player");
+    };
+
+    it("reads every value the old format could hold", () => {
+        const namespace = loaded();
+
+        expect(namespace.get("gold")).toBe(10);
+        expect(namespace.get("name")).toBe("yuko");
+        expect(namespace.get("seenIntro")).toBe(false);
+        expect(namespace.get("nothing")).toBe(null);
+        expect(namespace.get("missing")).toBe(undefined);
+        expect(namespace.get("stats")).toEqual({ hp: 3, mp: 1 });
+        expect(namespace.get("tags")).toEqual(["brave", "poor"]);
+        // a key the save predates still reads its default
+        expect(namespace.get("motto")).toBe("hi");
+    });
+
+    it("still parses a root Date written as Date.prototype.toString()", () => {
+        const born = loaded().get("born");
+
+        expect(born).toBeInstanceOf(Date);
+        expect((born as Date).toISOString()).toBe("2020-01-02T03:04:05.000Z");
+    });
+
+    it("hands back a nested Date as the string the old format had already reduced it to", () => {
+        // Not a regression — the type was gone before this loader ever saw the file, and
+        // guessing that any ISO-shaped string used to be a Date would corrupt real strings.
+        // Values saved from here on carry the position, so this only ever applies to old files.
+        expect(loaded().get("meta")).toEqual({ lastSaved: "2020-01-02T03:04:05.000Z" });
+    });
+
+    it("re-saves a legacy save into a form that reads back the same", () => {
+        const namespace = loaded();
+
+        const resaved = new Namespace<any>("persistent:player", {});
+        resaved.load(JSON.parse(JSON.stringify(namespace.serialize())));
+
+        expect(resaved.get("gold")).toBe(10);
+        expect(resaved.get("seenIntro")).toBe(false);
+        expect(resaved.get("nothing")).toBe(null);
+        expect(resaved.get("missing")).toBe(undefined);
+        expect(resaved.get("stats")).toEqual({ hp: 3, mp: 1 });
+        expect((resaved.get("born") as Date).toISOString()).toBe("2020-01-02T03:04:05.000Z");
+    });
+
+    it("reads a value tagged by a newer engine as-is instead of throwing the save away", () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => void 0);
+        const namespace = new Namespace<any>("test", {});
+
+        namespace.deserialize({ future: { type: "bigint", data: "12" } } as any);
+
+        expect(namespace.get("future")).toBe("12");
+        expect(warn).toHaveBeenCalled();
+        warn.mockRestore();
     });
 });
 

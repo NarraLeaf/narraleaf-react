@@ -7,6 +7,13 @@ import {
     StorableType,
     WrappedStorableData
 } from "@core/elements/persistent/type";
+import {
+    decodeStorableValue,
+    encodeStorableValue,
+    isStorableValue,
+    MaxStorableDepth,
+    toDate
+} from "@core/elements/persistent/serialize";
 import {deepMerge, EventDispatcher, EventToken} from "@lib/util/data";
 import {RuntimeGameError} from "@core/common/Utils";
 
@@ -66,11 +73,18 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * Values outside the serializable domain (a class instance, a function — `set` warns but
  * still stores them) are only equal to themselves, so they always report a change.
  *
+ * Bounded by {@link MaxStorableDepth}, past which the two are reported as different. Nothing
+ * that deep can be saved anyway, and a comparison is not the place to hang: a cycle reached by
+ * two distinct objects has no other floor.
+ *
  * @internal
  */
-function isSameStoredValue(previous: unknown, next: unknown): boolean {
+function isSameStoredValue(previous: unknown, next: unknown, depth = 0): boolean {
     if (Object.is(previous, next)) {
         return true;
+    }
+    if (depth > MaxStorableDepth) {
+        return false;
     }
     if (previous instanceof Date || next instanceof Date) {
         return previous instanceof Date
@@ -81,36 +95,28 @@ function isSameStoredValue(previous: unknown, next: unknown): boolean {
         return Array.isArray(previous)
             && Array.isArray(next)
             && previous.length === next.length
-            && previous.every((item, index) => isSameStoredValue(item, next[index]));
+            && previous.every((item, index) => isSameStoredValue(item, next[index], depth + 1));
     }
     if (isPlainObject(previous) && isPlainObject(next)) {
         const keys = Object.keys(previous);
         return keys.length === Object.keys(next).length
             && keys.every(key =>
                 Object.prototype.hasOwnProperty.call(next, key)
-                && isSameStoredValue(previous[key], next[key]));
+                && isSameStoredValue(previous[key], next[key], depth + 1));
     }
     return false;
 }
 
 export class Namespace<T extends NameSpaceContent<keyof T>> {
+    /**
+     * Whether a value can be written to a save.
+     *
+     * Plain objects and arrays may nest freely; the leaves have to be a primitive, `null`,
+     * `undefined` or a `Date`. A value that refers back to itself, or one that nests past 64
+     * levels, is not serializable — both report `false` rather than recursing forever.
+     */
     static isSerializable(value: any): boolean {
-        if (["number", "string", "boolean"].includes(typeof value)) {
-            return true;
-        }
-        if (value instanceof Date) {
-            return true;
-        }
-        if (value === null || value === undefined) {
-            return true;
-        }
-        if (Array.isArray(value)) {
-            return value.every(Namespace.isSerializable);
-        }
-        if (typeof value === "object") {
-            return Object.getPrototypeOf(value) === Object.prototype && Object.values(value).every(Namespace.isSerializable);
-        }
-        return false;
+        return isStorableValue(value);
     }
 
     name: string;
@@ -223,11 +229,17 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         this.deserialize(data);
     }
 
-    /**@internal */
+    /**
+     * Flatten every value into the save format.
+     *
+     * The result shares no structure with the namespace, so it is a real snapshot: mutating a
+     * stored object afterwards cannot reach back into one already taken.
+     * @internal
+     */
     serialize() {
         const output: { [key: string]: WrappedStorableData } = {};
         Object.entries(this.content).forEach(([key, value]) => {
-            output[key] = this.wrap(value as any);
+            output[key] = this.wrap(value as any, key);
         });
         return output;
     }
@@ -264,27 +276,60 @@ export class Namespace<T extends NameSpaceContent<keyof T>> {
         return "any";
     }
 
-    /**@internal */
-    wrap(data: StorableType) {
+    /**
+     * Tag one value for the save file.
+     *
+     * A `Date` at the root keeps the `"date"` tag it has always had, so a save stays readable
+     * by the loader that predates nesting. Everything else is flattened to JSON with the
+     * positions of any nested `Date` and `undefined` recorded alongside it; both lists are
+     * omitted when empty, which is why a value made only of primitives, objects and arrays
+     * serializes to exactly the bytes it always did.
+     * @internal
+     */
+    wrap(data: StorableType, key?: string): WrappedStorableData {
+        const where = `namespace "${this.name}"` + (key === undefined ? "" : `, key "${key}"`);
         const handlers: {
             [K in BaseStorableTypeName]: BaseStorableSerializeHandlers[K]
         } = {
-            any: (value) => ({type: "any", data: value}),
-            date: (value) => ({type: "date", data: value.toString()}),
+            any: (value) => {
+                const encoded = encodeStorableValue(value, where);
+                const wrapped: WrappedStorableData = {type: "any", data: encoded.data as StorableType};
+                if (encoded.dates.length) {
+                    wrapped.dates = encoded.dates;
+                }
+                if (encoded.undefineds.length) {
+                    wrapped.undefineds = encoded.undefineds;
+                }
+                return wrapped;
+            },
+            date: (value) => ({type: "date", data: value.toISOString()}),
         };
         const type = this.toTypeName(data);
         return handlers[type](data as any);
     }
 
-    /**@internal */
+    /**
+     * Read one saved value back.
+     *
+     * Every tag this has ever written is still understood, and a value carrying neither
+     * position list is returned exactly as the previous loader returned it. An unknown tag —
+     * a save from a newer engine — yields its raw payload with a warning instead of throwing,
+     * so one unfamiliar value does not cost the player the whole save.
+     * @internal
+     */
     unwrap(data: WrappedStorableData): StorableType {
         const handlers: {
             [K in BaseStorableTypeName]: BaseStorableDeserializeHandlers[K]
         } = {
-            any: (data) => data.data,
-            date: (data) => new Date(data.data),
+            any: (data) => decodeStorableValue(data.data, data.dates, data.undefineds),
+            date: (data) => toDate(data.data),
         };
-        return handlers[data.type](data);
+        const handler = handlers[data?.type];
+        if (!handler) {
+            console.warn(`Unknown stored value type "${data?.type}", reading it as-is\n    at namespace "${this.name}"`);
+            return data?.data;
+        }
+        return handler(data);
     }
 
     /**@internal */
