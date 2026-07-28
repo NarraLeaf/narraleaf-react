@@ -60,7 +60,49 @@
 
   A backend may also implement `describe()`, reporting the motions, expressions, skins and parameters
   a model actually has. It is optional, and it exists so an editor can fill its dropdowns from the
-  live model rather than writing a parser for a model format it has no business parsing.
+  live model rather than writing a parser for a model format it has no business parsing. Nothing
+  gates it on status: an inspector opens when the author clicks it, not when a model happens to have
+  finished loading, so a backend that can only describe a loaded model awaits its own load inside
+  `describe()`.
+
+  **`ctx.resolveSibling(path)` resolves the rest of the bundle.** No real 2D character model is one
+  file — it is a manifest plus an atlas plus texture pages, or a model file plus motions plus physics
+  plus textures — and *which* siblings exist is only knowable after parsing the first one, because
+  the manifest is what names them. So a backend cannot be handed a list up front, and making the
+  author enumerate one would move model parsing to the party least able to do it. It gets the
+  arithmetic instead: the path resolves against the directory `src` sits in, `.` and `..` are folded
+  away, an already-absolute path wins, and the result goes through the same rules as `resolveSrc` —
+  so a texture the author warmed with `scene.preloadImage()` is served from the preload cache here
+  too.
+
+  ```ts
+  // src: "models/alice/alice.model.json"
+  ctx.resolveSibling("alice.atlas");            // -> "models/alice/alice.atlas"
+  ctx.resolveSibling("textures/page-0.png");    // -> "models/alice/textures/page-0.png"
+  ctx.resolveSibling("../shared/eyes.png");     // -> "models/shared/eyes.png"
+  ```
+
+  This is the *only* structure the engine will ever read out of `src`, and it does so only when
+  asked. It still does not know what `src` means: not the format, not the contents, not which files
+  it pulls in. A backend whose `src` is an opaque key rather than a location gets the path back
+  untouched and should be reading `options`, which the engine forwards just as verbatim.
+
+  **The first `apply()` lands before `ready()` is called** — not merely before it resolves. The
+  engine mounts, applies the complete initial state, and only then asks whether the model is ready.
+  That is deliberate: a backend wants the pose it is loading into *at* load time, rather than every
+  model visibly snapping from its setup pose to the author's pose a frame after it appears. Hold the
+  state and re-apply it once the model is up, or return a promise from `apply()` that waits for the
+  load — which also holds `ready()` back until the pose has landed. `command()` and `resize()` can
+  likewise arrive before `ready()` resolves, and `dispose()` can arrive at any point, loading
+  included; after it, the engine calls nothing on that instance again.
+
+  **`null` in a `PuppetState` field is the absence of a request, never "leave whatever is there".**
+  A state is applied whole, so a cleared field has to visibly clear or a load would not reproduce
+  what it recorded. `motion: null` is nothing playing — the model's setup / rest pose. `expression:
+  null` applies no expression, and means clearing the track rather than substituting a model's own
+  named "neutral". `skin: null` is the model's default skin. A slot set to `null` is cleared, which
+  is the same state as a key that was never there. `params` has no null at all: a parameter the map
+  does not mention keeps the model's own default, so clearing one means dropping the key.
 
   **A puppet cannot change its `src`.** Changing the model means a new element: the backend's
   instance lives exactly as long as the element is on stage, and swapping a model out from under a

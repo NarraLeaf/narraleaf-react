@@ -264,6 +264,46 @@ describe("Puppet element", () => {
             expect(listener.mock.calls.map(([status]) => status)).toEqual(["loading", "ready"]);
         });
 
+        // The other half of this — that the box is still rendered, with its transform written to it —
+        // is structural in `Puppet.tsx`: the JSX sits outside the mount effect entirely, so there is
+        // no path on which a missing backend removes it. This repo has no DOM harness to assert that
+        // with, so what is pinned here is the element's side: the state a save carries, and the fact
+        // that a story driving an undrawn puppet neither throws nor loses anything.
+        it("a backend nobody registered keeps its pose, its state and its saved game", async () => {
+            const puppet = makePuppet({
+                motion: "idle",
+                params: { ParamAngleX: 12 },
+                opacity: 0.5,
+                scaleX: 0.75,
+            });
+            const pose = puppet.transformState.serialize();
+
+            // What Puppet.tsx does when `game.getPuppetBackend(name)` comes back null: no instance is
+            // ever attached, and the element says so.
+            puppet._setStatus("missing-backend");
+
+            expect(puppet.getStatus()).toBe("missing-backend");
+            expect(puppet._getInstance()).toBeNull();
+
+            // The story can go on posing and commanding it. Nothing throws, and a command reports
+            // that it was dropped rather than pretending it ran.
+            puppet._patchState({ expression: "smile" });
+            await expect(puppet._applyState()).resolves.toBeUndefined();
+            await expect(puppet._runCommand("playMotion", { id: "wave" })).resolves.toBe(false);
+            await expect(puppet._describe()).resolves.toBeNull();
+
+            // ...and the save is complete, so the run where the renderer *is* installed restores
+            // everything this one could not draw.
+            expect(puppet.toData().state).toEqual({
+                motion: "idle",
+                expression: "smile",
+                skin: null,
+                params: { ParamAngleX: 12 },
+                slots: {},
+            });
+            expect(puppet.transformState.serialize()).toEqual(pose);
+        });
+
         it("lets a game author read the status and subscribe to it without DevTools", () => {
             const puppet = makePuppet();
             const seen: string[] = [];

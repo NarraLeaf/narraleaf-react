@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useRef} from "react";
 import {GameState} from "@player/gameState";
 import {Puppet as GamePuppet} from "@core/elements/displayable/puppet";
 import type {PuppetInstance, PuppetSize} from "@core/game/puppet/puppetBackend";
+import {resolvePuppetSibling} from "@core/game/puppet/puppetBackend";
 import {Transition} from "@core/elements/transition/transition";
 import Inspect from "@player/lib/Inspect";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
@@ -98,6 +99,8 @@ export default function Puppet({state, puppet}: Readonly<{
                 options: puppet.config.options,
                 size: sizeRef.current,
                 resolveSrc,
+                resolveSibling: (relativePath: string) =>
+                    resolveSrc(resolvePuppetSibling(puppet.config.src, relativePath)),
                 warn: (message: string, detail?: unknown) => {
                     state.logger.warn("Puppet", message, detail);
                 },
@@ -119,14 +122,20 @@ export default function Puppet({state, puppet}: Readonly<{
 
         // The whole state is pushed once here rather than replayed action by action — that is the
         // point of `apply` taking a complete state, and it is what makes restoring a saved game a
-        // single call.
+        // single call. It also means the backend's first `apply` lands before `ready()` is called,
+        // which is the documented order: a model wants the pose it is loading into at load time,
+        // not a snap to it one frame after it appears.
         Promise.resolve()
             .then(() => puppet._applyState())
             // `ready` is required by `PuppetInstance`, and the guard is deliberate all the same: the
             // backend comes from the host, not from us, so nothing has typechecked it against the
             // contract. A backend that omits `ready` reaches `ready` status right after `apply`
             // instead of taking the stage down with a TypeError.
-            .then(() => (typeof instance.ready === "function" ? instance.ready() : undefined))
+            //
+            // The `disposed` check keeps the promise the contract makes — nothing is called on an
+            // instance after `dispose()`. An `apply` that resolves slowly would otherwise land here
+            // after the element left the stage and ask a torn-down backend whether it is ready.
+            .then(() => (!disposed && typeof instance.ready === "function" ? instance.ready() : undefined))
             .then(() => {
                 if (!disposed) {
                     puppet._setStatus("ready");
