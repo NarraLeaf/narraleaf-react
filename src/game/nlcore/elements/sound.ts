@@ -15,7 +15,6 @@ export enum SoundType {
     Sound = "sound",
 }
 
-/**@internal */
 export type SoundDataRaw = {
     state: Record<string, any>;
 };

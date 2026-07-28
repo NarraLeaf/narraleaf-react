@@ -45,18 +45,13 @@ export type VfxFadeOptions = {
     easing?: TransformDefinitions.EasingDefinition;
 };
 
-/**@internal */
-type VfxState = {
+export type VfxState = {
     display: boolean;
     paused: boolean;
 };
-/**@internal */
 export type VfxStateRaw = {
     state: VfxState;
 };
-
-/**@internal */
-type ChainedVfx = Proxied<Vfx, Chained<LogicAction.Actions>>;
 
 /**
  * A full-screen looping video overlay for particle and ambience effects
@@ -119,7 +114,7 @@ export class Vfx extends Actionable<VfxStateRaw> {
      * already shown is idempotent (the fade-in is re-applied).
      * @chainable
      */
-    show(options?: VfxFadeOptions): ChainedVfx {
+    show(options?: VfxFadeOptions): Proxied<Vfx, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VfxActionTypes.show,
             [options]
@@ -133,7 +128,7 @@ export class Vfx extends Actionable<VfxStateRaw> {
      * not shown is a no-op (a weak warning is logged).
      * @chainable
      */
-    hide(options?: VfxFadeOptions): ChainedVfx {
+    hide(options?: VfxFadeOptions): Proxied<Vfx, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VfxActionTypes.hide,
             [options]
@@ -144,7 +139,7 @@ export class Vfx extends Actionable<VfxStateRaw> {
      * Freeze the overlay on its current frame.
      * @chainable
      */
-    pause(): ChainedVfx {
+    pause(): Proxied<Vfx, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VfxActionTypes.pause,
             []
@@ -155,7 +150,7 @@ export class Vfx extends Actionable<VfxStateRaw> {
      * Continue playback from the current frame.
      * @chainable
      */
-    resume(): ChainedVfx {
+    resume(): Proxied<Vfx, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VfxActionTypes.resume,
             []
@@ -169,7 +164,7 @@ export class Vfx extends Actionable<VfxStateRaw> {
      * returns to `config.playbackRate`.
      * @chainable
      */
-    setPlaybackRate(rate: number): ChainedVfx {
+    setPlaybackRate(rate: number): Proxied<Vfx, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VfxActionTypes.setRate,
             [rate]

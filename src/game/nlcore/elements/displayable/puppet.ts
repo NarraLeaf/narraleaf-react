@@ -103,7 +103,6 @@ export type PuppetCommandOptions = {
     await?: boolean;
 };
 
-/**@internal */
 export type PuppetDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;

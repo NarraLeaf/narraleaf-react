@@ -146,12 +146,10 @@ export type PresentationSnapshot = {
     scenes: SceneSnapshot[];
     nvlState: NvlState;
 };
-/**@internal */
 export type PlayerStateElementSnapshot = {
     scene: Scene,
     layers: Map<Layer, [LogicAction.DisplayableElements, Record<string, any>][]>;
 };
-/**@internal */
 export type PlayerAction = CalledActionResult;
 
 interface StageUtils {

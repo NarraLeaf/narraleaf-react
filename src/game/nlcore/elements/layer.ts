@@ -38,8 +38,7 @@ type LayerConfig = {
 type LayerState = {
     zIndex: number;
 };
-/**@internal */
-type LayerDataRaw = {
+export type LayerDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;
 };

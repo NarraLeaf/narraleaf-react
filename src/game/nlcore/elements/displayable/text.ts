@@ -64,7 +64,6 @@ export interface ITextUserConfig extends TransformDefinitions.TextTransformProps
     layer?: Layer;
 }
 
-/**@internal */
 export type TextDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;

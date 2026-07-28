@@ -17,7 +17,6 @@ export type CharacterConfig = {
     avatar?: DialogAvatar | false;
     portraits: (Image | CharacterPortraitConfig)[];
 };
-/**@internal */
 export type CharacterStateData = {
     name: string;
 };

@@ -26,7 +26,6 @@ export interface IStoryConfig {
     camera?: Camera;
 }
 
-/**@internal */
 export type ElementStateRaw = Record<string, any>;
 
 export class Story extends Constructable<

@@ -144,7 +144,6 @@ const overlayStyle: React.CSSProperties = {
     maxHeight: "none",
 };
 
-/**@internal */
 function ImageComponent(
     {
         image,

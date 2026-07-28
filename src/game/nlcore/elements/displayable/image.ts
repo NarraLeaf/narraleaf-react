@@ -80,7 +80,6 @@ export interface IImageUserConfig<
     darkness?: number;
 }
 
-/**@internal */
 export type ImageDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;
@@ -747,7 +746,7 @@ export class Image<
                 continue;
             }
             const tags = Object.keys(slot);
-            const identity = [...tags].sort().join(" ");
+            const identity = [...tags].sort().join("\0");
             if (seen.has(identity)) {
                 continue;
             }

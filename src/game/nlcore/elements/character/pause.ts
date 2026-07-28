@@ -2,9 +2,7 @@ export type PauseConfig = {
     duration?: number;
 };
 
-/**@internal */
-export type PausingShortcut = typeof Pause;
-export type Pausing = Pause | PausingShortcut;
+export type Pausing = Pause | typeof Pause;
 
 export class Pause {
     /**@internal */

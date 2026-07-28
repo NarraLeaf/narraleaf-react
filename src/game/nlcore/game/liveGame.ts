@@ -24,8 +24,7 @@ import { ActionExecutionInjection, ExecutedActionResult } from "../action/action
 import { GameHistory } from "../action/gameHistory";
 import { StackModel, StackModelRawData, StackSnapshot } from "../action/stackModel";
 
-/**@internal */
-type LiveGameEvent = {
+export type LiveGameEvent = {
     "event:character.prompt": [{
         /**
          * The character who says the sentence

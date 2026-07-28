@@ -2,7 +2,6 @@ import React, {useEffect, useRef, forwardRef} from "react";
 import {useRatio} from "@player/provider/ratio";
 import {useGame} from "@core/common/player";
 
-/**@internal */
 const AspectScaleImage = forwardRef<HTMLImageElement, {
     onSizeChanged?: (width: number, height: number) => void;
     onLoad?: () => void;

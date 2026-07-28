@@ -79,7 +79,6 @@ export type JumpConfig = {
 type ChainableAction = Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>> | LogicAction.Actions;
 type ChainedScene = Proxied<Scene, Chained<LogicAction.Actions>>;
 
-/**@internal */
 export type SceneDataRaw = {
     state: Record<string, any>,
 }

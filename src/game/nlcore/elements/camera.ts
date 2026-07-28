@@ -21,7 +21,6 @@ export type ICameraUserConfig = TransformDefinitions.ImageTransformProps;
 type CameraConfig = {
     name: string;
 };
-/**@internal */
 export type CameraDataRaw = {
     transformState: Record<string, any>;
 };

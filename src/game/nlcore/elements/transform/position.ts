@@ -33,7 +33,6 @@ export type OffsetPosition = {
     yoffset: number;
 }
 
-/**@internal */
 export type D2Position<X = any, Y = any> = {
     x: UnknownAble<X>;
     y: UnknownAble<Y>;
@@ -48,7 +47,6 @@ export type RawPosition = CommonPositionType
 type Unknown = typeof PositionUtils.Unknown;
 type UnknownAble<T> = T | Unknown;
 
-/**@internal */
 export class PositionUtils {
     static readonly Unknown: unique symbol = Symbol("Unknown");
 

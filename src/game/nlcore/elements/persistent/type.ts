@@ -2,11 +2,9 @@ export type StorableData<K extends string = string> = {
     [key in K]: number | boolean | string | StorableData | StorableData[] | undefined | null | Date;
 };
 
-/**@internal */
 export type BaseStorableType = number | boolean | string | undefined | null | Date;
 /**@internal */
 export type UnserializableStorableType = Date;
-/**@internal */
 export type BaseStorableTypeName = "any" | "date";
 export type StorableType = BaseStorableType | Record<string, BaseStorableType> | Array<BaseStorableType>;
 /**
@@ -42,5 +40,4 @@ export type BaseStorableDeserializeHandlers = {
         K extends "date" ? (data: WrappedStorableData<Date>) => Date :
             never;
 }
-/**@internal */
 export type NameSpaceContent<T extends string | number | symbol> = { [K in T]?: StorableType };

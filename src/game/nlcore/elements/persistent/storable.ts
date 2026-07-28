@@ -38,7 +38,6 @@ export type StorableRestore = {
     namespaces: string[];
 };
 
-/**@internal */
 export type StorableEvents = {
     "event:storable.change": [StorableChange];
     "event:storable.restore": [StorableRestore];
