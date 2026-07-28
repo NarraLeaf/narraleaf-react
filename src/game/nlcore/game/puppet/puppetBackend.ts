@@ -213,8 +213,11 @@ export interface PuppetInstance {
      *
      * Returning a promise lets a caller that opted in wait for the command — playing a motion to
      * its end, for instance. Nothing waits by default.
+     *
+     * `payload` is optional on the authoring side (`puppet.command("wave")`), so it arrives as
+     * `undefined` whenever the story omitted it. Treat a missing payload as valid input.
      */
-    command(name: string, payload: unknown): void | Promise<void>;
+    command(name: string, payload?: unknown): void | Promise<void>;
     /** The box changed size. */
     resize(size: PuppetSize): void;
     /**
