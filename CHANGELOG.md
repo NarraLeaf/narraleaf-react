@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.21.1]
+
+### _Fix_
+
+- **A save no longer refuses to load over one sound it cannot place.** `AudioManager.fromData` threw
+  when a saved sound's id was not in the story's element map, which failed the *entire* load. Two
+  ordinary situations reach it: a host that played a UI sound through `LiveGame.playSound` (that sound
+  belongs to the host, not the story, so it is not in the map — and it has no business resuming out of
+  a save anyway), and a save written before the story dropped a sound it used to have. Both now log a
+  warning and skip that one clip, which is the outcome a player would have chosen.
+
 ## [0.21.0]
 
 ### _Feature_

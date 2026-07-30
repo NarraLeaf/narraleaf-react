@@ -402,8 +402,17 @@ export class AudioManager {
         data.sounds.forEach(([soundId, soundData]) => {
             const sound = elementMap.get(soundId) as SoundElement;
             if (!sound) {
-                throw new RuntimeGameError(`Sound not found (id: "${soundId}")`
-                    + "\nNarraLeaf cannot find the element with the id from the saved game");
+                // Not fatal. A sound reaches this manager from two places: the story's action graph,
+                // whose elements are all in `elementMap`, and `LiveGame.playSound`, whose are not -
+                // a host playing a UI sound owns it, and it has no business resuming out of a save.
+                // A save whose story has since dropped a sound lands here too. Throwing made either
+                // one fail the whole load, when the correct outcome is simply that this one clip
+                // does not come back.
+                this.gameState.logger.weakWarn(
+                    "AudioManager",
+                    `Skipped restoring a sound that is not in this story (id: "${soundId}")`,
+                );
+                return;
             }
             this.soundFromData(sound, soundData);
         });

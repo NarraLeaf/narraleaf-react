@@ -318,6 +318,27 @@ describe("AudioManager clip regions", () => {
     });
 });
 
+describe("AudioManager.fromData", () => {
+    beforeEach(() => {
+        soundMock.instances.length = 0;
+    });
+
+    it("skips a saved sound this story has no element for", () => {
+        const gameState = createGameState();
+        const manager = new AudioManager(gameState);
+        manager.initialize();
+
+        // A host playing a UI sound through `LiveGame.playSound` owns it, and it is not in the
+        // story's element map. Throwing here failed the entire load over one clip that had no
+        // business resuming anyway.
+        expect(() => manager.fromData(
+            { sounds: [["not-in-this-story", { isPlaying: true, position: 3 }]], groups: [] },
+            new Map(),
+        )).not.toThrow();
+        expect(gameState.logger.weakWarn).toHaveBeenCalled();
+    });
+});
+
 describe("the seek action", () => {
     it("moves the play head and records the previous position for undo", () => {
         const seek = vi.fn(() => Awaitable.resolve<void>(undefined));
