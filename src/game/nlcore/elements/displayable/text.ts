@@ -17,6 +17,7 @@ import {TextTransition} from "@core/elements/transition/transitions/text/textTra
 import {FontSize} from "@core/elements/transition/transitions/text/fontSize";
 import {Layer} from "@core/elements/layer";
 import {EmptyObject} from "@core/elements/transition/type";
+import {IPosition, PositionUtils, RawPosition} from "@core/elements/transform/position";
 
 export type TextConfig = {
     alignX: "left" | "center" | "right";
@@ -73,14 +74,45 @@ export class Text
     extends Displayable<TextDataRaw, Text, TransformDefinitions.TextTransformProps>
     implements EventfulDisplayable {
     /**@internal */
-    static DefaultUserConfig = new ConfigConstructor<ITextUserConfig>({
-        alignX: "center",
-        alignY: "center",
-        className: "",
-        fontSize: 16,
-        fontColor: "#000000",
-        text: "",
-    });
+    private static _defaultUserConfig: ConfigConstructor<ITextUserConfig, {
+        position: IPosition;
+    }> | null = null;
+
+    /**
+     * Built on first use rather than while this module is evaluating.
+     *
+     * The spread reads `TransformState` out of another module and `scene.ts` imports this one, an
+     * edge that puts this initialiser inside the `transform/transform` cycle — where `TransformState`
+     * is still `undefined` and the throw names neither module. Reading the defaults on demand settles
+     * it rather than depending on where in the cycle this module lands.
+     *
+     * The transform defaults are part of this config because `ConfigConstructor.create` copies only
+     * the keys its own defaults declare. `ITextUserConfig extends TextTransformProps`, so
+     * `new Text("hi", {opacity: 0})` type-checks — and without them the 0 was dropped in silence.
+     * `Image` has always spread them; this is the same shape, parser included, so a raw position
+     * becomes an `IPosition` here too.
+     *
+     * @internal
+     */
+    static get DefaultUserConfig(): ConfigConstructor<ITextUserConfig, {
+        position: IPosition;
+    }> {
+        return (Text._defaultUserConfig ??= new ConfigConstructor<ITextUserConfig, {
+            position: IPosition;
+        }>({
+            alignX: "center",
+            alignY: "center",
+            className: "",
+            fontSize: 16,
+            fontColor: "#000000",
+            text: "",
+            ...TransformState.DefaultTransformState.getDefaultConfig(),
+        }, {
+            position: (value: RawPosition | IPosition | undefined) => {
+                return PositionUtils.tryParsePosition(value);
+            }
+        }));
+    }
 
     /**@internal */
     static DefaultTextConfig = new ConfigConstructor<TextConfig>({
@@ -98,10 +130,19 @@ export class Text
     });
 
     /**@internal */
-    static DefaultTextTransformState = new ConfigConstructor<TransformDefinitions.TextTransformProps>({
-        fontColor: "#000000",
-        ...TransformState.DefaultTransformState.getDefaultConfig(),
-    });
+    private static _defaultTextTransformState: ConfigConstructor<TransformDefinitions.TextTransformProps> | null = null;
+
+    /**
+     * Built on first use, for the same reason as {@link Text.DefaultUserConfig}.
+     *
+     * @internal
+     */
+    static get DefaultTextTransformState(): ConfigConstructor<TransformDefinitions.TextTransformProps> {
+        return (Text._defaultTextTransformState ??= new ConfigConstructor<TransformDefinitions.TextTransformProps>({
+            fontColor: "#000000",
+            ...TransformState.DefaultTransformState.getDefaultConfig(),
+        }));
+    }
 
     /**@internal */
     static StateSerializer = new Serializer<TextState>();

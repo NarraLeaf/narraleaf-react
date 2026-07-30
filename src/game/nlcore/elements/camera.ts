@@ -50,16 +50,28 @@ export class Camera
     extends Displayable<CameraDataRaw, Camera, TransformDefinitions.ImageTransformProps>
     implements EventfulDisplayable {
 
+    /**@internal */
+    private static _defaultUserConfig: ConfigConstructor<ICameraUserConfig, EmptyObject> | null = null;
+
     /**
+     * Built on first use rather than while this module is evaluating.
+     *
+     * The spread reads `TransformState` out of another module, and this one is reached from
+     * `story.ts` inside a cycle with it — so at evaluation time `TransformState` is still `undefined`
+     * and the throw names neither module. Reading the defaults on demand settles it rather than
+     * depending on where in the cycle this module lands.
+     *
      * @internal
      * {@link ICameraUserConfig}
      */
-    static DefaultUserConfig = new ConfigConstructor<ICameraUserConfig, EmptyObject>({
-        ...TransformState.DefaultTransformState.getDefaultConfig(),
-        // The camera wraps the whole stage; a default opacity of 0 (inherited from the transform
-        // defaults) would hide everything, so it must start fully opaque like a Layer does.
-        opacity: 1,
-    });
+    static get DefaultUserConfig(): ConfigConstructor<ICameraUserConfig, EmptyObject> {
+        return (Camera._defaultUserConfig ??= new ConfigConstructor<ICameraUserConfig, EmptyObject>({
+            ...TransformState.DefaultTransformState.getDefaultConfig(),
+            // The camera wraps the whole stage; a default opacity of 0 (inherited from the transform
+            // defaults) would hide everything, so it must start fully opaque like a Layer does.
+            opacity: 1,
+        }));
+    }
 
     /**
      * @internal

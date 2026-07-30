@@ -145,24 +145,42 @@ export class Puppet
     extends Displayable<PuppetDataRaw, Puppet, TransformDefinitions.ImageTransformProps>
     implements EventfulDisplayable {
     /**@internal */
-    static DefaultUserConfig = new ConfigConstructor<IPuppetUserConfig, {
+    private static _defaultUserConfig: ConfigConstructor<IPuppetUserConfig, {
         position: IPosition;
-    }>({
-        backend: "",
-        src: "",
-        options: {},
-        size: null,
-        className: "",
-        layer: undefined,
-        motion: null,
-        expression: null,
-        skin: null,
-        params: {},
-        slots: {},
-        ...TransformState.DefaultTransformState.getDefaultConfig(),
-    }, {
-        position: (value) => PositionUtils.tryParsePosition(value),
-    });
+    }> | null = null;
+
+    /**
+     * Built on first use rather than while this module is evaluating.
+     *
+     * The spread reads `TransformState` out of another module and `scene.ts` imports this one, an
+     * edge that puts this initialiser inside the `transform/transform` cycle — where `TransformState`
+     * is still `undefined` and the throw names neither module. Reading the defaults on demand settles
+     * it rather than depending on where in the cycle this module lands.
+     *
+     * @internal
+     */
+    static get DefaultUserConfig(): ConfigConstructor<IPuppetUserConfig, {
+        position: IPosition;
+    }> {
+        return (Puppet._defaultUserConfig ??= new ConfigConstructor<IPuppetUserConfig, {
+            position: IPosition;
+        }>({
+            backend: "",
+            src: "",
+            options: {},
+            size: null,
+            className: "",
+            layer: undefined,
+            motion: null,
+            expression: null,
+            skin: null,
+            params: {},
+            slots: {},
+            ...TransformState.DefaultTransformState.getDefaultConfig(),
+        }, {
+            position: (value) => PositionUtils.tryParsePosition(value),
+        }));
+    }
 
     /**@internal */
     static DefaultPuppetConfig = new ConfigConstructor<PuppetConfig, EmptyObject>({

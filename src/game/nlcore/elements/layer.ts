@@ -47,15 +47,27 @@ export class Layer
     extends Displayable<LayerDataRaw, Layer, TransformDefinitions.ImageTransformProps>
     implements EventfulDisplayable {
 
+    /**@internal */
+    private static _defaultUserConfig: ConfigConstructor<ILayerUserConfig, EmptyObject> | null = null;
+
     /**
+     * Built on first use rather than while this module is evaluating.
+     *
+     * The spread reads `TransformState` out of another module and `scene.ts` imports this one, an
+     * edge that puts this initialiser inside the `transform/transform` cycle — where `TransformState`
+     * is still `undefined` and the throw names neither module. Reading the defaults on demand settles
+     * it rather than depending on where in the cycle this module lands.
+     *
      * @internal
      * {@link ILayerUserConfig}
      */
-    static DefaultUserConfig = new ConfigConstructor<ILayerUserConfig, EmptyObject>({
-        zIndex: 0,
-        ...TransformState.DefaultTransformState.getDefaultConfig(),
-        opacity: 1,
-    });
+    static get DefaultUserConfig(): ConfigConstructor<ILayerUserConfig, EmptyObject> {
+        return (Layer._defaultUserConfig ??= new ConfigConstructor<ILayerUserConfig, EmptyObject>({
+            zIndex: 0,
+            ...TransformState.DefaultTransformState.getDefaultConfig(),
+            opacity: 1,
+        }));
+    }
 
     /**
      * @internal

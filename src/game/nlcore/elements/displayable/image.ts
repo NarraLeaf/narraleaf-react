@@ -161,24 +161,40 @@ export class Image<
     /**@internal */
     static StateSerializer = new Serializer<ImageState>();
 
+    /**@internal */
+    private static _defaultUserConfig: ConfigConstructor<IImageUserConfig, {
+        position: IPosition;
+    }> | null = null;
+
     /**
+     * Built on first use rather than while this module is evaluating.
+     *
+     * The spread reads `TransformState` out of another module and `scene.ts` imports this one, an
+     * edge that puts this initialiser inside the `transform/transform` cycle — where `TransformState`
+     * is still `undefined` and the throw names neither module. Reading the defaults on demand settles
+     * it rather than depending on where in the cycle this module lands.
+     *
      * @internal
      * {@link IImageUserConfig}
      */
-    static DefaultUserConfig = new ConfigConstructor<IImageUserConfig, {
+    static get DefaultUserConfig(): ConfigConstructor<IImageUserConfig, {
         position: IPosition;
-    }>({
-        name: "(anonymous)",
-        autoInit: true,
-        src: Image.DefaultImagePlaceholder,
-        autoFit: false,
-        layer: undefined,
-        ...TransformState.DefaultTransformState.getDefaultConfig(),
-    }, {
-        position: (value: RawPosition | IPosition | undefined) => {
-            return PositionUtils.tryParsePosition(value);
-        }
-    });
+    }> {
+        return (Image._defaultUserConfig ??= new ConfigConstructor<IImageUserConfig, {
+            position: IPosition;
+        }>({
+            name: "(anonymous)",
+            autoInit: true,
+            src: Image.DefaultImagePlaceholder,
+            autoFit: false,
+            layer: undefined,
+            ...TransformState.DefaultTransformState.getDefaultConfig(),
+        }, {
+            position: (value: RawPosition | IPosition | undefined) => {
+                return PositionUtils.tryParsePosition(value);
+            }
+        }));
+    }
 
     /**
      * @internal

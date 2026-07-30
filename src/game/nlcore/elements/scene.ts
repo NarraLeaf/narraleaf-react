@@ -117,20 +117,40 @@ export class Scene extends Constructable<
         layers: [],
     });
     /**@internal */
-    static DefaultSceneConfig = new ConfigConstructor<SceneConfig, {
+    private static _defaultSceneConfig: ConfigConstructor<SceneConfig, {
         voices: VoiceIdMap | VoiceSrcGenerator | null;
-    }>({
-        name: "",
-        backgroundMusicFade: 0,
-        voices: null,
-        layers: [],
-        defaultBackgroundLayer: new Layer("[[Background Layer]]", {
-            zIndex: -1,
-        }),
-        defaultDisplayableLayer: new Layer("[[Displayable Layer]]", {
-            zIndex: 0,
-        }),
-    }, {
+    }> | null = null;
+
+    /**
+     * Built on first use rather than while this module is evaluating.
+     *
+     * This one has to be lazy for a stronger reason than the displayables' configs: it *constructs*
+     * two `Layer`s, and a `Layer` constructor reads `Layer.DefaultUserConfig`, which reads
+     * `TransformState` from another module. This module sits in a cycle with that one, so building
+     * the config at evaluation time meant reading `TransformState` before it had been assigned —
+     * `Cannot read properties of undefined (reading 'DefaultTransformState')`, thrown from a stack
+     * naming neither module. Making the displayables' own configs lazy does not help here, because
+     * the `new Layer(...)` below reaches them at exactly the same moment.
+     *
+     * @internal
+     */
+    static get DefaultSceneConfig(): ConfigConstructor<SceneConfig, {
+        voices: VoiceIdMap | VoiceSrcGenerator | null;
+    }> {
+        return (Scene._defaultSceneConfig ??= new ConfigConstructor<SceneConfig, {
+            voices: VoiceIdMap | VoiceSrcGenerator | null;
+        }>({
+            name: "",
+            backgroundMusicFade: 0,
+            voices: null,
+            layers: [],
+            defaultBackgroundLayer: new Layer("[[Background Layer]]", {
+                zIndex: -1,
+            }),
+            defaultDisplayableLayer: new Layer("[[Displayable Layer]]", {
+                zIndex: 0,
+            }),
+        }, {
         voices: (voices: VoiceIdMap | VoiceSrcGenerator | null) => {
             const isVoiceIdMap = (voices: any): voices is VoiceIdMap => {
                 return typeof voices === "object" && voices !== null;
@@ -151,11 +171,12 @@ export class Scene extends Constructable<
             if (isVoiceSrcGenerator(voices)) {
                 return voices;
             }
-            throw new StaticScriptWarning(
-                `Invalid voices config: ${voices}`
-            );
-        },
-    });
+                throw new StaticScriptWarning(
+                    `Invalid voices config: ${voices}`
+                );
+            },
+        }));
+    }
 
     /**@internal */
     static validateVoice(voice: Sound) {

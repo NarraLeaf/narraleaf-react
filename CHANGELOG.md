@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.20.1]
+
+### _Fix_
+
+- **A `Text`'s constructor config reaches it.** `ITextUserConfig extends TextTransformProps`, so this
+  has always type-checked:
+
+  ```ts
+  const title = new Text("Chapter One", {opacity: 0, scaleX: 2, rotation: 90});
+  ```
+
+  None of the three arrived. `ConfigConstructor.create` copies only the keys its own defaults declare,
+  and `Text.DefaultUserConfig` declared `alignX`, `alignY`, `className`, `fontSize`, `fontColor` and
+  `text` — no transform props at all. The values went nowhere, silently, and the text was drawn at the
+  defaults. `Image` has always spread `TransformState.DefaultTransformState.getDefaultConfig()` into
+  its own user config; `Text` now does the same, with the same `position` parser, so a position given
+  to a `Text` lands exactly as it does on an `Image`.
+
+  This is not only about the first frame. Constructor config is the state that survives `reset()`, so
+  it is what a saved game restores to and what an editor host relies on when it pre-poses a stage — a
+  `Text` built with an opacity was losing it on every load, not just at construction.
+
+- **Importing a displayable's module on its own no longer throws.** `Layer`, `Camera`, `Image`,
+  `Text`, `Puppet` and `Scene` each built a `static` config while their module was still evaluating,
+  and every one of those reads `TransformState` from another module — `Scene` went further and
+  *constructed* two `Layer`s. `scene.ts` imports all of them and `text.ts` imports `scene.ts`, so the
+  cycle could reach an initialiser before `transform/transform` had assigned its exports:
+
+  ```
+  TypeError: Cannot read properties of undefined (reading 'DefaultTransformState')
+  ```
+
+  thrown from a stack naming neither module and nothing the caller wrote. Each default is now built on
+  first use, which settles the question rather than depending on the order. Call sites are unchanged —
+  `X.DefaultUserConfig` is a getter that memoises. A published bundle always had its order fixed at
+  build time, so this was only ever reachable from source; it made a single-import test file
+  impossible to write, which is why the `Text` defect above went unnoticed for so long.
+
 ## [0.20.0]
 
 ### _Feature_
