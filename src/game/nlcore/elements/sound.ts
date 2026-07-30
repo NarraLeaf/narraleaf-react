@@ -49,10 +49,28 @@ export interface ISoundUserConfig {
      */
     streaming: boolean;
     /**
-     * Initial position in seconds
+     * Initial position in seconds - the clip's **in point**.
+     *
+     * When {@link ISoundUserConfig.loop} is set together with {@link ISoundUserConfig.endTime},
+     * this is also where each repeat restarts from, so the two together describe a loop region
+     * rather than just a starting offset.
      * @default 0
      */
     seek: number;
+    /**
+     * Position in seconds where the clip ends - its **out point**. Omit (or `undefined`) to play
+     * through to the end of the file.
+     *
+     * Without `loop` the clip simply stops there. With `loop` it jumps back to
+     * {@link ISoundUserConfig.seek}, which is how a piece of background music with an intro loops
+     * only its body. The jump is sample-accurate (it is the Web Audio node's own loop), so there is
+     * no gap and no drift over long sessions.
+     *
+     * Ignored for a clip that is streamed rather than decoded: an `<audio>` element has no loop
+     * region, only a plain repeat.
+     * @default undefined
+     */
+    endTime?: number;
     /**
      * The type of the sound
      * @default SoundType.Sound
@@ -65,6 +83,7 @@ type SoundConfig = {
     loop: boolean;
     streaming: boolean;
     seek: number;
+    endTime?: number;
     type: SoundType;
 };
 
@@ -87,6 +106,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         streaming: false,
         rate: 1,
         seek: 0,
+        endTime: undefined,
         type: SoundType.Sound,
     });
 
@@ -96,6 +116,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         loop: false,
         streaming: false,
         seek: 0,
+        endTime: undefined,
         type: SoundType.Sound,
     });
 
@@ -282,6 +303,23 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
             end: this.state.volume,
             duration: duration || 0,
         }]);
+    }
+
+    /**
+     * Jump to a position in the clip, in seconds, and keep playing from there.
+     *
+     * A no-op on a sound that is not currently playing - there is nothing to move. The loop region
+     * (see {@link ISoundUserConfig.endTime}) survives the jump, so seeking inside a looping track
+     * does not turn it into a one-shot.
+     * @param time - Position in seconds, measured from the start of the file (not from the in point).
+     * @chainable
+     * @example
+     * ```ts
+     * sound.seek(30);
+     * ```
+     */
+    public seek(time: number): ChainedSound {
+        return this.pushAction<SoundActionContentType["sound:seek"]>(SoundAction.ActionTypes.seek, [time]);
     }
 
     /**@internal */

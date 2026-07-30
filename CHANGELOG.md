@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.21.0]
+
+### _Feature_
+
+- **A sound can name its in and out points, and loop between them.** `ISoundUserConfig.seek` has
+  always been the position playback starts at; it now has a counterpart:
+
+  ```ts
+  Sound.bgm({src: "theme.mp3", loop: true, seek: 4.2, endTime: 92.5});
+  ```
+
+  Without `loop` the clip stops at `endTime`. With it, the clip returns to `seek` — which is what
+  background music with an intro actually needs: play the intro once, then loop the body forever.
+  The repeat is the Web Audio node's own loop region, so it is sample-accurate: no gap at the seam,
+  and no drift over a session that runs for hours. This is not something a caller could assemble out
+  of the existing surface — the backend has supported loop regions all along, and the engine was
+  dropping the second half of the pair on the way to it.
+
+  A region whose end is not after its start describes nothing playable, so it is ignored rather than
+  played (an inverted pair would otherwise stop the clip the instant it started, which reads as a
+  broken asset). A streamed clip has no loop region — only a plain repeat — but the engine decodes
+  before playing, so this affects nothing today.
+
+  Restoring a save is where the anchor matters: the position stored in the save is where playback
+  resumes, but the loop still returns to the in point, not to wherever the player happened to save.
+
+- **`Sound.seek(seconds)`.** The play head was the one thing about a playing sound that could be
+  read (`getPosition`) but not written, so a music-player screen or a "skip the intro" line had no
+  way to ask for it. It is a no-op on a sound that is not playing, and it preserves the loop region,
+  so seeking inside a looping track does not quietly turn it into a one-shot. Undo restores the
+  position the head was at, which nothing else could do — the play head is not part of the
+  serialized state.
+
+### _Fix_
+
+- **A sound's configured `rate` reaches playback.** `new Sound({src, rate: 1.5})` type-checked,
+  stored the rate in state, and then played at 1× anyway: the playback rate handed to the backend was
+  the literal `1`. `setRate()` after the fact worked, which is why this survived — the only broken
+  path was the one that asks for a rate up front. Save restore had the same bug, so a game saved
+  while a sound was slowed resumed it at normal speed.
+
+- **A scene configured with non-looping background music no longer stalls on its first frame.**
+  `ISceneUserConfig.backgroundMusic` is played by the scene's own init, which awaits it — and the
+  await went through the code path that resolves when the track *finishes* rather than when it
+  starts. A looping track never finishes, so the common case worked and hid this: configure a scene
+  with a one-shot piece of music and the scene sat on its opening frame until the music ran out.
+  Playback now starts and the scene proceeds, with the fade-in under way. A track that fails to load
+  is treated as no music instead of stranding the scene forever.
+
 ## [0.20.1]
 
 ### _Fix_

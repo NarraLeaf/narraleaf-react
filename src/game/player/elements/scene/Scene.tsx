@@ -59,11 +59,26 @@ export default function Scene(
                         await state.audioManager.stop(scene.state.backgroundMusic, fade);
                     }
                     if (music) {
-                        await state.audioManager.play(music, {
-                            end: music.state.volume,
-                            duration: fade,
-                        });
-                        scene.state.backgroundMusic = music;
+                        // `playSoundToken`, not `play`: `play` resolves when the track *finishes*
+                        // unless it loops, so awaiting it here would hold the caller for the whole
+                        // song. That caller is `SceneAction.initBackgroundMusic`, which the scene's
+                        // init awaits - so a scene configured with a non-looping BGM would sit on
+                        // its first frame until the music ran out. This resolves once playback has
+                        // started and the fade-in is under way.
+                        //
+                        // It rejects where `play` swallowed (it hands the token back, so it cannot
+                        // resolve on failure). Unhandled, that would strand the awaiting scene init
+                        // forever, which is a worse failure than silence: the manager has already
+                        // logged the reason, so treat it as "no music" and carry on.
+                        try {
+                            await state.audioManager.playSoundToken(music, {
+                                end: music.state.volume,
+                                duration: fade,
+                            });
+                            scene.state.backgroundMusic = music;
+                        } catch {
+                            scene.state.backgroundMusic = null;
+                        }
                     } else {
                         scene.state.backgroundMusic = null;
                     }

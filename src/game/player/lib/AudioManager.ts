@@ -91,9 +91,9 @@ export class AudioManager {
                 const cachedAudio = await this.sound.load(sound.config.src);
                 const token = await channel.play(cachedAudio, {
                     volume: 0,
-                    startTime: sound.config.seek,
+                    ...AudioManager.clipRegionOf(sound),
                     loop: sound.config.loop,
-                    rate: 1,
+                    rate: sound.state.rate,
                 });
 
                 const isMuted = sound.state.muted ?? false;
@@ -150,9 +150,9 @@ export class AudioManager {
             const cachedAudio = await this.sound.load(sound.config.src);
             const token = await channel.play(cachedAudio, {
                 volume: 0,
-                startTime: sound.config.seek,
+                ...AudioManager.clipRegionOf(sound),
                 loop: sound.config.loop,
-                rate: 1,
+                rate: sound.state.rate,
             });
 
             const isMuted = sound.state.muted ?? false;
@@ -306,6 +306,50 @@ export class AudioManager {
         return awaitable;
     }
 
+    /**
+     * Move the play head of a sound that is currently playing. A sound this manager is not holding
+     * has no play head to move, so this is a no-op rather than an error - the same shape every other
+     * transport method here takes.
+     */
+    public seek(sound: SoundElement, time: number): Awaitable<void> {
+        if (!this.state.has(sound)) {
+            return Awaitable.resolve<void>(undefined);
+        }
+        const state = this.state.get(sound)!;
+        const target = AudioManager.clampToRegion(time, AudioManager.clipRegionOf(sound));
+        state.token.seek(target);
+        // Resuming seeks to this to eliminate drift, so a stale value here would make a seek taken
+        // while paused snap straight back on resume.
+        if (state.pausePosition !== undefined) {
+            state.pausePosition = target;
+        }
+        return Awaitable.resolve<void>(undefined);
+    }
+
+    /**
+     * The in/out points of a clip as the sound backend's play options.
+     *
+     * `endTime` is left off entirely when the author set none: passing `undefined` explicitly is the
+     * same thing to the backend, but omitting it keeps `{...region}` spreads from writing a key that
+     * reads as "there is a region here" to anything inspecting the object.
+     */
+    private static clipRegionOf(sound: SoundElement): { startTime: number; endTime?: number } {
+        const startTime = sound.config.seek;
+        const endTime = sound.config.endTime;
+        if (endTime === undefined || !Number.isFinite(endTime) || endTime <= startTime) {
+            return { startTime };
+        }
+        return { startTime, endTime };
+    }
+
+    private static clampToRegion(time: number, region: { startTime: number; endTime?: number }): number {
+        const floor = Math.max(0, time);
+        if (region.endTime === undefined) {
+            return floor;
+        }
+        return floor >= region.endTime ? region.startTime : floor;
+    }
+
     public setRate(sound: SoundElement, rate: number): Awaitable<void> {
         if (!this.state.has(sound)) {
             return Awaitable.resolve<void>(undefined);
@@ -377,12 +421,23 @@ export class AudioManager {
             try {
                 const channel = this.channels.get(sound.config.type)!;
                 const cachedAudio = await this.sound.load(sound.config.src);
+                const region = AudioManager.clipRegionOf(sound);
+                // A clip with a loop region has to start at its in point even when we are restoring
+                // a save from halfway through: the region's start is also the point each repeat
+                // returns to, so starting at `position` would move the loop for the rest of the
+                // session. Start where the region says and seek forward - the jump preserves the
+                // loop (it rebuilds the source node with loopStart/loopEnd intact).
+                const anchored = region.endTime !== undefined && sound.config.loop;
                 const token = await channel.play(cachedAudio, {
                     volume: sound.state.volume,
-                    startTime: data.position,
+                    ...region,
+                    startTime: anchored ? region.startTime : data.position,
                     loop: sound.config.loop,
-                    rate: 1,
+                    rate: sound.state.rate,
                 });
+                if (anchored && Math.abs(data.position - region.startTime) > 0.01) {
+                    token.seek(AudioManager.clampToRegion(data.position, region));
+                }
 
                 this.state.set(sound, { token, cachedAudio, originalVolume: sound.state.volume });
                 const isMuted = sound.state.muted ?? false;

@@ -108,6 +108,24 @@ export class SoundAction<T extends typeof SoundActionTypes[keyof typeof SoundAct
             }, [originalState]);
 
             return awaitable;
+        } else if (this.type === SoundActionTypes.seek) {
+            const [time] = (this.contentNode as ContentNode<SoundActionContentType["sound:seek"]>).getContent();
+            // The play head is not part of the serialized state, so undoing a seek has to capture it
+            // here. A sound that is not playing reports 0 and takes the seek as a no-op, which makes
+            // the undo a no-op too - correct, and cheaper than branching on it.
+            const originalPosition = state.audioManager.getPosition(this.callee);
+
+            const awaitable = Awaitable.forward(state.audioManager.seek(this.callee, time), {
+                type: this.type,
+                node: this.contentNode?.getChild()
+            });
+
+            state.timelines.attachTimeline(awaitable);
+            state.actionHistory.push<[number]>(historyProps, (prevPosition) => {
+                state.audioManager.seek(this.callee, prevPosition);
+            }, [originalPosition]);
+
+            return awaitable;
         } else if (this.type === SoundActionTypes.mute) {
             const [muted] = (this.contentNode as ContentNode<SoundActionContentType["sound:mute"]>).getContent();
             const originalState = this.callee.toData();

@@ -140,6 +140,7 @@ export const SoundActionTypes = {
     pause: "sound:pause",
     resume: "sound:resume",
     mute: "sound:mute",
+    seek: "sound:seek",
 } as const;
 export type SoundActionContentType = {
     [K in typeof SoundActionTypes[keyof typeof SoundActionTypes]]:
@@ -150,6 +151,7 @@ export type SoundActionContentType = {
     K extends "sound:pause" ? [FadeOptions] :
     K extends "sound:resume" ? [FadeOptions] :
     K extends "sound:mute" ? [boolean] :
+    K extends "sound:seek" ? [time: number] :
     any;
 }
 export const ControlActionTypes = {
