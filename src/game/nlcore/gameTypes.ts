@@ -10,6 +10,7 @@ import { StackModel, StackModelRawData } from "./action/stackModel";
 import type { GameElementHistory } from "./action/gameHistory";
 import { MenuComponent, NotificationComponent, NvlDialogComponent, SayComponent } from "./common/player";
 import { LiveGameEventToken } from "./types";
+import type { AudioBusDeclaration } from "./game/audioBus";
 
 /**
  * Current save format version.
@@ -189,6 +190,46 @@ export type GameConfig = {
      * @default 10
      */
     maxPreloadActions: number;
+    /**
+     * The audio bus tree, declared by the host at boot.
+     *
+     * A bus is a gain node every sound routed to it passes through, and buses nest: a clip on
+     * `alice` under `voice` is attenuated by `alice`, then by `voice`, then by the master volume.
+     * That is what lets a player turn one character down without touching the rest of the cast.
+     *
+     * A bus's `volume` here is **the author's mix position**, not the player's slider. The player's
+     * control is a separate number that starts at 1 and multiplies on top of this one — see
+     * {@link import("@core/game").Game.audioBuses} — so a mix declared here survives boot and
+     * survives a player who has never touched a slider.
+     *
+     * `bgm`, `sound` and `voice` are always present whether or not they appear here, so leaving
+     * this empty is exactly the behaviour every game had before buses existed. Naming one of them
+     * here moves it or changes its volume; nothing can remove it.
+     *
+     * Declaration order does not matter — a bus may name a parent declared after it. What is
+     * rejected, loudly and at boot, is an unknown parent, a duplicate id, a cycle of any length,
+     * or a chain nested deeper than
+     * {@link import("@core/game/audioBus").MaxAudioBusDepth}.
+     *
+     * **Read once, when the audio subsystem starts.** Re-parenting a live bus would mean removing
+     * a channel, which stops every sound in its subtree, so a `configure()` after the player has
+     * mounted does not re-shape the graph. Volumes, on the other hand, are live at all times —
+     * see {@link import("@core/game").Game.audioBuses}.
+     *
+     * @default []
+     * @example
+     * ```ts
+     * new Game({
+     *     audioBuses: [
+     *         {id: "ambience", parentId: "bgm", volume: 0.6},
+     *         {id: "cast", parentId: "voice"},
+     *         {id: "alice", parentId: "cast"},
+     *     ],
+     * });
+     * // Sound.voice({src: "alice-01.mp3", type: "alice"})
+     * ```
+     */
+    audioBuses: AudioBusDeclaration[];
     /**
      * Src of the cursor image, if null, the game will show the default cursor
      * @default null

@@ -1,5 +1,81 @@
 # Changelog
 
+## [Unreleased]
+
+### _Feature_
+
+- **Audio is a mixer now, not three fixed channels.** `GameConfig.audioBuses` lets the host declare
+  a tree of buses at boot — `{id, parentId, volume}` — and the engine realizes it into the audio
+  graph, so a bus's gain cascades onto everything beneath it:
+
+  ```ts
+  new Game({
+      audioBuses: [
+          {id: "cast", parentId: "voice"},
+          {id: "alice", parentId: "cast", volume: 0.8},
+      ],
+  });
+  Sound.voice({src: "alice-01.mp3", type: "alice"});
+  ```
+
+  This is what per-character voice volume needs and what the engine could not express: a player can
+  turn one character down or off without touching the rest of the cast. `bgm`, `sound` and `voice`
+  are seeded whether or not they are declared, so a game that says nothing behaves exactly as
+  before, and every save ever written still restores — those three ids are still those three buses.
+
+- **`Sound.config.type` accepts any declared bus id.** `SoundType` is unchanged and still exported,
+  and its three values still mean what they meant; the type is now `SoundBusId`, which is
+  `SoundType | (string & {})` so the built-ins still autocomplete. `Sound.voice()`, `Sound.bgm()`
+  and `Sound.sound()` now *default* `type` rather than overwriting it, so
+  `Sound.voice({src, type: "alice"})` puts the line on `alice` instead of silently ignoring it.
+
+- **Per-bus volume, live, through `game.audioBuses`.** `setVolume(id, volume)`, `getVolume(id)`,
+  `getDeclaredVolume(id)`, `getEffectiveVolume(id)`, `setVolumes(map)`, `getVolumes()`, `list()` and
+  `onVolumeChange(listener)`. Changing a bus applies to sounds that are **already playing** — a bus
+  is a gain node the clip is routed through, so nothing is stopped, found or restarted. The mixer
+  lives on `Game`, not on the audio manager, so a host can restore its saved volumes at any point
+  after `new Game(...)`, before the audio context has unlocked or the player has mounted; values set
+  early are applied when the channels exist.
+
+  **A bus carries two numbers, and they do not overwrite each other.** `AudioBusDeclaration.volume`
+  is the *author's* mix position — where a bus sits relative to the others in the game as shipped.
+  `mixer.setVolume`/`getVolume` is the *player's* control, which starts at 1 and means "leave the
+  author's mix alone". What reaches the gain node is the product (`getEffectiveVolume`). So a game
+  declaring `{id: "sound", volume: 0.6}` plays SFX at 0.6 for a player who has touched nothing, and
+  a player who drags the SFX slider to maximum gets 0.6 back rather than a bus at full gain. Persist
+  `getVolumes()` — the player's half only; the author's mix is game content and returns with the
+  game, so re-mixing a shipped title still reaches players who already have settings saved. One gain
+  node per bus either way: two gain stages in series compute exactly what one multiplication does.
+
+  The four volume preferences are untouched and keep working: `bgmVolume`, `soundVolume` and
+  `voiceVolume` are aliases onto the three seeded buses and write the *player's* half.
+  `getPreference("soundVolume")` still reads `1` at boot and still means "no further attenuation" —
+  reading a declared mix back out of a preference would have made the preference mean two different
+  things depending on whether the host declared that bus.
+
+- **A voice may live anywhere under `voice`, and background music anywhere under `bgm`.** `Scene`'s
+  two checks were equality tests that threw, so a voice on a per-character bus failed story compile
+  before a sample was ever loaded. They are descendant checks now. A bus id the engine has not been
+  told about is accepted, because scenes are routinely constructed before the host constructs its
+  `Game` — a misspelled bus is caught at play time instead, where the manager warns once and routes
+  the clip to the sfx bus rather than going silent.
+
+### _Fix_
+
+- **Two `Game`s no longer share one settings object.** `Preference` kept the defaults object it was
+  handed and wrote straight into it, and `Game` hands it the module-level `Game.DefaultPreference` —
+  so every `Game` in the process shared one settings object, a second game started at the first
+  player's volume, and moving a slider permanently rewrote the framework's own defaults for the rest
+  of the process. `Preference` now copies what it is given.
+
+- **A volume slider no longer zippers.** A bus volume was written as a bare `gain.value` assignment,
+  so dragging a slider arrived as a staircase of discontinuities. Bus volume changes are now ramped
+  over ~20ms, with the exact target pinned afterwards so a long drag accumulates no drift.
+
+- **The channel budget can no longer be reached by a large cast.** The audio backend caps channels
+  at 128 including the master and throws outright at the cap; the engine now asks for a ceiling a
+  bus-per-character game cannot walk into.
+
 ## [0.22.0]
 
 ### _Feature_

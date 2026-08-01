@@ -4,6 +4,7 @@ import { SoundAction } from "@core/action/actions/soundAction";
 import { SoundActionTypes } from "@core/action/actionTypes";
 import { ContentNode } from "@core/action/tree/actionTree";
 import { Awaitable } from "@lib/util/data";
+import { AudioBusDeclaration, AudioBusMixer, DefaultAudioBusIds } from "@core/game/audioBus";
 import { AudioManager } from "./AudioManager";
 
 /** Let the fire-and-forget `ready.then(...)` chains (initialize, soundFromData) run. */
@@ -54,48 +55,54 @@ const audio = vi.hoisted(() => {
 
 const soundMock = vi.hoisted(() => ({
     instances: [] as Array<{
-        channels: Map<string, { setVolume: ReturnType<typeof vi.fn> }>;
+        channels: Map<string, any>;
         createdChannels: string[];
         readyResolvers: Array<() => void>;
         loaded: string[];
         loadRejection: Error | null;
+        options: Record<string, unknown> | undefined;
     }>,
 }));
 
+/**
+ * The backend, mocked as the **graph it actually is**.
+ *
+ * A channel owns a gain node, a child channel's gain feeds its parent's, and a token plays into
+ * the gain of the channel it was created on. Modelling that rather than a flat map of names is
+ * what lets a test say something true about cascading volume - `effectiveGain()` below is the
+ * product every clip on a channel is multiplied by, and it is the only thing a bus change touches.
+ */
 vi.mock("@narraleaf/sound", () => {
-    class Sound {
-        public channels = new Map<string, { setVolume: ReturnType<typeof vi.fn> }>();
-        public createdChannels: string[] = [];
-        public readyResolvers: Array<() => void> = [];
-        public loaded: string[] = [];
-        public loadRejection: Error | null = null;
+    const clamp = (value: number) => Math.max(0, Math.min(1, value));
 
-        constructor() {
-            soundMock.instances.push(this);
-        }
+    class GainParamStub {
+        public value = 1;
+        public cancelScheduledValues = vi.fn();
+        public setValueAtTime = vi.fn((value: number) => {
+            this.value = value;
+        });
+        public setTargetAtTime = vi.fn();
+    }
 
-        load(path: string): Promise<unknown> {
-            if (this.loadRejection) {
-                return Promise.reject(this.loadRejection);
-            }
-            this.loaded.push(path);
-            return Promise.resolve({ path });
-        }
+    class ChannelStub {
+        public readonly gainNode = { gain: new GainParamStub() };
+        public readonly subChannels = new Map<string, ChannelStub>();
+        public readonly played: Record<string, unknown>[] = [];
+        public readonly node = new audio.AudioBufferSourceNodeStub();
+        public readonly token: Record<string, any>;
+        public volume: number;
+        public setVolume: ReturnType<typeof vi.fn>;
 
-        onceReady(): Promise<Sound> {
-            return new Promise<void>(resolve => {
-                this.readyResolvers.push(resolve);
-            }).then(() => this);
-        }
-
-        setVolume(): void {}
-
-        createChannel(name: string): { setVolume: ReturnType<typeof vi.fn> } {
-            if (this.channels.has(name)) {
-                throw new Error(`Channel "${name}" already exists under "__master__".`);
-            }
-            const node = new audio.AudioBufferSourceNodeStub();
-            const token = {
+        constructor(
+            public readonly name: string,
+            private readonly sound: any,
+            options: { volume?: number } = {},
+            public readonly parent: ChannelStub | null = null,
+        ) {
+            this.volume = clamp(options.volume ?? 1);
+            this.gainNode.gain.value = this.volume;
+            const node = this.node;
+            this.token = {
                 sourceController: { getSource: () => node },
                 mute: vi.fn(),
                 unmute: vi.fn(),
@@ -115,24 +122,101 @@ vi.mock("@narraleaf/sound", () => {
                 on: vi.fn(),
                 off: vi.fn(),
             };
-            const played: Record<string, unknown>[] = [];
-            const channel = {
-                setVolume: vi.fn(),
-                token,
-                node,
-                played,
-                play: (_source: unknown, options: Record<string, unknown> = {}) => {
-                    played.push(options);
-                    return Promise.resolve(token);
-                },
-            };
-            this.createdChannels.push(name);
-            this.channels.set(name, channel);
+            // The real `Channel.setVolume` writes `gain.value` bare - that bare write is the zipper
+            // the manager has to supersede, so the stub reproduces it exactly.
+            this.setVolume = vi.fn((volume: number) => {
+                this.volume = clamp(volume);
+                this.gainNode.gain.value = this.volume;
+                return this;
+            });
+        }
+
+        getName(): string {
+            return this.name;
+        }
+
+        getGainNode() {
+            return this.gainNode;
+        }
+
+        getVolume(): number {
+            return this.volume;
+        }
+
+        getParent(): ChannelStub | null {
+            return this.parent;
+        }
+
+        /** What every clip playing on this channel is multiplied by, master included. */
+        effectiveGain(): number {
+            return this.gainNode.gain.value * (this.parent ? this.parent.effectiveGain() : 1);
+        }
+
+        createChannel(name: string, options: { volume?: number } = {}): ChannelStub {
+            if (this.subChannels.has(name)) {
+                throw new Error(`Channel "${name}" already exists under "${this.name}".`);
+            }
+            const channel = new ChannelStub(name, this.sound, options, this);
+            this.subChannels.set(name, channel);
+            this.sound.createdChannels.push(name);
+            this.sound.channels.set(name, channel);
             return channel;
         }
 
-        getChannel(name: string): { setVolume: ReturnType<typeof vi.fn> } | null {
-            return this.channels.get(name) ?? null;
+        getChannel(name: string): ChannelStub | null {
+            return this.subChannels.get(name) ?? null;
+        }
+
+        play(_source: unknown, options: Record<string, unknown> = {}) {
+            this.played.push(options);
+            return Promise.resolve(this.token);
+        }
+    }
+
+    class Sound {
+        /** Every channel anywhere in the tree, by name - the tests look them up flat. */
+        public channels = new Map<string, ChannelStub>();
+        public createdChannels: string[] = [];
+        public readyResolvers: Array<() => void> = [];
+        public loaded: string[] = [];
+        public loadRejection: Error | null = null;
+        public options: Record<string, unknown> | undefined;
+        public context = { currentTime: 0 };
+        private master: ChannelStub;
+
+        constructor(options?: Record<string, unknown>) {
+            this.options = options;
+            this.master = new ChannelStub("__master__", this, {}, null);
+            soundMock.instances.push(this);
+        }
+
+        load(path: string): Promise<unknown> {
+            if (this.loadRejection) {
+                return Promise.reject(this.loadRejection);
+            }
+            this.loaded.push(path);
+            return Promise.resolve({ path });
+        }
+
+        onceReady(): Promise<Sound> {
+            return new Promise<void>(resolve => {
+                this.readyResolvers.push(resolve);
+            }).then(() => this);
+        }
+
+        setVolume(): void {}
+
+        getAudioContext() {
+            return this.context;
+        }
+
+        createChannel(name: string, options: { volume?: number } = {}): ChannelStub {
+            return this.master.createChannel(name, options);
+        }
+
+        /** Direct children of master only, exactly like the real one. */
+        getChannel(name: string): ChannelStub | null {
+            return this.master.getChannel(name);
         }
     }
 
@@ -143,7 +227,10 @@ vi.mock("@narraleaf/sound", () => {
     };
 });
 
-function createGameState() {
+function createGameState(
+    declarations: AudioBusDeclaration[] = [],
+    preferences: Partial<Record<"soundVolume" | "bgmVolume" | "voiceVolume", number>> = {},
+) {
     return {
         game: {
             preference: {
@@ -151,8 +238,10 @@ function createGameState() {
                     soundVolume: 1,
                     bgmVolume: 1,
                     voiceVolume: 1,
+                    ...preferences,
                 }),
             },
+            audioBuses: new AudioBusMixer(() => declarations),
         },
         logger: {
             error: vi.fn(),
@@ -185,10 +274,280 @@ describe("AudioManager", () => {
         await Promise.resolve();
         await Promise.resolve();
 
-        expect(sound.createdChannels.sort()).toEqual(Object.values(SoundType).sort());
+        // The seeded three, not `Object.values(SoundType)` - the enum is no longer what decides
+        // which channels exist, the declared tree is, and it seeds these three whatever the host says.
+        expect(sound.createdChannels.sort()).toEqual(["bgm", "sound", "voice"]);
         manager.initialize();
         expect(soundMock.instances).toHaveLength(1);
-        expect(sound.createdChannels.sort()).toEqual(Object.values(SoundType).sort());
+        expect(sound.createdChannels.sort()).toEqual(["bgm", "sound", "voice"]);
+    });
+
+    it("rejects a malformed bus declaration at the point the player mounts", () => {
+        const manager = new AudioManager(createGameState([{ id: "a", parentId: "b" }]));
+
+        // Not inside the `onceReady` chain: there it would land later as an unhandled rejection,
+        // and the game would look like it simply had no sound.
+        expect(() => manager.initialize()).toThrow(/unknown parent/);
+        expect(soundMock.instances).toHaveLength(0);
+    });
+
+    it("asks the backend for a channel budget a large voiced cast cannot exhaust", () => {
+        const manager = new AudioManager(createGameState());
+        manager.initialize();
+
+        // The backend defaults to 128 *including* master and throws outright at the cap, so a game
+        // with a bus per character used to have a hard ceiling it could walk into at boot.
+        expect((soundMock.instances[0].options as { maxChannels: number }).maxChannels)
+            .toBeGreaterThanOrEqual(512);
+    });
+});
+
+/**
+ * The bus tree the host declares, realized into the backend's channel graph.
+ */
+describe("AudioManager bus tree", () => {
+    beforeEach(() => {
+        soundMock.instances.length = 0;
+    });
+
+    async function boot(declarations: AudioBusDeclaration[], preferences = {}) {
+        const gameState = createGameState(declarations, preferences);
+        const manager = new AudioManager(gameState);
+        manager.initialize();
+        const sound = soundMock.instances[0];
+        sound.readyResolvers.forEach((resolve: () => void) => resolve());
+        await settle();
+        return { manager, sound, gameState };
+    }
+
+    it("creates a declared bus under its declared parent", async () => {
+        const { sound } = await boot([
+            { id: "cast", parentId: "voice" },
+            { id: "alice", parentId: "cast", volume: 0.5 },
+        ]);
+
+        expect(sound.channels.get("cast").getParent().getName()).toBe("voice");
+        expect(sound.channels.get("alice").getParent().getName()).toBe("cast");
+        // Cascading gain is the graph's job, not arithmetic here: 0.5 under two full buses.
+        expect(sound.channels.get("alice").effectiveGain()).toBeCloseTo(0.5);
+    });
+
+    it("honours a declared volume on a seeded bus, which the preference aliases used to erase", async () => {
+        // The regression this pins: `setupGroupVolume` applies the four volume preferences at init,
+        // their defaults are 1, and they used to be written as the bus's whole gain - so an author
+        // who mixed SFX to 60% in Studio shipped a game every player heard at 100%, while a custom
+        // bus with the identical declaration was honoured. A run could not tell "declared 0.6 then
+        // clobbered to 1" apart from "never declared"; this can.
+        const { sound } = await boot([
+            { id: DefaultAudioBusIds.sound, volume: 0.6 },
+            { id: "alice", parentId: "voice", volume: 0.6 },
+        ]);
+
+        expect(sound.channels.get("sound").getVolume()).toBeCloseTo(0.6);
+        expect(sound.channels.get("alice").getVolume()).toBeCloseTo(0.6);
+    });
+
+    it("multiplies the player's slider onto the author's mix rather than replacing it", async () => {
+        const { manager, sound } = await boot(
+            [{ id: DefaultAudioBusIds.sound, volume: 0.6 }],
+            { soundVolume: 0.5 },
+        );
+
+        // Author 0.6, player 0.5.
+        expect(sound.channels.get("sound").getVolume()).toBeCloseTo(0.3);
+
+        // ...and a player pushing the slider to maximum gets the author's intent back, not a bus
+        // at full gain. The two numbers are separate, so neither can erase the other.
+        manager.setBusVolume(DefaultAudioBusIds.sound, 1);
+        expect(sound.channels.get("sound").getVolume()).toBeCloseTo(0.6);
+        expect(manager.getBuses().find(bus => bus.id === "sound"))
+            .toMatchObject({ volume: 1, declaredVolume: 0.6, effectiveVolume: 0.6 });
+    });
+
+    it("layers declared, then a persisted player override, then a live change", async () => {
+        const gameState = createGameState([{ id: "alice", parentId: "voice", volume: 0.8 }]);
+        // Restored out of the host's storage before the audio context ever unlocks.
+        gameState.game.audioBuses.setVolumes({ alice: 0.5 });
+        const manager = new AudioManager(gameState);
+        manager.initialize();
+        const sound = soundMock.instances[0];
+        sound.readyResolvers.forEach((resolve: () => void) => resolve());
+        await settle();
+
+        expect(sound.channels.get("alice").getVolume()).toBeCloseTo(0.4);
+
+        manager.setBusVolume("alice", 0.25);
+        expect(sound.channels.get("alice").getVolume()).toBeCloseTo(0.2);
+        // The declaration is still 0.8 underneath - the live change replaced the override, not it.
+        expect(gameState.game.audioBuses.getDeclaredVolume("alice")).toBe(0.8);
+    });
+
+    it("realizes parents before children whatever order they were declared in", async () => {
+        // Deliberately back to front: a child names a parent that has not been declared yet.
+        const { sound } = await boot([
+            { id: "alice", parentId: "cast" },
+            { id: "cast", parentId: "voice" },
+        ]);
+
+        const created = sound.createdChannels as string[];
+        expect(created.indexOf("cast")).toBeLessThan(created.indexOf("alice"));
+        expect(created.indexOf("voice")).toBeLessThan(created.indexOf("cast"));
+    });
+
+    it("keeps the seeded three when the host declares nothing", async () => {
+        const { sound, manager } = await boot([]);
+
+        expect(sound.createdChannels.sort()).toEqual(["bgm", "sound", "voice"]);
+        expect(manager.getBuses().map(bus => bus.id).sort()).toEqual(["bgm", "sound", "voice"]);
+    });
+
+    it("lets a host re-parent a seeded bus rather than replace it", async () => {
+        const { sound } = await boot([
+            { id: "diegetic" },
+            { id: DefaultAudioBusIds.voice, parentId: "diegetic" },
+        ]);
+
+        expect(sound.channels.get("voice").getParent().getName()).toBe("diegetic");
+        expect(sound.channels.get("bgm").getParent().getName()).toBe("__master__");
+    });
+
+    it("routes a clip on an undeclared bus somewhere audible instead of failing", async () => {
+        const { manager, sound, gameState } = await boot([]);
+
+        await manager.playSoundToken(Sound.voice({ src: "line.mp3", type: "alicce" }));
+
+        expect(gameState.logger.weakWarn).toHaveBeenCalled();
+        expect(sound.channels.get("sound").played).toHaveLength(1);
+    });
+});
+
+/**
+ * Per-bus volume, and the four preferences that alias onto the seeded three.
+ */
+describe("AudioManager bus volume", () => {
+    beforeEach(() => {
+        soundMock.instances.length = 0;
+    });
+
+    async function boot(declarations: AudioBusDeclaration[] = [], preferences = {}) {
+        const gameState = createGameState(declarations, preferences);
+        const manager = new AudioManager(gameState);
+        manager.initialize();
+        const sound = soundMock.instances[0];
+        sound.readyResolvers.forEach((resolve: () => void) => resolve());
+        await settle();
+        return { manager, sound, gameState };
+    }
+
+    it("reaches a sound that is already playing, without touching its token", async () => {
+        const { manager, sound } = await boot([{ id: "alice", parentId: "voice" }]);
+        const line = Sound.voice({ src: "alice-01.mp3", type: "alice" });
+        await manager.playSoundToken(line);
+        const channel = sound.channels.get("alice");
+        const before = channel.effectiveGain();
+
+        manager.setBusVolume("voice", 0.5);
+
+        // Nothing hunted down the live token; the bus it is routed through simply moved.
+        expect(channel.token.setVolume).toHaveBeenCalledTimes(1); // only the initial play volume
+        expect(channel.effectiveGain()).toBeCloseTo(before * 0.5);
+    });
+
+    it("ramps a bus change instead of stepping it", async () => {
+        const { manager, sound } = await boot();
+        const gain = sound.channels.get("bgm").gainNode.gain;
+        gain.setValueAtTime.mockClear();
+        gain.cancelScheduledValues.mockClear();
+
+        manager.setBusVolume("bgm", 0.2);
+
+        // The bare `gain.value = x` the backend performs is dropped and replaced by a ramp; without
+        // the cancel it would remain scheduled and the ramp would start from the wrong place.
+        expect(gain.cancelScheduledValues).toHaveBeenCalled();
+        expect(gain.setTargetAtTime).toHaveBeenCalledWith(0.2, 0, 0.02);
+        // ...and the exact target is pinned afterwards, because setTargetAtTime never arrives.
+        expect(gain.setValueAtTime).toHaveBeenCalledWith(0.2, expect.any(Number));
+    });
+
+    it("keeps the channel's own bookkeeping equal to the value it drives", async () => {
+        const { manager, sound } = await boot();
+
+        manager.setBusVolume("bgm", 0.25);
+
+        // The gain parameter is what is heard; `Channel.volume` is what `mute()`/`unmute()` and
+        // `getVolume()` read. One writer, so they cannot drift.
+        expect(sound.channels.get("bgm").getVolume()).toBe(0.25);
+        expect(manager.getBusVolume("bgm")).toBe(0.25);
+    });
+
+    it("clamps out-of-range volume rather than letting a bus boost", async () => {
+        const { manager } = await boot();
+
+        manager.setBusVolume("bgm", 4);
+        expect(manager.getBusVolume("bgm")).toBe(1);
+
+        manager.setBusVolume("bgm", -1);
+        expect(manager.getBusVolume("bgm")).toBe(0);
+    });
+
+    it("drives the seeded buses from the three volume preferences", async () => {
+        const { sound } = await boot([], { bgmVolume: 0.3, soundVolume: 0.4, voiceVolume: 0.5 });
+
+        // `setupGroupVolume` still destructures exactly these three keys - they are aliases onto
+        // buses now, but a player's music/sfx/voice sliders are unchanged.
+        expect(sound.channels.get("bgm").getVolume()).toBeCloseTo(0.3);
+        expect(sound.channels.get("sound").getVolume()).toBeCloseTo(0.4);
+        expect(sound.channels.get("voice").getVolume()).toBeCloseTo(0.5);
+    });
+
+    it("applies a volume set before the audio context unlocked", async () => {
+        const gameState = createGameState([{ id: "alice", parentId: "voice" }]);
+        const manager = new AudioManager(gameState);
+        // A host restoring its saved mixer has no reason to wait for a user gesture first.
+        manager.setBusVolume("alice", 0.1);
+        manager.initialize();
+        const sound = soundMock.instances[0];
+        sound.readyResolvers.forEach((resolve: () => void) => resolve());
+        await settle();
+
+        expect(sound.channels.get("alice").getVolume()).toBeCloseTo(0.1);
+    });
+
+    it("hands a host the whole tree with both numbers, and persists only the player's", async () => {
+        const { manager } = await boot([{ id: "alice", parentId: "voice", volume: 0.8 }]);
+        manager.setBusVolume("alice", 0.5);
+
+        expect(manager.getBuses()).toContainEqual({
+            id: "alice", parentId: "voice", volume: 0.5, declaredVolume: 0.8, effectiveVolume: 0.4,
+        });
+        // 0.5, not 0.4: the author's mix is game content and comes back with the game, so an
+        // author who re-mixes a shipped title is not overruled by a returning player's saved file.
+        expect(manager.toData().groups).toContainEqual(["alice", 0.5]);
+    });
+
+    it("restores bus volumes out of a save, including one written before buses existed", async () => {
+        const { manager, sound } = await boot([{ id: "alice", parentId: "voice" }]);
+
+        manager.fromData(
+            { sounds: [], groups: [["bgm", 0.6], ["alice", 0.2]] },
+            new Map(),
+        );
+
+        expect(sound.channels.get("bgm").getVolume()).toBeCloseTo(0.6);
+        expect(sound.channels.get("alice").getVolume()).toBeCloseTo(0.2);
+    });
+
+    it("re-applies every declared bus on reset, not just the enum's three", async () => {
+        const { manager, sound } = await boot([{ id: "alice", parentId: "voice" }]);
+        manager.setBusVolume("alice", 0.15);
+        sound.channels.get("alice").setVolume.mockClear();
+
+        manager.reset();
+
+        // A bus volume is a player setting: starting a new game must not un-mute the character
+        // the player turned off.
+        expect(sound.channels.get("alice").setVolume).toHaveBeenCalledWith(0.15);
+        expect(manager.getBusVolume("alice")).toBe(0.15);
     });
 });
 

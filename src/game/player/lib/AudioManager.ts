@@ -1,10 +1,11 @@
-import { Sound as SoundElement, SoundType } from "@core/elements/sound";
+import { Sound as SoundElement, SoundBusId } from "@core/elements/sound";
 import { Sound as NarraSound, Channel, SoundToken, CachedAudio } from "@narraleaf/sound";
 import { FadeOptions } from "@core/elements/type";
-import { Awaitable } from "@lib/util/data";
+import { Awaitable, EventToken } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { RuntimeGameError } from "@core/common/Utils";
 import { LogicAction } from "@core/action/logicAction";
+import { AudioBusMixer, AudioBusState, AudioBusTree, DefaultAudioBusIds } from "@core/game/audioBus";
 
 /**
  * The in/out points of a clip, plus the point each repeat returns to.
@@ -32,13 +33,46 @@ export type AudioDataRaw = {
 
 export type AudioManagerDataRaw = {
     sounds: [string, AudioDataRaw][];
-    groups: [SoundType, number][];
+    /**
+     * Bus volumes, keyed by bus id.
+     *
+     * The name is historical - these used to be the three fixed "groups". A save written before
+     * buses existed carries exactly `bgm`/`sound`/`voice`, which are still buses, so it restores
+     * unchanged.
+     */
+    groups: [string, number][];
 };
 
 export class AudioManager {
+    /**
+     * How much of the backend's channel budget to ask for.
+     *
+     * `@narraleaf/sound` defaults to 128 *including* the master, and throws outright when a
+     * `createChannel` would cross it. Three buses never came close; a game that gives every member
+     * of a large voiced cast its own bus can, and the failure mode is a hard throw at boot. This is
+     * a per-channel `GainNode` and nothing else, so a generous ceiling costs effectively nothing.
+     */
+    private static readonly MaxChannels = 1024;
+
+    /**
+     * Time constant of the bus-volume ramp, in seconds. ~20ms: long enough to turn a step into a
+     * slew nobody hears, short enough that a slider still feels attached to the sound.
+     */
+    private static readonly BusRampTimeConstant = 0.02;
+
+    /**
+     * When to pin the exact target after the ramp. `setTargetAtTime` approaches asymptotically and
+     * never lands, so five time constants in (within 0.7% - inaudible) the value is written
+     * outright. Without this a long drag would accumulate a drift the mixer's own bookkeeping does
+     * not have.
+     */
+    private static readonly BusRampSettle = AudioManager.BusRampTimeConstant * 5;
+
     private state: Map<SoundElement, SoundState> = new Map();
-    private channels: Map<SoundType, Channel> = new Map();
-    private channelVolumes: Map<SoundType, number> = new Map();
+    private channels: Map<string, Channel> = new Map();
+    private busTree: AudioBusTree | null = null;
+    private busSubscription: EventToken | null = null;
+    private unknownBuses: Set<string> = new Set();
     private globalVolume: number = 1;
     private sound!: NarraSound; // will be initialized in initialize()
     private ready: Promise<void> = Promise.resolve();
@@ -46,9 +80,17 @@ export class AudioManager {
     private isInitializing: boolean = false;
 
     constructor(private gameState: GameState) {
-        Object.values(SoundType).forEach(type => {
-            this.channelVolumes.set(type, 1);
-        });
+    }
+
+    /**
+     * The volume of every bus, and the tree they are wired into.
+     *
+     * It lives on `Game`, not here: a bus volume is a player setting that exists before the audio
+     * context unlocks and outlives any one player mount. This manager is the thing that makes it
+     * audible, not the thing that remembers it.
+     */
+    private get mixer(): AudioBusMixer {
+        return this.gameState.game.audioBuses;
     }
 
     /**
@@ -58,22 +100,23 @@ export class AudioManager {
     public initialize(): void {
         if (this.isReady || this.isInitializing) return; // already initialised or waiting for unlock
 
-        const sound = new NarraSound();
+        // Resolve - and therefore validate - the declared tree *synchronously*, before anything
+        // async is set up. A cycle or an unknown parent is a fault in the host's config, and it has
+        // to surface as a throw out of this call at the point the player mounts. Left inside the
+        // `onceReady` chain below it would arrive later, as an unhandled rejection, with the game
+        // apparently just having no sound.
+        this.mixer.getTree();
+
+        const sound = new NarraSound({ maxChannels: AudioManager.MaxChannels });
         this.sound = sound;
         this.isInitializing = true;
 
-        // Wait for audio context to be ready, then create channels
+        // Wait for audio context to be ready, then build the declared bus tree
         this.ready = sound.onceReady().then(() => {
             // Apply cached global volume
             sound.setVolume(this.globalVolume);
 
-            // Create channels for each sound type
-            Object.values(SoundType).forEach(type => {
-                const volume = this.channelVolumes.get(type) ?? 1;
-                const channel = sound.getChannel(type) ?? sound.createChannel(type, { volume });
-                channel.setVolume(volume);
-                this.channels.set(type, channel);
-            });
+            this.realizeBusTree(sound);
             this.isReady = true;
             this.isInitializing = false;
             // Apply group volumes that may have been set before initialise
@@ -83,6 +126,123 @@ export class AudioManager {
             this.gameState.logger.error("AudioManager", "Failed to initialize audio subsystem", error);
             throw error;
         });
+    }
+
+    /**
+     * Build the host's declared bus tree into real channels, once.
+     *
+     * Walked front to back the tree hands every bus out after its parent, so a child always has a
+     * live parent channel to be created from - that is what nests the gain nodes, and cascading
+     * gain then falls out of the audio graph rather than out of any arithmetic here.
+     *
+     * Done once, at boot, and never re-shaped: `Channel.remove()` stops every token in its subtree,
+     * so re-parenting a bus while the game runs would cut the music off. Volumes stay live.
+     */
+    private realizeBusTree(sound: NarraSound): void {
+        const tree = this.mixer.getTree();
+        this.busTree = tree;
+        this.channels.clear();
+
+        tree.getNodes().forEach(node => {
+            // The author's declared mix times whatever the player has done to it - the two are
+            // separate numbers precisely so that neither this nor `setupGroupVolume` below can
+            // erase the other.
+            const volume = this.mixer.getEffectiveVolume(node.id);
+            const parent = node.parentId === null ? null : this.channels.get(node.parentId) ?? null;
+            const existing = parent ? parent.getChannel(node.id) : sound.getChannel(node.id);
+            const channel = existing ?? (parent
+                ? parent.createChannel(node.id, { volume })
+                : sound.createChannel(node.id, { volume }));
+            // No ramp at boot: nothing is playing, and a ramp would only delay the first clip
+            // reaching the volume the player left it at.
+            this.applyBusVolume(channel, volume, false);
+            this.channels.set(node.id, channel);
+        });
+
+        this.busSubscription?.cancel();
+        this.busSubscription = this.mixer.onVolumeChange((id, _volume, effectiveVolume) => {
+            this.applyBusVolume(this.channels.get(id) ?? null, effectiveVolume, true);
+        });
+    }
+
+    /**
+     * Write a bus's volume onto its gain node, ramping rather than stepping.
+     *
+     * `Channel.setVolume` assigns `gain.value` bare with no `cancelScheduledValues`, so a slider
+     * drag arrives as a staircase of discontinuities - the zipper. The backend exposes no ramping
+     * setter, only `getGainNode()`, so the ramp is driven from here.
+     *
+     * **Who owns the value.** `Channel.volume` remains authoritative bookkeeping and the
+     * `AudioParam` is authoritative for what is heard, and this method is the only writer of
+     * either, so the two can only disagree for the ~20ms a ramp is in flight. `channel.setVolume`
+     * is still called first and deliberately: it is what clamps to 0..1, what keeps
+     * `channel.getVolume()` truthful, and what `Channel.mute()`/`unmute()` re-read when they
+     * rewrite the gain themselves. Its bare write is then superseded in the same synchronous turn -
+     * `cancelScheduledValues` drops the implicit `setValueAtTime` that the assignment inserted at
+     * `currentTime`, and the ramp is scheduled from the value the parameter actually had. Nothing
+     * else in the engine touches a bus gain node, so there is no other automation to fight.
+     *
+     * Falls back to the plain assignment whenever the graph is not reachable - a backend without
+     * `getGainNode`, or a parameter without `setTargetAtTime`. Stepping is the behaviour that
+     * shipped; degrading to it is strictly no worse.
+     */
+    private applyBusVolume(channel: Channel | null | undefined, volume: number, ramp: boolean): void {
+        if (!channel) {
+            return;
+        }
+        const from = AudioManager.readGain(channel);
+        channel.setVolume(volume);
+        if (!ramp || from === null) {
+            return;
+        }
+
+        const gain = channel.getGainNode().gain;
+        const target = channel.getVolume();
+        if (typeof gain.setTargetAtTime !== "function"
+            || typeof gain.cancelScheduledValues !== "function"
+            || typeof this.sound?.getAudioContext !== "function") {
+            return;
+        }
+        const now = this.sound.getAudioContext().currentTime;
+        gain.cancelScheduledValues(now);
+        gain.setValueAtTime(from, now);
+        gain.setTargetAtTime(target, now, AudioManager.BusRampTimeConstant);
+        gain.setValueAtTime(target, now + AudioManager.BusRampSettle);
+    }
+
+    /**
+     * The value a bus's gain parameter has right now, or `null` when the graph cannot be reached.
+     */
+    private static readGain(channel: Channel): number | null {
+        if (typeof channel.getGainNode !== "function") {
+            return null;
+        }
+        const gain = channel.getGainNode()?.gain;
+        return typeof gain?.value === "number" ? gain.value : null;
+    }
+
+    /**
+     * The channel a clip plays through.
+     *
+     * A bus id nothing declared is not fatal. Refusing to play would turn one typo in one clip's
+     * `type` into silence or a thrown action mid-scene; routing it to the always-seeded sfx bus
+     * keeps the game audible and says so once, per id, in the log. This is also where a bus name
+     * that {@link import("@core/game/audioBus").acceptsAudioBus} let through at story-build time is
+     * finally caught.
+     */
+    private channelFor(sound: SoundElement): Channel | null {
+        const channel = this.channels.get(sound.config.type);
+        if (channel) {
+            return channel;
+        }
+        if (this.channels.size > 0 && !this.unknownBuses.has(sound.config.type)) {
+            this.unknownBuses.add(sound.config.type);
+            this.gameState.logger.weakWarn(
+                "AudioManager",
+                `No audio bus "${sound.config.type}" is declared; playing on "${DefaultAudioBusIds.sound}" instead.`,
+            );
+        }
+        return this.channels.get(DefaultAudioBusIds.sound) ?? null;
     }
 
     /**
@@ -110,7 +270,7 @@ export class AudioManager {
             }
 
             try {
-                const channel = this.channels.get(sound.config.type)!;
+                const channel = this.channelFor(sound)!;
                 const cachedAudio = await this.sound.load(sound.config.src);
                 const region = AudioManager.clipRegionOf(sound);
                 const token = await channel.play(cachedAudio, {
@@ -180,9 +340,9 @@ export class AudioManager {
         }
 
         try {
-            const channel = this.channels.get(sound.config.type);
+            const channel = this.channelFor(sound);
             if (!channel) {
-                throw new RuntimeGameError(`Channel not found for sound type: "${sound.config.type}"`);
+                throw new RuntimeGameError(`Channel not found for audio bus: "${sound.config.type}"`);
             }
             const cachedAudio = await this.sound.load(sound.config.src);
             const region = AudioManager.clipRegionOf(sound);
@@ -512,13 +672,13 @@ export class AudioManager {
                     position: state.token.getCurrentTime(),
                 }
             ]),
-            groups: [...this.channelVolumes.entries()].map(([type, volume]) => [type, volume])
+            groups: this.getBuses().map(bus => [bus.id, bus.volume])
         };
     }
 
     public fromData(data: AudioManagerDataRaw, elementMap: Map<string, LogicAction.GameElement>): this {
-        data.groups?.forEach(([type, volume]) => {
-            this.setGroupVolume(type, volume);
+        data.groups?.forEach(([id, volume]) => {
+            this.setBusVolume(id, volume);
         });
 
         data.sounds.forEach(([soundId, soundData]) => {
@@ -550,7 +710,7 @@ export class AudioManager {
 
         this.ready.then(async () => {
             try {
-                const channel = this.channels.get(sound.config.type)!;
+                const channel = this.channelFor(sound)!;
                 const cachedAudio = await this.sound.load(sound.config.src);
                 const region = AudioManager.clipRegionOf(sound);
                 // A clip with a loop region has to start at its in point even when we are restoring
@@ -617,6 +777,18 @@ export class AudioManager {
             });
     }
 
+    /**
+     * Start a new game: stop everything and put the mixer back on the wire.
+     *
+     * The tree itself is **not** rebuilt - the channels are the same channels, because a bus is
+     * part of the game's declared shape, not part of its state. What is re-applied is every bus's
+     * current volume, read back off the mixer rather than off `SoundType`, which is what lets a
+     * host's own buses exist here at all.
+     *
+     * Note the seeded three are then immediately overwritten from the preferences, exactly as
+     * before; a bus the host declared keeps whatever volume the player left it at, because that is
+     * a setting and not something a new game should undo.
+     */
     public reset(): void {
         this.state.forEach((state) => {
             state.token.stop();
@@ -629,30 +801,59 @@ export class AudioManager {
             this.sound.setVolume(1);
         }
 
-        // Reset channel volumes to 1
-        Object.values(SoundType).forEach(type => {
-            this.channelVolumes.set(type, 1);
-            if (this.isReady) {
-                const channel = this.channels.get(type);
-                if (channel) {
-                    channel.setVolume(1);
-                }
-            }
-        });
+        if (this.isReady && this.busTree) {
+            this.busTree.getNodes().forEach(node => {
+                this.applyBusVolume(this.channels.get(node.id), this.mixer.getEffectiveVolume(node.id), false);
+            });
+        }
         this.setupGroupVolume();
     }
 
-    public setGroupVolume(type: SoundType, volume: number): void {
-        // Always store the volume
-        this.channelVolumes.set(type, volume);
+    /**
+     * Set **the player's** volume for a bus, 0..1, live. 1 means "leave the author's mix alone".
+     *
+     * Reaches sounds that are **already playing**: a bus is a gain node every clip beneath it is
+     * routed through, so nothing has to be found, stopped or restarted for the change to be heard.
+     * Setting a bus that has not been realized yet is fine - the value is kept and applied when the
+     * audio context unlocks.
+     *
+     * Equivalent to `game.audioBuses.setVolume(...)`, which is the surface a host should prefer:
+     * it exists before the player mounts.
+     */
+    public setBusVolume(id: SoundBusId, volume: number): void {
+        this.mixer.setVolume(id, volume);
+    }
 
-        // If ready, also apply to the channel
-        if (this.isReady) {
-            const channel = this.channels.get(type);
-            if (channel) {
-                channel.setVolume(volume);
-            }
-        }
+    /**
+     * The player's volume for a bus - what was last set, else 1. Not the author's declared mix
+     * (`game.audioBuses.getDeclaredVolume`) and not what is on the gain node
+     * (`getEffectiveVolume`).
+     */
+    public getBusVolume(id: SoundBusId): number {
+        return this.mixer.getVolume(id);
+    }
+
+    /**
+     * Every bus with its parent and both of its volumes, parents first. `volume` is the half a
+     * host persists.
+     */
+    public getBuses(): AudioBusState[] {
+        return this.mixer.list();
+    }
+
+    /**
+     * @deprecated Use {@link AudioManager.setBusVolume}. Kept because the three sound types are
+     * still bus ids and hosts call this with them.
+     */
+    public setGroupVolume(type: SoundBusId, volume: number): void {
+        this.setBusVolume(type, volume);
+    }
+
+    /**
+     * @deprecated Use {@link AudioManager.getBusVolume}.
+     */
+    public getGroupVolume(type: SoundBusId): number {
+        return this.getBusVolume(type);
     }
 
     public setGlobalVolume(volume: number): void {
@@ -666,19 +867,31 @@ export class AudioManager {
         return this.globalVolume;
     }
 
-    public getGroupVolume(type: SoundType): number {
-        return this.channelVolumes.get(type) ?? 1;
-    }
-
     public destroy(): void {
         this.reset();
+        this.busSubscription?.cancel();
+        this.busSubscription = null;
         this.sound.destroy();
     }
 
+    /**
+     * The three volume preferences are aliases onto the three seeded buses, and this is the alias.
+     *
+     * They stay the way a player's music/sfx/voice sliders are driven - widening the preference key
+     * union to cover arbitrary bus ids is not possible without reshaping `GamePreference`, and is
+     * not needed: a host bus is driven through {@link AudioManager.setBusVolume} instead.
+     *
+     * They write the **player's** half only. This used to write the bus's whole gain, and because
+     * these preferences default to 1 it meant that a host declaring `{id: "sound", volume: 0.6}`
+     * had its mix silently overwritten with 1 the moment the audio subsystem started - the author
+     * set SFX to 60% and every player heard 100%. Custom buses were unaffected because nothing
+     * aliases them, so the three buses every existing project uses were the only ones that ignored
+     * the declaration. Now `soundVolume: 1` means "do not attenuate further" and 0.6 survives.
+     */
     private setupGroupVolume(): void {
         const {soundVolume, bgmVolume, voiceVolume} = this.gameState.game.preference.getPreferences();
-        this.setGroupVolume(SoundType.Sound, soundVolume);
-        this.setGroupVolume(SoundType.Bgm, bgmVolume);
-        this.setGroupVolume(SoundType.Voice, voiceVolume);
+        this.setBusVolume(DefaultAudioBusIds.sound, soundVolume);
+        this.setBusVolume(DefaultAudioBusIds.bgm, bgmVolume);
+        this.setBusVolume(DefaultAudioBusIds.voice, voiceVolume);
     }
 }

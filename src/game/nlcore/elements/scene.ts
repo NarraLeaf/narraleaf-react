@@ -5,7 +5,8 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {EmptyObject} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
-import {Sound, SoundDataRaw, SoundType, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
+import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
+import {acceptsAudioBus, DefaultAudioBusIds} from "@core/game/audioBus";
 import {CharacterActionTypes, ControlActionTypes, SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
 import {Control} from "@core/elements/control";
@@ -178,12 +179,24 @@ export class Scene extends Constructable<
         }));
     }
 
-    /**@internal */
+    /**
+     * A voice clip has to sit on the voice bus or the sfx bus - or **anywhere beneath either**.
+     *
+     * The descendant check is what makes per-character voice possible at all: `alice` under
+     * `voice` is a voice, and an equality test said it was not, which failed story compile before
+     * a single sample was ever loaded.
+     *
+     * A bus the engine has not been told about is accepted - see
+     * {@link import("@core/game/audioBus").acceptsAudioBus} for why that is the only workable
+     * answer at story-build time, and where a typo gets caught instead.
+     * @internal
+     */
     static validateVoice(voice: Sound) {
-        if (voice.config.type !== SoundType.Voice && voice.config.type !== SoundType.Sound) {
+        if (!acceptsAudioBus(voice.config.type, [DefaultAudioBusIds.voice, DefaultAudioBusIds.sound])) {
             throw new StaticScriptWarning(
                 `Voice must be a voice, but got ${voice.config.type}. \n`
-                + "To prevent unintended behavior and unexpected results, the sound have to be marked as voice. Please use `Sound.voice()` to create the sound."
+                + "To prevent unintended behavior and unexpected results, the sound have to be on the voice bus "
+                + "(or any bus beneath it). Please use `Sound.voice()` to create the sound."
             );
         }
     }
@@ -829,10 +842,14 @@ export class Scene extends Constructable<
     /**@internal */
     private getInitialState(): SceneState {
         const userConfig = this.userConfig.get();
-        if (userConfig.backgroundMusic && userConfig.backgroundMusic.config.type !== SoundType.Bgm) {
+        // Beneath the music bus counts: `ambience` under `bgm` is music, and a bus the engine has
+        // not been told about is let through (see `acceptsAudioBus`).
+        if (userConfig.backgroundMusic
+            && !acceptsAudioBus(userConfig.backgroundMusic.config.type, [DefaultAudioBusIds.bgm])) {
             throw new StaticScriptWarning(
                 `[Scene: ${this.config.name}] Background music must be a bgm, but got ${userConfig.backgroundMusic.config.type}. \n`
-                + "To prevent unintended behavior and unexpected results, the sound have to be marked as bgm. Please use `Sound.bgm()` to create the sound."
+                + "To prevent unintended behavior and unexpected results, the sound have to be on the music bus "
+                + "(or any bus beneath it). Please use `Sound.bgm()` to create the sound."
             );
         }
 

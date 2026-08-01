@@ -3,6 +3,16 @@ import {GameState} from "@player/gameState";
 import {Storable, Namespace} from "../elements/persistent/storable";
 import {LiveGame} from "@core/game/liveGame";
 import {Preference} from "@core/game/preference";
+import {
+    AudioBusError,
+    AudioBusMixer,
+    AudioBusTree,
+    DefaultAudioBusIds,
+    MaxAudioBusDepth,
+    acceptsAudioBus,
+    getActiveAudioBusTree,
+} from "@core/game/audioBus";
+import type {AudioBusDeclaration, AudioBusNode, AudioBusState} from "@core/game/audioBus";
 import type {StorableChange, StorableRestore} from "../elements/persistent/storable";
 import type {SavedGame} from "@core/gameTypes";
 import type {StackSnapshot, StackFrameSnapshot} from "@core/action/stackModel";
@@ -16,8 +26,18 @@ export {
     Namespace,
     Preference,
     KeyMap,
+    AudioBusError,
+    AudioBusMixer,
+    AudioBusTree,
+    DefaultAudioBusIds,
+    MaxAudioBusDepth,
+    acceptsAudioBus,
+    getActiveAudioBusTree,
 };
 export type {
+    AudioBusDeclaration,
+    AudioBusNode,
+    AudioBusState,
     SavedGame,
     StackSnapshot,
     StackFrameSnapshot,

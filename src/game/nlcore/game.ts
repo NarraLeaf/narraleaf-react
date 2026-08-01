@@ -6,6 +6,7 @@ import { Preference } from "@core/game/preference";
 import { GameState } from "@player/gameState";
 import { GuardWarningType } from "@player/guard";
 import { DefaultElements } from "../player/elements/elements";
+import { AudioBusMixer } from "./game/audioBus";
 import { Plugins, IGamePluginRegistry } from "./game/plugin/plugin";
 import { PuppetBackend, PuppetBackendRegistry } from "./game/puppet/puppetBackend";
 import { LayoutRouter } from "../player/lib/PageRouter/router";
@@ -149,6 +150,7 @@ export class Game {
         stage: null,
         maxStackModelLoop: 1000,
         maxActionHistory: 100,
+        audioBuses: [],
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 
@@ -165,6 +167,37 @@ export class Game {
      * Game settings
      */
     public preference: Preference<GamePreference> = new Preference<GamePreference>(Game.DefaultPreference);
+    /**
+     * The audio bus mixer: the tree declared in {@link GameConfig.audioBuses}, and what the player
+     * has done to it.
+     *
+     * Every bus carries **two** numbers. The declaration holds the author's mix — where a bus sits
+     * relative to the others in the game as shipped. This mixer holds the player's control, which
+     * starts at 1 and means "leave the author's mix alone". The product is what reaches the gain
+     * node, so neither half can silently erase the other and the layering is total: declared →
+     * persisted player override → live change.
+     *
+     * It is on `Game` rather than on the audio manager because a bus volume is a player setting,
+     * not game state — it exists before the audio context unlocks, it survives the player
+     * unmounting, and a host restores it from its own storage whenever it likes. Setting a volume
+     * at any point after `new Game(...)` is safe; if the channels do not exist yet the value is
+     * applied the moment they do.
+     *
+     * The four volume preferences (`bgmVolume`, `soundVolume`, `voiceVolume`, `globalVolume`) are
+     * unchanged and keep working: the first three are aliases onto the seeded buses of the same
+     * name and write the *player's* half, so their default of 1 no longer overwrites a declared
+     * mix. Drive the seeded three through the preferences, and use this for buses the host
+     * declared.
+     *
+     * @example
+     * ```ts
+     * // persist the player's half only - the author's mix comes back with the game
+     * localStorage.setItem("mixer", JSON.stringify(game.audioBuses.getVolumes()));
+     * // restore, any time after `new Game(...)`
+     * game.audioBuses.setVolumes(JSON.parse(localStorage.getItem("mixer") ?? "{}"));
+     * ```
+     */
+    public readonly audioBuses: AudioBusMixer = new AudioBusMixer(() => this.config.audioBuses ?? []);
     /**
      * Game key bindings
      */
@@ -206,6 +239,12 @@ export class Game {
         }
 
         this.config = deepMerge<GameConfig>(this.config, merged);
+        // A re-declared tree has to be re-resolved, but only a tree that has not been realized into
+        // channels yet can actually change: tearing a live channel down stops every sound under it.
+        // Hosts that configure before mounting - which is the normal order - get what they declared.
+        if (Object.prototype.hasOwnProperty.call(merged, "audioBuses")) {
+            this.audioBuses.invalidate();
+        }
         this.getLiveGame().getGameState()?.events.emit(GameState.EventTypes["event:state.player.requestFlush"]);
 
         return this;

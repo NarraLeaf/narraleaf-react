@@ -6,6 +6,7 @@ import { SoundActionContentType, SoundActionTypes } from "@core/action/actionTyp
 import { Chained, Proxied } from "@core/action/chain";
 import { SoundAction } from "@core/action/actions/soundAction";
 import { Config, ConfigConstructor } from "@lib/util/config";
+import { DefaultAudioBusIds, getActiveAudioBusTree } from "@core/game/audioBus";
 
 type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
 export enum SoundType {
@@ -13,6 +14,19 @@ export enum SoundType {
     Bgm = "bgm",
     Sound = "sound",
 }
+
+/**
+ * The audio bus a clip plays on.
+ *
+ * The three {@link SoundType} values are buses the engine always seeds and they mean exactly what
+ * they have always meant. Any other string is a bus the host declared in
+ * {@link import("@core/gameTypes").GameConfig.audioBuses} — `"alice"` under `"voice"`, `"ambience"`
+ * under `"bgm"`, as deep as makes sense.
+ *
+ * The `(string & {})` half is what widens this without giving up the completions: an editor still
+ * offers `"bgm" | "sound" | "voice"` first, and still narrows a `SoundType` where one is expected.
+ */
+export type SoundBusId = SoundType | (string & {});
 
 export type SoundDataRaw = {
     state: Record<string, any>;
@@ -92,10 +106,15 @@ export interface ISoundUserConfig {
      */
     loopStart?: number;
     /**
-     * The type of the sound
+     * The audio bus this clip plays on.
+     *
+     * One of the three seeded buses, or the id of any bus the host declared in
+     * {@link import("@core/gameTypes").GameConfig.audioBuses}. The bus decides which volume the
+     * player controls governs this clip, and nothing else — a clip on any bus can be played,
+     * stopped, faded and seeked the same way.
      * @default SoundType.Sound
      */
-    type: SoundType;
+    type: SoundBusId;
 }
 
 type SoundConfig = {
@@ -105,7 +124,7 @@ type SoundConfig = {
     seek: number;
     endTime?: number;
     loopStart?: number;
-    type: SoundType;
+    type: SoundBusId;
 };
 
 type SoundState = {
@@ -172,19 +191,26 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
 
     /**
      * Create a voice sound for dialog lines.
+     *
+     * `type` picks the bus and defaults to `voice`; pass one to put the line on a bus beneath it,
+     * which is how a game gives each member of its cast a volume of its own. It used to be
+     * overwritten and silently ignored here.
      * @param arg0 - Source or config for the voice clip.
      * @example
      * ```ts
      * Sound.voice({ src: "voice.mp3" });
+     * Sound.voice({ src: "alice-01.mp3", type: "alice" }); // a bus declared under `voice`
      * ```
      */
     public static voice(arg0: Partial<ISoundUserConfig> | string) {
         const config = typeof arg0 === "string" ? { src: arg0 } : arg0;
-        return new Sound({ ...config, type: SoundType.Voice });
+        return new Sound({ type: SoundType.Voice, ...config });
     }
 
     /**
      * Create background music that cannot be played via `play()`.
+     *
+     * `type` defaults to `bgm` and may name any bus beneath it.
      * @param arg0 - Source or config for the bgm clip.
      * @example
      * ```ts
@@ -193,16 +219,18 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
      */
     public static bgm(arg0: Partial<ISoundUserConfig> | string) {
         const config = typeof arg0 === "string" ? { src: arg0 } : arg0;
-        return new Sound({ ...config, type: SoundType.Bgm });
+        return new Sound({ type: SoundType.Bgm, ...config });
     }
 
     /**
      * Create a one-off sound effect.
+     *
+     * `type` defaults to `sound` and may name any bus beneath it.
      * @param arg0 - Source or config for the sound effect.
      */
     public static sound(arg0: Partial<ISoundUserConfig> | string) {
         const config = typeof arg0 === "string" ? { src: arg0 } : arg0;
-        return new Sound({ ...config, type: SoundType.Sound });
+        return new Sound({ type: SoundType.Sound, ...config });
     }
 
     /**@internal */
@@ -244,7 +272,11 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
      * ```
      */
     public play(duration?: number): ChainedSound {
-        if (this.config.type === SoundType.Bgm) {
+        // "Under the music bus", not "is the music bus" - a clip on `ambience` beneath `bgm` is
+        // just as much not-the-scene's-slot as one on `bgm` itself. A bus nobody declared reads as
+        // `false` here on purpose: this is a nudge, and nudging about a bus the engine cannot
+        // resolve would fire on every custom bus in the game.
+        if (getActiveAudioBusTree().isUnder(this.config.type, DefaultAudioBusIds.bgm)) {
             // Not an error. This used to throw, which took down the whole story at chain-build time
             // over a choice the author is allowed to make — and it never protected anything: `type`
             // only picks a gain channel, `LiveGame.playSound` has always played bgm-typed clips

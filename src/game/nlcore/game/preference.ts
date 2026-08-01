@@ -15,7 +15,19 @@ export class Preference<T extends Record<string, string | boolean | number | nul
         "event:game.preference.change": [StringKeyof<T>, any];
     }> = new EventDispatcher();
 
-    constructor(private readonly settings: T) {
+    private readonly settings: T;
+
+    /**
+     * @param settings - The initial values. **Copied, not adopted.**
+     *
+     * This used to keep the caller's object and write straight into it, and the only caller in the
+     * engine passes the module-level `Game.DefaultPreference`. So every `Game` ever constructed
+     * shared one settings object: a second game started with the first player's volume, and a
+     * player moving a slider permanently rewrote the framework's own defaults for the rest of the
+     * process. A shallow copy is enough - every preference value is a primitive.
+     */
+    constructor(settings: T) {
+        this.settings = { ...settings };
         this.events.setMaxListeners(64);
     }
 
