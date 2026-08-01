@@ -4,7 +4,13 @@ import { SoundAction } from "@core/action/actions/soundAction";
 import { SoundActionTypes } from "@core/action/actionTypes";
 import { ContentNode } from "@core/action/tree/actionTree";
 import { Awaitable } from "@lib/util/data";
-import { AudioBusDeclaration, AudioBusMixer, DefaultAudioBusIds } from "@core/game/audioBus";
+import {
+    AudioBusDeclaration,
+    AudioBusMixer,
+    createPreferenceBusAliases,
+    DefaultAudioBusIds,
+} from "@core/game/audioBus";
+import { Preference } from "@core/game/preference";
 import { AudioManager } from "./AudioManager";
 
 /** Let the fire-and-forget `ready.then(...)` chains (initialize, soundFromData) run. */
@@ -227,21 +233,32 @@ vi.mock("@narraleaf/sound", () => {
     };
 });
 
+/**
+ * A game state whose mixer is wired **exactly** the way `Game` wires it — a real `Preference`
+ * aliased onto the three seeded buses, through the same shared helper.
+ *
+ * The stub this replaces had a `preference` with only `getPreferences()` on it and a mixer with no
+ * aliases at all, so no test in this file touched the aliased path. That is precisely why the suite
+ * stayed green through two defects that only ever affected the three seeded buses.
+ */
 function createGameState(
     declarations: AudioBusDeclaration[] = [],
     preferences: Partial<Record<"soundVolume" | "bgmVolume" | "voiceVolume", number>> = {},
 ) {
+    const preference = new Preference({
+        soundVolume: 1,
+        bgmVolume: 1,
+        voiceVolume: 1,
+        globalVolume: 1,
+        ...preferences,
+    });
     return {
         game: {
-            preference: {
-                getPreferences: () => ({
-                    soundVolume: 1,
-                    bgmVolume: 1,
-                    voiceVolume: 1,
-                    ...preferences,
-                }),
-            },
-            audioBuses: new AudioBusMixer(() => declarations),
+            preference,
+            audioBuses: new AudioBusMixer(
+                () => declarations,
+                createPreferenceBusAliases(preference as never),
+            ),
         },
         logger: {
             error: vi.fn(),
@@ -362,6 +379,55 @@ describe("AudioManager bus tree", () => {
         expect(sound.channels.get("sound").getVolume()).toBeCloseTo(0.6);
         expect(manager.getBuses().find(bus => bus.id === "sound"))
             .toMatchObject({ volume: 1, declaredVolume: 0.6, effectiveVolume: 0.6 });
+    });
+
+    it("keeps a restored override on a seeded bus, not just on a custom one", async () => {
+        // The defect this pins, measured on a real launch: `voice` restored to 0.5 came back at 1
+        // while `alice` - identical in every way except that a preference aliases `voice` - came
+        // back correctly. The init-time `preference -> bus` copy wrote the preference's default of
+        // 1 straight over what the host had just restored, so "turn one character down, come back
+        // tomorrow" worked for every bus except the three every project actually uses.
+        const gameState = createGameState([
+            { id: "alice", parentId: "voice" },
+        ]);
+        gameState.game.audioBuses.setVolumes({ voice: 0.5, alice: 0.5 });
+
+        const manager = new AudioManager(gameState);
+        manager.initialize();
+        const sound = soundMock.instances[0];
+        sound.readyResolvers.forEach((resolve: () => void) => resolve());
+        await settle();
+
+        expect(sound.channels.get("voice").getVolume()).toBeCloseTo(0.5);
+        expect(sound.channels.get("alice").getVolume()).toBeCloseTo(0.5);
+    });
+
+    it("makes the preference and the bus one number, in both directions", async () => {
+        const { manager, sound, gameState } = await boot([]);
+
+        // The host's settings screen writes the preference...
+        gameState.game.preference.setPreference("voiceVolume", 0.4);
+        expect(manager.getBusVolume("voice")).toBe(0.4);
+        expect(sound.channels.get("voice").getVolume()).toBeCloseTo(0.4);
+
+        // ...and a restore through the mixer is visible to that same settings screen, so it does
+        // not sit at 1 telling the player something that is not true.
+        manager.setBusVolume("voice", 0.75);
+        expect(gameState.game.preference.getPreference("voiceVolume")).toBe(0.75);
+    });
+
+    it("carries a preference written while nothing is mounted", async () => {
+        const gameState = createGameState([]);
+        // No player, no React, no effects - the mixer is subscribed from `new Game(...)` onwards.
+        gameState.game.preference.setPreference("bgmVolume", 0.2);
+
+        const manager = new AudioManager(gameState);
+        manager.initialize();
+        const sound = soundMock.instances[0];
+        sound.readyResolvers.forEach((resolve: () => void) => resolve());
+        await settle();
+
+        expect(sound.channels.get("bgm").getVolume()).toBeCloseTo(0.2);
     });
 
     it("layers declared, then a persisted player override, then a live change", async () => {

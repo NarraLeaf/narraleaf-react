@@ -9,10 +9,16 @@ import {
     AudioBusTree,
     DefaultAudioBusIds,
     MaxAudioBusDepth,
+    SeededBusPreferenceKeys,
     acceptsAudioBus,
     getActiveAudioBusTree,
 } from "@core/game/audioBus";
-import type {AudioBusDeclaration, AudioBusNode, AudioBusState} from "@core/game/audioBus";
+import type {
+    AudioBusAlias,
+    AudioBusDeclaration,
+    AudioBusNode,
+    AudioBusState,
+} from "@core/game/audioBus";
 import type {StorableChange, StorableRestore} from "../elements/persistent/storable";
 import type {SavedGame} from "@core/gameTypes";
 import type {StackSnapshot, StackFrameSnapshot} from "@core/action/stackModel";
@@ -31,10 +37,12 @@ export {
     AudioBusTree,
     DefaultAudioBusIds,
     MaxAudioBusDepth,
+    SeededBusPreferenceKeys,
     acceptsAudioBus,
     getActiveAudioBusTree,
 };
 export type {
+    AudioBusAlias,
     AudioBusDeclaration,
     AudioBusNode,
     AudioBusState,

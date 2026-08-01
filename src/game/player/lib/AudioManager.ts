@@ -119,8 +119,6 @@ export class AudioManager {
             this.realizeBusTree(sound);
             this.isReady = true;
             this.isInitializing = false;
-            // Apply group volumes that may have been set before initialise
-            this.setupGroupVolume();
         }).catch(error => {
             this.isInitializing = false;
             this.gameState.logger.error("AudioManager", "Failed to initialize audio subsystem", error);
@@ -806,7 +804,6 @@ export class AudioManager {
                 this.applyBusVolume(this.channels.get(node.id), this.mixer.getEffectiveVolume(node.id), false);
             });
         }
-        this.setupGroupVolume();
     }
 
     /**
@@ -874,24 +871,4 @@ export class AudioManager {
         this.sound.destroy();
     }
 
-    /**
-     * The three volume preferences are aliases onto the three seeded buses, and this is the alias.
-     *
-     * They stay the way a player's music/sfx/voice sliders are driven - widening the preference key
-     * union to cover arbitrary bus ids is not possible without reshaping `GamePreference`, and is
-     * not needed: a host bus is driven through {@link AudioManager.setBusVolume} instead.
-     *
-     * They write the **player's** half only. This used to write the bus's whole gain, and because
-     * these preferences default to 1 it meant that a host declaring `{id: "sound", volume: 0.6}`
-     * had its mix silently overwritten with 1 the moment the audio subsystem started - the author
-     * set SFX to 60% and every player heard 100%. Custom buses were unaffected because nothing
-     * aliases them, so the three buses every existing project uses were the only ones that ignored
-     * the declaration. Now `soundVolume: 1` means "do not attenuate further" and 0.6 survives.
-     */
-    private setupGroupVolume(): void {
-        const {soundVolume, bgmVolume, voiceVolume} = this.gameState.game.preference.getPreferences();
-        this.setBusVolume(DefaultAudioBusIds.sound, soundVolume);
-        this.setBusVolume(DefaultAudioBusIds.bgm, bgmVolume);
-        this.setBusVolume(DefaultAudioBusIds.voice, voiceVolume);
-    }
 }

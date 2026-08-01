@@ -47,11 +47,16 @@
   game, so re-mixing a shipped title still reaches players who already have settings saved. One gain
   node per bus either way: two gain stages in series compute exactly what one multiplication does.
 
-  The four volume preferences are untouched and keep working: `bgmVolume`, `soundVolume` and
-  `voiceVolume` are aliases onto the three seeded buses and write the *player's* half.
-  `getPreference("soundVolume")` still reads `1` at boot and still means "no further attenuation" —
-  reading a declared mix back out of a preference would have made the preference mean two different
-  things depending on whether the host declared that bus.
+  **`bgmVolume`, `soundVolume` and `voiceVolume` no longer *drive* the seeded buses — they ARE the
+  player's half of them.** Reading either surface reads one number: `game.audioBuses.getVolume("voice")`
+  and `game.preference.getPreference("voiceVolume")` cannot disagree, and writing either one drives
+  the audio graph immediately, whether or not a player is mounted. Nothing is copied at init, so
+  there is no ordering rule: a host may restore volumes at any point after `new Game(...)`, on
+  seeded and declared buses alike. A settings UI that writes `voiceVolume` today is unaffected and
+  gets two things it did not have — its slider reflects a volume restored through the mixer or
+  loaded from a save instead of sitting at 1, and a write made while the player is unmounted is no
+  longer dropped. On a fresh install these still read `1`, meaning "no further attenuation"; the
+  author's declared mix is a separate number underneath and is never reported here.
 
 - **A voice may live anywhere under `voice`, and background music anywhere under `bgm`.** `Scene`'s
   two checks were equality tests that threw, so a voice on a per-character bus failed story compile

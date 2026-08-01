@@ -333,6 +333,64 @@ type AudioBusEvents = {
 };
 
 /**
+ * Somewhere other than the mixer that already stores a bus's player volume.
+ *
+ * There is exactly one of these in the engine: the three volume preferences. `voiceVolume` is not
+ * a number that gets *copied* onto the voice bus, it **is** the voice bus's player volume, reached
+ * through this. A bus with an alias has no entry in the mixer's own map at all, so there is one
+ * store and one writer and nothing can overwrite anything.
+ *
+ * Structural on purpose - `audioBus.ts` stays free of imports, and a test can hand it a real
+ * `Preference` and exercise exactly what `Game` wires up.
+ */
+export type AudioBusAlias = {
+    get(): number;
+    set(volume: number): void;
+    /** Fires when the backing store changes by any route, including one that bypasses the mixer. */
+    subscribe(listener: (volume: number) => void): { cancel: () => void };
+};
+
+/**
+ * The preference key that *is* each seeded bus's player volume.
+ */
+export const SeededBusPreferenceKeys = {
+    [DefaultAudioBusIds.bgm]: "bgmVolume",
+    [DefaultAudioBusIds.sound]: "soundVolume",
+    [DefaultAudioBusIds.voice]: "voiceVolume",
+} as const;
+
+/** The slice of `Preference` an alias needs. */
+type PreferenceLike = {
+    getPreference(key: string): unknown;
+    setPreference(key: string, value: never): void;
+    onPreferenceChange(key: string, listener: (value: never) => void): { cancel: () => void };
+};
+
+/**
+ * Bind the three seeded buses to the three volume preferences.
+ *
+ * This is the whole of the alias, and it is deliberately an identity rather than a copy. Copying
+ * is what broke twice: an init-time `preference -> bus` write clobbered the author's declared mix
+ * (because the preferences default to 1), and then clobbered a player override the host had just
+ * restored (for the same reason). With one store there is no write to mis-order, and therefore no
+ * ordering rule a host has to know.
+ * @internal
+ */
+export function createPreferenceBusAliases(
+    preference: PreferenceLike,
+): Record<string, AudioBusAlias> {
+    const aliases: Record<string, AudioBusAlias> = {};
+    Object.entries(SeededBusPreferenceKeys).forEach(([busId, key]) => {
+        aliases[busId] = {
+            get: () => normalizeVolume(preference.getPreference(key) as number),
+            set: (volume: number) => preference.setPreference(key, volume as never),
+            subscribe: (listener) => preference.onPreferenceChange(key, listener as never),
+        };
+    });
+    return aliases;
+}
+
+/**
  * The per-game mixer: the declared tree, plus what the player has done to it.
  *
  * **Every bus carries two numbers, and they never overwrite each other.** The declaration holds
@@ -359,16 +417,54 @@ export class AudioBusMixer {
 
     public readonly events: EventDispatcher<AudioBusEvents> = new EventDispatcher();
 
-    /** The player's half. Absent means "untouched", which is 1 — not 0, and not the declaration. */
+    /**
+     * The player's half, for buses that do not have an alias. Absent means "untouched", which is
+     * 1 — not 0, and not the declaration.
+     */
     private readonly overrides: Map<string, number> = new Map();
+    private readonly aliases: Record<string, AudioBusAlias>;
+    private readonly aliasTokens: Array<{ cancel: () => void }> = [];
     private tree: AudioBusTree | null = null;
 
     /**
      * @param declarations - Read lazily, so a host that calls `configure()` between constructing
      * the `Game` and mounting the player still gets the tree it declared.
+     * @param aliases - Buses whose player volume is stored somewhere else, by bus id. See
+     * {@link AudioBusAlias}; in the engine this is the three volume preferences and nothing else.
      */
-    constructor(private readonly declarations: () => readonly AudioBusDeclaration[]) {
+    constructor(
+        private readonly declarations: () => readonly AudioBusDeclaration[],
+        aliases: Record<string, AudioBusAlias> = {},
+    ) {
         this.events.setMaxListeners(64);
+        this.aliases = aliases;
+        // An aliased bus can be written without going through this mixer at all - a host's settings
+        // screen calling `setPreference("voiceVolume", ...)` is the normal case. Subscribing is what
+        // lets the audio graph hear about it, and it is why nothing needs to copy the value anywhere.
+        Object.entries(aliases).forEach(([id, alias]) => {
+            this.aliasTokens.push(alias.subscribe(volume => {
+                this.announce(id, normalizeVolume(volume));
+            }));
+        });
+    }
+
+    /**@internal */
+    public dispose(): void {
+        this.aliasTokens.forEach(token => token.cancel());
+        this.aliasTokens.length = 0;
+    }
+
+    private announce(id: string, volume: number): void {
+        let effective = volume;
+        try {
+            effective = this.getEffectiveVolume(id);
+        } catch {
+            // Reading the effective value resolves the declaration, which throws on a malformed
+            // tree. That fault belongs to boot and is reported there; it must not come back out of
+            // a volume slider. The only subscriber attaches after the tree is realized, so this
+            // fallback is never the value anything acts on.
+        }
+        this.events.emit(AudioBusMixer.EventTypes["event:audioBus.volumeChange"], id, volume, effective);
     }
 
     /**
@@ -419,13 +515,16 @@ export class AudioBusMixer {
      */
     public setVolume(id: string, volume: number): this {
         const next = normalizeVolume(volume);
+        const alias = this.aliases[id];
+        if (alias) {
+            // The alias is the store, not a mirror of one. Writing it comes back through the
+            // subscription, which is what announces the change - announcing here as well would
+            // make this two writers again, which is the bug this shape exists to remove.
+            alias.set(next);
+            return this;
+        }
         this.overrides.set(id, next);
-        this.events.emit(
-            AudioBusMixer.EventTypes["event:audioBus.volumeChange"],
-            id,
-            next,
-            this.getEffectiveVolume(id),
-        );
+        this.announce(id, next);
         return this;
     }
 
@@ -446,8 +545,16 @@ export class AudioBusMixer {
      * A bus the player has never touched reads 1 whatever the author declared, which is what makes
      * a slider bound to this sit at maximum on a fresh install and what makes the persisted value
      * mean "what the player did" rather than "what the game shipped with".
+     *
+     * For the three seeded buses this reads the corresponding volume preference, because that
+     * preference *is* this number. `mixer.getVolume("voice")` and `getPreference("voiceVolume")`
+     * cannot disagree; there is only one of them.
      */
     public getVolume(id: string): number {
+        const alias = this.aliases[id];
+        if (alias) {
+            return normalizeVolume(alias.get());
+        }
         return this.overrides.get(id) ?? 1;
     }
 
