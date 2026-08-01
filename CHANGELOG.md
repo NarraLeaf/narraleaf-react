@@ -47,6 +47,20 @@
   game, so re-mixing a shipped title still reaches players who already have settings saved. One gain
   node per bus either way: two gain stages in series compute exactly what one multiplication does.
 
+  `bgmVolume`, `soundVolume` and `voiceVolume` continue to govern the three seeded buses.
+
+## [0.23.1]
+
+### _Fix_
+
+- **A player's volume no longer comes back at full after a restart, on the three seeded buses.**
+  `setupGroupVolume()` read the three volume preferences and *wrote* them into the buses at init and
+  at reset. They default to 1, so anything already there lost — a volume a host had just restored
+  most of all. Buses the author declared were never affected, because nothing copies into them, so
+  the failure was invisible except on `bgm`, `sound` and `voice`: exactly the three every existing
+  game uses. Patching the copy to run earlier or skip conditionally would have kept two stores for
+  one number, so the copy is gone.
+
   **`bgmVolume`, `soundVolume` and `voiceVolume` no longer *drive* the seeded buses — they ARE the
   player's half of them.** Reading either surface reads one number: `game.audioBuses.getVolume("voice")`
   and `game.preference.getPreference("voiceVolume")` cannot disagree, and writing either one drives
