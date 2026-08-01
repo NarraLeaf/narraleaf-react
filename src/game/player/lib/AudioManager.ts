@@ -6,6 +6,18 @@ import { GameState } from "@player/gameState";
 import { RuntimeGameError } from "@core/common/Utils";
 import { LogicAction } from "@core/action/logicAction";
 
+/**
+ * The in/out points of a clip, plus the point each repeat returns to.
+ *
+ * `loopStart` is only ever consulted for a looping clip; `endTime` is what makes the pair a region
+ * at all, so both of the other two are meaningless without it.
+ */
+type ClipRegion = {
+    startTime: number;
+    endTime?: number;
+    loopStart?: number;
+};
+
 type SoundState = {
     token: SoundToken;
     cachedAudio: CachedAudio;
@@ -73,10 +85,21 @@ export class AudioManager {
         });
     }
 
-    public play(sound: SoundElement, options: FadeOptions = {
-        end: 1,
-        duration: 0,
-    }): Awaitable<void> {
+    /**
+     * The volume a clip started with no explicit target should reach.
+     *
+     * Full volume was never a sensible default here: a `Sound` carries the volume it was configured
+     * with, so a caller that says nothing about volume is asking for *that*, not for 1. Reading
+     * `state` rather than the user config is deliberate - it is the same value {@link SoundElement.play}
+     * and {@link SoundElement.resume} put in their `FadeOptions`, so a clip replayed after
+     * {@link AudioManager.setVolume} comes back at the volume it was last set to instead of jumping
+     * back to whatever the author first wrote down.
+     */
+    private static defaultFade(sound: SoundElement): FadeOptions {
+        return { end: sound.state.volume, duration: 0 };
+    }
+
+    public play(sound: SoundElement, options: FadeOptions = AudioManager.defaultFade(sound)): Awaitable<void> {
         const awaitable = new Awaitable<void>();
 
         this.ready.then(async () => {
@@ -89,12 +112,16 @@ export class AudioManager {
             try {
                 const channel = this.channels.get(sound.config.type)!;
                 const cachedAudio = await this.sound.load(sound.config.src);
+                const region = AudioManager.clipRegionOf(sound);
                 const token = await channel.play(cachedAudio, {
                     volume: 0,
-                    ...AudioManager.clipRegionOf(sound),
+                    ...AudioManager.playRegionOf(region, sound.config.loop),
                     loop: sound.config.loop,
                     rate: sound.state.rate,
                 });
+                if (sound.config.loop) {
+                    AudioManager.applyLoopRegion(token, region);
+                }
 
                 const isMuted = sound.state.muted ?? false;
                 token.mute(isMuted);
@@ -130,10 +157,20 @@ export class AudioManager {
         return awaitable;
     }
 
-    public async playSoundToken(sound: SoundElement, options: FadeOptions = {
-        end: 1,
-        duration: 0,
-    }): Promise<SoundToken> {
+    /**
+     * Start a clip and hand the token back once playback is under way.
+     *
+     * With no `duration` the target volume is written to the token *synchronously* before this
+     * returns, and nothing is left running: no gain automation is in flight when the caller gets the
+     * token. That is what makes an explicit `token.setVolume` or a fade the caller drives itself
+     * afterwards the last writer, which several hosts rely on. Defaulting `duration` to anything
+     * above 0 would break that - `token.fade` below is deliberately not awaited, so a non-zero
+     * default would leave a ramp running past the return and over whatever the caller did next.
+     */
+    public async playSoundToken(
+        sound: SoundElement,
+        options: FadeOptions = AudioManager.defaultFade(sound),
+    ): Promise<SoundToken> {
         await this.ready;
 
         // Stop existing sound if playing
@@ -148,12 +185,16 @@ export class AudioManager {
                 throw new RuntimeGameError(`Channel not found for sound type: "${sound.config.type}"`);
             }
             const cachedAudio = await this.sound.load(sound.config.src);
+            const region = AudioManager.clipRegionOf(sound);
             const token = await channel.play(cachedAudio, {
                 volume: 0,
-                ...AudioManager.clipRegionOf(sound),
+                ...AudioManager.playRegionOf(region, sound.config.loop),
                 loop: sound.config.loop,
                 rate: sound.state.rate,
             });
+            if (sound.config.loop) {
+                AudioManager.applyLoopRegion(token, region);
+            }
 
             const isMuted = sound.state.muted ?? false;
             token.mute(isMuted);
@@ -327,22 +368,103 @@ export class AudioManager {
     }
 
     /**
-     * The in/out points of a clip as the sound backend's play options.
+     * The in/out points of a clip.
      *
      * `endTime` is left off entirely when the author set none: passing `undefined` explicitly is the
      * same thing to the backend, but omitting it keeps `{...region}` spreads from writing a key that
      * reads as "there is a region here" to anything inspecting the object.
      */
-    private static clipRegionOf(sound: SoundElement): { startTime: number; endTime?: number } {
+    private static clipRegionOf(sound: SoundElement): ClipRegion {
         const startTime = sound.config.seek;
         const endTime = sound.config.endTime;
         if (endTime === undefined || !Number.isFinite(endTime) || endTime <= startTime) {
             return { startTime };
         }
-        return { startTime, endTime };
+        const loopStart = sound.config.loopStart;
+        if (loopStart === undefined || !Number.isFinite(loopStart)) {
+            return { startTime, endTime };
+        }
+        return { startTime, endTime, loopStart };
     }
 
-    private static clampToRegion(time: number, region: { startTime: number; endTime?: number }): number {
+    /**
+     * The region as the sound backend's play options.
+     *
+     * A looping clip deliberately hands over **no** `endTime`. The backend turns `endTime` into a
+     * timer that stops the token after one pass, whether or not the clip loops, so passing it here
+     * is what kept the loop region from ever repeating. The region reaches a looping clip through
+     * {@link AudioManager.applyLoopRegion} instead; for a one-shot `endTime` *is* the out point and
+     * the backend's timer is exactly the right mechanism.
+     */
+    private static playRegionOf(region: ClipRegion, loop: boolean): { startTime: number; endTime?: number } {
+        if (loop || region.endTime === undefined) {
+            return { startTime: region.startTime };
+        }
+        return { startTime: region.startTime, endTime: region.endTime };
+    }
+
+    /**
+     * Write a looping clip's region onto the Web Audio node the backend is playing it through.
+     *
+     * **This is a shim against `@narraleaf/sound@0.1.0`'s internals, and the only place in this
+     * repo that reaches into them.** Two things in that version make the region unusable from the
+     * outside:
+     *
+     * - `SoundToken`'s constructor arms `setTimeout(stop, duration * 1000)` whenever a duration was
+     *   given, without consulting `loop` — so a looping clip with an out point hard-stops after its
+     *   first pass through the region.
+     * - `Sound.createToken` pins `loopStart` to the playback start offset, so "play the intro from
+     *   0s, then repeat 12s→90s forever" cannot be expressed at all.
+     *
+     * The fix belongs upstream and is small: honour `loop` before arming the duration timer, and
+     * accept an independent `loopStart` in `PlayOptions`. Until that ships, this manager withholds
+     * `endTime` from a looping clip's play options (which is what disarms the timer) and sets the
+     * loop region here.
+     *
+     * `SoundToken.sourceController` is TypeScript-`private` while `AudioSourceController.getSource`
+     * is public, so the node is reachable at runtime but not through the types — hence the cast and
+     * the shape check. If a later backend changes that shape this returns silently and the clip
+     * degrades to the behaviour it has today: the region plays once and the clip stops.
+     *
+     * Seeking survives this. `SoundToken.seek` rebuilds the buffer source and copies `loop`,
+     * `loopStart` and `loopEnd` off the old node onto the new one, so a jump inside a looping track
+     * keeps the region.
+     */
+    private static applyLoopRegion(token: SoundToken, region: ClipRegion): void {
+        const { startTime, endTime } = region;
+        if (endTime === undefined || !Number.isFinite(endTime) || endTime <= startTime) {
+            return;
+        }
+        // A clip decoded on a server, or under a backend that swapped the streaming path in, has no
+        // buffer source to write to.
+        if (typeof AudioBufferSourceNode === "undefined") {
+            return;
+        }
+
+        const controller = (token as unknown as {
+            sourceController?: { getSource?: () => unknown };
+        }).sourceController;
+        if (typeof controller?.getSource !== "function") {
+            return;
+        }
+        const node = controller.getSource();
+        if (!(node instanceof AudioBufferSourceNode)) {
+            return;
+        }
+
+        // An in point for the repeat that sits outside the region describes nothing playable, so it
+        // falls back to the region's own start rather than producing an inverted or zero-length loop.
+        const requested = region.loopStart;
+        const clamped = requested !== undefined && Number.isFinite(requested)
+            ? Math.min(Math.max(requested, startTime), endTime)
+            : startTime;
+
+        node.loop = true;
+        node.loopStart = clamped < endTime ? clamped : startTime;
+        node.loopEnd = endTime;
+    }
+
+    private static clampToRegion(time: number, region: ClipRegion): number {
         const floor = Math.max(0, time);
         if (region.endTime === undefined) {
             return floor;
@@ -439,11 +561,14 @@ export class AudioManager {
                 const anchored = region.endTime !== undefined && sound.config.loop;
                 const token = await channel.play(cachedAudio, {
                     volume: sound.state.volume,
-                    ...region,
+                    ...AudioManager.playRegionOf(region, sound.config.loop),
                     startTime: anchored ? region.startTime : data.position,
                     loop: sound.config.loop,
                     rate: sound.state.rate,
                 });
+                if (sound.config.loop) {
+                    AudioManager.applyLoopRegion(token, region);
+                }
                 if (anchored && Math.abs(data.position - region.startTime) > 0.01) {
                     token.seek(AudioManager.clampToRegion(data.position, region));
                 }

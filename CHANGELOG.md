@@ -1,5 +1,66 @@
 # Changelog
 
+## [Unreleased]
+
+### _Feature_
+
+- **A looping clip can repeat from somewhere other than where it started.** `ISoundUserConfig` gains
+  `loopStart` — the point each repeat returns to, as opposed to `seek`, which stays the point the
+  *first* pass begins at:
+
+  ```ts
+  Sound.bgm({src: "theme.mp3", loop: true, seek: 0, loopStart: 12, endTime: 90});
+  ```
+
+  That is the standard shape of background music with an intro: play the opening once from the top,
+  then repeat only the body forever. Until now `seek` had to be both things at once, so the intro
+  could only be had by giving it up on every later pass. Omitting `loopStart` keeps the old
+  behaviour exactly — each repeat returns to `seek`. A value outside `[seek, endTime)` describes no
+  playable region and falls back to `seek` rather than producing a silent zero-length loop.
+
+- **A bgm-typed sound can be played with `Sound.play()`.** It used to throw `StaticScriptWarning`,
+  which failed the whole story at chain-build time rather than the one line responsible. The guard
+  was protecting nothing: `SoundType` selects which volume slider governs a clip and does not do
+  anything else anywhere in the engine, `LiveGame.playSound` has always played bgm-typed clips
+  through the very same manager path with no check, and a scene's background music is a separate
+  reference that `play()` cannot reach or disturb. Meanwhile the combination it forbade is one
+  authors legitimately want — an ambience track on the music bus, so the player's music slider
+  governs it, played from an ordinary line. It is now a `console.warn` that names the one real
+  difference: a clip played this way is not in the scene's background-music slot, so leaving the
+  scene will not stop it and nothing cross-fades it. Clips on the other two buses say nothing.
+  (`Scene`'s own check — that its configured `backgroundMusic` *is* a bgm — is unchanged.)
+
+### _Fix_
+
+- **A loop region actually loops.** `Sound.bgm({loop: true, seek, endTime})` shipped in 0.21.0 and
+  has never repeated: it played its region once and then stopped dead, which sounds like a truncated
+  asset. The audio backend turns `endTime` into a timer that stops the token after one pass, and it
+  arms that timer without ever consulting `loop` — so the very option that was supposed to make the
+  clip repeat was also what killed it. The engine now withholds `endTime` from a looping clip's play
+  options and sets the region on the Web Audio node itself, which is where the sample-accurate
+  repeat was always going to come from. A one-shot with an `endTime` is unchanged: there the
+  backend's timer *is* the out point.
+
+- **`Scene.setBackgroundMusic` cross-fades instead of leaving a gap.** It is documented as a
+  cross-fade and its `fade` argument is documented as the duration of one, but the outgoing track
+  was faded all the way out *before* the incoming one was started — so the two never overlapped, and
+  the longer the fade an author asked for, the longer the silence between two pieces of music that
+  were supposed to blend. The incoming track now starts while the outgoing one is still fading. The
+  call still settles only once the outgoing track is gone, so a scene's init sequencing is
+  unchanged, and setting the same clip again still restarts it rather than layering it over itself.
+
+- **A sound's configured volume is no longer discarded when it is played.** `LiveGame.playSound` and
+  a dialog line's voice both start a clip without saying anything about volume, and "nothing said"
+  was being read as *full volume* rather than as the clip's own — so `Sound.voice({src, volume: 0.4})`
+  played at 1 through either path, and a `volume` an author (or a host's UI) set on a sound they then
+  handed to `playSound` did nothing at all. The default target is now the sound's own volume, which
+  is the same value `Sound.play()` and `Sound.resume()` have always put in their fade options; a
+  clip replayed after `setVolume` therefore comes back at the volume it was last set to instead of
+  jumping to full. Callers that pass an explicit target are unaffected — `Scene.setBackgroundMusic`
+  and the `sound:play` action already did. `playSound` still starts with no fade and leaves no gain
+  ramp running when it resolves, so a `setVolume` or a fade driven on the returned token afterwards
+  is still the last writer and still wins.
+
 ## [0.21.1]
 
 ### _Fix_

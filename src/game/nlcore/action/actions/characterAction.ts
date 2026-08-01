@@ -70,6 +70,8 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             // Play voice if available
             const voice = CharacterAction.getVoice(gameState, sentence);
             if (voice) {
+                // No `FadeOptions`: the manager's default is the clip's own configured volume, so a
+                // voice line mixed down with `Sound.voice({volume})` plays at that volume here.
                 const task = gameState.audioManager.play(voice);
                 timeline.attachChild(task);
             }

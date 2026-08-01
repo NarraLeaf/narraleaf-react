@@ -454,6 +454,14 @@ export class LiveGame {
 
     /**
      * Play a sound immediately and return the SoundToken.
+     *
+     * The clip starts at the volume its {@link Sound} was configured with — `Sound.voice({src, volume:
+     * 0.4})` starts at 0.4, not at full volume. There is no fade: the token's volume is already
+     * settled when this resolves and no ramp is left running, so a `setVolume` or a fade driven on
+     * the returned token afterwards wins outright.
+     *
+     * A source given as a string or `URL` becomes a default `Sound`, which is full volume — pass a
+     * `Sound` to say otherwise.
      */
     public playSound(sound: Sound | string | URL): Promise<SoundToken> {
         this.assertGameState();

@@ -22,12 +22,35 @@ type PlayOptionsRecord = {
     rate?: number;
 };
 
+/** The Web Audio node the backend plays a decoded clip through, as far as the loop region cares. */
+type SourceNodeMock = {
+    loop: boolean;
+    loopStart: number;
+    loopEnd: number;
+};
+
 type ChannelMock = {
     setVolume: ReturnType<typeof vi.fn>;
     play: (source: unknown, options?: PlayOptionsRecord) => Promise<Record<string, unknown>>;
     played: PlayOptionsRecord[];
     token: Record<string, ReturnType<typeof vi.fn>> & { seek: ReturnType<typeof vi.fn> };
+    node: SourceNodeMock;
 };
+
+/**
+ * `AudioManager` reaches the buffer source through `token.sourceController.getSource()` and checks
+ * the result with `instanceof AudioBufferSourceNode` - a global that does not exist outside a
+ * browser, so the seam needs one to exist at all.
+ */
+const audio = vi.hoisted(() => {
+    class AudioBufferSourceNodeStub {
+        public loop = false;
+        public loopStart = 0;
+        public loopEnd = 0;
+    }
+    (globalThis as unknown as Record<string, unknown>).AudioBufferSourceNode = AudioBufferSourceNodeStub;
+    return { AudioBufferSourceNodeStub };
+});
 
 const soundMock = vi.hoisted(() => ({
     instances: [] as Array<{
@@ -71,7 +94,9 @@ vi.mock("@narraleaf/sound", () => {
             if (this.channels.has(name)) {
                 throw new Error(`Channel "${name}" already exists under "__master__".`);
             }
+            const node = new audio.AudioBufferSourceNodeStub();
             const token = {
+                sourceController: { getSource: () => node },
                 mute: vi.fn(),
                 unmute: vi.fn(),
                 setVolume: vi.fn(),
@@ -94,6 +119,7 @@ vi.mock("@narraleaf/sound", () => {
             const channel = {
                 setVolume: vi.fn(),
                 token,
+                node,
                 played,
                 play: (_source: unknown, options: Record<string, unknown> = {}) => {
                     played.push(options);
@@ -248,9 +274,46 @@ describe("AudioManager clip regions", () => {
 
         await manager.playSoundToken(Sound.bgm({ src: "theme.mp3", loop: true, seek: 2, endTime: 30 }));
 
-        // Both ends have to reach the backend: it is `endTime` *together with* `loop` that makes the
-        // node repeat back to `startTime` rather than to zero.
-        expect(channel.played[0]).toMatchObject({ startTime: 2, endTime: 30, loop: true });
+        // `endTime` must NOT reach the backend here. It turns into a timer that stops the token after
+        // one pass whether or not the clip loops, so handing it over is exactly what stopped the loop
+        // region from ever repeating. The region goes onto the node instead.
+        expect(channel.played[0]).toMatchObject({ startTime: 2, loop: true });
+        expect(channel.played[0] && "endTime" in channel.played[0]).toBe(false);
+        expect(channel.node).toMatchObject({ loop: true, loopStart: 2, loopEnd: 30 });
+    });
+
+    it("repeats from a loop in point of its own when one is given", async () => {
+        const { manager, channel } = await readyManager(SoundType.Bgm);
+
+        await manager.playSoundToken(Sound.bgm({
+            src: "theme.mp3", loop: true, seek: 0, loopStart: 12, endTime: 90,
+        }));
+
+        // The intro plays once from the top; every repeat after that returns to 12s, not to 0s.
+        expect(channel.played[0]?.startTime).toBe(0);
+        expect(channel.node).toMatchObject({ loop: true, loopStart: 12, loopEnd: 90 });
+    });
+
+    it("ignores a loop in point that falls outside the region", async () => {
+        const { manager, channel } = await readyManager(SoundType.Bgm);
+
+        await manager.playSoundToken(Sound.bgm({
+            src: "theme.mp3", loop: true, seek: 2, loopStart: 120, endTime: 30,
+        }));
+
+        // A repeat that starts at or after the out point is a zero-length loop - silence forever.
+        expect(channel.node).toMatchObject({ loopStart: 2, loopEnd: 30 });
+    });
+
+    it("hands a one-shot's out point straight to the backend", async () => {
+        const { manager, channel } = await readyManager(SoundType.Sound);
+
+        await manager.playSoundToken(Sound.sound({ src: "line.mp3", seek: 1, endTime: 4 }));
+
+        // Without `loop` the backend's stop-at-duration timer *is* the out point, and there is no
+        // loop region to write.
+        expect(channel.played[0]).toMatchObject({ startTime: 1, endTime: 4, loop: false });
+        expect(channel.node.loop).toBe(false);
     });
 
     it("drops an out point that is not after the in point", async () => {
@@ -303,7 +366,8 @@ describe("AudioManager clip regions", () => {
 
         // Restoring straight at 12 would make every later repeat return to 12 instead of the in
         // point, silently shrinking the author's loop for the rest of the session.
-        expect(channel.played[0]).toMatchObject({ startTime: 2, endTime: 30 });
+        expect(channel.played[0]?.startTime).toBe(2);
+        expect(channel.node).toMatchObject({ loop: true, loopStart: 2, loopEnd: 30 });
         expect(channel.token.seek).toHaveBeenCalledWith(12);
     });
 
@@ -315,6 +379,98 @@ describe("AudioManager clip regions", () => {
 
         expect(channel.played[0]?.startTime).toBe(12);
         expect(channel.token.seek).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * A `Sound` carries the volume it was configured with. A caller that passes no `FadeOptions` is
+ * saying nothing about volume, which means "the clip's own" - it used to mean "full".
+ */
+describe("AudioManager default volume", () => {
+    beforeEach(() => {
+        soundMock.instances.length = 0;
+    });
+
+    async function readyManager(type: SoundType) {
+        const manager = new AudioManager(createGameState());
+        manager.initialize();
+        const sound = soundMock.instances[0];
+        sound.readyResolvers.forEach(resolve => resolve());
+        await settle();
+        return { manager, channel: sound.channels.get(type) as unknown as ChannelMock };
+    }
+
+    it("starts a clip at its configured volume, not at full", async () => {
+        const { manager, channel } = await readyManager(SoundType.Sound);
+        const sound = Sound.sound({ src: "hit.wav", volume: 0.4 });
+
+        // This is `LiveGame.playSound`'s exact call: no options at all. It used to hand the token
+        // `1`, so every clip a host played through it was at full volume however it was configured.
+        await manager.playSoundToken(sound);
+
+        expect(channel.token.setVolume).toHaveBeenCalledWith(0.4);
+        expect(channel.token.setVolume).not.toHaveBeenCalledWith(1);
+        expect(sound.state.volume).toBe(0.4);
+    });
+
+    it("leaves no ramp running, so a volume set on the returned token wins", async () => {
+        const { manager, channel } = await readyManager(SoundType.Sound);
+
+        const token = await manager.playSoundToken(Sound.sound({ src: "hit.wav", volume: 0.4 }));
+        token.setVolume(0.9);
+
+        // A host that resolves its own volume after play must be the last writer. A non-zero default
+        // fade would break that: `token.fade` is not awaited, so the ramp would outlive the return
+        // and run straight over this call.
+        expect(channel.token.fade).not.toHaveBeenCalled();
+        expect(channel.token.setVolume.mock.calls.map(call => call[0])).toEqual([0.4, 0.9]);
+    });
+
+    it("ramps an explicit fade to the configured volume rather than to full", async () => {
+        const { manager, channel } = await readyManager(SoundType.Bgm);
+        const music = Sound.bgm({ src: "theme.mp3", loop: true, volume: 0.4 });
+
+        await manager.playSoundToken(music, { end: music.state.volume, duration: 800 });
+
+        expect(channel.token.fade).toHaveBeenCalledWith(0, 0.4, 800);
+        expect(channel.token.setVolume).not.toHaveBeenCalled();
+    });
+
+    it("honours an explicit target that differs from the configured volume", async () => {
+        const { manager, channel } = await readyManager(SoundType.Sound);
+        const sound = Sound.sound({ src: "hit.wav", volume: 0.4 });
+
+        await manager.playSoundToken(sound, { end: 1, duration: 0 });
+
+        expect(channel.token.setVolume).toHaveBeenCalledWith(1);
+        expect(sound.state.volume).toBe(1);
+    });
+
+    it("plays a dialog's voice at the volume it was configured with", async () => {
+        const { manager, channel } = await readyManager(SoundType.Voice);
+        const voice = Sound.voice({ src: "line.mp3", volume: 0.25 });
+
+        // `CharacterAction` plays a line's voice with no options either - the same defaulting bug
+        // reached it, so a voice track mixed down against the music came out at full volume.
+        // Not awaited: `play` settles when the clip *ends*, and a mock token never ends.
+        manager.play(voice);
+        await settle();
+
+        expect(channel.token.setVolume).toHaveBeenCalledWith(0.25);
+        expect(channel.token.setVolume).not.toHaveBeenCalledWith(1);
+    });
+
+    it("restarts at the volume it was last set to, not the one it was authored with", async () => {
+        const { manager, channel } = await readyManager(SoundType.Sound);
+        const sound = Sound.sound({ src: "hit.wav", volume: 0.4 });
+
+        await manager.playSoundToken(sound);
+        manager.setVolume(sound, 0.1);
+        await manager.playSoundToken(sound);
+
+        // The default reads `state`, which is what `Sound.play()` and `Sound.resume()` already put in
+        // their own `FadeOptions` - so a replay does not undo a volume change made in between.
+        expect(channel.token.setVolume).toHaveBeenLastCalledWith(0.1);
     });
 });
 

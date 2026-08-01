@@ -6,7 +6,6 @@ import { SoundActionContentType, SoundActionTypes } from "@core/action/actionTyp
 import { Chained, Proxied } from "@core/action/chain";
 import { SoundAction } from "@core/action/actions/soundAction";
 import { Config, ConfigConstructor } from "@lib/util/config";
-import { StaticScriptWarning } from "../common/Utils";
 
 type ChainedSound = Proxied<Sound, Chained<LogicAction.Actions>>;
 export enum SoundType {
@@ -53,7 +52,8 @@ export interface ISoundUserConfig {
      *
      * When {@link ISoundUserConfig.loop} is set together with {@link ISoundUserConfig.endTime},
      * this is also where each repeat restarts from, so the two together describe a loop region
-     * rather than just a starting offset.
+     * rather than just a starting offset — unless {@link ISoundUserConfig.loopStart} moves the
+     * repeat's in point somewhere else.
      * @default 0
      */
     seek: number;
@@ -62,15 +62,35 @@ export interface ISoundUserConfig {
      * through to the end of the file.
      *
      * Without `loop` the clip simply stops there. With `loop` it jumps back to
-     * {@link ISoundUserConfig.seek}, which is how a piece of background music with an intro loops
-     * only its body. The jump is sample-accurate (it is the Web Audio node's own loop), so there is
-     * no gap and no drift over long sessions.
+     * {@link ISoundUserConfig.loopStart}, or to {@link ISoundUserConfig.seek} when no loop in point
+     * was given — which is how a piece of background music with an intro loops only its body. The
+     * jump is sample-accurate (it is the Web Audio node's own loop), so there is no gap and no
+     * drift over long sessions.
      *
      * Ignored for a clip that is streamed rather than decoded: an `<audio>` element has no loop
      * region, only a plain repeat.
      * @default undefined
      */
     endTime?: number;
+    /**
+     * Position in seconds the clip returns to on every repeat — the **loop in point**.
+     *
+     * Only meaningful together with `loop` and {@link ISoundUserConfig.endTime}: it is the start of
+     * the region that repeats, while {@link ISoundUserConfig.seek} stays the position the *first*
+     * pass begins at. Leaving it out makes each repeat return to `seek`, which is the behaviour of
+     * a clip that has no separate intro.
+     *
+     * Separating the two is what expresses the standard "intro then loop" piece of background
+     * music — play from the top once, then repeat only the body forever:
+     *
+     * ```ts
+     * Sound.bgm({src: "theme.mp3", loop: true, seek: 0, loopStart: 12, endTime: 90});
+     * ```
+     *
+     * A value outside `[seek, endTime)` describes no playable region and falls back to `seek`.
+     * @default undefined
+     */
+    loopStart?: number;
     /**
      * The type of the sound
      * @default SoundType.Sound
@@ -84,6 +104,7 @@ type SoundConfig = {
     streaming: boolean;
     seek: number;
     endTime?: number;
+    loopStart?: number;
     type: SoundType;
 };
 
@@ -107,6 +128,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         rate: 1,
         seek: 0,
         endTime: undefined,
+        loopStart: undefined,
         type: SoundType.Sound,
     });
 
@@ -117,6 +139,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         streaming: false,
         seek: 0,
         endTime: undefined,
+        loopStart: undefined,
         type: SoundType.Sound,
     });
 
@@ -205,6 +228,14 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
 
     /**
      * Start playing the sound and wait for it to finish.
+     *
+     * A clip of any {@link SoundType} may be played this way. `type` selects which volume slider
+     * governs the clip and nothing else, so putting an ambience track on `bgm` so the player's music
+     * slider controls it, and then playing it from an ordinary line, is a legitimate thing to want.
+     *
+     * It is *not* the same as {@link Scene.setBackgroundMusic}: a clip played here is not in the
+     * scene's background-music slot, so leaving the scene will not stop it and no cross-fade is
+     * arranged for it. That is true of every clip played this way, on any bus.
      * @param duration - Optional fade duration in milliseconds.
      * @chainable
      * @example
@@ -214,9 +245,17 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
      */
     public play(duration?: number): ChainedSound {
         if (this.config.type === SoundType.Bgm) {
-            throw new StaticScriptWarning(
-                `Sound (src: ${this.config.src}) is marked as bgm, but it is being played as a normal sound. \n`
-                + "To prevent unintended behavior, the sound marked as bgm cannot be played using `play()`."
+            // Not an error. This used to throw, which took down the whole story at chain-build time
+            // over a choice the author is allowed to make — and it never protected anything: `type`
+            // only picks a gain channel, `LiveGame.playSound` has always played bgm-typed clips
+            // through the same manager path with no check at all, and the scene's slot is a
+            // separate reference that this cannot reach. What is worth saying out loud is that the
+            // author may have meant the slot, because the clip will now outlive the scene.
+            console.warn(
+                `NarraLeaf-React [Sound] Playing a bgm-typed sound (src: ${this.config.src}) with \`play()\`. `
+                + "It will play on the music bus but is not the scene's background music, so leaving the "
+                + "scene will not stop it and it will not cross-fade. Use `scene.setBackgroundMusic()` if "
+                + "that is what you wanted."
             );
         }
 

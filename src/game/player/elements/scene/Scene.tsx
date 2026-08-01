@@ -5,6 +5,7 @@ import { Layer } from "@player/elements/player/Layer";
 import { GameState, PlayerStateElement } from "@player/gameState";
 import { useExposeState } from "@player/lib/useExposeState";
 import { ExposedStateType } from "@player/type";
+import { setSceneBackgroundMusic } from "./backgroundMusic";
 import clsx from "clsx";
 import { useEffect } from "react";
 import React from "react";
@@ -53,38 +54,7 @@ export default function Scene(
 
     useExposeState<ExposedStateType.scene>(scene, {
         setBackgroundMusic(music: Sound | null, fade: number) {
-            return new Promise<void>((resolve) => {
-                (async function () {
-                    if (scene.state.backgroundMusic && state.audioManager.isManaged(scene.state.backgroundMusic)) {
-                        await state.audioManager.stop(scene.state.backgroundMusic, fade);
-                    }
-                    if (music) {
-                        // `playSoundToken`, not `play`: `play` resolves when the track *finishes*
-                        // unless it loops, so awaiting it here would hold the caller for the whole
-                        // song. That caller is `SceneAction.initBackgroundMusic`, which the scene's
-                        // init awaits - so a scene configured with a non-looping BGM would sit on
-                        // its first frame until the music ran out. This resolves once playback has
-                        // started and the fade-in is under way.
-                        //
-                        // It rejects where `play` swallowed (it hands the token back, so it cannot
-                        // resolve on failure). Unhandled, that would strand the awaiting scene init
-                        // forever, which is a worse failure than silence: the manager has already
-                        // logged the reason, so treat it as "no music" and carry on.
-                        try {
-                            await state.audioManager.playSoundToken(music, {
-                                end: music.state.volume,
-                                duration: fade,
-                            });
-                            scene.state.backgroundMusic = music;
-                        } catch {
-                            scene.state.backgroundMusic = null;
-                        }
-                    } else {
-                        scene.state.backgroundMusic = null;
-                    }
-                    resolve();
-                })();
-            });
+            return setSceneBackgroundMusic(state, scene, music, fade);
         }
     });
 
