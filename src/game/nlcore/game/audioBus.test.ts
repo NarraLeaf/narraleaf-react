@@ -6,9 +6,11 @@ import {
     AudioBusError,
     AudioBusMixer,
     AudioBusTree,
+    createPreferenceBusAliases,
     DefaultAudioBusIds,
     MaxAudioBusDepth,
 } from "./audioBus";
+import { Preference } from "./preference";
 
 /** Resolving through a mixer is what publishes the tree the story-time checks read. */
 function publish(declarations: Parameters<typeof AudioBusTree.resolve>[0]): AudioBusTree {
@@ -229,6 +231,48 @@ describe("AudioBusMixer", () => {
         expect(remixed.list()).toContainEqual({
             id: "alice", parentId: "voice", volume: 0.5, declaredVolume: 0.4, effectiveVolume: 0.2,
         });
+    });
+
+    it("stores an aliased bus's player volume in the alias and nowhere else", () => {
+        const preference = new Preference({ bgmVolume: 1, soundVolume: 1, voiceVolume: 1 });
+        const mixer = new AudioBusMixer(
+            () => [{ id: "voice", volume: 0.8 }],
+            createPreferenceBusAliases(preference as never),
+        );
+
+        // Writing either surface writes the same storage - there is no second copy to fall behind.
+        mixer.setVolume("voice", 0.5);
+        expect(preference.getPreference("voiceVolume")).toBe(0.5);
+
+        preference.setPreference("voiceVolume", 0.25);
+        expect(mixer.getVolume("voice")).toBe(0.25);
+        // ...and the author's declared mix is still underneath, untouched by either.
+        expect(mixer.getEffectiveVolume("voice")).toBeCloseTo(0.2);
+    });
+
+    it("announces a change made straight on the alias", () => {
+        const preference = new Preference({ bgmVolume: 1, soundVolume: 1, voiceVolume: 1 });
+        const mixer = new AudioBusMixer(() => [], createPreferenceBusAliases(preference as never));
+        const seen = vi.fn();
+        mixer.onVolumeChange(seen);
+
+        // A host's settings screen calling `setPreference` never touches the mixer. Subscribing to
+        // the alias is what reaches the audio graph, and is why nothing has to copy the value.
+        preference.setPreference("bgmVolume", 0.5);
+
+        expect(seen).toHaveBeenCalledWith("bgm", 0.5, 0.5);
+    });
+
+    it("stops listening once disposed", () => {
+        const preference = new Preference({ bgmVolume: 1, soundVolume: 1, voiceVolume: 1 });
+        const mixer = new AudioBusMixer(() => [], createPreferenceBusAliases(preference as never));
+        const seen = vi.fn();
+        mixer.onVolumeChange(seen);
+
+        mixer.dispose();
+        preference.setPreference("bgmVolume", 0.5);
+
+        expect(seen).not.toHaveBeenCalled();
     });
 
     it("re-reads the declaration after it is invalidated, keeping volumes", () => {

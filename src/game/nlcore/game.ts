@@ -6,7 +6,7 @@ import { Preference } from "@core/game/preference";
 import { GameState } from "@player/gameState";
 import { GuardWarningType } from "@player/guard";
 import { DefaultElements } from "../player/elements/elements";
-import { AudioBusMixer } from "./game/audioBus";
+import { AudioBusMixer, createPreferenceBusAliases } from "./game/audioBus";
 import { Plugins, IGamePluginRegistry } from "./game/plugin/plugin";
 import { PuppetBackend, PuppetBackendRegistry } from "./game/puppet/puppetBackend";
 import { LayoutRouter } from "../player/lib/PageRouter/router";
@@ -183,21 +183,25 @@ export class Game {
      * at any point after `new Game(...)` is safe; if the channels do not exist yet the value is
      * applied the moment they do.
      *
-     * The four volume preferences (`bgmVolume`, `soundVolume`, `voiceVolume`, `globalVolume`) are
-     * unchanged and keep working: the first three are aliases onto the seeded buses of the same
-     * name and write the *player's* half, so their default of 1 no longer overwrites a declared
-     * mix. Drive the seeded three through the preferences, and use this for buses the host
-     * declared.
+     * `bgmVolume`, `soundVolume` and `voiceVolume` **are** the player's half of the three seeded
+     * buses — not numbers copied onto them. `game.audioBuses.getVolume("voice")` and
+     * `game.preference.getPreference("voiceVolume")` read the same storage and cannot disagree,
+     * and writing either drives the audio graph immediately, mounted or not. Both surfaces stay
+     * supported; use whichever suits, and use this one for buses the host declared.
+     * (`globalVolume` is the master output, not a bus, and is unchanged.)
      *
      * @example
      * ```ts
      * // persist the player's half only - the author's mix comes back with the game
      * localStorage.setItem("mixer", JSON.stringify(game.audioBuses.getVolumes()));
-     * // restore, any time after `new Game(...)`
+     * // restore, any time after `new Game(...)` - no ordering requirement, seeded or not
      * game.audioBuses.setVolumes(JSON.parse(localStorage.getItem("mixer") ?? "{}"));
      * ```
      */
-    public readonly audioBuses: AudioBusMixer = new AudioBusMixer(() => this.config.audioBuses ?? []);
+    public readonly audioBuses: AudioBusMixer = new AudioBusMixer(
+        () => this.config.audioBuses ?? [],
+        createPreferenceBusAliases(this.preference as never),
+    );
     /**
      * Game key bindings
      */
@@ -451,6 +455,7 @@ export class Game {
      * **Note**: This action is irreversible.
      */
     public dispose() {
+        this.audioBuses.dispose();
         this.plugins.unregisterAll();
         this.liveGame?.dispose();
         this.sideEffect.forEach(sideEffect => sideEffect());
