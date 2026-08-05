@@ -13,7 +13,17 @@ export type GameElementHistory =
     | {
         type: "say";
         text: string;
+        /** Resolved clip URL of the line's voice, if any. */
         voice: string | null;
+        /**
+         * The line's `Sentence.config.voiceId` - the key its take is filed under, not a URL.
+         *
+         * A backlog UI that wants a replay button needs an id it can hand back to the host, because
+         * the host addresses audio by id (asset, voice unit) and a resolved URL is not one of those.
+         * Absent on entries recorded before this field existed, and on a line voiced through the
+         * inline `config.voice` rather than the scene's voice map.
+         */
+        voiceId?: string | number | null;
         character: string | null;
     }
     | {

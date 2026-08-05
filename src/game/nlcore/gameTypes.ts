@@ -270,6 +270,9 @@ export type GameConfig = {
     /**
      * The delay in milliseconds before the game automatically shows the next sentence
      *
+     * Counted from the end of the line: the text has finished typing AND the line's voice, if any,
+     * has finished playing. A voiced line therefore waits out its clip and then this delay.
+     *
      * Only works when the player preference "autoForward" is enabled
      * @default 3000
      */

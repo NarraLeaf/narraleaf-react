@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.24.0]
+
+### _Fix_
+
+- **Auto mode no longer talks over the cast.** `autoForwardDelay` was counted from the moment the
+  text finished typing, and typing finishing has nothing to do with the voice finishing — so on
+  every line whose clip outran the delay, auto mode advanced mid-sentence. It now waits for the
+  line's voice to end and *then* applies the delay, which is what the delay was always meant to be:
+  a pause after the line rather than a race against it. A line with no voice, or one whose clip has
+  already ended, schedules exactly as before, so an unvoiced game sees no change at all. Turning
+  auto off, advancing by hand, or leaving the dialog while a clip is still playing all drop the
+  wait, so a dialog the player has left never advances later.
+
+### _Feature_
+
+- **A backlog entry now carries the line's `voiceId`.** `GameElementHistory` for a `say` entry
+  already reported `voice`, but that is a resolved clip URL, and a host addresses audio by id — so
+  a backlog replay button could not be built from what the entry gave you. The entry now also
+  carries the `voiceId` the line was filed under:
+
+  ```ts
+  for (const entry of liveGame.getHistory()) {
+      if (entry.element.type === "say" && entry.element.voiceId) {
+          // hand the id back to whatever owns your voice table
+          replay(entry.element.voiceId);
+      }
+  }
+  ```
+
+  Optional, and `null` on a line voiced through the inline `config.voice` rather than the scene's
+  voice map. Entries recorded before this version simply do not have it, so an old save loads
+  unchanged.
+
 ## [0.23.1]
 
 ### _Fix_

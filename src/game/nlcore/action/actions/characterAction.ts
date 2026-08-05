@@ -190,6 +190,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     type: "say",
                     text: dialogText,
                     voice: voice ? voice.getSrc() : null,
+                    voiceId: sentence.config.voiceId ?? null,
                     character: this.callee.state.name,
                 },
                 isPending: true,

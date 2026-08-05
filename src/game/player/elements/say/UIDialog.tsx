@@ -1,6 +1,8 @@
+import { CharacterAction } from "@core/action/actions/characterAction";
 import { Pausing } from "@core/elements/character/pause";
 import { TextEvent } from "@core/elements/character/textEvent";
 import { Word } from "@core/elements/character/word";
+import { SoundToken } from "@narraleaf/sound";
 import { Script } from "@lib/game/nlcore/common/elements";
 import { GameState } from "@lib/game/nlcore/common/game";
 import { Game } from "@lib/game/nlcore/game";
@@ -57,6 +59,8 @@ export class DialogState {
     private _idle = false;
     private _active = true;
     private autoForwardScheduler: Scheduler;
+    /** Drops the listeners on a voice clip auto-forward is currently waiting out. */
+    private voiceWaitDisposer: (() => void) | null = null;
 
     constructor(config: DialogStateConfig) {
         this.config = config;
@@ -180,6 +184,7 @@ export class DialogState {
     }
 
     public cancelAutoForward() {
+        this.releaseVoiceWait();
         this.autoForwardScheduler.cancelTask();
     }
 
@@ -200,13 +205,73 @@ export class DialogState {
         return this;
     }
 
+    /**
+     * Auto-forward waits for the line's voice before it starts counting.
+     *
+     * Typing finishing and the voice finishing are unrelated events - a fully-typed line whose actor
+     * is still mid-sentence is the normal case, not an edge one. Counting `autoForwardDelay` from the
+     * typing meant auto mode talked over the cast on every line longer than the delay, which is the
+     * one thing auto mode exists to avoid. The delay still applies afterwards, so the pause a player
+     * configured is a pause *after* the line rather than a race against it.
+     *
+     * A line with no voice, or one whose clip has already ended, schedules exactly as before.
+     */
     private scheduleAutoForward() {
         const preference = this.config.gameState.game.preference;
+        if (!this._active || !preference.getPreference(Game.Preferences.autoForward) || this.state !== DialogStateType.Ended) return;
+
+        this.releaseVoiceWait();
+        const voiceToken = this.getPlayingVoiceToken();
+        if (!voiceToken) {
+            this.scheduleAutoForwardDelay();
+            return;
+        }
+
+        // Held rather than scheduled: `cancelAutoForward` has to be able to drop this the same way it
+        // drops a pending timer, or a dialog the player left would still advance when its clip ended.
+        const proceed = () => {
+            this.releaseVoiceWait();
+            this.scheduleAutoForwardDelay();
+        };
+        voiceToken.once("ended", proceed);
+        voiceToken.once("stop", proceed);
+        this.voiceWaitDisposer = () => {
+            voiceToken.off("ended", proceed);
+            voiceToken.off("stop", proceed);
+        };
+    }
+
+    private scheduleAutoForwardDelay() {
+        const preference = this.config.gameState.game.preference;
+        // Re-checked rather than trusted from the caller: between the clip starting and it ending the
+        // player may have turned auto off, left the dialog, or advanced by hand.
         if (!this._active || !preference.getPreference(Game.Preferences.autoForward) || this.state !== DialogStateType.Ended) return;
         this.autoForwardScheduler
             .cancelTask().scheduleTask(() => {
                 this.events.emit(DialogState.Events.simulateClick);
             }, this.config.gameState.game.config.autoForwardDelay / preference.getPreference(Game.Preferences.gameSpeed));
+    }
+
+    /** The token of this line's voice while it is still playing, or null - no voice, or already done. */
+    private getPlayingVoiceToken(): SoundToken | null {
+        const sentence = this.config.action.sentence;
+        if (!sentence) return null;
+        try {
+            const voice = CharacterAction.getVoice(this.config.gameState, sentence);
+            if (!voice) return null;
+            const token = this.config.gameState.audioManager.getToken(voice);
+            return token && token.isPlaying() ? token : null;
+        } catch {
+            // No scene, or a voice id the scene cannot resolve. Auto-forward must not become the thing
+            // that breaks a line.
+            return null;
+        }
+    }
+
+    private releaseVoiceWait() {
+        const dispose = this.voiceWaitDisposer;
+        this.voiceWaitDisposer = null;
+        dispose?.();
     }
 }
 
