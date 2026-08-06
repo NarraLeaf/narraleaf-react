@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.24.1]
+
+### _Fix_
+
+- **A scene hands out the same `Sound` for the same voice clip.** `Scene.getVoice` built a new
+  `Sound` on every call for a map entry given as a URL string, and `AudioManager` keys a playing
+  clip by the instance — so asking "is this line's voice still playing?" produced an object the
+  manager had never seen and the answer came back `null` against a clip that was audibly playing.
+  Two things depended on that answer and therefore quietly did nothing: **the 0.24.0 auto-forward
+  wait**, which only ever waited for takes given as pre-built `Sound`s (per-character buses) and
+  never for the ordinary URL case; and `useVoiceState`'s token, so a custom UI could not tell that
+  the automatic voice was still going. Replaying a line also layered a second copy over the first
+  instead of restarting it. The cache is keyed by resolved src, not by id, so switching dub language
+  still yields a different `Sound` for the same id.
+
+- **"Let it play on" no longer stacks voices.** `voiceEndMode: "none"` leaves a clip running past the
+  end of its own sentence, which is the point — but nothing cut it when the *next* voiced line
+  started, so advancing through voiced dialogue layered every clip over the last and a player
+  clicking quickly could have three or four actors talking at once. A new voice now stops the one
+  still trailing. An unvoiced line still passes over a trailing clip without touching it, which is
+  the behaviour the mode exists for.
+
 ## [0.24.0]
 
 ### _Fix_

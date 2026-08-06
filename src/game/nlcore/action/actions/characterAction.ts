@@ -41,6 +41,35 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
         return gameState.audioManager.stop(voice, duration);
     }
 
+    /**
+     * The line voice still running past the end of its own sentence, per game.
+     *
+     * Only `voiceEndMode: "none"` ever leaves one - the other two modes stop the clip at line end.
+     * A WeakMap rather than a field on `GameState` because this is bookkeeping between two
+     * consecutive `say`s, not state a host or a save has any business seeing.
+     */
+    private static readonly trailingVoice = new WeakMap<GameState, Sound>();
+
+    /**
+     * Cut whatever is still playing from an earlier line before this one's voice starts.
+     *
+     * "Let it play on" means the clip outlives its own sentence - it does not mean two actors talk
+     * at once. Without this, advancing through voiced lines under that mode layered every clip over
+     * the last one, and a player clicking quickly could stack three or four. Unvoiced lines pass by
+     * without cutting anything, which is the whole point of the mode.
+     */
+    static cutTrailingVoice(gameState: GameState, next: Sound | null): void {
+        const trailing = CharacterAction.trailingVoice.get(gameState);
+        if (trailing && trailing !== next && gameState.audioManager.isPlaying(trailing)) {
+            gameState.timelines.attachTimeline(gameState.audioManager.stop(trailing, 0));
+        }
+        if (next) {
+            CharacterAction.trailingVoice.set(gameState, next);
+        } else {
+            CharacterAction.trailingVoice.delete(gameState);
+        }
+    }
+
     public executeAction(gameState: GameState, injection: ActionExecutionInjection): ExecutedActionResult {
         /**
          * {@link Character.say}
@@ -70,6 +99,8 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
             // Play voice if available
             const voice = CharacterAction.getVoice(gameState, sentence);
             if (voice) {
+                // A clip left running by "Let it play on" ends here - one voice at a time.
+                CharacterAction.cutTrailingVoice(gameState, voice);
                 // No `FadeOptions`: the manager's default is the clip's own configured volume, so a
                 // voice line mixed down with `Sound.voice({volume})` plays at that volume here.
                 const task = gameState.audioManager.play(voice);

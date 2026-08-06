@@ -245,6 +245,8 @@ export class Scene extends Constructable<
     private actions: ActionStatements | ((scene: Scene) => ActionStatements) = [];
     /**@internal */
     private sceneRoot?: SceneAction<"scene:action">;
+    /** Resolved voice src -> the one `Sound` that plays it. See {@link Scene.getVoice}. */
+    private readonly voiceCache: Map<string, Sound> = new Map();
     /**@internal */
     private readonly localPersistent: DynamicPersistent;
     /**@internal */
@@ -790,7 +792,22 @@ export class Scene extends Constructable<
         });
     }
 
-    /**@internal */
+    /**
+     * The `Sound` for a voice id - the SAME `Sound` every time it resolves to the same clip.
+     *
+     * Identity is the whole point. `AudioManager` keys a playing clip by the `Sound` instance
+     * (`getToken` is a `Map.get`), so minting a new one per call made every "is this line's voice
+     * still playing?" question answer null against a clip that was audibly playing. Two things
+     * depended on that answer and so quietly did nothing: auto-forward's wait for the voice, and
+     * `useVoiceState`'s token. It also meant replaying a line layered a second copy over the first
+     * instead of restarting it.
+     *
+     * Keyed by the resolved src rather than by the id, because the take behind an id changes - that
+     * is what switching dub language is - and a cache keyed by id would keep handing back the take
+     * from the language the player just left.
+     *
+     * @internal
+     */
     getVoice(id: string | number | null): string | Sound | null {
         if (!id) {
             return null;
@@ -801,18 +818,29 @@ export class Scene extends Constructable<
             if (typeof voices === "function") {
                 const voice = voices(id);
                 if (typeof voice === "string") {
-                    return Sound.voice(voice);
+                    return this.voiceOfSrc(voice);
                 }
                 Scene.validateVoice(voice);
                 return voice;
             }
             const voice = voices[id];
             if (typeof voice === "string") {
-                return Sound.voice(voice);
+                return this.voiceOfSrc(voice);
             }
             return voice || null;
         }
         return null;
+    }
+
+    /**@internal */
+    private voiceOfSrc(src: string): Sound {
+        const cached = this.voiceCache.get(src);
+        if (cached) {
+            return cached;
+        }
+        const sound = Sound.voice(src);
+        this.voiceCache.set(src, sound);
+        return sound;
     }
 
     /**@internal */
