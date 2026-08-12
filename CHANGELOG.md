@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### _Add_
+
+- **An element can be named by the host, and keep that name.** Elements reachable from a scene's
+  action tree were named `e-0`, `e-1`, ... by their position in a breadth-first walk at story
+  construction, which describes where an element sat rather than which element it is. Adding a line
+  ahead of one handed its name to a different element, and a save restoring `elementStates` by that
+  name then applied one element's state to another - a layer's pose onto a background image - with
+  nothing reporting it, because the name the save asked for still existed. `BaseElement` now carries
+  a static id alongside the generated one, exactly as `Action` already did, and
+  `Scene.assignElementId` prefers it. `DevTools.setElementStaticId` is how a host sets it; unlike
+  `setElementId` it survives construction. Nothing changes for a host that sets none: generated ids
+  are still assigned, in the same order, to everything unnamed.
+
 ## [0.24.1]
 
 ### _Fix_

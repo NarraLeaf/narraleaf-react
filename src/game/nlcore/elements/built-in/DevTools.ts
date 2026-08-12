@@ -106,6 +106,20 @@ export class DevTools {
     }
 
     /**
+     * Name an element from the host's own documents, so story construction keeps that name instead
+     * of the position it happened to occupy.
+     *
+     * Unlike {@link setElementId}, this survives construction: generated ids are assigned after a
+     * host has finished building, and an id set with `setElementId` is overwritten there for
+     * anything the action tree reaches. Hosts that restore saved state should use this - a
+     * generated id moves to a different element the moment a line is written ahead of it, and the
+     * state a save carries then lands on the wrong element with nothing reporting it.
+     */
+    public static setElementStaticId(element: LogicAction.GameElement, id: string | null): void {
+        element.setStaticId(id);
+    }
+
+    /**
      * Read a displayable's current transform-state props (position/opacity/zoom/rotation/scale/
      * effects...). Returns a shallow copy. Intended for editor hosts capturing a live pose
      * (e.g. prefilling a motion editor with an element's current stage state).

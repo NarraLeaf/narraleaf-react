@@ -788,7 +788,7 @@ export class Scene extends Constructable<
         const elements = this.getAllChildrenElements(story, this.sceneRoot || []);
 
         elements.forEach((element, i) => {
-            element.setId(`e-${i}`);
+            element.resolveId(`e-${i}`);
         });
     }
 
