@@ -1,19 +1,35 @@
 # Changelog
 
-## [Unreleased]
+## [0.25.0]
 
 ### _Add_
 
-- **An element can be named by the host, and keep that name.** Elements reachable from a scene's
-  action tree were named `e-0`, `e-1`, ... by their position in a breadth-first walk at story
-  construction, which describes where an element sat rather than which element it is. Adding a line
-  ahead of one handed its name to a different element, and a save restoring `elementStates` by that
-  name then applied one element's state to another - a layer's pose onto a background image - with
-  nothing reporting it, because the name the save asked for still existed. `BaseElement` now carries
-  a static id alongside the generated one, exactly as `Action` already did, and
-  `Scene.assignElementId` prefers it. `DevTools.setElementStaticId` is how a host sets it; unlike
-  `setElementId` it survives construction. Nothing changes for a host that sets none: generated ids
-  are still assigned, in the same order, to everything unnamed.
+- **`DevTools.setElementStaticId` — name an element yourself, and keep that name.** Elements
+  reachable from a scene's action tree are named `e-0`, `e-1`, ... by their position in a
+  breadth-first walk at story construction. A position describes where an element sat, not which
+  element it is: add a line ahead of one and its name moves to a different element. A save restoring
+  `elementStates` by that name then applies one element's state to another — a layer's pose onto a
+  background image — and reports nothing, because the name it asks for still exists.
+
+  Name the elements you build and construction keeps those names instead:
+
+  ```typescript
+  const classroom = new Image({src: "bg/classroom.png"});
+  const yuko = new Character("Yuko");
+
+  DevTools.setElementStaticId(classroom, "bg:classroom");
+  DevTools.setElementStaticId(yuko, "character:yuko");
+
+  // Construction now assigns "bg:classroom" and "character:yuko" rather than e-3 and e-4,
+  // and a save written today still resolves both after the script is edited.
+  ```
+
+  This differs from [`setElementId`](https://narraleaf.com/docs/narraleaf-react/core/elements/built-in/dev-tools#setelementid),
+  which is overwritten at construction for anything the action tree reaches. Pass `null` to drop a
+  name and fall back to the generated one.
+
+  Nothing changes for an application that names no elements: generated ids are still assigned, in
+  the same order, to everything unnamed.
 
 ## [0.24.1]
 
