@@ -21,7 +21,18 @@
     CJK characters.
   - **Short runs stand up.** `tateChuYoko` wraps a run of up to N Latin characters or digits in
     `text-combine-upright: all`, so a two-digit number reads across the column instead of lying on
-    its side (縦中横). `true` uses the typographic default of two characters, `false` turns it off.
+    its side (縦中横). `true` uses two characters, `false` turns it off.
+
+  Both follow the conventions Japanese text layout is specified by. JLREQ 2.3.2 lists three
+  orientations for Latin inside vertical text and gives rotation as the one for English words and
+  sentences, tate-chu-yoko as the one for two-digit numbers; JIS X 4051 4.8 puts tate-chu-yoko at a
+  two-digit numeral or a two-to-three letter combination. Hence the default of two, and hence a
+  longer word rotating whole rather than being cut down to fit.
+
+  **Ruby is left to the browser in vertical text and has not been tuned for it.** A word with a
+  `ruby` reading renders beside its base characters in the right reading order, but the markup this
+  renderer emits - an `inline-block` `ruby` with a block `rt` - sets the reading looser against its
+  base than print does.
 
   `writingMode` defaults to `horizontal-tb`, where all three settings are inert: text that does not
   ask for a vertical box renders exactly as before, down to the same single text node per word.
