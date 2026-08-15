@@ -50,8 +50,46 @@ export class BaseElement {
         return this;
     }
 
+    /**
+     * Whether anything may have written to this element since it was last returned to its authored
+     * state.
+     *
+     * A save carries only the elements that differ from what the script wrote, and finding those by
+     * serialising all of them costs a walk of the whole story on every line. The flag narrows that
+     * walk to the elements worth looking at.
+     *
+     * It is deliberately a *conservative over-approximation*: it is set when an action runs against
+     * this element, whether or not the action wrote anything. A flag left standing after the state
+     * went back to normal costs one comparison, because what decides whether an element reaches the
+     * save is that comparison against its authored state, never the flag. The one failure that
+     * matters is the opposite - state written without the flag being set - which is what
+     * {@link Story.findUnmarkedElements} exists to catch.
+     * @internal
+     */
+    private _dirty: boolean = false;
+
     /**@internal */
+    markDirty(): this {
+        this._dirty = true;
+        return this;
+    }
+
+    /**@internal */
+    isDirty(): boolean {
+        return this._dirty;
+    }
+
+    /**
+     * Return the element to the state its constructor config describes.
+     *
+     * Overriding this is how an element joins the lifecycle {@link LiveGame.newGame},
+     * {@link LiveGame.deserialize} and leaving a scene all run. An override must call
+     * `super.reset()`, which clears the dirty flag - an element back at its authored state has
+     * nothing for a save to carry.
+     * @internal
+     */
     reset() {
+        this._dirty = false;
     }
 
     /**@internal */

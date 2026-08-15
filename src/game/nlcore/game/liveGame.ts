@@ -76,6 +76,13 @@ export class LiveGame {
         "event:menu.choose": "event:menu.choose",
         "event:action.current": "event:action.current",
     } as const;
+    /**
+     * How many saves apart the debug-only dirty-mark audit runs. Small enough that a mistake is
+     * found within a scene or two of play, large enough that the full walk it does is not on the
+     * per-line path.
+     * @internal
+     */
+    static ElementAuditInterval = 50;
 
     public game: Game;
     public events: EventDispatcher<LiveGameEvent> = new EventDispatcher();
@@ -90,6 +97,11 @@ export class LiveGame {
     stackModel: StackModel | null = null;
     /**@internal */
     asyncStackModels: Set<StackModel> = new Set();
+    /**
+     * Saves remaining before the next dirty-mark audit; see {@link LiveGame.auditElementDirtyMarks}.
+     * @internal
+     */
+    private elementAuditCountdown: number = 0;
     /**@internal */
     lastDialog: {
         sentence: string;
@@ -197,6 +209,7 @@ export class LiveGame {
         const store = this._storable.toData();
         const stage = gameState.toData();
         const elementStates: RawData<ElementStateRaw>[] = story.getAllElementStates();
+        this.auditElementDirtyMarks(story);
         const stackModel: StackModelRawData = this.stackModel.serialize();
         const asyncStackModels: StackModelRawData[] = Array.from(this.asyncStackModels).map(stack => stack.serialize());
 
@@ -208,6 +221,46 @@ export class LiveGame {
             asyncStackModels,
             services: story.serializeServices(),
         };
+    }
+
+    /**
+     * Periodically check, in debug builds, that nothing has written to an element without marking it
+     * dirty.
+     *
+     * A save only carries the elements the dirty flag points at, and the flag is set from a single
+     * place - the action dispatch in {@link LiveGame.executeAction}. Anything that writes element
+     * state from outside that path (a host reaching in through `DevTools`, a future code path that
+     * bypasses the dispatch) would leave the element unmarked and quietly out of the save, with no
+     * error and a state that looks plausible on load.
+     *
+     * So every {@link LiveGame.ElementAuditInterval} saves, debug builds do the full walk the flag
+     * exists to avoid and compare every element against its authored state. Anything found drifted
+     * but unmarked is reported *and* marked, so the mistake costs one snapshot rather than the rest
+     * of the playthrough. Release builds never run it.
+     * @internal
+     */
+    private auditElementDirtyMarks(story: Story): void {
+        if (!this.game.config.app.debug) {
+            return;
+        }
+        if (this.elementAuditCountdown-- > 0) {
+            return;
+        }
+        this.elementAuditCountdown = LiveGame.ElementAuditInterval;
+
+        const unmarked = story.findUnmarkedElements();
+        if (!unmarked.length) {
+            return;
+        }
+
+        unmarked.forEach(element => element.markDirty());
+        this.gameState?.logger.warn(
+            "LiveGame.auditElementDirtyMarks",
+            `${unmarked.length} element(s) had state that no longer matches the script but were never `
+            + "marked dirty, so the save just written left them out. They have been marked, so the next "
+            + "save will carry them - but something is writing element state outside the action "
+            + `dispatch: ${unmarked.map(element => element.getId()).join(", ")}`
+        );
     }
 
     /**
@@ -278,6 +331,14 @@ export class LiveGame {
         this.initNamespaces();
         this._storable.load(store);
 
+        // Everything goes back to the state the script wrote before the save is applied. A save
+        // carries only the elements that differ from that state (see `Story.getAllElementStates`),
+        // so an element the save does not name is not "leave it as it is" - it is "as the author
+        // wrote it", and without this pass it would keep whatever the session running right now had
+        // put in it. It also matters for saves that predate an element: they name fewer elements
+        // than the story now has, and the ones they cannot speak for still have to be restored.
+        elementMaps.forEach(element => element.reset());
+
         // restore elements
         elementStates.forEach(({ id, data }) => {
             gameState.logger.debug("restore element", id);
@@ -286,8 +347,10 @@ export class LiveGame {
             if (!element) {
                 throw new Error("Element not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
             }
-            element.reset();
             element.fromData(data as any);
+            // Restored state is by definition not the authored state, so the next save has to carry
+            // this element even if no action touches it again.
+            element.markDirty();
         });
 
         // restore game state
@@ -1070,6 +1133,17 @@ export class LiveGame {
                 actionType: action.type,
             });
         }
+
+        // The one place every action the engine runs passes through, and therefore the one place
+        // that can mark an element as worth serialising without each handler having to remember to.
+        // It marks on dispatch rather than on a write, so it over-marks - an action that only reads
+        // marks its element too - and that is the safe direction: what decides whether an element
+        // reaches a save is the comparison against its authored state, so an unnecessary mark costs
+        // one comparison, while a missing one would drop state silently.
+        // Optional: every action the engine builds has a callee, but this is the per-action hot path
+        // of a shipped engine and a missing mark degrades into a warning from the audit below,
+        // whereas a throw here would take the game down.
+        action.callee?.markDirty();
 
         const nextAction = action.executeAction(state, injection);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {

@@ -179,6 +179,7 @@ export class Camera
      * @internal
      */
     override reset(): this {
+        super.reset();
         this.transformState = this.getInitialTransformState();
         return this;
     }

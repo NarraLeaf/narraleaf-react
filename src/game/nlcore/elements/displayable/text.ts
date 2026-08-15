@@ -270,6 +270,7 @@ export class Text
 
     /**@internal */
     override reset() {
+        super.reset();
         this.state = this.getInitialState();
         this.transformState = this.getInitialTransformState(this.userConfig);
     }

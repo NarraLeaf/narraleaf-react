@@ -2,6 +2,34 @@
 
 ## [0.26.0]
 
+### _Change_
+
+- **A save carries the elements that differ from the script, not the whole cast (save format v3).** A
+  story reaches every element of every scene it can jump to, and `elementStates` listed all of them —
+  so a project's entire cast was written into every save, and into every per-line history snapshot
+  besides. The cost grew with the size of the project rather than with what was on stage: measured on
+  a 40-scene story, one snapshot carried 720 elements where a dozen were in use.
+
+  What differs at any moment is small, because leaving a scene already returns everything that scene
+  put on stage to its authored state. A save now lists only the elements whose state no longer
+  matches what the script wrote, and loading resets every element before applying the save — so an
+  element the save does not name is restored by being reset, rather than left holding whatever the
+  running session had put in it. That last part fixes a case that predates this: loading a save
+  written before an element existed used to leave that element untouched, which after a `setName`
+  meant the renamed character survived the load.
+
+  For an application that saves and loads through `LiveGame`, nothing changes but the size of the
+  file. Two things are worth knowing:
+
+  - **Older engines cannot read a v3 save correctly.** They apply the entries and skip the reset, so
+    elements the save leaves out keep whatever the session had. Saves written by 0.25.0 and earlier
+    load unchanged here.
+  - **Element state written from outside the engine's action dispatch is not seen.** An element is
+    considered for the save when an action runs against it; a host writing element state directly —
+    through `DevTools`, say — should call `element.markDirty()`. In debug builds
+    (`app.debug: true`) the engine periodically walks every element and warns, naming any whose state
+    has drifted with nothing marking it, and marks them so the next save carries them.
+
 ### _Fix_
 
 - **`Camera.reset` is now `Camera.resetCamera`, and a new game no longer inherits the last

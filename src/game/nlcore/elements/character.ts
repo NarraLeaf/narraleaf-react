@@ -316,6 +316,7 @@ export class Character extends Actionable<
 
     /**@internal */
     override reset(): this {
+        super.reset();
         this.state = this.getInitialState();
         return this;
     }

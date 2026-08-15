@@ -159,6 +159,7 @@ export class Layer
      * @internal
      */
     override reset(): this {
+        super.reset();
         this.state = this.getInitialState();
         this.transformState = this.getInitialTransformState();
         return this;

@@ -420,6 +420,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
 
     /**@internal */
     override reset(): this {
+        super.reset();
         this.state = this.getInitialState(this.userConfig);
         return this;
     }

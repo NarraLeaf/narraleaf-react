@@ -193,6 +193,7 @@ export class Vfx extends Actionable<VfxStateRaw> {
 
     /**@internal */
     reset() {
+        super.reset();
         this.state = this.getInitialState();
         return this;
     }

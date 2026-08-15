@@ -862,6 +862,7 @@ export class Scene extends Constructable<
 
     /**@internal */
     override reset() {
+        super.reset();
         this.state.backgroundImage.reset();
         this.state.backgroundMusic?.reset();
         this.state = this.getInitialState();

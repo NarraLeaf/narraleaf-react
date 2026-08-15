@@ -166,6 +166,7 @@ export class Video extends Actionable<VideoStateRaw> {
 
     /**@internal */
     reset() {
+        super.reset();
         this.state = this.getInitialState();
         return this;
     }

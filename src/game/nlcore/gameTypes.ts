@@ -18,8 +18,13 @@ import type { AudioBusDeclaration } from "./game/audioBus";
  * - v1 (undefined on the save): core resume state only, no backlog history.
  * - v2: adds `game.history`, a full backlog where every entry carries a self-contained
  *   restore snapshot, so loading a save keeps the backlog and any past line can be restored.
+ * - v3: `elementStates` lists only the elements whose state differs from what the script wrote.
+ *   Restoring resets every element first, so an absent element means "as authored" rather than
+ *   "unchanged". Older engines read a v3 save without resetting, and would leave elements holding
+ *   whatever the running session put in them; newer engines read v1/v2 saves unchanged, since a
+ *   list of every element is just a list that happens to name them all.
  */
-export const SAVE_FORMAT_VERSION = 2;
+export const SAVE_FORMAT_VERSION = 3;
 
 export interface SavedGameMetaData {
     /**

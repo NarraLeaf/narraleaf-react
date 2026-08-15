@@ -59,13 +59,17 @@ function reveal({ story, scene }: BuiltStory): void {
     const gameState = {
         actionHistory: { push: () => ({ id: "undo-0" }) },
     } as unknown as GameState;
+    // `LiveGame.executeAction` marks the callee before running it, and a save carries only marked
+    // elements. Driving the handler directly skips that, so the dispatch's half is done here.
+    action.callee.markDirty();
     action.executeAction(gameState, { stackModel: null } as unknown as ActionExecutionInjection);
 }
 
 /**
- * The element half of `LiveGame.deserialize`: every id the save names is reset to its authored
- * state and then given what the save carries. An id the save does not name is not visited at all,
- * which is exactly how an older save gets to keep the authored name.
+ * The element half of `LiveGame.deserialize`: every element goes back to its authored state, and
+ * then the ones the save names are given what it carries. An id the save does not name is restored
+ * by that reset — which is how a save written before characters were serialized gets the authored
+ * name back rather than whatever the running session had put there.
  */
 function restore(story: Story, elementStates: { id: string; data: unknown }[]): void {
     const elements = new Map<string, LogicAction.GameElement>();
@@ -73,22 +77,28 @@ function restore(story: Story, elementStates: { id: string; data: unknown }[]): 
         elements.set(action.callee.getId(), action.callee);
     }, { allowFutureScene: true });
 
+    elements.forEach(element => element.reset());
     elementStates.forEach(({ id, data }) => {
         const element = elements.get(id);
         if (!element) {
             throw new Error("Element not found, id: " + id);
         }
-        element.reset();
         element.fromData(data as never);
     });
 }
 
 describe("Character name — save and load", () => {
-    it("is in the save at all", () => {
+    it("is in the save once the name has actually changed", () => {
         const built = buildStory();
 
-        // The filter in `getAllElementStates` drops anything whose `toData` returns nothing, so a
-        // character used to be absent here no matter what its name had become.
+        // Still holding the authored name, so there is nothing for the save to say about her: a save
+        // carries only what differs from what the script wrote.
+        expect(built.story.getAllElementStates().map(e => e.id)).not.toContain(built.alice.getId());
+
+        reveal(built);
+
+        // And now there is. Before `Character` gained a `toData`, she was absent from both of these:
+        // `getAllElementStates` drops anything whose `toData` returns nothing, whatever its state.
         expect(built.story.getAllElementStates().map(e => e.id)).toContain(built.alice.getId());
     });
 
@@ -120,13 +130,15 @@ describe("Character name — save and load", () => {
 
     it("a save written before characters were serialized still loads", () => {
         const built = buildStory();
+        reveal(built);
         // What such a save looks like: the character simply has no entry in `elementStates`.
         const legacy = built.story
             .getAllElementStates()
             .filter(e => e.id !== built.alice.getId());
 
         expect(() => restore(built.story, legacy)).not.toThrow();
-        // No entry means the element is never visited, so it keeps the name construction gave it.
+        // The reset pass restores her: an element the save cannot speak for is returned to what the
+        // author wrote, rather than left holding what this session had renamed her to.
         expect(built.alice.state.name).toBe("???");
     });
 });

@@ -594,6 +594,7 @@ export class Image<
 
     /**@internal */
     override reset(): this {
+        super.reset();
         this.state = this.getInitialState();
         this.transformState = this.getInitialTransformState(this.userConfig);
         return this;
