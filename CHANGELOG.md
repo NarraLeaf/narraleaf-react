@@ -37,6 +37,10 @@
   `writingMode` defaults to `horizontal-tb`, where all three settings are inert: text that does not
   ask for a vertical box renders exactly as before, down to the same single text node per word.
 
+  The three unions - `TextWritingMode`, `TextGlyphOrientation`, `TateChuYoko` - are exported
+  alongside `TextAppearanceProps`, so an application can hold one of these values in its own
+  settings object or pass it down through its own props without restating the union.
+
 ## [0.25.0]
 
 ### _Add_
