@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.26.0]
+
+### _Add_
+
+- **Vertical text.** `Texts` (and `TextsPreview`) take `writingMode`, `textOrientation`, and
+  `tateChuYoko`, so a dialogue box can be set the way a Japanese novel is: glyphs upright in a
+  column that reads top to bottom, the next column to the left.
+
+  ```tsx
+  <Texts writingMode="vertical-rl" tateChuYoko={2} />
+  ```
+
+  The two settings that are not just CSS on the container are about text that is not Japanese, and
+  both are handled per word as the typewriter reveals it:
+
+  - **A Latin word stays whole.** The renderer sets each word `word-break: break-all` so that CJK
+    wraps anywhere, which in a vertical column splits "Prologue" across two columns one sideways
+    glyph at a time. Vertical text uses `word-break: normal` instead, which still breaks between
+    CJK characters.
+  - **Short runs stand up.** `tateChuYoko` wraps a run of up to N Latin characters or digits in
+    `text-combine-upright: all`, so a two-digit number reads across the column instead of lying on
+    its side (縦中横). `true` uses the typographic default of two characters, `false` turns it off.
+
+  `writingMode` defaults to `horizontal-tb`, where all three settings are inert: text that does not
+  ask for a vertical box renders exactly as before, down to the same single text node per word.
+
 ## [0.25.0]
 
 ### _Add_

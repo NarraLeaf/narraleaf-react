@@ -16,6 +16,15 @@ import { DialogState } from "./UIDialog";
 import { useNvlDialogState } from "../nvl/useNvlDialogState";
 import type { NvlDialogEntry } from "@player/gameState";
 import { fireInstantRevealEvents, fireTextEventOnce } from "./textEventEffect";
+import {
+    isVerticalWritingMode,
+    renderWordText,
+    verticalContainerStyle,
+    wordBreakStyleFor,
+    type TateChuYoko,
+    type TextGlyphOrientation,
+    type TextWritingMode,
+} from "@player/lib/verticalText";
 
 /**@internal */
 type SplitWord = {
@@ -78,6 +87,25 @@ export type TextAppearanceProps = {
     fontWeight?: React.CSSProperties["fontWeight"];
     fontWeightBold?: React.CSSProperties["fontWeight"];
     fontFamily?: React.CSSProperties["fontFamily"];
+    /**
+     * Block flow of the text box. `vertical-rl` is the classic Japanese novel setting: columns
+     * read top to bottom and advance leftwards.
+     * @default "horizontal-tb"
+     */
+    writingMode?: TextWritingMode;
+    /**
+     * How glyphs sit inside a vertical column. `mixed` keeps CJK upright and lays Latin on its
+     * side; ignored while the box is horizontal.
+     * @default "mixed"
+     */
+    textOrientation?: TextGlyphOrientation;
+    /**
+     * Tate-chu-yoko (縦中横): sets a short Latin or digit run upright across the column instead of
+     * on its side. `true` combines runs of up to two characters; a number sets the limit.
+     * Ignored while the box is horizontal.
+     * @default true
+     */
+    tateChuYoko?: TateChuYoko;
 };
 
 export type BaseTextsProps = TextAppearanceProps & {
@@ -154,6 +182,9 @@ export interface TextsPreviewProps extends Omit<React.HTMLAttributes<HTMLDivElem
     fontWeight?: React.CSSProperties["fontWeight"];
     fontWeightBold?: React.CSSProperties["fontWeight"];
     fontFamily?: React.CSSProperties["fontFamily"];
+    writingMode?: TextWritingMode;
+    textOrientation?: TextGlyphOrientation;
+    tateChuYoko?: TateChuYoko;
     onCompleted?: () => void;
 }
 
@@ -251,6 +282,9 @@ function BaseText(
         fontWeight,
         fontWeightBold,
         fontFamily,
+        writingMode,
+        textOrientation,
+        tateChuYoko,
         ...props
     }: BaseTextsProps
 ) {
@@ -575,6 +609,7 @@ function BaseText(
         fontStyle: word.config.italic ?? sentence.config.italic ? "italic" : undefined,
     });
 
+    const vertical = isVerticalWritingMode(writingMode);
     const getElement = (word: PureWord, index: number) => {
         if (word === "\n") return (<br key={index} />);
         return (
@@ -583,22 +618,23 @@ function BaseText(
                 key={index}
                 style={{
                     ...calculateStyle(word),
+                    ...wordBreakStyleFor(vertical),
                     ...onlyIf<React.CSSProperties>(game.config.app.debug, {
                         outline: "1px dashed red",
                     }),
                 }}
                 className={clsx(
-                    "inline-block break-all",
+                    "inline-block",
                     word.config.className,
                 )}
             >
                 {word.config.ruby ? (
                     <ruby className={"align-bottom inline-block"}>
                         <rt className={"block text-center"}>{word.config.ruby}</rt>
-                        {word.text}
+                        {renderWordText(word.text, vertical, tateChuYoko)}
                     </ruby>
                 ) : (
-                    word.text
+                    renderWordText(word.text, vertical, tateChuYoko)
                 )}
             </Inspect.Span>
         );
@@ -613,6 +649,7 @@ function BaseText(
             )}
             style={{
                 ...calculatedSentence,
+                ...verticalContainerStyle(writingMode, textOrientation),
                 ...style,
             }}
         >
@@ -646,6 +683,9 @@ export function TextsPreview({
     fontWeight,
     fontWeightBold,
     fontFamily,
+    writingMode,
+    textOrientation,
+    tateChuYoko,
     onCompleted,
     ...props
 }: TextsPreviewProps) {
@@ -779,24 +819,28 @@ export function TextsPreview({
         fontFamily: word.config.fontFamily ?? sentenceConfig?.fontFamily ?? fontFamily,
         fontStyle: word.config.italic ?? sentenceConfig?.italic ? "italic" : undefined,
     });
+    const vertical = isVerticalWritingMode(writingMode);
     const getElement = (word: PureWord, index: number) => {
         if (word === "\n") return (<br key={index} />);
         return (
             <span
                 key={index}
-                style={calculateStyle(word)}
+                style={{
+                    ...calculateStyle(word),
+                    ...wordBreakStyleFor(vertical),
+                }}
                 className={clsx(
-                    "inline-block break-all",
+                    "inline-block",
                     word.config.className,
                 )}
             >
                 {word.config.ruby ? (
                     <ruby className={"align-bottom inline-block"}>
                         <rt className={"block text-center"}>{word.config.ruby}</rt>
-                        {word.text}
+                        {renderWordText(word.text, vertical, tateChuYoko)}
                     </ruby>
                 ) : (
-                    word.text
+                    renderWordText(word.text, vertical, tateChuYoko)
                 )}
             </span>
         );
@@ -811,6 +855,7 @@ export function TextsPreview({
             )}
             style={{
                 ...calculatedSentence,
+                ...verticalContainerStyle(writingMode, textOrientation),
                 ...style,
             }}
         >
