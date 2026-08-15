@@ -1412,9 +1412,26 @@ export class GameState {
         return this;
     }
 
+    /**
+     * Leaving a scene returns everything the scene put on stage to the pose its constructor config
+     * describes — the displayables on each layer, and the layers themselves, which are mutable at
+     * runtime and would otherwise carry a slide or a fade into the next scene.
+     *
+     * The story camera is the one displayable that deliberately outlives a scene (a story owns
+     * exactly one, and it frames the whole stage across scene changes), so it is skipped here.
+     * Nothing in the engine's own pipeline can put it on a layer — only images, texts and puppets
+     * emit `displayable:init`, which is what registers an element into the layer map — but a host
+     * may register any displayable by hand through `DevTools.registerDisplayable`, so the camera is
+     * excluded explicitly rather than by trusting that route to stay closed.
+     */
     private resetLayers(layers: Map<Layer, LogicAction.DisplayableElements[]>) {
-        layers.forEach((elements) => {
+        const storyCamera = this.getLiveGame().story?.camera ?? null;
+        layers.forEach((elements, layer) => {
+            layer.reset();
             elements.forEach(element => {
+                if (storyCamera && element === storyCamera) {
+                    return;
+                }
                 element.reset();
             });
         });

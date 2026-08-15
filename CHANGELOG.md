@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.26.0]
+
+### _Fix_
+
+- **`Camera.reset` is now `Camera.resetCamera`, and a new game no longer inherits the last
+  playthrough's framing.** Every element carries an internal `reset()` — the hook the engine runs
+  over the cast when a new game starts or a save loads, returning each element to the state its
+  constructor config describes. `Camera` spent that name on an authoring helper instead: the
+  chainable "return to the neutral pose" transform. So when `LiveGame.newGame()` ran its reset pass,
+  a camera got the helper, which builds a transform action nobody executes, and `transformState` was
+  never restored. A story that panned or zoomed anywhere kept that framing into the next
+  playthrough. A save written afterwards carried the pose correctly, so the symptom appeared only on
+  New Game.
+
+  The authoring helper keeps its behaviour under the new name:
+
+  ```typescript
+  scene.action([
+      story.camera.zoom(2, 800),
+      story.camera.resetCamera(600),   // was: story.camera.reset(600)
+  ]);
+  ```
+
+  **Rename any `camera.reset(...)` in your script.** Calling `reset()` on a camera now reaches the
+  lifecycle hook: it restores the configured pose at once, animates nothing, and returns the camera
+  rather than a chainable action.
+
+- **A layer no longer carries its pose out of the scene that declared it.** `Layer` is mutable at
+  runtime — `transform`, `setZIndex` — and serialises both, but it never implemented `reset()`, so
+  it inherited the empty default. A layer slid aside or faded out stayed that way for every scene
+  that followed, and survived `newGame()` as well. `Layer.reset()` now restores the configured
+  z-index and pose, and leaving a scene resets the layers that scene put on stage, not only the
+  displayables standing on them. The story camera is deliberately exempt: a story owns exactly one
+  and it frames the stage across scene changes.
+
+- **A character's name is saved.** `Character.setName` rewrites a character's name mid-scene — how a
+  story shows an unfamiliar speaker as "???" and names them at the reveal — but `Character` never
+  implemented `toData()`, and `Story.getAllElementStates` drops any element whose data is empty. So
+  no save ever recorded a name change: a player who saved after the reveal came back to "???", in
+  the dialog box and in the backlog alike. Characters now serialise their state like every other
+  element, and `reset()` hands back the authored name rather than whatever the last playthrough
+  left behind.
+
+  Saves written by earlier versions carry no character entry and still load, leaving the authored
+  name in place. Because characters now occupy save entries, and a generated element id describes a
+  position in the action tree rather than an identity, an application that restores saves should
+  name its cast through
+  [`DevTools.setElementStaticId`](https://narraleaf.com/docs/narraleaf-react/core/elements/built-in/dev-tools#setelementstaticid),
+  the way 0.25.0 describes for displayables.
+
 ## [0.25.0]
 
 ### _Add_

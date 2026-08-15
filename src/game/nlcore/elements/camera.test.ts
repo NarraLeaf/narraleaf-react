@@ -41,8 +41,8 @@ describe("Camera", () => {
         expect(firstTransformProps(new Camera().darken(-1)).filter).toBe("brightness(1)");
     });
 
-    it("reset clears the filter and returns to zoom 1", () => {
-        const props = firstTransformProps(new Camera({ zoom: 3 }).reset());
+    it("resetCamera clears the filter and returns to zoom 1", () => {
+        const props = firstTransformProps(new Camera({ zoom: 3 }).resetCamera());
         expect(props.filter).toBe("none");
         expect(props.zoom).toBe(1);
     });

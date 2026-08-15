@@ -1,7 +1,7 @@
 import {LogicAction} from "../game";
 import {ContentNode} from "@core/action/tree/actionTree";
 import {Color} from "@core/types";
-import {crossCombine, deepMerge, DeepPartial} from "@lib/util/data";
+import {crossCombine, deepMerge, DeepPartial, Serializer} from "@lib/util/data";
 import {Actionable} from "@core/action/actionable";
 import {Chained, Proxied} from "@core/action/chain";
 import {Sentence, SentencePrompt, SentenceUserConfig, SingleWord} from "@core/elements/character/sentence";
@@ -17,8 +17,15 @@ export type CharacterConfig = {
     avatar?: DialogAvatar | false;
     portraits: (Image | CharacterPortraitConfig)[];
 };
-export type CharacterStateData = {
-    name: string;
+/**
+ * What a save carries for one character.
+ *
+ * Named and shaped like every other element's save payload ({@link import("@core/elements/sound").SoundDataRaw},
+ * `LayerDataRaw`, `ImageDataRaw`) so that the section a serializer owns stays one level down and
+ * there is somewhere to put anything a character comes to carry besides its state.
+ */
+export type CharacterDataRaw = {
+    state: Record<string, any>;
 };
 /**@internal */
 export type CharacterState = {
@@ -36,7 +43,7 @@ export interface Character {
 }
 
 export class Character extends Actionable<
-    CharacterStateData,
+    CharacterDataRaw,
     Character
 > {
     /**@internal */
@@ -46,16 +53,27 @@ export class Character extends Actionable<
         portraits: [],
     };
     /**@internal */
+    static StateSerializer = new Serializer<CharacterState>();
+    /**@internal */
     readonly config: CharacterConfig;
     /**@internal */
     state: CharacterState;
+    /**
+     * The name the script gave this character, kept apart from the live one.
+     *
+     * `Character.setName` writes to `state.name`, so once a line has renamed a character the state
+     * no longer says what the author wrote — and `reset()` (which `LiveGame.newGame()` runs over
+     * every element, and `deserialize()` runs over each element a save names) has to hand back the
+     * authored name, not whatever the last playthrough left behind.
+     * @internal
+     */
+    private readonly authoredName: string;
 
     constructor(name: string | null, config: DeepPartial<CharacterConfig> = {}) {
         super();
         this.config = deepMerge<CharacterConfig>(Character.defaultConfig, config);
-        this.state = {
-            name: name || "",
-        };
+        this.authoredName = name || "";
+        this.state = this.getInitialState();
 
         const self = this;
         const callable = function (
@@ -274,6 +292,39 @@ export class Character extends Actionable<
         }
         // This is a SentencePrompt call
         return this.say(contentOrText as SentencePrompt, configOrArg0 as SentenceUserConfig);
+    }
+
+    /**
+     * A character's name is runtime state — {@link Character.setName} rewrites it mid-scene, which is
+     * how a story shows an unfamiliar speaker as "???" and reveals who they are later. Without this,
+     * `Story.getAllElementStates` dropped every character from the save (it discards elements whose
+     * `toData` returns nothing), and loading quietly put the authored name back: the player who saved
+     * after the reveal reloaded into "???" again.
+     * @internal
+     */
+    override toData(): CharacterDataRaw | null {
+        return {
+            state: Character.StateSerializer.serialize(this.state),
+        };
+    }
+
+    /**@internal */
+    override fromData(data: CharacterDataRaw): this {
+        this.state = Character.StateSerializer.deserialize(data.state);
+        return this;
+    }
+
+    /**@internal */
+    override reset(): this {
+        this.state = this.getInitialState();
+        return this;
+    }
+
+    /**@internal */
+    private getInitialState(): CharacterState {
+        return {
+            name: this.authoredName,
+        };
     }
 }
 

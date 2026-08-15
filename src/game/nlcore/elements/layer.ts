@@ -150,6 +150,20 @@ export class Layer
         ));
     }
 
+    /**
+     * Return the layer to the z-index and pose its constructor config describes.
+     *
+     * A layer is mutable at runtime (`transform`, `setZIndex`), and unlike the story camera it
+     * belongs to the scene that declared it — so leaving that scene, starting a new game or loading
+     * a save must not carry a layer that was slid aside or faded out into whatever comes next.
+     * @internal
+     */
+    override reset(): this {
+        this.state = this.getInitialState();
+        this.transformState = this.getInitialTransformState();
+        return this;
+    }
+
     /**@internal */
     public toData(): LayerDataRaw | null {
         return {

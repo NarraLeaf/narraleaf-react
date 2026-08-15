@@ -42,7 +42,7 @@ export type CameraDataRaw = {
  *     story.camera.pan({ xalign: 0.3 }, 800),  // slide the view left
  *     story.camera.darken(0.6, 500),           // dim the stage
  *     jS`It's getting dark...`,
- *     story.camera.reset(600),                 // return to the neutral pose
+ *     story.camera.resetCamera(600),           // return to the neutral pose
  * ]);
  * ```
  */
@@ -144,9 +144,20 @@ export class Camera
     /**
      * Return the camera to its neutral pose: centred, zoom `1`, no rotation, fully opaque and no
      * filter (which also clears {@link Camera.darken}).
+     *
+     * Named `resetCamera` rather than `reset` because every element already owns an internal
+     * `reset()` lifecycle hook — the one the engine calls when a new game starts — and an authoring
+     * helper of the same name would quietly stand in for it.
      * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     story.camera.zoom(2, 800),
+     *     story.camera.resetCamera(600),
+     * ]);
+     * ```
      */
-    public reset(
+    public resetCamera(
         duration?: number,
         easing?: TransformDefinitions.EasingDefinition
     ): Proxied<Camera, Chained<LogicAction.Actions, Camera>> {
@@ -159,6 +170,17 @@ export class Camera
             opacity: 1,
             filter: "none",
         }, {duration, ease: easing}));
+    }
+
+    /**
+     * The lifecycle hook, not the authoring helper — see {@link Camera.resetCamera} for the
+     * chainable one. Returns the camera to the pose its constructor config describes, so a new game
+     * or a freshly loaded save never inherits the previous playthrough's framing.
+     * @internal
+     */
+    override reset(): this {
+        this.transformState = this.getInitialTransformState();
+        return this;
     }
 
     /**@internal */
