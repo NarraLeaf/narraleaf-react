@@ -58,7 +58,7 @@ describe("GameHistoryManager persistence (save format v2)", () => {
         expect(mgr.serialize()[0].snapshot).toBeNull();
     });
 
-    it("serializeUntil returns the inclusive prefix ending at the token", () => {
+    it("serializes only up to the play head, so a save made in the past carries no future", () => {
         const mgr = createManager();
         ["a-1", "a-2", "a-3"].forEach((id, i) => mgr.push({
             token: `t${i + 1}`,
@@ -67,14 +67,12 @@ describe("GameHistoryManager persistence (save format v2)", () => {
             snapshot: snapshot(id),
         }));
 
-        const prefix = mgr.serializeUntil("t2");
-        expect(prefix.map(e => e.actionId)).toEqual(["a-1", "a-2"]);
-    });
+        mgr.setCursor(1);
 
-    it("serializeUntil returns [] for an unknown token", () => {
-        const mgr = createManager();
-        mgr.push({ token: "t1", action: action("a-1"), element: { type: "say", text: "x", voice: null, character: null } });
-        expect(mgr.serializeUntil("nope")).toEqual([]);
+        // The lines beyond the play head were read, and stepping forward reaches them again — but a
+        // save written here is a save of this moment, and they are not part of it.
+        expect(mgr.serialize().map(e => e.actionId)).toEqual(["a-1", "a-2"]);
+        expect(mgr.serializeAll().map(e => e.actionId)).toEqual(["a-1", "a-2", "a-3"]);
     });
 
     it("load rebinds actions, mints tokens for entries that carry none, and preserves snapshots", () => {
@@ -122,7 +120,7 @@ describe("GameHistoryManager persistence (save format v2)", () => {
         expect(loaded.getByToken("keep-me")).not.toBeNull();
     });
 
-    it("serializeUntil keeps the tokens of the prefix it returns", () => {
+    it("keeps the tokens of the whole timeline, which is what a rewind is rebuilt from", () => {
         const mgr = createManager();
         ["t1", "t2", "t3"].forEach((token, i) => mgr.push({
             token,
@@ -131,9 +129,7 @@ describe("GameHistoryManager persistence (save format v2)", () => {
             snapshot: snapshot(token),
         }));
 
-        // This is the prefix `restoreToHistory` hands to `deserialize`, so these are the tokens the
-        // backlog comes back with after a rewind.
-        expect(mgr.serializeUntil("t2").map(e => e.token)).toEqual(["t1", "t2"]);
+        expect(mgr.serializeAll().map(e => e.token)).toEqual(["t1", "t2", "t3"]);
     });
 
     it("load drops entries whose action no longer exists in the story", () => {
@@ -157,5 +153,124 @@ describe("GameHistoryManager persistence (save format v2)", () => {
         mgr.push({ token: "t1", action: action("a-1"), element: { type: "say", text: "x", voice: null, character: null } });
         expect(mgr.getByToken("t1")?.token).toBe("t1");
         expect(mgr.getByToken("missing")).toBeNull();
+    });
+});
+
+/**
+ * Backward and forward are one timeline with a play head on it: everything up to the head is the
+ * backlog, everything past it is a future the player already read and can step into again.
+ */
+describe("GameHistoryManager play head", () => {
+    const line = (token: string, act: Action, snap = token) => ({
+        token,
+        action: act,
+        element: { type: "say" as const, text: token, voice: null, character: null },
+        snapshot: snapshot(snap),
+    });
+
+    function threeLines() {
+        const mgr = createManager();
+        const actions = [action("a-1"), action("a-2"), action("a-3")];
+        actions.forEach((a, i) => mgr.push(line(`t${i + 1}`, a)));
+        return { mgr, actions };
+    }
+
+    it("splits the timeline at the play head", () => {
+        const { mgr } = threeLines();
+        expect(mgr.getHistory().map(h => h.token)).toEqual(["t1", "t2", "t3"]);
+        expect(mgr.getFuture()).toEqual([]);
+
+        mgr.setCursor(0);
+
+        // The backlog is what has been read *to here*; showing t2 and t3 in it would be reporting
+        // lines the game has not reached in its current state.
+        expect(mgr.getHistory().map(h => h.token)).toEqual(["t1"]);
+        expect(mgr.getFuture().map(h => h.token)).toEqual(["t2", "t3"]);
+    });
+
+    it("knows which way it can move", () => {
+        const { mgr } = threeLines();
+        expect(mgr.canUndo()).toBe(true);
+        expect(mgr.canRedo()).toBe(false);
+
+        mgr.setCursor(0);
+        expect(mgr.canUndo()).toBe(false);
+        expect(mgr.canRedo()).toBe(true);
+    });
+
+    it("keeps the future when play retraces the same line", () => {
+        const { mgr, actions } = threeLines();
+        mgr.setCursor(0);
+
+        // Reading forward again over the same action: the same line, reached a second time.
+        mgr.push(line("t2-again", actions[1]));
+
+        // It keeps the token it already had — a caller holding a reference to that line of the story
+        // should not lose it just because the player read past it twice.
+        expect(mgr.getHistory().map(h => h.token)).toEqual(["t1", "t2"]);
+        // And t3 still stands, so a player who stepped back and read forward can keep stepping
+        // forward rather than losing the rest of what they had read.
+        expect(mgr.getFuture().map(h => h.token)).toEqual(["t3"]);
+    });
+
+    it("treats the first line after a rewind as the current one running again", () => {
+        const { mgr, actions } = threeLines();
+        mgr.setCursor(1);
+
+        // A line's snapshot is taken as it is reached, before it runs, so resuming from a rewind
+        // re-runs that very line. Counting it as a new arrival would push the play head forward a
+        // line the player never read on to, and treating it as divergence would drop t3.
+        mgr.push(line("t2-rerun", actions[1]));
+
+        expect(mgr.getCursor()).toBe(1);
+        expect(mgr.getHistory().map(h => h.token)).toEqual(["t1", "t2"]);
+        expect(mgr.getFuture().map(h => h.token)).toEqual(["t3"]);
+
+        // And the line after it arrives as the one ahead, so the retrace carries on.
+        mgr.push(line("t3-again", actions[2]));
+        expect(mgr.getCursor()).toBe(2);
+        expect(mgr.getFuture()).toEqual([]);
+    });
+
+    it("drops the future when the story goes somewhere else", () => {
+        const { mgr } = threeLines();
+        mgr.setCursor(0);
+
+        // A different action: the other side of a choice, say. The recorded future no longer follows
+        // from where the story now is, so keeping it would offer the player a future that is not
+        // theirs.
+        mgr.push(line("t9", action("a-9")));
+
+        expect(mgr.getHistory().map(h => h.token)).toEqual(["t1", "t9"]);
+        expect(mgr.getFuture()).toEqual([]);
+        expect(mgr.canRedo()).toBe(false);
+    });
+
+    it("opens a loaded save on its last line, with nothing ahead", () => {
+        const { mgr } = threeLines();
+        mgr.setCursor(1);
+
+        const saved = mgr.serialize();
+        const loaded = createManager();
+        loaded.load(saved, new Map<string, Action>([["a-1", action("a-1")], ["a-2", action("a-2")]]));
+
+        expect(loaded.getHistory()).toHaveLength(2);
+        expect(loaded.getFuture()).toEqual([]);
+        expect(loaded.canRedo()).toBe(false);
+        expect(loaded.canUndo()).toBe(true);
+    });
+
+    it("moves the play head along when the action history's cap trims the front", () => {
+        const { mgr } = threeLines();
+        mgr.setCursor(2);
+
+        // The cap drops the oldest entries; without moving the head with them it would come to rest
+        // on a different line than the one the game is on.
+        mgr.getHistory();
+        (mgr as unknown as { crossFilter(a: { id: string }[]): void }).crossFilter([{ id: "t1" }]);
+
+        expect(mgr.getHistory().map(h => h.token)).toEqual(["t2", "t3"]);
+        expect(mgr.getCursor()).toBe(1);
+        expect(mgr.getFuture()).toEqual([]);
     });
 });

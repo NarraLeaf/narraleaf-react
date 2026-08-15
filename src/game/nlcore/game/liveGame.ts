@@ -384,14 +384,14 @@ export class LiveGame {
     }
 
     /**
-     * Get the history of the game
-     * 
-     * The history is a list of element actions that have been executed  
-     * For example, when a character says something, the history will record the sentence and voice
-     * 
-     * You can use the id to undo the action by using `liveGame.undo(id)`
-     * 
-     * This method is an utility method for creating a backlog
+     * The backlog: every line read up to and including the one the game is on.
+     *
+     * After stepping back, the lines beyond the play head are not here — they are a future the
+     * player can step into again with {@link redo}, and a backlog listing them would be showing what
+     * has not happened yet. {@link getFuture} returns those.
+     *
+     * Each entry carries a `token`, which is how {@link restoreToHistory} names a line. A token
+     * keeps naming its line across saves and rewinds.
      */
     public getHistory(): GameHistory[] {
         this.assertGameState();
@@ -399,91 +399,142 @@ export class LiveGame {
     }
 
     /**
-     * Undo the action
-     * 
-     * - If the id is provided, it will undo the action **by id**  
-     * - If the id is not provided, it will undo **the last action**
+     * The lines ahead of the play head: read once, stepped back past, and reachable again.
+     *
+     * Empty during ordinary play, and empty right after loading a save — a save written in the past
+     * carries no future, because saving after stepping back saves that moment and not the lines that
+     * had been read beyond it.
      */
-    public undo(id?: string) {
+    public getFuture(): GameHistory[] {
         this.assertGameState();
-        if (!this.gameState.actionHistory.ableToUndo(this.gameState.gameHistory)) {
-            this.gameState.logger.warn("LiveGame.undo", "No action to undo");
-            return;
-        }
+        return this.gameState.gameHistory.getFuture();
+    }
 
-        const lock = this.gameLock.register().lock();
+    /** Whether there is a line before this one to step back to. */
+    public canUndo(): boolean {
+        this.assertGameState();
+        return this.gameState.gameHistory.canUndo();
+    }
 
-        this.stackModel.abortStackTop();
-
-        const actionHistory = id
-            ? this.gameState.actionHistory.undoUntil(id)
-            : this.gameState.actionHistory.undo(this.gameState.gameHistory);
-
-        if (actionHistory) {
-            const [actionMaps] = this.constructMaps();
-            const { rootStackSnapshot, stackModel } = actionHistory;
-
-            if (actionHistory.action.type === CharacterActionTypes.say && this.gameState.isNvlMode()) {
-                this.gameState.suppressNextNvlTyping();
-            }
-
-            this.stackModel.deserialize(rootStackSnapshot, actionMaps);
-            if (stackModel === this.stackModel) {
-                this.stackModel.push(StackModel.fromAction(actionHistory.action as LogicAction.Actions));
-            }
-
-            this.gameLock.off(lock.unlock());
-
-            this.gameState.logger.info("LiveGame.undo", "Undo until", id, "action", actionHistory);
-    
-            this.gameState.stage.forceUpdate();
-            this.gameState.stage.next();
-            this.gameState.schedule(() => {
-                if (this.gameState) this.gameState.forceAnimation();
-            }, 0);
-        } else {
-            this.gameState.logger.warn("LiveGame.undo", "No action found");
-            this.gameLock.off(lock.unlock());
-        }
+    /** Whether a line stepped back past is waiting ahead. */
+    public canRedo(): boolean {
+        this.assertGameState();
+        return this.gameState.gameHistory.canRedo();
     }
 
     /**
-     * Restore the game to a past backlog line.
+     * Step back one line.
      *
-     * Unlike {@link undo}, this works **after loading a save**: it does not rely on the
-     * (non-serializable) undo stack. Every backlog entry carries a self-contained state snapshot,
-     * so restoring re-applies that snapshot and trims the backlog back to that line.
+     * Backward and forward are one mechanism: each line recorded a self-contained snapshot of the
+     * game when it was reached, and moving in either direction restores the snapshot of the line
+     * being moved to. That is what lets this work after loading a save, which the undo stack of
+     * live closures it replaced could not — those closures cannot be written to a file, so before
+     * this, loading a save left the player with a backlog they could not step back into.
      *
-     * @param token - the backlog entry token (as returned by {@link getHistory})
-     * @returns `true` if the line was restored, `false` if the token is unknown or the entry has
-     *          no restore snapshot.
+     * The line stepped back from is not discarded; see {@link redo}.
+     *
+     * @returns `true` if the game moved, `false` if this is already the first line or that line
+     *          carries no snapshot.
+     */
+    public undo(): boolean {
+        this.assertGameState();
+
+        const history = this.gameState.gameHistory;
+        if (!history.canUndo()) {
+            this.gameState.logger.warn("LiveGame.undo", "No line to step back to");
+            return false;
+        }
+        return this.restoreToIndex(history.getCursor() - 1, "LiveGame.undo");
+    }
+
+    /**
+     * Step forward one line, into a line stepped back past.
+     *
+     * Only reaches lines the player has already read: this replays the recorded future rather than
+     * running the story on. Reading forward normally after stepping back keeps that future while the
+     * story retraces the same lines, and drops it the moment the story goes somewhere else — a
+     * different branch of a choice has a different future, and the old one no longer follows.
+     *
+     * @returns `true` if the game moved, `false` if there is nothing ahead or it carries no
+     *          snapshot.
+     */
+    public redo(): boolean {
+        this.assertGameState();
+
+        const history = this.gameState.gameHistory;
+        if (!history.canRedo()) {
+            this.gameState.logger.warn("LiveGame.redo", "No line to step forward to");
+            return false;
+        }
+        return this.restoreToIndex(history.getCursor() + 1, "LiveGame.redo");
+    }
+
+    /**
+     * Move the game to a recorded line, named by its token.
+     *
+     * The same mechanism as {@link undo} and {@link redo}, and it reaches in either direction: a
+     * token from {@link getHistory} steps back, one from {@link getFuture} steps forward.
+     *
+     * @param token - the token of the line to move to
+     * @returns `true` if the line was restored, `false` if the token is unknown or the line carries
+     *          no snapshot.
      */
     public restoreToHistory(token: string): boolean {
         this.assertGameState();
 
-        const entry = this.gameState.gameHistory.getByToken(token);
-        if (!entry) {
+        const index = this.gameState.gameHistory.indexOfToken(token);
+        if (index < 0) {
             this.gameState.logger.warn("LiveGame.restoreToHistory", "No history entry for token", token);
             return false;
         }
+        return this.restoreToIndex(index, "LiveGame.restoreToHistory");
+    }
+
+    /**
+     * Put the game into the state one recorded line describes, and move the play head to it.
+     *
+     * The timeline itself is untouched — the whole of it, future included, is handed back to
+     * `deserialize` and the play head is then placed on the target. That is what makes stepping back
+     * reversible: nothing is thrown away by moving.
+     * @internal
+     */
+    private restoreToIndex(index: number, caller: string): boolean {
+        this.assertGameState();
+
+        const history = this.gameState.gameHistory;
+        const entry = history.getAt(index);
+        if (!entry) {
+            this.gameState.logger.warn(caller, "No history entry at", index);
+            return false;
+        }
         if (!entry.snapshot) {
-            this.gameState.logger.warn("LiveGame.restoreToHistory", "History entry has no restore snapshot", token);
+            this.gameState.logger.warn(caller, "History entry has no restore snapshot", entry.token);
             return false;
         }
 
-        // Trim the backlog to this line, then restore the entry's core snapshot. We reuse
-        // deserialize() wholesale by synthesizing a SavedGame whose core is the entry snapshot and
-        // whose history is the trimmed prefix, so the resume path stays identical to loading a save.
-        const prefix = this.gameState.gameHistory.serializeUntil(token);
+        const token = entry.token;
+        // `deserialize` is reused wholesale: a synthesized save whose core is this line's snapshot
+        // and whose history is the entire timeline, so resuming here is the same path as loading a
+        // save. It rebuilds the timeline and leaves the play head at the end, so the head is placed
+        // afterwards - by token, because an entry whose action the story no longer has is dropped on
+        // the way through and would shift every index after it.
         const synthetic: SavedGame = {
             name: this.currentSavedGame?.name ?? "",
             meta: this.currentSavedGame?.meta ?? this.getNewSavedGame().meta,
             game: {
                 ...entry.snapshot,
-                history: prefix,
+                history: history.serializeAll(),
             },
         };
         this.deserialize(synthetic);
+        this.gameState.gameHistory.setCursor(this.gameState.gameHistory.indexOfToken(token));
+
+        // A line arrived at by moving the play head is a line the player has already read, so in NVL
+        // mode it should appear rather than type itself out again. The undo this replaced did the
+        // same for the same reason.
+        if (entry.action.type === CharacterActionTypes.say && this.gameState.isNvlMode()) {
+            this.gameState.suppressNextNvlTyping();
+        }
         return true;
     }
 

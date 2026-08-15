@@ -2,6 +2,47 @@
 
 ## [0.26.0]
 
+### _Add_
+
+- **Stepping back and stepping forward, as one thing: `LiveGame.undo` and `LiveGame.redo`.** The
+  backlog is a timeline with a play head on it. Everything up to the head is what `getHistory()` has
+  always returned; everything past it — after stepping back — is a future the player has already
+  read, returned by the new `getFuture()`. `undo()` moves the head back
+  a line, `redo()` moves it forward, `restoreToHistory(token)` moves it to a named line in either
+  direction, and `canUndo()` / `canRedo()` say whether there is anywhere to go.
+
+  All four are one mechanism: every line records a self-contained snapshot as it is reached, and
+  moving restores the snapshot of the line moved to.
+
+  ```typescript
+  const liveGame = game.getLiveGame();
+
+  liveGame.undo();                       // back a line
+  liveGame.redo();                       // forward again
+  liveGame.canRedo();                    // is there anything ahead?
+  liveGame.getFuture();                  // the lines ahead, if any
+  liveGame.restoreToHistory(token);      // straight to a line, from getHistory() or getFuture()
+  ```
+
+  Three things follow from it, and they are the point of the change:
+
+  - **Stepping back works after loading a save.** `undo` used to walk a stack of closures built as
+    the game ran. Closures cannot be written to a file, so loading a save left the player with a
+    backlog they could not step back into — the button was there and did nothing. Snapshots are in
+    the save, so the boundary is no longer there.
+  - **Reading forward again keeps what is ahead.** Stepping back three lines and reading forward
+    retraces those lines rather than overwriting them, so the rest of what had been read is still
+    ahead. The future is dropped only when the story goes somewhere else — the other side of a
+    choice — because that future no longer follows from where the story is.
+  - **Saving in the past saves the past.** A save written after stepping back carries the backlog up
+    to that line and nothing beyond it. Loading it opens there with nothing to step forward into,
+    which is what saving in the past means.
+
+  `undo()` no longer takes an action id; a line is named by its token through `restoreToHistory`.
+  Both return `false` rather than throwing when there is nowhere to move. `getHistory()` no longer
+  includes lines ahead of the play head — ask `getFuture()` for those. The internal
+  `GameHistoryManager.serializeUntil` is gone, its job now done by serializing up to the play head.
+
 ### _Change_
 
 - **A save carries the elements that differ from the script, not the whole cast (save format v3).** A
