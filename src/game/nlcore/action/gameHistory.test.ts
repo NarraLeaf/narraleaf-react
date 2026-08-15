@@ -77,7 +77,7 @@ describe("GameHistoryManager persistence (save format v2)", () => {
         expect(mgr.serializeUntil("nope")).toEqual([]);
     });
 
-    it("load rebinds actions, assigns fresh tokens, and preserves snapshots", () => {
+    it("load rebinds actions, mints tokens for entries that carry none, and preserves snapshots", () => {
         const mgr = createManager();
         const a1 = action("a-1");
         const a2 = action("a-2");
@@ -94,9 +94,46 @@ describe("GameHistoryManager persistence (save format v2)", () => {
         expect(history[0].snapshot).toEqual(snapshot("s1"));
         expect(history[1].action).toBe(a2);
         expect(history[1].element).toEqual({ type: "menu", text: "pick", selected: "left" });
-        // Fresh, unique tokens are minted on load (the persisted tokens are throwaway runtime handles).
+        // These entries carry no token — a save written before tokens were persisted — so the
+        // manager mints one rather than leaving the line unaddressable.
         expect(history[0].token).toBeTruthy();
         expect(history[0].token).not.toBe(history[1].token);
+    });
+
+    it("a token survives a serialize/load round trip", () => {
+        const mgr = createManager();
+        mgr.push({
+            token: "keep-me",
+            action: action("a-1"),
+            element: { type: "say", text: "hi", voice: null, character: null },
+            snapshot: snapshot("s1"),
+        });
+
+        const serialized = mgr.serialize();
+        expect(serialized[0].token).toBe("keep-me");
+
+        // A token is what a backlog UI holds and what `restoreToHistory` takes. Loading a save, and
+        // restoring a line (which rebuilds the backlog through this same path), must not quietly
+        // invalidate the reference the caller is holding — restoring to the same line twice used to
+        // fail for exactly that reason.
+        const loaded = createManager();
+        loaded.load(serialized, new Map([["a-1", action("a-1")]]));
+        expect(loaded.getHistory()[0].token).toBe("keep-me");
+        expect(loaded.getByToken("keep-me")).not.toBeNull();
+    });
+
+    it("serializeUntil keeps the tokens of the prefix it returns", () => {
+        const mgr = createManager();
+        ["t1", "t2", "t3"].forEach((token, i) => mgr.push({
+            token,
+            action: action(`a-${i + 1}`),
+            element: { type: "say", text: token, voice: null, character: null },
+            snapshot: snapshot(token),
+        }));
+
+        // This is the prefix `restoreToHistory` hands to `deserialize`, so these are the tokens the
+        // backlog comes back with after a rewind.
+        expect(mgr.serializeUntil("t2").map(e => e.token)).toEqual(["t1", "t2"]);
     });
 
     it("load drops entries whose action no longer exists in the story", () => {

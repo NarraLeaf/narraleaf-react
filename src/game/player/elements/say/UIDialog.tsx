@@ -341,10 +341,18 @@ export default function PlayerDialog({
     }, [dialogState, finish, gameState, isActive]);
 
     /**
-     * Listen to the skip event
+     * Listen to the skip event, and to a click on the stage.
+     *
+     * Both mean "get on with it": a key press arrives as `skip`, a click on the stage as
+     * `stageClick`. The ADV dialog used to listen only to the first, so clicking did nothing at all
+     * — the click was recognised, the event was emitted, and no one advanced the line. NVL dialogs
+     * have always listened to both.
+     *
+     * A click never carries `force`: forcing is what the skip key does when it is held down, and a
+     * player clicking has asked for one line, not for the rest of the scene.
      */
     useLayoutEffect(() => {
-        return gameState.events.on(GameState.EventTypes["event:state.player.skip"], (force?: boolean) => {
+        const advance = (force?: boolean) => {
             if (!isActive) {
                 return;
             }
@@ -356,7 +364,17 @@ export default function PlayerDialog({
             } else {
                 dialogState.forceSkip();
             }
-        }).cancel;
+        };
+
+        const skipToken = gameState.events.on(GameState.EventTypes["event:state.player.skip"], advance);
+        const stageToken = gameState.events.on(
+            GameState.EventTypes["event:state.player.stageClick"], () => advance(false)
+        );
+
+        return () => {
+            skipToken.cancel();
+            stageToken.cancel();
+        };
     }, [dialogState, finish, gameState, isActive]);
 
     return (

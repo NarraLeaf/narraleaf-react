@@ -82,6 +82,15 @@ export interface SerializedGameState {
  */
 export interface SerializedGameHistory {
     /**
+     * The entry's backlog token, kept so that it survives a load.
+     *
+     * A token is how a backlog UI names a line — it is what {@link LiveGame.restoreToHistory} takes.
+     * Rebuilding the backlog with fresh tokens would invalidate every token a caller was holding the
+     * moment a save is loaded or a line restored, so restoring to the same line twice would fail.
+     * Absent on saves written before this was persisted; those entries are given fresh tokens.
+     */
+    token?: string;
+    /**
      * Stable action id anchor (`action.getId()`). Used to re-bind the entry to the live story on
      * load; entries whose action no longer exists (script changed) are dropped from the backlog.
      */

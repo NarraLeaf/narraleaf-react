@@ -34,6 +34,22 @@
 
 ### _Fix_
 
+- **Clicking the stage advances the dialogue.** A click was recognised the whole way through — the
+  stage click announcer accepted it and emitted `event:state.player.stageClick` — and then nothing
+  moved, because the ADV dialog listened only to the skip key. NVL dialogs have always listened to
+  both. So a game whose players click to read, rather than pressing a key, did not advance at all.
+  A click now does what one press of the skip key does: it completes the line being typed, and
+  advances a line that has finished. Holding the skip key still forces, and a click never does — a
+  player who clicks has asked for one line, not for the rest of the scene.
+
+- **A backlog token still names its line after a load or a rewind.** `LiveGame.restoreToHistory`
+  takes a token from `getHistory()`, and both loading a save and restoring a line rebuild the backlog
+  — which minted fresh tokens for every entry. Every token a caller was holding went stale at that
+  moment, silently: a backlog UI's buttons stopped working until it re-read the list, and restoring
+  to the same line twice failed the second time, because the token that had just worked no longer
+  existed. Tokens are now written into the save and kept when it is read back. Saves written before
+  this carry none, and their entries are given fresh tokens as before.
+
 - **`Camera.reset` is now `Camera.resetCamera`, and a new game no longer inherits the last
   playthrough's framing.** Every element carries an internal `reset()` — the hook the engine runs
   over the cast when a new game starts or a save loads, returning each element to the state its

@@ -107,7 +107,11 @@ export class GameHistoryManager {
                 continue;
             }
             this.history.push({
-                token: randId(6),
+                // The token a caller may still be holding, not a new one: loading a save or
+                // restoring a line rebuilds this list, and a fresh token there would quietly
+                // invalidate every reference a backlog UI had. Saves written before tokens were
+                // persisted carry none, and those entries do get a new one.
+                token: entry.token ?? randId(6),
                 action,
                 element: entry.element,
                 isPending: entry.isPending,
@@ -122,6 +126,7 @@ export class GameHistoryManager {
 
     private static toSerialized(h: GameHistory): SerializedGameHistory {
         return {
+            token: h.token,
             actionId: h.action.getId(),
             element: h.element,
             isPending: h.isPending,
