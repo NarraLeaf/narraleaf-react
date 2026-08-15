@@ -7,8 +7,10 @@
 - **A save carries the elements that differ from the script, not the whole cast (save format v3).** A
   story reaches every element of every scene it can jump to, and `elementStates` listed all of them —
   so a project's entire cast was written into every save, and into every per-line history snapshot
-  besides. The cost grew with the size of the project rather than with what was on stage: measured on
-  a 40-scene story, one snapshot carried 720 elements where a dozen were in use.
+  besides. The cost grew with the size of the project rather than with what was on stage. Played in a
+  browser, an eight-scene story of 156 elements now writes 2 of them into a save and 3 into each
+  backlog snapshot, and the same save comes to 42 KB where the old serializer would have written
+  about 1 MB.
 
   What differs at any moment is small, because leaving a scene already returns everything that scene
   put on stage to its authored state. A save now lists only the elements whose state no longer
