@@ -418,9 +418,18 @@ export default function Player(
                                 <KeyEventAnnouncer state={state} />
                                 <StageClickAnnouncer state={state} />
                                 <StageCameraBoundary state={state}>
-                                    {state.getSceneElements().map((elements) => (
-                                        <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
-                                    ))}
+                                    {/* `isolation: isolate` is what keeps a stage transition's stacking order to
+                                        itself. The transition raises the incoming scene above the outgoing one with
+                                        a z-index, and without a stacking context of their own those z-indexes
+                                        compete with the videos and vfx below — which sit at `auto` and `0` — so a
+                                        vignette or a blink running across a jump would be covered by the incoming
+                                        scene for the whole length of it. Isolated, the scenes order among
+                                        themselves and the group as a whole keeps its document-order place. */}
+                                    <div className={"w-full h-full absolute"} style={{isolation: "isolate"}} data-element-type={"scene-group"}>
+                                        {state.getSceneElements().map((elements) => (
+                                            <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
+                                        ))}
+                                    </div>
                                     <StageTransitionOverlayHost state={state} />
                                     {state.getVideos().map((video, index) => (
                                         <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
@@ -494,8 +503,12 @@ function StageCameraBoundary({ state, children }: Readonly<{
  *
  * Rendered once, empty, directly above the scenes: the driver appends and removes its children
  * imperatively, so a transition never has to wait for a React commit to get an element it needs
- * on the very frame it starts. It sits below the videos and vfx, which belong to no scene and so
- * take no part in a transition between two of them.
+ * on the very frame it starts.
+ *
+ * Outside the isolated scene group, and above the videos and vfx rather than below them. The
+ * scenes take no part in each other's business and stay in their own stacking context; a colour
+ * plate is the opposite — a full-screen hold whose whole job is to obscure the stage while the
+ * scenes swap behind it, so it covers everything the camera holds.
  */
 function StageTransitionOverlayHost({ state }: Readonly<{ state: GameState }>) {
     const hostRef = React.useRef<HTMLDivElement | null>(null);

@@ -50,7 +50,11 @@ const LOAD_GATE_TIMEOUT = 4000;
    transition assumes the other order — a `Reveal` masks the incoming half to uncover it, which
    uncovers nothing while the outgoing scene still covers it, and a `Dissolve` whose incoming half
    is underneath composites its opacity twice and dips through the page background at the midpoint.
-   This is also the order `Image.tsx` gives an image's own two halves. */
+   This is also the order `Image.tsx` gives an image's own two halves.
+
+   These z-indexes only order the scenes against each other. `Player.tsx` renders the scene list
+   inside an `isolation: isolate` group for exactly that reason: left in the camera's own stacking
+   context they would also outrank the videos and vfx, which sit at `auto` and `0`. */
 /**@internal */
 export const SCENE_BASE_STYLE: CSSProps = {
     zIndex: 0,
