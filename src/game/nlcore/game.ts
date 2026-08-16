@@ -134,7 +134,7 @@ export class Game {
         allowSkipImageTransform: true,
         allowSkipImageTransition: true,
         allowSkipBackgroundTransform: true,
-        allowSkipBackgroundTransition: false,
+        allowSkipSceneTransition: true,
         allowSkipTextTransform: true,
         allowSkipTextTransition: true,
         allowSkipLayersTransform: true,

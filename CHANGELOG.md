@@ -105,6 +105,43 @@
   the popup ever knowing what the stage scale is. The overlay lets clicks through everywhere its
   children do not paint; give the popup itself `pointer-events: auto`.
 
+### _Change_
+
+- **A scene transition is played across the stage, not across the background.** `Scene.jumpTo`
+  used to hand its transition to the outgoing scene's background image and swap that image's
+  source for the incoming scene's. Only the background ever moved: sprites, text and every other
+  layer of the scene being left simply vanished at the end of it, and a `Reveal` or a `Push`
+  uncovered a background with nothing standing in front of it.
+
+  The two scenes are both on screen for the length of a jump, so the transition now drives them
+  as wholes — the outgoing scene plays the transition's outgoing half, the incoming scene its
+  incoming half. Nothing about how a transition is written changes, and the same transitions are
+  used for both kinds of swap:
+
+  ```typescript
+  scene.jumpTo(nextScene, new Reveal({duration: 800, pattern: Mask.iris()}));   // the whole stage
+  scene.setBackground("bg/night.png", new Dissolve({duration: 400}));           // the background
+  ```
+
+  Two things follow from it:
+
+  - **A transition's geometry is the stage, not the background image.** A `Push` travels the width
+    of the stage and a `Mask` is laid over the stage rectangle. With a background that fills the
+    stage — the usual case — this is what it already looked like; a background deliberately
+    smaller than the stage will now be swept along with everything else rather than being the
+    thing swept.
+  - **The dialogue box takes no part in it.** It is rendered outside the stage, and it keeps the
+    behaviour it has always had: it is simply gone once the scene ends.
+
+  `JumpConfig.transition` is widened from `ImageTransition` to `Transition`; every built-in
+  transition satisfies both, so existing calls are unaffected.
+
+- **`allowSkipSceneTransition` replaces `allowSkipBackgroundTransition`.** The old flag was never
+  read by anything — a background transition was skipped under `allowSkipImageTransition` like any
+  other image. The new one governs the stage transition a jump plays, and defaults to `true`,
+  which is what a jump did before.
+
+
 ## [0.26.0]
 
 ### _Add_

@@ -314,10 +314,11 @@ export type GameConfig = {
      */
     allowSkipBackgroundTransform: boolean;
     /**
-     * If true, when you press [GameConfig.player.skipKey], the game will skip the background transition
-     * @default false
+     * If true, when you press [GameConfig.player.skipKey], the game will skip the transition
+     * played between scenes by {@link Scene.jumpTo}
+     * @default true
      */
-    allowSkipBackgroundTransition: boolean;
+    allowSkipSceneTransition: boolean;
     /**
      * If true, when you press [GameConfig.player.skipKey], the game will skip the text transform
      * @default true

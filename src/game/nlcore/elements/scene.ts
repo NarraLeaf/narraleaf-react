@@ -74,7 +74,15 @@ export interface ISceneUserConfig {
 }
 
 export type JumpConfig = {
-    transition: ImageTransition;
+    /**
+     * Played across the whole stage while the scenes swap: the outgoing scene drives the
+     * transition's outgoing half and the incoming scene its incoming half, so sprites, text and
+     * every other layer take part rather than only the background.
+     *
+     * The dialogue box is deliberately not part of it — it is rendered outside the stage and is
+     * expected to be gone by the time a scene ends.
+     */
+    transition: Transition;
 }
 
 type ChainableAction = Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>> | LogicAction.Actions;
@@ -333,6 +341,9 @@ export class Scene extends Constructable<
      * Jump to another scene and discard the current one.
      *
      * After the jump the calling scene is unloaded and any actions that follow are ignored.
+     *
+     * A `transition` plays across the whole stage rather than across the background alone; see
+     * {@link JumpConfig.transition}.
      * @param scene - The destination scene instance.
      * @param config - Optional transition config (or transition object).
      * @chainable
@@ -360,7 +371,7 @@ export class Scene extends Constructable<
                     new ContentNode<SceneActionContentType["scene:preUnmount"]>().setContent([])
                 ))
                 .chain(this._initScene(scene))
-                ._transitionToScene(jumpConfig.transition, scene.state.backgroundImage.state.currentSrc)
+                ._transitionToScene(jumpConfig.transition, scene)
                 .chain(this._exit());
             return chain;
         })._jumpTo(scene);
@@ -923,13 +934,18 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _transitionToScene(transition?: ImageTransition, src?: ImageSrc | Color | []): ChainedScene {
+    private _transitionToScene(transition: Transition | undefined, target: Scene): ChainedScene {
         const chain = this.chain();
-        if (transition && src) {
-            const action = this.state.backgroundImage.char(src as any, transition);
-            chain.chain((action as Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>>).getActions());
+        if (!transition) {
+            return chain;
         }
-        return chain;
+
+        return chain.chain(new SceneAction<typeof SceneActionTypes["transitionToScene"]>(
+            chain,
+            SceneActionTypes["transitionToScene"],
+            new ContentNode<SceneActionContentType[typeof SceneActionTypes["transitionToScene"]]>()
+                .setContent([transition, target])
+        ));
     }
 
     /**@internal */

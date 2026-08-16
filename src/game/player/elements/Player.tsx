@@ -421,6 +421,7 @@ export default function Player(
                                     {state.getSceneElements().map((elements) => (
                                         <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
                                     ))}
+                                    <StageTransitionOverlayHost state={state} />
                                     {state.getVideos().map((video, index) => (
                                         <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
                                             <Video gameState={state} video={video} />
@@ -484,6 +485,35 @@ function StageCameraBoundary({ state, children }: Readonly<{
         <StageCamera state={state} camera={camera}>
             {children}
         </StageCamera>
+    );
+}
+
+/**
+ * The node a stage transition creates its overlay elements inside — today only
+ * {@link ThroughColor}'s colour plate.
+ *
+ * Rendered once, empty, directly above the scenes: the driver appends and removes its children
+ * imperatively, so a transition never has to wait for a React commit to get an element it needs
+ * on the very frame it starts. It sits below the videos and vfx, which belong to no scene and so
+ * take no part in a transition between two of them.
+ */
+function StageTransitionOverlayHost({ state }: Readonly<{ state: GameState }>) {
+    const hostRef = React.useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        state.stageTransition.registerOverlayHost(hostRef.current);
+
+        return () => {
+            state.stageTransition.registerOverlayHost(null);
+        };
+    }, []);
+
+    return (
+        <div
+            className={"w-full h-full absolute pointer-events-none"}
+            ref={hostRef}
+            data-element-type={"stage-transition-overlay-host"}
+        />
     );
 }
 
