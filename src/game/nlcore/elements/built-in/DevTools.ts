@@ -150,6 +150,11 @@ export class DevTools {
         } else {
             transformState.assign(Symbol("DevTools.setDisplayableTransformProps"), props as never);
         }
+        // This writes element state from outside the action dispatch, which is the one place the
+        // engine marks elements itself — so it has to say so, or the pose it just set would be
+        // missing from the next save with nothing reporting it.
+        displayable.markDirty();
+
         const exposed = gameState.getExposedState(displayable as never) as { updateStyleSync?: () => void } | null;
         exposed?.updateStyleSync?.();
         gameState.flush();

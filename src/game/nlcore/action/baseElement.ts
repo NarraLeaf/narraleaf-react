@@ -68,7 +68,19 @@ export class BaseElement {
      */
     private _dirty: boolean = false;
 
-    /**@internal */
+    /**
+     * Tell the engine this element's state has been written to, so the next save carries it.
+     *
+     * The engine marks an element itself whenever an action runs against it, which covers everything
+     * a story does. This is for a host that reaches past the story and writes element state
+     * directly — an editor moving a sprite, say. Without it the write is invisible to the save: the
+     * element is skipped, and loading brings back the state the script wrote, with nothing reporting
+     * that anything was lost. Debug builds do notice, and warn (see
+     * {@link Story.findUnmarkedElements}).
+     *
+     * Marking an element that turns out not to have changed is free — what decides whether an
+     * element reaches a save is the comparison against its authored state, not this flag.
+     */
     markDirty(): this {
         this._dirty = true;
         return this;

@@ -111,8 +111,10 @@
     elements the save leaves out keep whatever the session had. Saves written by 0.25.0 and earlier
     load unchanged here.
   - **Element state written from outside the engine's action dispatch is not seen.** An element is
-    considered for the save when an action runs against it; a host writing element state directly —
-    through `DevTools`, say — should call `element.markDirty()`. In debug builds
+    considered for the save when an action runs against it, which covers everything a story does. A
+    host that writes element state directly — an editor moving a sprite — should call the new
+    `element.markDirty()`, or the write is skipped and loading brings back what the script wrote.
+    `DevTools.setDisplayableTransformProps` now does this for you. In debug builds
     (`app.debug: true`) the engine periodically walks every element and warns, naming any whose state
     has drifted with nothing marking it, and marks them so the next save carries them.
 
