@@ -33,6 +33,18 @@ export type {
     TextsPreviewProps,
     TextsProps,
 } from "@player/elements/say/Sentence";
+/**
+ * The vocabulary of the vertical-text props on `TextAppearanceProps`.
+ *
+ * Exported because a value has to be named somewhere other than the JSX attribute: an application
+ * that keeps its typography in a settings object, or hands the mode down through its own props,
+ * had no way to type either without restating the unions.
+ */
+export type {
+    TateChuYoko,
+    TextGlyphOrientation,
+    TextWritingMode,
+} from "@player/lib/verticalText";
 export type { NametagProps } from "@player/elements/say/Nametag";
 export type { ItemProps } from "@player/elements/menu/UIMenu/Item";
 export type { ChoiceEvaluated } from "@player/elements/menu/type";

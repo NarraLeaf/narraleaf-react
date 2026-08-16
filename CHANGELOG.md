@@ -49,6 +49,43 @@
   includes lines ahead of the play head — ask `getFuture()` for those. The internal
   `GameHistoryManager.serializeUntil` is gone, its job now done by serializing up to the play head.
 
+- **Vertical text.** `Texts` (and `TextsPreview`) take `writingMode`, `textOrientation`, and
+  `tateChuYoko`, so a dialogue box can be set the way a Japanese novel is: glyphs upright in a
+  column that reads top to bottom, the next column to the left.
+
+  ```tsx
+  <Texts writingMode="vertical-rl" tateChuYoko={2} />
+  ```
+
+  The two settings that are not just CSS on the container are about text that is not Japanese, and
+  both are handled per word as the typewriter reveals it:
+
+  - **A Latin word stays whole.** The renderer sets each word `word-break: break-all` so that CJK
+    wraps anywhere, which in a vertical column splits "Prologue" across two columns one sideways
+    glyph at a time. Vertical text uses `word-break: normal` instead, which still breaks between
+    CJK characters.
+  - **Short runs stand up.** `tateChuYoko` wraps a run of up to N Latin characters or digits in
+    `text-combine-upright: all`, so a two-digit number reads across the column instead of lying on
+    its side (縦中横). `true` uses two characters, `false` turns it off.
+
+  Both follow the conventions Japanese text layout is specified by. JLREQ 2.3.2 lists three
+  orientations for Latin inside vertical text and gives rotation as the one for English words and
+  sentences, tate-chu-yoko as the one for two-digit numbers; JIS X 4051 4.8 puts tate-chu-yoko at a
+  two-digit numeral or a two-to-three letter combination. Hence the default of two, and hence a
+  longer word rotating whole rather than being cut down to fit.
+
+  **Ruby is left to the browser in vertical text and has not been tuned for it.** A word with a
+  `ruby` reading renders beside its base characters in the right reading order, but the markup this
+  renderer emits - an `inline-block` `ruby` with a block `rt` - sets the reading looser against its
+  base than print does.
+
+  `writingMode` defaults to `horizontal-tb`, where all three settings are inert: text that does not
+  ask for a vertical box renders exactly as before, down to the same single text node per word.
+
+  The three unions - `TextWritingMode`, `TextGlyphOrientation`, `TateChuYoko` - are exported
+  alongside `TextAppearanceProps`, so an application can hold one of these values in its own
+  settings object or pass it down through its own props without restating the union.
+
 ### _Change_
 
 - **A save carries the elements that differ from the script, not the whole cast (save format v3).** A
