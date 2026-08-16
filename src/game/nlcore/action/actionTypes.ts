@@ -70,7 +70,7 @@ export type SceneActionContentType = {
     K extends typeof SceneActionTypes["jumpTo"] ? [Scene] :
     K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
     K extends typeof SceneActionTypes["preUnmount"] ? [] :
-    K extends typeof SceneActionTypes["transitionToScene"] ? [ImageTransition, Scene | undefined, ImageSrc | Color | undefined] :
+    K extends typeof SceneActionTypes["transitionToScene"] ? [Transition, Scene] :
     K extends typeof SceneActionTypes["nvlBlock"] ? [LogicAction.Actions[], NvlBlockOptions] :
     K extends typeof SceneActionTypes["nvlShow"] ? [Partial<TransformDefinitions.CommonTransformProps>?] :
     K extends typeof SceneActionTypes["nvlHide"] ? [Partial<TransformDefinitions.CommonTransformProps>?] :

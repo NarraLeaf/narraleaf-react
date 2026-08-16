@@ -28,6 +28,7 @@ import {Video, VideoStateRaw} from "@core/elements/video";
 import {Vfx, VfxStateRaw} from "@core/elements/vfx";
 import {Timeline, Timelines} from "@player/Tasks";
 import {Notification, NotificationManager} from "@player/lib/notification";
+import {StageTransitionManager} from "@player/elements/scene/stageTransition";
 import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
 import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
 import { Displayable } from "../nlcore/elements/displayable/displayable";
@@ -242,6 +243,16 @@ export class GameState {
     public readonly idManager: IdManager;
     public readonly actionHistory: ActionHistoryManager;
     public readonly gameHistory: GameHistoryManager;
+    /**
+     * Drives transitions that span two whole scenes.
+     *
+     * `@internal` is load-bearing here, not decorative: {@link StageTransitionManager} is itself
+     * internal, so `stripInternal` deletes its declaration — a public field referencing it would
+     * leave `gameState.d.ts` pointing at a name the emitted output never declares (`check:dts`
+     * catches exactly this).
+     * @internal
+     */
+    public readonly stageTransition: StageTransitionManager;
     public pageRouter: null = null;
     private stageClickBuffer: { timestamp: number } | null = null;
     private readonly nvlAdvanceWaiters: Map<string, () => void> = new Map();
@@ -260,6 +271,12 @@ export class GameState {
         this.idManager = new IdManager();
         this.actionHistory = new ActionHistoryManager(game.config.maxActionHistory, this.game.getLiveGame());
         this.gameHistory = new GameHistoryManager(this.actionHistory);
+        this.stageTransition = new StageTransitionManager(this);
+        this.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+            if (this.game.config.allowSkipSceneTransition) {
+                this.stageTransition.skip();
+            }
+        });
     }
 
     public get deps(): number {

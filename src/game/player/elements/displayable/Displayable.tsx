@@ -17,6 +17,7 @@ import {Transition} from "@core/elements/transition/transition";
 import {RuntimeGameError} from "@core/common/Utils";
 import {Timeline} from "@player/Tasks";
 import {DisplayableElementRef, DisplayableRefGroup} from "@player/elements/displayable/type";
+import {assignElementProps} from "@player/lib/elementProps";
 
 /**@internal */
 export type DisplayableHookConfig<TransitionType extends Transition<U>, U extends HTMLElement> = {
@@ -226,30 +227,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             throw new RuntimeGameError("Displayable: Trying to assign properties to unmounted element");
         }
 
-        const element = ref.current;
-        const styleUpdates: Partial<CSSStyleDeclaration> = {};
-
-        const attributesToUpdate: ElementProp<U, React.HTMLAttributes<U>> = {} as ElementProp<U, React.HTMLAttributes<U>>;
-        Object.keys(properties).forEach((k) => {
-            const key = k as keyof Partial<ElementProp<U>>;
-            if (key === "style" && properties.style) {
-                Object.assign(styleUpdates, properties.style);
-            } else if (properties[key] !== undefined && key !== "key") {
-                attributesToUpdate[key] = properties[key];
-            }
-        });
-
-        if (Object.keys(styleUpdates).length > 0) {
-            Object.assign(element.style, styleUpdates);
-        }
-
-        const overwrite = propOverwrite ? propOverwrite(attributesToUpdate) : attributesToUpdate;
-        for (const [attr, value] of Object.entries(overwrite)) {
-            if (element.getAttribute(attr) === value) {
-                continue;
-            }
-            element.setAttribute(attr, value);
-        }
+        assignElementProps(ref.current, properties, propOverwrite);
     }
 
     function applyTransform(transform: Transform, resolve: () => void): Timeline {

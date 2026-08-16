@@ -7,7 +7,7 @@ import { useExposeState } from "@player/lib/useExposeState";
 import { ExposedStateType } from "@player/type";
 import { setSceneBackgroundMusic } from "./backgroundMusic";
 import clsx from "clsx";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import React from "react";
 
 /**
@@ -29,6 +29,18 @@ export default function Scene(
         elements: PlayerStateElement;
     }>) {
     const { scene, layers } = elements;
+    const rootRef = useRef<HTMLDivElement | null>(null);
+
+    // Bound for the scene's whole mounted life, not just while a transition runs: a stage
+    // transition writes to this root in place rather than reparenting it, which is what lets the
+    // scene keep its DOM (and its sprites' load state) across a jump.
+    useEffect(() => {
+        state.stageTransition.registerScene(scene, rootRef.current);
+
+        return () => {
+            state.stageTransition.registerScene(scene, null);
+        };
+    }, []);
 
     useEffect(() => {
         return scene.events.depends([
@@ -59,7 +71,7 @@ export default function Scene(
     });
 
     return (
-        <div className={clsx(className, "w-full h-full absolute")}>
+        <div className={clsx(className, "w-full h-full absolute")} ref={rootRef} data-element-type={"scene"} data-scene-id={scene.getId()}>
             {([...layers.entries()].sort(([layerA], [layerB]) => {
                 return layerA.state.zIndex - layerB.state.zIndex;
             }).map(([layer, ele]) => (

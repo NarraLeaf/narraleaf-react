@@ -19,9 +19,30 @@ export abstract class ImageTransition<T extends TransitionAnimationType[] = any>
     /**@package */
     private _currentSrc: Color | ImageSrc | undefined;
     /**@package */
+    private _detached: boolean = false;
+    /**@package */
     private _prevLayers: (string | null)[] | undefined;
     /**@package */
     private _targetLayers: (string | null)[] | undefined;
+
+    /**
+     * Detach the transition from any image source.
+     *
+     * A detached transition drives an element that owns its own content — the stage transition
+     * driver points the two halves at whole scene subtrees — so there is no src for the
+     * resolvers to carry, and `asPrev`/`asTarget` must contribute style only. Without this the
+     * src injection below throws, because "no src" is otherwise a genuine authoring error.
+     * @package
+     */
+    _setDetached(detached: boolean): this {
+        this._detached = detached;
+        return this;
+    }
+
+    /**@package */
+    _isDetached(): boolean {
+        return this._detached;
+    }
 
     /**@package */
     _setPrevLayers(layers: (string | null)[]): this {
@@ -105,7 +126,8 @@ export abstract class ImageTransition<T extends TransitionAnimationType[] = any>
     private _srcToProps(src: Color | ImageSrc | undefined): ImgElementProp {
         // A layered image resolves its own srcs per layer; the element a transition drives is the
         // stack wrapper, so the transition contributes style only and never a src of its own.
-        if (this._isLayered()) {
+        // A detached transition drives something that is not an image at all — same conclusion.
+        if (this._isLayered() || this._detached) {
             return {};
         }
         if (Utils.isColor(src)) {

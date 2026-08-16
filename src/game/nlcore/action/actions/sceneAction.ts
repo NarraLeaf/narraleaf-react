@@ -8,8 +8,7 @@ import {LogicAction} from "@core/action/logicAction";
 import {TypedAction} from "@core/action/actions";
 import {Story} from "@core/elements/story";
 import {RuntimeScriptError} from "@core/common/Utils";
-import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
-import {ImageAction} from "@core/action/actions/imageAction";
+import type {Transition} from "@core/elements/transition/transition";
 import {ActionSearchOptions} from "@core/types";
 import {ExposedState, ExposedStateType} from "@player/type";
 import type { TransformDefinitions } from "@core/elements/transform/type";
@@ -103,17 +102,49 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         }
     }
 
-    applyTransition(gameState: GameState, transition: ImageTransition, injection: ActionExecutionInjection) {
+    /**
+     * Play `transition` across the whole stage while jumping from this scene to `target`.
+     *
+     * Both scenes are mounted at this point — `scene:init` added the incoming one and
+     * `scene:exit` has not yet removed this one — so the transition drives the two live scene
+     * subtrees rather than swapping one image's source underneath them.
+     */
+    applyStageTransition(
+        gameState: GameState,
+        transition: Transition,
+        target: Scene,
+        injection: ActionExecutionInjection,
+    ) {
         const awaitable = new Awaitable<CalledActionResult, CalledActionResult>()
             .registerSkipController(new SkipController(() => {
-                gameState.logger.info("Background Transition", "Skipped");
+                gameState.logger.info("Stage Transition", "Skipped");
                 return super.executeAction(gameState, injection) as CalledActionResult;
             }));
-        const exposed = gameState.getExposedStateForce<ExposedStateType.image>(this.callee.background);
-        exposed.applyTransition(transition, () => {
+        const resolveAction = () => {
+            if (awaitable.isSettled()) {
+                return;
+            }
             awaitable.resolve(super.executeAction(gameState, injection) as CalledActionResult);
+        };
+        const task = gameState.stageTransition.apply(transition, {
+            from: this.callee,
+            to: target,
+        }, resolveAction);
+        const timeline = gameState.timelines
+            .attachTimeline(awaitable)
+            .attachChild(task);
+        task.onCancelled(resolveAction);
+
+        gameState.actionHistory.push({
+            action: this,
+            stackModel: injection.stackModel,
+            timeline,
+        }, () => {
+            if (!awaitable.isSettled()) {
+                awaitable.abort();
+            }
+            task.abort();
         });
-        gameState.timelines.attachTimeline(awaitable);
 
         return awaitable;
     }
@@ -247,16 +278,9 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
 
             return super.executeAction(gameState, injection);
         } else if (this.type === SceneActionTypes.transitionToScene) {
-            const [transition, scene, src] = (this.contentNode as ContentNode<SceneActionContentType["scene:transitionToScene"]>).getContent();
+            const [transition, scene] = (this.contentNode as ContentNode<SceneActionContentType["scene:transitionToScene"]>).getContent();
 
-            transition._setPrevSrc(ImageAction.resolveCurrentSrc(this.callee.background));
-            if (scene) {
-                transition._setTargetSrc(ImageAction.resolveCurrentSrc(scene.background));
-            } else if (src) {
-                transition._setTargetSrc(src);
-            }
-
-            return this.applyTransition(gameState, transition, injection);
+            return this.applyStageTransition(gameState, transition, scene, injection);
         } else if (this.type === SceneActionTypes.nvlBlock) {
             const [actions, options] = (this.contentNode as ContentNode<SceneActionContentType["scene:nvlBlock"]>).getContent();
             
