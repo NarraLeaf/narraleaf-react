@@ -123,7 +123,7 @@
   scene.setBackground("bg/night.png", new Dissolve({duration: 400}));           // the background
   ```
 
-  Two things follow from it:
+  Three things follow from it:
 
   - **A transition's geometry is the stage, not the background image.** A `Push` travels the width
     of the stage and a `Mask` is laid over the stage rectangle. With a background that fills the
@@ -132,6 +132,11 @@
     thing swept.
   - **The dialogue box takes no part in it.** It is rendered outside the stage, and it keeps the
     behaviour it has always had: it is simply gone once the scene ends.
+  - **Videos and vfx keep their place above the scenes for the whole jump.** They belong to no
+    scene and so take no part in a swap between two of them: a vignette or a blink left running
+    across a scene change stays visible over both halves. The one exception is a transition whose
+    own effect is a full-screen hold — `ThroughColor`'s colour plate — which covers everything the
+    camera holds, since a plate the stage paints over is not a plate.
 
   `JumpConfig.transition` is widened from `ImageTransition` to `Transition`; every built-in
   transition satisfies both, so existing calls are unaffected.
@@ -139,8 +144,9 @@
 - **`allowSkipSceneTransition` replaces `allowSkipBackgroundTransition`.** The old flag was never
   read by anything — a background transition was skipped under `allowSkipImageTransition` like any
   other image. The new one governs the stage transition a jump plays, and defaults to `true`,
-  which is what a jump did before.
-
+  which is what a jump did before. The old name is gone rather than deprecated, so a config that
+  set it stops compiling until it is renamed — which is the point, since what it set was never
+  read.
 
 ## [0.26.0]
 
