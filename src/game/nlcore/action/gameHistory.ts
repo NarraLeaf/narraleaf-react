@@ -67,10 +67,10 @@ export class GameHistoryManager {
     constructor(actionHistoryMgr: ActionHistoryManager) {
         this.actionHistoryMgr = actionHistoryMgr;
 
-        this.actionHistoryMgr.onUndo((affected) => {
-            this.crossFilter(affected);
-        });
-
+        // Only the cap, deliberately: an entry dropped because the stack grew too long is gone for
+        // good and its line can no longer be stepped back to, so the backlog should stop offering
+        // it. Undoing is the opposite — it moves the play head over lines that stay exactly where
+        // they are, because they are the future the player steps forward into again.
         this.actionHistoryMgr.onHistoryLimit((removed) => {
             this.crossFilter(removed);
         });

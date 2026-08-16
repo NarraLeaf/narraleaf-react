@@ -507,6 +507,28 @@ export class LiveGame {
             this.gameState.logger.warn(caller, "No history entry at", index);
             return false;
         }
+
+        // Stepping back to a line this session actually played is done in place, by running the undo
+        // each action registered as it ran. Restoring a snapshot would reach the same state, but it
+        // goes through the whole load path — which resets the audio manager and remounts the stage,
+        // so the music would restart and every running timeline would be cut on a step the player
+        // experiences as going back one line. The snapshot is the fallback for the lines that stack
+        // no longer holds: everything after a save has been loaded, and everything older than its
+        // cap.
+        if (index < history.getCursor() && this.gameState.actionHistory.has(entry.token)) {
+            // The play head moves first. Unwinding re-runs the line it lands on, and that run
+            // records itself straight away — with the head still at the line being left, that record
+            // reads as a new line arriving and the future is dropped on the spot.
+            const previous = history.getCursor();
+            history.setCursor(index);
+
+            if (this.undoInPlace(entry, caller)) {
+                this.auditRestoredLine(entry, caller);
+                return true;
+            }
+            history.setCursor(previous);
+        }
+
         if (!entry.snapshot) {
             this.gameState.logger.warn(caller, "History entry has no restore snapshot", entry.token);
             return false;
@@ -536,6 +558,87 @@ export class LiveGame {
             this.gameState.suppressNextNvlTyping();
         }
         return true;
+    }
+
+    /**
+     * Step the game back to a line by unwinding the undo each action registered as it ran, leaving
+     * everything the stage is doing alone.
+     *
+     * A backlog entry's token is the id of the action-history entry pushed for the same line, so a
+     * line is reachable this way exactly when that stack still holds it. Unwinding through it leaves
+     * the game where that line was about to run — which is the state the line's snapshot describes,
+     * reached without rebuilding anything.
+     *
+     * @returns `false` when the stack cannot reach that line, so the caller falls back to the
+     *          snapshot.
+     * @internal
+     */
+    private undoInPlace(entry: GameHistory, caller: string): boolean {
+        this.assertGameState();
+
+        const actionHistory = this.gameState.actionHistory;
+        if (!actionHistory.has(entry.token)) {
+            return false;
+        }
+
+        const lock = this.gameLock.register().lock();
+        this.stackModel.abortStackTop();
+
+        const undone = actionHistory.undoUntil(entry.token);
+        if (!undone) {
+            this.gameLock.off(lock.unlock());
+            return false;
+        }
+
+        const [actionMaps] = this.constructMaps();
+        const { rootStackSnapshot, stackModel } = undone;
+
+        if (undone.action.type === CharacterActionTypes.say && this.gameState.isNvlMode()) {
+            this.gameState.suppressNextNvlTyping();
+        }
+
+        this.stackModel.deserialize(rootStackSnapshot, actionMaps);
+        if (stackModel === this.stackModel) {
+            this.stackModel.push(StackModel.fromAction(undone.action as LogicAction.Actions));
+        }
+
+        this.gameLock.off(lock.unlock());
+        this.gameState.logger.debug(caller, "Stepped back in place to", entry.token);
+
+        this.gameState.stage.forceUpdate();
+        this.gameState.stage.next();
+        this.gameState.schedule(() => {
+            if (this.gameState) this.gameState.forceAnimation();
+        }, 0);
+        return true;
+    }
+
+    /**
+     * Check, in debug builds, that stepping back in place left the game where that line's snapshot
+     * says it should be.
+     *
+     * There are two ways to reach a line now and they have to agree, or the same call would mean
+     * different things depending on how far back the player went and whether they had loaded a save.
+     * Unwinding relies on every action having registered an undo that truly reverses it; a snapshot
+     * relies on nothing. So the snapshot is the reference, and this reports where the two part
+     * company rather than leaving it to be discovered as a wrong-looking stage.
+     * @internal
+     */
+    private auditRestoredLine(entry: GameHistory, caller: string): void {
+        if (!this.game.config.app.debug || !entry.snapshot) {
+            return;
+        }
+
+        const expected = JSON.stringify([...entry.snapshot.elementStates].sort((a, b) => a.id.localeCompare(b.id)));
+        const actual = JSON.stringify([...this.serializeGameState().elementStates].sort((a, b) => a.id.localeCompare(b.id)));
+        if (expected !== actual) {
+            this.gameState?.logger.warn(
+                caller,
+                "Stepping back in place did not reproduce the state this line's snapshot describes, so an "
+                + "action's undo does not fully reverse it. Restoring the snapshot would have been correct; "
+                + `this path was not.\nexpected: ${expected}\nactual: ${actual}`
+            );
+        }
     }
 
     /**@internal */

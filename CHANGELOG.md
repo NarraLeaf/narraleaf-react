@@ -11,8 +11,13 @@
   a line, `redo()` moves it forward, `restoreToHistory(token)` moves it to a named line in either
   direction, and `canUndo()` / `canRedo()` say whether there is anywhere to go.
 
-  All four are one mechanism: every line records a self-contained snapshot as it is reached, and
-  moving restores the snapshot of the line moved to.
+  All four are one mechanism with two ways of carrying it out. Stepping back to a line this session
+  actually played unwinds it in place, running the undo each action registered as it ran: the music
+  keeps playing, running transitions are left alone, and the stage is not rebuilt. Every line also
+  records a self-contained snapshot as it is reached, and that is what a move restores when the live
+  stack cannot reach the line — after a save has been loaded, or further back than the stack's cap.
+  Both land in the same state; in debug builds the engine checks that they do and reports it if an
+  action's undo turns out not to reverse it.
 
   ```typescript
   const liveGame = game.getLiveGame();
@@ -26,10 +31,11 @@
 
   Three things follow from it, and they are the point of the change:
 
-  - **Stepping back works after loading a save.** `undo` used to walk a stack of closures built as
-    the game ran. Closures cannot be written to a file, so loading a save left the player with a
-    backlog they could not step back into — the button was there and did nothing. Snapshots are in
-    the save, so the boundary is no longer there.
+  - **Stepping back works after loading a save.** `undo` used to walk a stack of closures and
+    nothing else. Closures cannot be written to a file, so loading a save left the player with a
+    backlog they could not step back into — the button was there and did nothing. That stack is
+    still the preferred route while it can reach the line, precisely because it steps back without
+    disturbing anything; the snapshot takes over where it stops, so the boundary is no longer there.
   - **Reading forward again keeps what is ahead.** Stepping back three lines and reading forward
     retraces those lines rather than overwriting them, so the rest of what had been read is still
     ahead. The future is dropped only when the story goes somewhere else — the other side of a
