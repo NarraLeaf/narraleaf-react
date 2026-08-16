@@ -45,6 +45,12 @@ export function KeyEventAnnouncer({state}: Readonly<{
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
+            // Something drawn over the line is holding it - see `GameState.suspendAdvance`. Skipping
+            // past a popup the player just opened is the same mistake as advancing past it, only
+            // faster.
+            if (state.isAdvanceSuspended()) {
+                return;
+            }
             if (game.keyMap.match(KeyBindingType.skipAction, event.key)
                 && game.preference.getPreference(Game.Preferences.skip)
             ) {

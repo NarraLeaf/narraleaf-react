@@ -4,6 +4,50 @@ import {DynamicWord} from "@core/elements/character/sentence";
 import {ScriptCtx} from "@core/elements/script";
 import {Pause, Pausing} from "@core/elements/character/pause";
 import {TextEvent} from "@core/elements/character/textEvent";
+import type React from "react";
+
+/**
+ * What a custom word renderer receives.
+ *
+ * A custom-rendered word is still an ordinary text word — it goes into the backlog, the read-text
+ * record and the voice pipeline as its plain text, and it is typed out character by character like
+ * any other. The renderer only decides what the revealed characters look like and what happens when
+ * they are interacted with.
+ */
+export type WordRenderProps<T = unknown> = {
+    /**
+     * The word's text as the engine has already laid it out — ruby, vertical writing mode and
+     * tate-chu-yoko are applied here. Render this rather than {@link WordRenderProps.text}, or those
+     * settings are silently dropped.
+     */
+    children: React.ReactNode;
+    /** The characters revealed so far. Equal to `fullText` once the typewriter has passed the word. */
+    text: string;
+    /** The whole word, revealed or not. */
+    fullText: string;
+    /** Whether every character of this word has been revealed. */
+    revealed: boolean;
+    /** Whether the whole line has finished revealing. */
+    done: boolean;
+    /**
+     * The resolved style chain for this word (engine defaults, then the dialog's text props, then
+     * the sentence, then the word). Already applied to the element wrapping the renderer; passed in
+     * so the renderer can measure against it or carry it into a portal.
+     */
+    style: Readonly<React.CSSProperties>;
+    /** The word's own config, as given to {@link Word}. */
+    config: Readonly<Partial<WordConfig>>;
+    /** The payload passed as `data` when the word was created. */
+    data: T;
+};
+
+/**
+ * A component to render a word with, or the id of one registered with `registerWordRenderer`.
+ *
+ * Pass a component in code; pass an id when the word comes from data (a story file, a plugin) and
+ * cannot carry a function. An id that resolves to nothing renders as plain text.
+ */
+export type WordRenderer<T = any> = string | React.ComponentType<WordRenderProps<T>>;
 
 export type WordConfig = {
     className: string;
@@ -11,7 +55,43 @@ export type WordConfig = {
     color: Color;
     pause: boolean;
     cps?: number;  // characters per second
+    /**
+     * Renders this word's revealed characters. See {@link Word.custom}.
+     */
+    render?: WordRenderer;
+    /**
+     * Arbitrary payload handed to {@link WordConfig.render} as `data`. Never merged or cloned — the
+     * renderer receives the very value given here.
+     */
+    data?: unknown;
 } & Font;
+
+/**
+ * `render` and `data` are kept out of {@link deepMerge}: a component produced by `React.memo` or
+ * `React.forwardRef` is a plain object, so merging would rebuild it into a different object every
+ * time a word is constructed or copied, and an arbitrary `data` payload would be deep-cloned and
+ * lose its identity. Both are carried by reference instead.
+ * @internal
+ */
+function mergeWordConfig(
+    base: Partial<WordConfig>,
+    incoming: Partial<WordConfig>
+): Partial<WordConfig> {
+    const {render: _render, data: _data, ...mergeable} = incoming;
+    const result = deepMerge<Partial<WordConfig>>(base, mergeable);
+
+    if ("render" in incoming) {
+        result.render = incoming.render;
+    } else if ("render" in base) {
+        result.render = base.render;
+    }
+    if ("data" in incoming) {
+        result.data = incoming.data;
+    } else if ("data" in base) {
+        result.data = base.data;
+    }
+    return result;
+}
 
 export class Word<T extends string | DynamicWord | Pausing | TextEvent = string | DynamicWord | Pausing | TextEvent> {
     /**@internal */
@@ -61,6 +141,60 @@ export class Word<T extends string | DynamicWord | Pausing | TextEvent = string 
         return new Word(text, {italic: true});
     }
 
+    /**
+     * Render a word with a component of your own — an inline glossary term that opens a definition
+     * popup, a name that links into an in-game encyclopedia, anything the dialogue box cannot say
+     * with color and weight alone.
+     *
+     * The word stays a text word in every other respect: it is typed out character by character, it
+     * reaches the backlog and the read-text record as its plain text, and it is never serialized —
+     * the renderer is re-attached when the `say` action is evaluated again, so a save carries no
+     * trace of it.
+     *
+     * The renderer sits *inside* the element the engine styles, so the style chain (engine defaults
+     * → the dialog's text props → the sentence → the word) already applies to it; anything the
+     * renderer sets wins, being last. `render` propagates to plain strings a dynamic word returns,
+     * the same way `className` does.
+     *
+     * While a custom word is still being typed, a click on it advances the line as a click anywhere
+     * else would. Once revealed, the word takes its own clicks — the line does not advance behind
+     * the renderer's back.
+     *
+     * @param text - The word's text, or an existing word to re-render.
+     * @param render - A component, or the id of one registered with `registerWordRenderer`.
+     * @param config - Optional styling, plus the `data` payload handed to the renderer.
+     * @example
+     * ```tsx
+     * function GlossaryTerm({children, revealed, data}: WordRenderProps<{entry: string}>) {
+     *     const [open, setOpen] = useState(false);
+     *     return (
+     *         <span className="underline decoration-dotted"
+     *               onClick={() => revealed && setOpen(v => !v)}>
+     *             {children}
+     *             {open && <span className="absolute">{lookUp(data.entry)}</span>}
+     *         </span>
+     *     );
+     * }
+     *
+     * character.say([
+     *     "今天的",
+     *     Word.custom("以太浓度", GlossaryTerm, {data: {entry: "aether"}}),
+     *     "高得反常。",
+     * ]);
+     * ```
+     */
+    public static custom<T = unknown>(
+        text: string | Word,
+        render: WordRenderer<T>,
+        config: Partial<Omit<WordConfig, "render" | "data">> & { data?: T } = {}
+    ): Word {
+        const assigned: Partial<WordConfig> = {...config, render: render as WordRenderer};
+        if (Word.isWord(text)) {
+            return text.copy().assign(assigned);
+        }
+        return new Word(text, assigned);
+    }
+
     /**@internal */
     static getText(words: Word<Pausing | string | TextEvent>[]): string {
         return words
@@ -81,7 +215,7 @@ export class Word<T extends string | DynamicWord | Pausing | TextEvent = string 
      */
     constructor(text: T, config: Partial<WordConfig> = {}) {
         this.text = text;
-        this.config = deepMerge<Partial<WordConfig>>(Word.defaultConfig, config);
+        this.config = mergeWordConfig(Word.defaultConfig, config);
     }
 
     /**@internal */
@@ -108,7 +242,12 @@ export class Word<T extends string | DynamicWord | Pausing | TextEvent = string 
         return [this as Word<string>];
     }
 
-    /**@internal */
+    /**
+     * Appearance a nested word inherits from the word that produced it. `render` is deliberately
+     * absent: a word that already carries its own identity must not be re-clothed by the one that
+     * evaluated it.
+     * @internal
+     */
     inherit(config: Partial<WordConfig>): this {
         this.config.color = this.config.color || config.color;
         this.config.italic = this.config.italic ?? config.italic;
@@ -119,7 +258,7 @@ export class Word<T extends string | DynamicWord | Pausing | TextEvent = string 
 
     /**@internal */
     assign(config: Partial<WordConfig>): this {
-        this.config = deepMerge<Partial<WordConfig>>(this.config, config);
+        this.config = mergeWordConfig(this.config, config);
         return this;
     }
 

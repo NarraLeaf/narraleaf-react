@@ -1,5 +1,110 @@
 # Changelog
 
+## [0.27.0]
+
+### _Add_
+
+- **`Word.custom` — a word rendered by a component of yours.** Colour and weight are all a word
+  could ever say about itself. A glossary term that opens its definition where the player tapped it,
+  a name that leads into an in-game encyclopedia, a number that reads out of a variable and glows
+  when it changes — none of that fits in a config object, and until now the only way to reach it was
+  to replace the dialog component wholesale and lose the typewriter with it.
+
+  A custom word is an ordinary text word wearing a component. It is typed out character by
+  character like any other, it reaches the backlog, the read-text record and the voice pipeline as
+  its plain text, and it is never serialised — the renderer is re-attached when the line is
+  evaluated again, so a save carries no trace of it.
+
+  ```tsx
+  function GlossaryTerm({children, revealed, data}: WordRenderProps<{entry: string}>) {
+      const [open, setOpen] = useState(false);
+      useSuspendAdvance(open);
+
+      return (
+          <span className="underline decoration-dotted"
+                onClick={() => revealed && setOpen(value => !value)}>
+              {children}
+              {open && <span className="absolute">{glossary[data.entry]}</span>}
+          </span>
+      );
+  }
+
+  character.say([
+      "今天的",
+      Word.custom("以太浓度", GlossaryTerm, {data: {entry: "aether"}}),
+      "高得反常。",
+  ]);
+  ```
+
+  The renderer is given the word's text as `children` **already laid out** — ruby, vertical writing
+  mode and tate-chu-yoko applied — so rendering `{children}` keeps all three without knowing they
+  exist. Rendering `text` instead silently drops them. Alongside it come `text` (what has been
+  revealed so far), `fullText`, `revealed`, `done` (whether the whole line has finished), the
+  resolved `style`, the word's `config`, and the `data` payload.
+
+  It renders *inside* the element the engine styles, so the style chain — engine defaults, then the
+  dialog's text props, then the sentence, then the word — already applies to it, and anything the
+  renderer sets wins by being last. `Word.custom` composes with the other factories in either
+  direction: `Word.bold(Word.custom(...))` and `Word.custom(Word.color(...), Term)` both keep
+  everything.
+
+  Clicks behave the way a player would expect without the renderer doing anything about it. While
+  the word is still being typed, clicking it advances the line as clicking anywhere else does. Once
+  revealed, the word takes its own clicks and the line does not advance behind it.
+
+  A custom word carrying a line break is drawn as one wrapper per line, since the break sits
+  between them and belongs to neither; only the last of them reports `revealed`. Keep line breaks
+  in the words around it, not inside it.
+
+  The overlay described below is a feature of the ADV dialog box. In NVL mode a custom word renders
+  and behaves the same, but `useDialogOverlay` has nowhere to draw and reports no container, so a
+  popup there has to render inline.
+
+- **`registerWordRenderer` — name a renderer that a word can ask for by id.** A word built in code
+  can hold a component. A word that arrives as data — compiled from a story file, contributed by a
+  plugin — can only hold a name, so `render` accepts a string as well and resolves it at render
+  time. An id nothing answers to renders as plain text and reports itself once, rather than taking
+  the scene down with it.
+
+  ```tsx
+  registerWordRenderer("glossary", GlossaryTerm);
+  new Word("以太浓度", {render: "glossary", data: {entry: "aether"}});
+  ```
+
+  `unregisterWordRenderer` and `getWordRenderer` are exported alongside it; registering an id again
+  replaces it, and lines already on screen pick the new component up on their next render.
+
+- **`useSuspendAdvance` — hold the line while something of yours is open.** A popup drawn over a
+  line has to stop the line advancing underneath it, or the space bar meant to dismiss the popup
+  skips to the next line instead. Pass `true` while it is open and the stage click, the advance key
+  and the skip key all stop reaching the dialog; the hold is released on `false` and on unmount, so
+  a popup that disappears cannot leave the game stuck. Several holds may be out at once and the
+  line resumes when the last is released. `GameState.suspendAdvance()` is the same thing outside
+  React, returning the release as a function.
+
+- **`useDialogOverlay` — somewhere to draw what belongs to a line but does not fit inside it.** An
+  inline popup rendered where its word sits is clipped by the text box, and one portalled to
+  `document.body` leaves the stage's scale behind and is drawn at a size that no longer matches the
+  line it explains. The overlay covers the dialog, inside that same scale, and paints above it.
+
+  ```tsx
+  const overlay = useDialogOverlay();
+  const rect = overlay.measure(anchorRef.current);
+
+  return rect && (
+      <overlay.Portal>
+          <div style={{position: "absolute", left: rect.left, top: rect.top, pointerEvents: "auto"}}>
+              {definition}
+          </div>
+      </overlay.Portal>
+  );
+  ```
+
+  `measure` reports an element's position in the overlay's own coordinates — the dialog at its
+  authored size, before the stage scales it — so the result can go straight to `left`/`top` without
+  the popup ever knowing what the stage scale is. The overlay lets clicks through everywhere its
+  children do not paint; give the popup itself `pointer-events: auto`.
+
 ## [0.26.0]
 
 ### _Add_

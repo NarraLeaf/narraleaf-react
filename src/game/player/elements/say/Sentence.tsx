@@ -1,7 +1,7 @@
 import { Pause, Pausing } from "@core/elements/character/pause";
 import { TextEvent } from "@core/elements/character/textEvent";
 import { Sentence, type StaticWord } from "@core/elements/character/sentence";
-import { Word, WordConfig } from "@core/elements/character/word";
+import { Word, WordConfig, WordRenderProps } from "@core/elements/character/word";
 import { Game, GameState } from "@lib/game/nlcore/common/game";
 import { Color, LiveGameEventToken } from "@lib/game/nlcore/types";
 import { Awaitable, onlyIf, SkipController, sleep, toHex } from "@lib/util/data";
@@ -16,6 +16,7 @@ import { DialogState } from "./UIDialog";
 import { useNvlDialogState } from "../nvl/useNvlDialogState";
 import type { NvlDialogEntry } from "@player/gameState";
 import { fireInstantRevealEvents, fireTextEventOnce } from "./textEventEffect";
+import { resolveWordRenderer } from "./wordRenderer";
 import {
     isVerticalWritingMode,
     renderWordText,
@@ -29,6 +30,12 @@ import {
 /**@internal */
 type SplitWord = {
     text: string;
+    /**
+     * The whole word this character came from, revealed or not. Carried on every character so a
+     * custom renderer can tell a half-typed word from a finished one without reaching back into the
+     * evaluated sentence.
+     */
+    full: string;
     config: Partial<WordConfig>;
     tag: any;
     tag2?: any;
@@ -55,6 +62,7 @@ function* textUpdater(w: Word<string | Pausing | TextEvent>[]): Generator<SplitW
             } else {
                 yield {
                     text: char,
+                    full: word.text,
                     config: word.config,
                     tag: i,
                     tag2: j,
@@ -272,6 +280,83 @@ function toOptionalColor(color: Color | undefined): React.CSSProperties["color"]
     return color === undefined ? undefined : toHex(color);
 }
 
+/**@internal */
+export type WordBodyProps = {
+    word: Exclude<PureWord, "\n">;
+    vertical: boolean;
+    tateChuYoko: TateChuYoko | undefined;
+    done: boolean;
+    style: React.CSSProperties;
+    renderer: React.ComponentType<WordRenderProps<any>> | null;
+};
+
+/**
+ * Whether the typewriter has passed the last character of the word this fragment came from.
+ *
+ * Read off the character's own index rather than the length of what has been revealed, because a
+ * word containing a line break is drawn as one fragment per line — the break itself is a `<br />`
+ * between them and belongs to neither — so the revealed text is shorter than the word for as long
+ * as the word exists. The last line still ends on the word's last character, which is what this
+ * asks about.
+ * @internal
+ */
+function isWordRevealed(word: Exclude<PureWord, "\n">): boolean {
+    if (typeof word.tag2 === "number") {
+        return word.tag2 >= word.full.length - 1;
+    }
+    return word.text.length >= word.full.length;
+}
+
+/**
+ * What goes inside the element the engine styles: the laid-out text, wrapped in the word's own
+ * renderer when it has one.
+ *
+ * The renderer is handed the laid-out text as `children` rather than the raw string, so ruby,
+ * vertical writing mode and tate-chu-yoko survive a renderer that does not know they exist.
+ * @internal
+ */
+export function WordBody({ word, vertical, tateChuYoko, done, style, renderer: Renderer }: WordBodyProps) {
+    const content = word.config.ruby ? (
+        <ruby className={"align-bottom inline-block"}>
+            <rt className={"block text-center"}>{word.config.ruby}</rt>
+            {renderWordText(word.text, vertical, tateChuYoko)}
+        </ruby>
+    ) : (
+        renderWordText(word.text, vertical, tateChuYoko)
+    );
+
+    if (!Renderer) {
+        return content;
+    }
+
+    return (
+        <Renderer
+            text={word.text}
+            fullText={word.full}
+            revealed={isWordRevealed(word)}
+            done={done}
+            style={style}
+            config={word.config}
+            data={word.config.data}
+        >
+            {content}
+        </Renderer>
+    );
+}
+
+/**
+ * Whether a word has finished revealing and so should take its own clicks rather than let them
+ * advance the line. A word still being typed does not: the player clicking mid-word asked for the
+ * rest of the line, not for whatever the word does.
+ * @internal
+ */
+function isInteractiveWord(
+    word: Exclude<PureWord, "\n">,
+    renderer: React.ComponentType<WordRenderProps<any>> | null
+): boolean {
+    return !!renderer && isWordRevealed(word);
+}
+
 function BaseText(
     {
         defaultColor,
@@ -358,6 +443,20 @@ function BaseText(
             }),
         ]).cancel;
     }, [dialog, flushDep]);
+
+    /**
+     * Re-render when the line settles.
+     *
+     * A custom word renderer is told whether the line has finished — a glossary term that only
+     * offers itself once the player has read the whole line needs to know. Completion arrives as a
+     * flush, not as a change to `displaying`, so without this the last character would be drawn
+     * with the line still reading as unfinished and nothing would come along to correct it.
+     */
+    useEffect(() => {
+        return dialog.onFlush(() => {
+            flush();
+        }).cancel;
+    }, [dialog]);
 
     /**
      * Listen to:
@@ -610,14 +709,23 @@ function BaseText(
     });
 
     const vertical = isVerticalWritingMode(writingMode);
+    const done = dialog.isEnded();
     const getElement = (word: PureWord, index: number) => {
         if (word === "\n") return (<br key={index} />);
+        const wordStyle = calculateStyle(word);
+        const renderer = resolveWordRenderer(word.config.render);
+        const interactive = isInteractiveWord(word, renderer);
         return (
             <Inspect.Span
                 tag={`say.word.${index}`}
                 key={index}
+                // Read by StageClickAnnouncer, which listens natively below the React root and so
+                // cannot be stopped by the handler beside it. Both are needed: the attribute keeps
+                // the stage from advancing, `stopPropagation` keeps the dialog box from doing it.
+                data-element-type={interactive ? "interactive-word" : undefined}
+                onClick={interactive ? (event: React.MouseEvent) => event.stopPropagation() : undefined}
                 style={{
-                    ...calculateStyle(word),
+                    ...wordStyle,
                     ...wordBreakStyleFor(vertical),
                     ...onlyIf<React.CSSProperties>(game.config.app.debug, {
                         outline: "1px dashed red",
@@ -628,14 +736,14 @@ function BaseText(
                     word.config.className,
                 )}
             >
-                {word.config.ruby ? (
-                    <ruby className={"align-bottom inline-block"}>
-                        <rt className={"block text-center"}>{word.config.ruby}</rt>
-                        {renderWordText(word.text, vertical, tateChuYoko)}
-                    </ruby>
-                ) : (
-                    renderWordText(word.text, vertical, tateChuYoko)
-                )}
+                <WordBody
+                    word={word}
+                    vertical={vertical}
+                    tateChuYoko={tateChuYoko}
+                    done={done}
+                    style={wordStyle}
+                    renderer={renderer}
+                />
             </Inspect.Span>
         );
     };
@@ -822,11 +930,12 @@ export function TextsPreview({
     const vertical = isVerticalWritingMode(writingMode);
     const getElement = (word: PureWord, index: number) => {
         if (word === "\n") return (<br key={index} />);
+        const wordStyle = calculateStyle(word);
         return (
             <span
                 key={index}
                 style={{
-                    ...calculateStyle(word),
+                    ...wordStyle,
                     ...wordBreakStyleFor(vertical),
                 }}
                 className={clsx(
@@ -834,14 +943,17 @@ export function TextsPreview({
                     word.config.className,
                 )}
             >
-                {word.config.ruby ? (
-                    <ruby className={"align-bottom inline-block"}>
-                        <rt className={"block text-center"}>{word.config.ruby}</rt>
-                        {renderWordText(word.text, vertical, tateChuYoko)}
-                    </ruby>
-                ) : (
-                    renderWordText(word.text, vertical, tateChuYoko)
-                )}
+                <WordBody
+                    word={word}
+                    vertical={vertical}
+                    tateChuYoko={tateChuYoko}
+                    // A preview is a loop with no line behind it, so nothing here is ever "the line
+                    // has finished"; a renderer that gates on `done` stays inert, which is the right
+                    // reading of a settings-screen sample.
+                    done={false}
+                    style={wordStyle}
+                    renderer={resolveWordRenderer(word.config.render)}
+                />
             </span>
         );
     };

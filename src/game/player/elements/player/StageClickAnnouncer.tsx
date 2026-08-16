@@ -27,6 +27,12 @@ const GUI_ELEMENT_SELECTORS = [
     "[data-layout-path]",
     "[data-element-type=\"menu\"]",
     "[data-element-type=\"notification\"]",
+    // A custom-rendered word that has finished revealing, and anything a line has drawn over
+    // itself. Both take their own clicks: the player aiming at a glossary term meant the term, not
+    // the next line. A word still being typed carries no such marker, so clicking it skips the
+    // typing as clicking anywhere else does.
+    "[data-element-type=\"interactive-word\"]",
+    "[data-element-type=\"dialog-overlay\"]",
 ];
 
 function isInsideGuiElement(target: Element | null, allowNvlClick: boolean): boolean {
@@ -93,6 +99,10 @@ export function StageClickAnnouncer({ state }: Readonly<{
             }
 
             if (isInsideGuiElement(target, state.isNvlMode())) {
+                return;
+            }
+
+            if (state.isAdvanceSuspended()) {
                 return;
             }
 

@@ -5,8 +5,9 @@ import { DialogProps } from "@player/elements/say/type";
 import { Nametag, usePreference } from "@player/libElements";
 import { useRatio } from "@player/provider/ratio";
 import clsx from "clsx";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useDialogContext } from "./context";
+import { DialogOverlayContext } from "./dialogOverlay";
 import { Texts } from "./Sentence";
 import { DialogState } from "./UIDialog";
 import { KeyBindingType } from "@lib/game/nlcore/game/types";
@@ -35,8 +36,12 @@ function BaseDialog({
     const dialogRef = useRef<HTMLDivElement>(null);
     const [nextKeyBinding] = useKeyBinding(KeyBindingType.nextAction);
     const isPresent = useIsPresent();
+    // State rather than a ref: the overlay element has to reach the context on the render after it
+    // is attached, and a ref would leave every popup rendered on the first pass with nowhere to go.
+    const [overlayNode, setOverlayNode] = useState<HTMLDivElement | null>(null);
 
     function onElementClick() {
+        if (dialog.config.gameState.isAdvanceSuspended()) return;
         dialog.requestComplete();
     }
 
@@ -49,6 +54,9 @@ function BaseDialog({
         const handleKeyDown = (e: KeyboardEvent) => {
             // Ignore OS auto-repeat so holding the key advances only once per press
             if (e.repeat) return;
+            // Something drawn over the line — a popup on an inline word — has the player's attention
+            // and their keystrokes with it.
+            if (dialog.config.gameState.isAdvanceSuspended()) return;
             if (game.keyMap.match(KeyBindingType.nextAction, e.key)) {
                 dialog.requestComplete();
             }
@@ -100,13 +108,26 @@ function BaseDialog({
                 }}
                 ref={dialogRef}
             >
-                <motion.div
-                    {...props}
-                    initial={dialog.config.suppressInitialAnimation ? false : initial}
-                    transition={dialog.config.suppressInitialAnimation && isPresent ? { duration: 0 } : transition}
-                >
-                    {children}
-                </motion.div>
+                <DialogOverlayContext value={overlayNode}>
+                    <motion.div
+                        {...props}
+                        initial={dialog.config.suppressInitialAnimation ? false : initial}
+                        transition={dialog.config.suppressInitialAnimation && isPresent ? { duration: 0 } : transition}
+                    >
+                        {children}
+                    </motion.div>
+                </DialogOverlayContext>
+                {/*
+                  * Where anything belonging to a line but too big for it goes — the definition popup
+                  * of an inline word. Last child, so it paints over the text; inside the stage's
+                  * scale, so it is drawn at the same size as the line it explains; transparent to
+                  * clicks except where its contents actually are.
+                  */}
+                <div
+                    data-element-type={"dialog-overlay"}
+                    className="absolute inset-0 pointer-events-none"
+                    ref={setOverlayNode}
+                />
             </div>
         </div>
     );

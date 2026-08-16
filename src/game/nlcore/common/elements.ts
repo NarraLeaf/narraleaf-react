@@ -88,3 +88,8 @@ export type {
     DialogAvatarResolution,
     DialogAvatarSource,
 } from "../elements/character/avatar";
+export type {
+    WordConfig,
+    WordRenderProps,
+    WordRenderer,
+} from "../elements/character/word";

@@ -244,6 +244,7 @@ export class GameState {
     public readonly gameHistory: GameHistoryManager;
     public pageRouter: null = null;
     private stageClickBuffer: { timestamp: number } | null = null;
+    private readonly advanceSuspensions: Set<symbol> = new Set();
     private readonly nvlAdvanceWaiters: Map<string, () => void> = new Map();
     private advDialogState: AdvDialogState | null = null;
     private _fastForwarding: boolean = false;
@@ -997,6 +998,34 @@ export class GameState {
     public recordStageClick(): this {
         this.stageClickBuffer = { timestamp: Date.now() };
         return this;
+    }
+
+    /**
+     * Hold the line where it is: while at least one suspension is out, clicking the stage and
+     * pressing the advance or skip key do nothing.
+     *
+     * Anything that opens on top of a line and wants the player's next keystroke needs this — a
+     * definition popup on an inline word, a term the player is reading. Without it a popup opens and
+     * the very next space bar advances the line behind it, which is the one thing the popup exists
+     * to prevent.
+     *
+     * Suspensions nest: the line resumes once every one of them has been released.
+     *
+     * @returns A function that releases this suspension. Safe to call more than once.
+     */
+    public suspendAdvance(): () => void {
+        const token = Symbol("advance-suspension");
+        this.advanceSuspensions.add(token);
+        return () => {
+            this.advanceSuspensions.delete(token);
+        };
+    }
+
+    /**
+     * Whether anything is currently holding the line — see {@link GameState.suspendAdvance}.
+     */
+    public isAdvanceSuspended(): boolean {
+        return this.advanceSuspensions.size > 0;
     }
 
     public consumeStageClick(maxAgeMs: number = 200): boolean {
