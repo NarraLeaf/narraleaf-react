@@ -31,6 +31,16 @@
   Like every other built-in, this drives an `<img>` and a whole scene root alike, so it is available
   to `setBackground`, to a character's portrait, and to `jumpTo`.
 
+  | Option | Type | Default | |
+  | --- | --- | --- | --- |
+  | `duration` | `number` | required | Duration in milliseconds. |
+  | `ev` | `number` | `4.6` | Peak exposure in stops; the frame is driven to a gain of `2 ** ev`. |
+  | `lift` | `number` | `0.04` | Shadow lift (0–1) applied ahead of the gain. |
+  | `hold` | `number` | `0` | Fraction (0–1) of the duration spent fully blown out. |
+  | `easing` | `EasingDefinition` | — | Easing applied across the whole run. |
+
+  Documented at [Exposure](https://narraleaf.com/docs/narraleaf-react/core/animation/transition/exposure).
+
 ## [0.27.0]
 
 ### _Add_
