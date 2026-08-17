@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.28.0]
+
+### _Add_
+
+- **`Exposure` — a transition that burns the frame out instead of covering it.** The outgoing frame
+  is driven up in stops until it clips to white, the images change hands inside that white window,
+  and the incoming frame comes back down to a normal exposure.
+
+  This is not a white plate faded over the picture. A plate moves every colour toward white at one
+  rate, so nothing arrives before anything else and no colour changes hue on the way. Exposure
+  multiplies, and each channel clips on its own: the highlights are gone almost at once, a saturated
+  colour passes through a shift as its leading channel tops out — a red goes coral, then cream — and
+  the shadows are the last thing left standing. `ThroughColor` with a white colour remains the plate
+  version; both are worth having.
+
+  ```ts
+  scene.jumpTo(nextScene, new Exposure({duration: 1200, ev: 4.6}));
+  ```
+
+  `ev` is the peak exposure in stops, so the frame is driven to a gain of `2 ** ev`. `hold` holds the
+  blown-out frame for a fraction of the duration, the way it does on `ThroughColor`.
+
+  `lift` is the one option worth reading about before changing it. Gain alone never whitens pure
+  black — multiplying zero leaves zero — so with no lift a night scene finishes its burn as a black
+  silhouette against white. The lift is the flare a real lens adds, mixed in ahead of the gain and
+  ramped in with it, which carries the shadows up too. It defaults to `0.04` and does not touch a
+  frame at rest.
+
+  Like every other built-in, this drives an `<img>` and a whole scene root alike, so it is available
+  to `setBackground`, to a character's portrait, and to `jumpTo`.
+
 ## [0.27.0]
 
 ### _Add_

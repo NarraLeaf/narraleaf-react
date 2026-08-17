@@ -3,6 +3,7 @@ import {
     BlurDissolve,
     Darkness,
     Dissolve,
+    Exposure,
     FadeIn,
     Mask,
     Push,
@@ -47,9 +48,9 @@ function prepared<T>(inst: T): T {
 // reset for it to `stackStyle`; if this list changes without that, the residue is back.
 describe("what a transition can leave on a layered stack", () => {
     const SETTLED_POSE_MUST_RESET = [
-        "filter",        // BlurDissolve, Darkness
+        "filter",        // BlurDissolve, Darkness, Exposure
         "maskImage",     // Reveal
-        "opacity",       // Dissolve, BlurDissolve, ThroughColor, Darkness, FadeIn
+        "opacity",       // Dissolve, BlurDissolve, ThroughColor, Darkness, Exposure, FadeIn
         "translate",     // Push, FadeIn
         "WebkitMaskImage",
         // Inert on their own: they only take effect alongside a mask image, which is reset above.
@@ -70,6 +71,8 @@ describe("what a transition can leave on a layered stack", () => {
         new Push({duration: 400}),
         new BlurDissolve({duration: 400}),
         new Darkness({from: 0, to: 0.5, duration: 400}),
+        new Exposure({duration: 400}),
+        new Exposure({duration: 400, hold: 0.4}),
         new Reveal({duration: 400, pattern: Mask.wipe({direction: 135})}),
         new Reveal({duration: 400, pattern: Mask.clock()}),
         new Reveal({duration: 400, pattern: Mask.fan()}),
@@ -193,6 +196,63 @@ describe("built-in image transitions", () => {
             const filterAt = (inst: Darkness, d: number) =>
                 call(prepared(inst).createTask().resolve[0] as ResolverEntry, d).style.filter;
             expect(filterAt(clone, 0.5)).toBe(filterAt(original, 0.5));
+        });
+    });
+
+    describe("Exposure", () => {
+        // The photographic counterpart to a white ThroughColor: the frame is driven up in stops
+        // until every channel clips, rather than mixed toward white at one rate. What the filter
+        // chain says is therefore the whole behaviour, so it is asserted verbatim.
+        it("one 0→1 channel driving the two halves", () => {
+            const task = prepared(new Exposure({duration: 400})).createTask() as any;
+            expect(task.animations).toHaveLength(1);
+            expect(task.animations[0]).toMatchObject({start: 0, end: 1, duration: 400});
+            expect(task.resolve).toHaveLength(2);
+        });
+
+        it("leaves a resting frame untouched at both ends", () => {
+            // Not cosmetic: a filter left on a settled scene root gives it a compositing layer of
+            // its own, and tearing that down snaps the whole stage by a fraction of a pixel.
+            const [prev, target] = prepared(new Exposure({duration: 400})).createTask().resolve as ResolverEntry[];
+            expect(call(prev, 0).style).toMatchObject({opacity: 1, filter: "none"});
+            expect(call(target, 1).style).toMatchObject({opacity: 1, filter: "none"});
+        });
+
+        it("burns to the full gain by the midpoint, lift ramped in with it", () => {
+            const [prev] = prepared(new Exposure({duration: 400, ev: 2, lift: 0.4})).createTask().resolve as ResolverEntry[];
+            // Half burnt: half the lift, half the stops.
+            expect(call(prev, 0.25).style.filter).toBe("invert(1) brightness(0.8) invert(1) brightness(2)");
+            // Fully burnt: the whole lift, 2^2 of gain.
+            expect(call(prev, 0.5).style.filter).toBe("invert(1) brightness(0.6) invert(1) brightness(4)");
+        });
+
+        it("swaps the images at the midpoint, both halves blown out across the seam", () => {
+            const [prev, target] = prepared(new Exposure({duration: 400, ev: 2, lift: 0.4})).createTask().resolve as ResolverEntry[];
+            expect(call(prev, 0.49).style.opacity).toBe(1);
+            expect(call(target, 0.49).style.opacity).toBe(0);
+            expect(call(prev, 0.51).style.opacity).toBe(0);
+            expect(call(target, 0.51).style.opacity).toBe(1);
+            // The handover is invisible only because both sides are at the same full burn.
+            expect(call(prev, 0.49).style.filter).toBe(call(target, 0.51).style.filter);
+        });
+
+        it("hold widens the blown-out window rather than slowing the burn", () => {
+            const [prev, target] = prepared(new Exposure({duration: 400, ev: 2, lift: 0, hold: 0.5})).createTask().resolve as ResolverEntry[];
+            const full = "invert(1) brightness(1) invert(1) brightness(4)";
+            expect(call(prev, 0.125).style.filter).toBe("invert(1) brightness(1) invert(1) brightness(2)");
+            expect(call(prev, 0.25).style.filter).toBe(full); // burnt early…
+            expect(call(target, 0.75).style.filter).toBe(full); // …and held until here
+            expect(call(target, 1).style.filter).toBe("none");
+        });
+
+        it("copy() returns an equivalent independent instance", () => {
+            const original = new Exposure({duration: 300, ev: 3.5, lift: 0.08, hold: 0.2, easing: "easeIn"});
+            const clone = original.copy();
+            expect(clone).not.toBe(original);
+            expect(clone).toBeInstanceOf(Exposure);
+            const filterAt = (inst: Exposure, d: number) =>
+                call(prepared(inst).createTask().resolve[0] as ResolverEntry, d).style.filter;
+            expect(filterAt(clone, 0.3)).toBe(filterAt(original, 0.3));
         });
     });
 

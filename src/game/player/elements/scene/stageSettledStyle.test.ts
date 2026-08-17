@@ -14,6 +14,7 @@ import {ThroughColor} from "@core/elements/transition/transitions/image/throughC
 import {Reveal} from "@core/elements/transition/transitions/image/reveal";
 import {Mask} from "@core/elements/transition/transitions/image/mask";
 import {Darkness} from "@core/elements/transition/transitions/image/darkness";
+import {Exposure} from "@core/elements/transition/transitions/image/exposure";
 import {GameState} from "@player/gameState";
 
 const gameState = {
@@ -49,6 +50,8 @@ const TRANSITIONS: [string, ImageTransition][] = [
     named(new Reveal({duration: 300, pattern: Mask.barnDoor()}), "Reveal barnDoor"),
     named(new Reveal({duration: 300, pattern: Mask.dots({stagger: 0.5})}), "Reveal dots"),
     named(new Darkness({from: 0, to: 1, duration: 300}), "Darkness"),
+    named(new Exposure({duration: 300}), "Exposure"),
+    named(new Exposure({duration: 300, hold: 0.4}), "Exposure hold"),
 ];
 
 /**

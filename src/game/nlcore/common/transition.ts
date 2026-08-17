@@ -6,6 +6,7 @@ import {TextTransition} from "@core/elements/transition/transitions/text/textTra
 import {BlurDissolve} from "@core/elements/transition/transitions/image/blurDissolve";
 import {Push} from "@core/elements/transition/transitions/image/push";
 import {Darkness} from "@core/elements/transition/transitions/image/darkness";
+import {Exposure} from "@core/elements/transition/transitions/image/exposure";
 import {ThroughColor} from "@core/elements/transition/transitions/image/throughColor";
 import {Reveal} from "@core/elements/transition/transitions/image/reveal";
 import {Mask} from "@core/elements/transition/transitions/image/mask";
@@ -19,6 +20,7 @@ export {
     BlurDissolve,
     Push,
     Darkness,
+    Exposure,
     ThroughColor,
     Reveal,
     Mask,
@@ -29,6 +31,7 @@ export type {FadeInOptions} from "@core/elements/transition/transitions/image/fa
 export type {BlurDissolveOptions} from "@core/elements/transition/transitions/image/blurDissolve";
 export type {PushOptions} from "@core/elements/transition/transitions/image/push";
 export type {DarknessOptions} from "@core/elements/transition/transitions/image/darkness";
+export type {ExposureOptions} from "@core/elements/transition/transitions/image/exposure";
 export type {
     ThroughColorOptions,
     ThroughColorUncover,
