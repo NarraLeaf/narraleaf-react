@@ -1,5 +1,9 @@
 # Node.js dependencies
-node_modules/
+# No trailing slash on purpose: with one, this matches a DIRECTORY only, and a worktree that
+# links its dependencies from a sibling checkout has a node_modules SYMLINK instead. git then
+# treats it as an ordinary file and `git add -A` commits it — a 120000 blob holding one
+# machine's absolute path. Checking that out replaces a real install with a link to itself.
+node_modules
 npm-debug.log
 yarn-error.log
 package-lock.json
