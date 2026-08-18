@@ -161,15 +161,34 @@ export class Camera
         duration?: number,
         easing?: TransformDefinitions.EasingDefinition
     ): Proxied<Camera, Chained<LogicAction.Actions, Camera>> {
-        return this.transform(new Transform<TransformDefinitions.ImageTransformProps>({
-            position: new CommonPosition(CommonPositionType.Center),
-            scaleX: 1,
-            scaleY: 1,
-            zoom: 1,
-            rotation: 0,
-            opacity: 1,
-            filter: "none",
-        }, {duration, ease: easing}));
+        // Two sequences, and the split is the whole point: the filter is dropped in its own
+        // zero-duration step BEFORE the pose eases.
+        //
+        // A filter chain carrying `hue-rotate` cannot be interpolated back to neutral. Easing
+        // `grayscale(1) sepia(1) hue-rotate(185deg) saturate(4) brightness(0.55)` toward `"none"`
+        // walks the angle back through 185 degrees of the colour wheel while `grayscale`
+        // simultaneously lets the source's own hues return underneath it, so the midpoint is not
+        // a paler grade but a different colour outright — blue, then cyan, then green, then
+        // olive, on the way out of a moonlight grade. Every other prop here interpolates
+        // perfectly well, which is why only the filter is lifted out instead of the whole
+        // reset being made instant.
+        return this.transform(new Transform<TransformDefinitions.ImageTransformProps>([
+            {
+                props: {filter: "none"},
+                options: {duration: 0},
+            },
+            {
+                props: {
+                    position: new CommonPosition(CommonPositionType.Center),
+                    scaleX: 1,
+                    scaleY: 1,
+                    zoom: 1,
+                    rotation: 0,
+                    opacity: 1,
+                },
+                options: {duration, ease: easing},
+            },
+        ]));
     }
 
     /**

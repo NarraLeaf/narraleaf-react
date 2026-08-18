@@ -22,6 +22,20 @@ function firstTransformProps(chain: unknown): Record<string, unknown> {
     return sequences[0]?.props ?? {};
 }
 
+/**
+ * Every sequence of the transform, so a helper that deliberately runs in two steps can be read as
+ * the two steps it is.
+ */
+function transformSequences(chain: unknown): { props: Record<string, unknown>; options?: Record<string, unknown> }[] {
+    const actions = Chained.toActions([chain as never]);
+    const action = actions.find((a) => a.type === DisplayableActionTypes.applyTransform);
+    if (!action) {
+        throw new Error("camera helper produced no applyTransform action");
+    }
+    const [transform] = (action.contentNode as { getContent: () => [unknown] }).getContent();
+    return (transform as { sequences: { props: Record<string, unknown>; options?: Record<string, unknown> }[] }).sequences;
+}
+
 describe("Camera", () => {
     it("starts fully opaque so the wrapped stage is visible", () => {
         // The transform default opacity is 0; a camera that inherited it would hide the whole stage.
@@ -41,11 +55,21 @@ describe("Camera", () => {
         expect(firstTransformProps(new Camera().darken(-1)).filter).toBe("brightness(1)");
     });
 
-    it("resetCamera clears the filter and returns to zoom 1", () => {
-        const props = firstTransformProps(new Camera({ zoom: 3 }).resetCamera());
-        expect(props.filter).toBe("none");
-        expect(props.zoom).toBe(1);
+    // The split is the fix, not an implementation detail: a filter carrying `hue-rotate` cannot be
+    // eased back to "none" without walking the picture through the colour wheel, so the filter is
+    // dropped in its own zero-duration step and only the pose is allowed to interpolate.
+    it("resetCamera drops the filter instantly, then eases the pose", () => {
+        const sequences = transformSequences(new Camera({ zoom: 3 }).resetCamera(600));
+        expect(sequences).toHaveLength(2);
+
+        expect(sequences[0].props.filter).toBe("none");
+        expect(sequences[0].options?.duration).toBe(0);
+
+        expect(sequences[1].props.zoom).toBe(1);
+        // The pose must not restate the filter, or it would ease it right back out of the cut above.
+        expect(sequences[1].props).not.toHaveProperty("filter");
     });
+
 
     it("round-trips its transform state through toData/fromData", () => {
         const data = new Camera({ zoom: 2 }).toData();
