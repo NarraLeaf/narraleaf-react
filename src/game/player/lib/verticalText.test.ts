@@ -27,11 +27,17 @@ describe("vertical writing mode", () => {
     });
 
     /**
-     * The reason this file exists. `break-all` is what lets a horizontal box wrap CJK anywhere, and
-     * it is also what would cut an English word in half down a vertical column.
+     * The reason this file exists. Neither mode may use `break-all`, which cuts an English word in
+     * half wherever the line runs out. Horizontal text asks for the strict kinsoku set on top -
+     * the one that holds back the small kana - while vertical text takes the default, which is what
+     * the tate-chu-yoko runs below are laid out against.
      */
-    it("stops breaking inside a word once the text is vertical", () => {
-        expect(wordBreakStyleFor(false)).toEqual({ wordBreak: "break-all" });
+    it("leaves a word whole and lets the browser break the line legally", () => {
+        expect(wordBreakStyleFor(false)).toEqual({
+            wordBreak: "normal",
+            lineBreak: "strict",
+            overflowWrap: "break-word",
+        });
         expect(wordBreakStyleFor(true)).toEqual({ wordBreak: "normal", overflowWrap: "break-word" });
     });
 });

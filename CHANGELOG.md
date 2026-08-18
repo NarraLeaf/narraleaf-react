@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.28.1]
+
+### _Fix_
+
+- **A Latin word inside a horizontal CJK line is no longer cut in half.** Every horizontal dialogue
+  box was set with `word-break: break-all`, which was there to wrap CJK — and does, but it means
+  what it says. An English word in a Japanese or Chinese line was broken wherever the line ran out,
+  with no hyphen and at no particular place: `NarraLe / af-React`, `E / nglish`,
+  `verylongun / breakableword`.
+
+  Horizontal text is now set with `word-break: normal`, which breaks between CJK characters on its
+  own and never needed help with that, and `overflow-wrap: break-word`, so a run that fits nowhere —
+  a URL, a long unspaced word in a narrow box — still breaks rather than overflowing. Vertical text
+  was already set this way and is untouched.
+
+- **Horizontal text asks for the strict line-breaking rules.** The prohibitions a reader would name
+  first — a line may not begin with 、 。 」 ？ ！, nor end with 「 （ — are applied by the browser
+  whatever `word-break` says, and were being honoured all along. The strict set is not: the small
+  kana and the prolonged sound mark may begin a line under the default, so `った` was split after
+  `た` and the line below opened on `っ`. `line-break: strict` is now set alongside the above, which
+  is the set a printed book is typeset to. Over 301 container widths, っ ゃ ー began a line in 18, 13
+  and 12 of them before and in none of them after.
+
+  This has one prerequisite outside the engine: `line-break: strict` is a no-op unless the document
+  declares a language. Any `lang` will do — `en` is enough, and a shell built by NarraLeaf Studio
+  already carries one — but a host page with no `lang` on it gets the default rules.
+
+  Lines wrap in different places than they did. No story needs editing for this, but a Latin word
+  that used to be split now moves to the next line whole, so a box measured against the old wrapping
+  can come out one line taller.
+
 ## [0.28.0]
 
 ### _Add_
