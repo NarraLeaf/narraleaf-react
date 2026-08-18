@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.29.0]
+
+### _Add_
+
+- **An image can be drawn by a host backend.** `Image` gains `backend`, and a game gains
+  `registerImageBackend` — the sibling of the puppet seam, for the other half of the problem it
+  solves.
+
+  A puppet hands a host a box whose contents the engine knows nothing about. This hands a host the
+  *sources the engine resolved*: which tag group is selected, which layers that resolves to, which
+  URLs those are and their place in the preloader all stay the engine's, and the host decides only
+  how they are presented. That is what it is for — an editor that draws a character inside a frame
+  of its own would otherwise have to resolve the character's appearance a second time, and the two
+  answers to "what does this character look like right now" would drift.
+
+  ```ts
+  game.registerImageBackend({
+      name: "framed",
+      mount(container, ctx) {
+          const view = MyFrame.create(container, ctx.size, ctx.options);
+          view.draw(ctx.content.srcs);
+          return {
+              apply: (content) => view.draw(content.srcs),
+              resize: (size) => view.resize(size),
+              dispose: () => view.destroy(),
+          };
+      },
+  });
+
+  new Image({backend: "framed", size: {width: 400, height: 400}, src: myLayeredCharacter});
+  ```
+
+  | Option | Type | Default | |
+  | --- | --- | --- | --- |
+  | `backend` | `string \| null` | `null` | Name of a registered image backend. |
+  | `options` | `Record<string, unknown>` | — | Opaque; handed to the backend on mount. |
+  | `size` | `{width, height} \| null` | `null` | The box, in logical pixels. `null` is the stage size. |
+
+  Nothing else about such an image changes: `char()` and `setSrc()` mean what they always meant, the
+  element is placed, transformed, layered and saved as any other, and a source change reaches the
+  backend as one `apply` of the complete content.
+
+  Two things it deliberately does not do. **Image transitions do not apply** — a transition between
+  sources is a cross-fade of two presentations and there is only one here, so a change arrives as a
+  single `apply` and a backend that wants it gradual animates it itself; transitions on the element
+  as a whole (fade, slide, mask) act on the wrapper and are untouched. **Wearables do not attach** —
+  a wearable is positioned against its parent's own picture, which is exactly what the host has
+  replaced, so attaching one warns and draws nothing instead of putting it somewhere meaningless.
+
+  A `backend` nothing answers to behaves like a missing puppet backend: the element keeps its place
+  on the stage, its transform and its saved state, draws nothing, and warns once.
+
+
 ## [0.28.0]
 
 ### _Add_

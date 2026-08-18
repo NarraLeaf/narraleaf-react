@@ -9,6 +9,7 @@ import { DefaultElements } from "../player/elements/elements";
 import { AudioBusMixer, createPreferenceBusAliases } from "./game/audioBus";
 import { Plugins, IGamePluginRegistry } from "./game/plugin/plugin";
 import { PuppetBackend, PuppetBackendRegistry } from "./game/puppet/puppetBackend";
+import { ImageBackend, ImageBackendRegistry } from "./game/image/imageBackend";
 import { LayoutRouter } from "../player/lib/PageRouter/router";
 import { KeyMap } from "./game/keyMap";
 import { KeyBindingType } from "./game/types";
@@ -220,6 +221,7 @@ export class Game {
     public router: LayoutRouter;
     private readonly lifecycleEvents = new EventDispatcher<GameLifecycleEvents>();
     private readonly puppetBackends = new PuppetBackendRegistry();
+    private readonly imageBackends = new ImageBackendRegistry();
     private preloadCompleteContext: GameLifecycleEventContext | null = null;
     private firstSceneReadyContext: GameLifecycleEventContext | null = null;
 
@@ -332,6 +334,50 @@ export class Game {
      */
     public getPuppetBackend(name: string): PuppetBackend | null {
         return this.puppetBackends.get(name);
+    }
+
+    /**
+     * Register a presenter for images that name it.
+     *
+     * The sibling of {@link registerPuppetBackend}, and the difference is what the engine hands
+     * over. A puppet's backend is given an opaque `src` and told which named state to wear; an
+     * image's backend is given the *sources the engine resolved* — so the engine keeps owning what
+     * the image is showing, and the host only decides how it is shown.
+     *
+     * Register before the game mounts, for the same reason: an element looks its backend up once,
+     * when its component mounts.
+     *
+     * @example
+     * ```ts
+     * game.registerImageBackend({
+     *     name: "framed",
+     *     mount(container, ctx) {
+     *         const view = MyFrame.create(container, ctx.size, ctx.options);
+     *         view.draw(ctx.content.srcs);
+     *         return {
+     *             apply: (content) => view.draw(content.srcs),
+     *             resize: (size) => view.resize(size),
+     *             dispose: () => view.destroy(),
+     *         };
+     *     },
+     * });
+     * ```
+     */
+    public registerImageBackend(backend: ImageBackend): this {
+        this.imageBackends.register(backend);
+        return this;
+    }
+
+    /**
+     * The image backend registered under the given name, or null.
+     */
+    public getImageBackend(name: string): ImageBackend | null {
+        return this.imageBackends.get(name);
+    }
+
+    /**@internal */
+    public getImageBackendRegistry(): ImageBackendRegistry {
+        return this.imageBackends;
     }
 
     /**

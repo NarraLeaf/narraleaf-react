@@ -13,6 +13,7 @@ import {useExposeState} from "@player/lib/useExposeState";
 import {DisplayableElementRef} from "@player/elements/displayable/type";
 import {ExposedStateType} from "@player/type";
 import {Color, ImageSrc} from "@core/types";
+import HostImage from "@player/elements/image/HostImage";
 
 export type ImageEvents = {
     "event:image.onLoad": [];
@@ -348,5 +349,16 @@ function ImageComponent(
 // stable across it — the element only needs to repaint when its own transform/transition fires,
 // which it drives through its internal `useFlush`. Memoizing decouples it from the global cascade,
 // so N on-stage images no longer all re-render (and re-run their sizing effects) on every advance.
-const Image = React.memo(ImageComponent);
+/**
+ * An image is presented by the engine unless its config names a host backend, in which case the
+ * engine resolves what it is showing and the host draws it. The branch is here rather than in
+ * `Displayables` so that "an image" stays one element to everything outside this module.
+ */
+function ImageDispatch(props: Readonly<{ image: GameImage; state: GameState }>) {
+    return props.image.config.backend
+        ? <HostImage {...props} />
+        : <ImageComponent {...props} />;
+}
+
+const Image = React.memo(ImageDispatch);
 export default Image;

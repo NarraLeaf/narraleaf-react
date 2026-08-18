@@ -38,6 +38,9 @@ type ImageConfig<Tag extends TagGroupDefinition | null = TagGroupDefinition | nu
     autoFit: boolean;
     layer: Layer | undefined;
     isBackground: boolean;
+    backend: string | null;
+    options: Record<string, unknown> | undefined;
+    size: { width: number; height: number } | null;
 };
 type ImageState<Tag extends TagGroupDefinition | null = TagGroupDefinition | null> = {
     currentSrc: Tag extends null
@@ -78,6 +81,40 @@ export interface IImageUserConfig<
      * @default 0
      */
     darkness?: number;
+    /**
+     * Draw this image with a host-registered backend instead of presenting it directly.
+     *
+     * The engine keeps everything it already owned — which tag group is selected, which layers that
+     * resolves to, which URLs those are, their place in the preloader and their place in a saved
+     * game — and hands the *resolved sources* to the named backend, which decides how they are
+     * shown. A host uses it to present a character inside something of its own: a frame, a mask, a
+     * layout its own editor produced.
+     *
+     * Nothing else about the image changes. `char()` and `setSrc()` mean exactly what they mean for
+     * any other image, and a row that changes the appearance reaches the backend as a new content
+     * to apply.
+     *
+     * A name nothing answers to leaves the element on the stage — transformable, saveable — drawing
+     * nothing, and warns once. See `game.registerImageBackend`.
+     *
+     * @default null
+     */
+    backend?: string | null;
+    /**
+     * Opaque options handed to the backend on mount, passed through verbatim. The engine never
+     * reads them.
+     */
+    options?: Record<string, unknown>;
+    /**
+     * The box a host-drawn image is given, in logical pixels.
+     *
+     * Only meaningful with {@link backend}: an image the engine presents is sized by its own picture
+     * (or by `autoFit`), while a host-drawn one has no intrinsic size — what is inside the box is
+     * the host's business. `null` means the stage size, which is the same default a puppet takes.
+     *
+     * @default null
+     */
+    size?: { width: number; height: number } | null;
 }
 
 export type ImageDataRaw = {
@@ -188,6 +225,9 @@ export class Image<
             src: Image.DefaultImagePlaceholder,
             autoFit: false,
             layer: undefined,
+            backend: null,
+            options: undefined,
+            size: null,
             ...TransformState.DefaultTransformState.getDefaultConfig(),
         }, {
             position: (value: RawPosition | IPosition | undefined) => {
@@ -203,6 +243,9 @@ export class Image<
     static DefaultImageConfig = new ConfigConstructor<ImageConfig, EmptyObject>({
         wearables: [],
         isWearable: false,
+        backend: null,
+        options: undefined,
+        size: null,
         name: "(anonymous)",
         autoInit: true,
         src: null,

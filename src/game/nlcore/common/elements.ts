@@ -65,6 +65,14 @@ export type {
     PuppetState,
     PuppetStatus,
 } from "@core/game/puppet/puppetBackend";
+export type {
+    ImageBackend,
+    ImageBackendContent,
+    ImageBackendInstance,
+    ImageBackendMountContext,
+    ImageBackendSize,
+    ImageBackendStatus,
+} from "@core/game/image/imageBackend";
 
 export type {
     LayeredDefinition,
