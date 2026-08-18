@@ -98,32 +98,31 @@ export function segmentVerticalText(text: string, maxLength: number): VerticalTe
 }
 
 /**
- * How a word's own box breaks.
+ * How a word's own box breaks. The two writing modes want the same thing, which is why this takes
+ * no argument: a column of Japanese breaks by the same rules a line of it does.
  *
- * Both writing modes keep `word-break: normal`. It already breaks between CJK characters, which is
- * the only thing `break-all` was ever here for, and it does not take a Latin word apart to do it.
- * `break-all` means what it says: it cut "NarraLeaf" and "English" wherever the line ran out.
+ * `word-break: normal` already breaks between CJK characters, which is the only thing `break-all`
+ * was ever here for, and it does not take a Latin word apart to do it. `break-all` means what it
+ * says: it cut "NarraLeaf" and "English" wherever the line ran out.
  *
- * Horizontal text also asks for `line-break: strict`. The prohibitions everyone knows - no line
- * beginning with 、 。 」 ？ ！, none ending with 「 （ - are applied by the browser whatever
- * `word-break` says, and were never the thing at fault here. `strict` adds the rest of the set a
- * printed book is set to, holding back the small kana and the prolonged sound mark as well: over
- * 301 container widths, っ ゃ ー began a line in 18, 13 and 12 of them under the default and in
- * none of them under `strict`.
+ * `line-break: strict` asks for the rest of the kinsoku set. The prohibitions everyone knows - no
+ * line beginning with 、 。 」 ？ ！, none ending with 「 （ - are applied by the browser whatever
+ * `word-break` says, and were never the thing at fault. `strict` adds what a printed book is set
+ * to, holding back the small kana and the prolonged sound mark: over 301 container sizes, っ opened
+ * a line in 20 of them set horizontally and a column in 18 set vertically, and none at all under
+ * `strict`. It leaves the tate-chu-yoko runs below alone - a combined `12` measures the same
+ * either way.
  *
  * Worth knowing before deleting it: `strict` does nothing unless the document declares a language.
  * Any `lang` will do - `en` is enough, and the shipped shell has one - but with no `lang` above the
  * text the strict rules are not applied and this reads as dead weight.
  *
- * Vertical text is left at the default `line-break`, which is what the tate-chu-yoko runs below are
- * laid out against. `overflow-wrap: break-word` is the last resort in both modes, for a run that
- * fits nowhere - a URL, a long unspaced word in a narrow box - and it applies only after the line
- * has been given its chance to break somewhere legal.
+ * `overflow-wrap: break-word` is the last resort, for a run that fits nowhere - a URL, a long
+ * unspaced word in a narrow box - and it applies only after the line has been given its chance to
+ * break somewhere legal.
  */
-export function wordBreakStyleFor(vertical: boolean): React.CSSProperties {
-    return vertical
-        ? { wordBreak: "normal", overflowWrap: "break-word" }
-        : { wordBreak: "normal", lineBreak: "strict", overflowWrap: "break-word" };
+export function wordBreakStyleFor(): React.CSSProperties {
+    return { wordBreak: "normal", lineBreak: "strict", overflowWrap: "break-word" };
 }
 
 /**

@@ -27,18 +27,17 @@ describe("vertical writing mode", () => {
     });
 
     /**
-     * The reason this file exists. Neither mode may use `break-all`, which cuts an English word in
-     * half wherever the line runs out. Horizontal text asks for the strict kinsoku set on top -
-     * the one that holds back the small kana - while vertical text takes the default, which is what
-     * the tate-chu-yoko runs below are laid out against.
+     * The reason this file exists. `break-all` may not come back: it cuts an English word in half
+     * wherever the line runs out. `strict` is the kinsoku set a printed book is typeset to, and
+     * both writing modes are set to it - a column breaks by the same rules a line does - which is
+     * why nothing here is asked which mode it is.
      */
     it("leaves a word whole and lets the browser break the line legally", () => {
-        expect(wordBreakStyleFor(false)).toEqual({
+        expect(wordBreakStyleFor()).toEqual({
             wordBreak: "normal",
             lineBreak: "strict",
             overflowWrap: "break-word",
         });
-        expect(wordBreakStyleFor(true)).toEqual({ wordBreak: "normal", overflowWrap: "break-word" });
     });
 });
 

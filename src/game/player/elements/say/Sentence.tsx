@@ -726,7 +726,7 @@ function BaseText(
                 onClick={interactive ? (event: React.MouseEvent) => event.stopPropagation() : undefined}
                 style={{
                     ...wordStyle,
-                    ...wordBreakStyleFor(vertical),
+                    ...wordBreakStyleFor(),
                     ...onlyIf<React.CSSProperties>(game.config.app.debug, {
                         outline: "1px dashed red",
                     }),
@@ -936,7 +936,7 @@ export function TextsPreview({
                 key={index}
                 style={{
                     ...wordStyle,
-                    ...wordBreakStyleFor(vertical),
+                    ...wordBreakStyleFor(),
                 }}
                 className={clsx(
                     "inline-block",
