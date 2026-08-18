@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.29.1]
+
+### _Fix_
+
+- **Resetting the camera no longer walks the picture through colours nobody asked for.**
+  `Camera.resetCamera` returned the pose and cleared the filter in one transform, so the filter was
+  eased along with the pan and the zoom. That is fine for a `brightness()` from `darken`, and wrong
+  for anything carrying a `hue-rotate`: easing
+  `grayscale(1) sepia(1) hue-rotate(185deg) saturate(4) brightness(0.55)` toward `"none"` unwinds the
+  angle through 185 degrees of the colour wheel while `grayscale` simultaneously lets the source's
+  own hues back in, so the midpoint is not a paler grade but a different colour outright. Measured
+  frame by frame coming out of a moonlit grade, the stage went blue, then cyan, then green, then
+  olive before arriving — with skin tones green for most of it.
+
+  The reset now runs as two sequences: the filter is dropped in a zero-duration step, then the pose
+  eases over the duration given. Only the filter is lifted out — position, zoom, scale, rotation and
+  opacity all interpolate perfectly well and still move the way they did.
+
+  ```ts
+  scene.action([
+      story.camera.filter("grayscale(1) sepia(1) hue-rotate(185deg) saturate(4) brightness(0.55)"),
+      jS`Everything looked like it did that night.`,
+      story.camera.resetCamera(600),  // the grade goes at once; the framing still glides back
+  ]);
+  ```
+
+  Worth knowing while authoring: this is a property of CSS filters, not of the camera. A filter
+  interpolates cleanly only between two chains built from the same functions, so any *change* of
+  grade — one `hue-rotate` look swapped for another over a duration — has the same problem, and a
+  grade is best applied as a cut rather than a fade.
+
 ## [0.29.0]
 
 ### _Fix_
@@ -30,6 +61,7 @@
   Lines wrap in different places than they did. No story needs editing for this, but a Latin word
   that used to be split now moves to the next line whole, so a box measured against the old wrapping
   can come out one line taller.
+
 
 ## [0.28.0]
 
