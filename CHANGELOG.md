@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.31.4]
+
+### _Fixed_
+
+- **A `Vfx`'s `blendMode` never reached the stage.** `new Vfx({src, blendMode: "screen"})` composited
+  as `normal`, so an overlay rendered as light on black — sparks, dust, rain, snow — covered the
+  scene with an opaque black rectangle instead of adding its light to it. The mode was declared on
+  the `<video>`, which sits inside a wrapper carrying the overlay's `zIndex`; a positioned element
+  with a numeric z-index is a stacking context, so the blend had that wrapper's own empty backdrop
+  to work against and never saw the scene beneath. The mode is now declared on the wrapper itself,
+  which blends against what is painted below it inside the player's isolated stage context.
+
+  Nothing about the authoring API changes. `blendMode` accepts the same values and `normal` — the
+  default — behaves exactly as before; what changes is that every other value now does what it says.
+
 ## [0.31.3]
 
 ### _Change_

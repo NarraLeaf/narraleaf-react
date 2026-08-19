@@ -309,7 +309,9 @@ export default function Vfx(
                 width: "100%",
                 height: "100%",
                 objectFit: vfx.config.fit,
-                mixBlendMode: vfx.config.blendMode,
+                // `mixBlendMode` is deliberately NOT declared here: this element sits inside the
+                // wrapper's stacking context, so a blend mode set on it would have nothing but that
+                // wrapper's empty backdrop to blend with. The wrapper carries it instead.
                 pointerEvents: "none",
                 // opacity/transition are deliberately NOT declared here: the fade engine
                 // drives them imperatively, and a React-managed style prop would clobber

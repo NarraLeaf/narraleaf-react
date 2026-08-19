@@ -441,7 +441,16 @@ export default function Player(
                                             className={"w-full h-full absolute"}
                                             key={"vfx-" + vfx.getId()}
                                             data-element-type={"vfx"}
-                                            style={{zIndex: vfx.config.zIndex}}
+                                            // The blend belongs HERE and not on the <video> inside. A
+                                            // positioned element with a numeric z-index is a stacking
+                                            // context, so a `mix-blend-mode` applied within this div
+                                            // blends against this div's own (empty) backdrop and never
+                                            // reaches the stage — `screen` then renders as `normal`,
+                                            // which for a glow-on-black clip is an opaque black
+                                            // rectangle over the whole scene. Applied to the wrapper,
+                                            // the group blends against what is painted beneath it
+                                            // inside the stage's isolated context, which is the scene.
+                                            style={{zIndex: vfx.config.zIndex, mixBlendMode: vfx.config.blendMode}}
                                         >
                                             <Vfx gameState={state} vfx={vfx} />
                                         </div>
