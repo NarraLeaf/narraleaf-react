@@ -8,15 +8,17 @@ import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {CommonPosition, CommonPositionType} from "@core/elements/transform/position";
 import {Chained, Proxied} from "../action/chain";
 import {RuntimeGameError} from "@core/common/Utils";
+import {CameraLensDefaults} from "@core/elements/cameraLens";
 
 /**
  * The public constructor config for a {@link Camera}.
  *
  * A camera is transformed exactly like any other displayable, so its initial pose is described
  * with the same {@link TransformDefinitions.ImageTransformProps} fields (position, zoom, scale,
- * rotation, opacity, filter, ...).
+ * rotation, opacity, filter, ...), plus the lens channels
+ * ({@link TransformDefinitions.CameraLensProps}) only a camera has.
  */
-export type ICameraUserConfig = TransformDefinitions.ImageTransformProps;
+export type ICameraUserConfig = TransformDefinitions.CameraTransformProps;
 
 /**@internal */
 type CameraConfig = {
@@ -48,7 +50,7 @@ export type CameraDataRaw = {
  * ```
  */
 export class Camera
-    extends Displayable<CameraDataRaw, Camera, TransformDefinitions.ImageTransformProps>
+    extends Displayable<CameraDataRaw, Camera, TransformDefinitions.CameraTransformProps>
     implements EventfulDisplayable {
 
     /**@internal */
@@ -62,6 +64,15 @@ export class Camera
      * and the throw names neither module. Reading the defaults on demand settles it rather than
      * depending on where in the cycle this module lands.
      *
+     * This is also the camera's *transform state* default table, not merely its constructor
+     * defaults, and the two roles are the same table on purpose. `ConfigConstructor` copies only the
+     * keys its own defaults declare, so a prop missing from whichever table
+     * {@link Camera.getInitialTransformState} reads is dropped on the floor at construction with no
+     * error anywhere — which is exactly what would happen to the lens channels if this deferred to
+     * the shared `TransformState.DefaultTransformState`. Adding them *there* is the other wrong
+     * answer: that table is every image's, text's, layer's and puppet's too, and none of them has a
+     * lens.
+     *
      * @internal
      * {@link ICameraUserConfig}
      */
@@ -71,6 +82,7 @@ export class Camera
             // The camera wraps the whole stage; a default opacity of 0 (inherited from the transform
             // defaults) would hide everything, so it must start fully opaque like a Layer does.
             opacity: 1,
+            ...CameraLensDefaults,
         }));
     }
 
@@ -85,7 +97,7 @@ export class Camera
     /**@internal */
     public config: CameraConfig;
     /**@internal */
-    public transformState: TransformState<TransformDefinitions.ImageTransformProps>;
+    public transformState: TransformState<TransformDefinitions.CameraTransformProps>;
     /**@internal */
     private userConfig: Config<ICameraUserConfig>;
 
@@ -143,8 +155,87 @@ export class Camera
     }
 
     /**
-     * Return the camera to its neutral pose: centred, zoom `1`, no rotation, fully opaque and no
-     * filter (which also clears {@link Camera.darken}).
+     * Close or open the shutter: two blades that meet in the middle of the frame.
+     *
+     * `1` is fully shut and `0` fully open, and everything between is a partial cover — which makes
+     * a small standing value a letterbox rather than a blink, `0.12` being about a cinematic matte.
+     * A blink is this driven to `1` and back; the timing of one is the story's to choose, so the
+     * engine offers the channel rather than a named routine.
+     *
+     * @param shutter - Coverage between `0` (open) and `1` (shut). Out-of-range values are clamped.
+     * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     story.camera.shutter(1, 180, "easeInOut"),
+     *     story.camera.shutter(0, 220, "easeInOut"),
+     * ]);
+     * ```
+     */
+    public shutter(
+        shutter: number,
+        duration?: number,
+        easing?: TransformDefinitions.EasingDefinition
+    ): Proxied<Camera, Chained<LogicAction.Actions, Camera>> {
+        return this.lens({shutter: Camera.clampLens(shutter)}, {duration, ease: easing});
+    }
+
+    /**
+     * Darken the corners of the frame.
+     *
+     * Unlike {@link Camera.darken}, which is a filter over the picture, this is a plate over the
+     * *view*: it does not move with the camera, so a vignette holds still while the stage
+     * underneath it zooms, pans and rotates. Adjust its falloff with {@link Camera.lens}.
+     *
+     * @param vignette - Strength between `0` (none) and `1`. Out-of-range values are clamped.
+     * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     story.camera.vignette(0.72, 300, "easeInOut"),
+     *     jS`Everything narrowed to the middle of the room.`,
+     *     story.camera.vignette(0, 300, "easeInOut"),
+     * ]);
+     * ```
+     */
+    public vignette(
+        vignette: number,
+        duration?: number,
+        easing?: TransformDefinitions.EasingDefinition
+    ): Proxied<Camera, Chained<LogicAction.Actions, Camera>> {
+        return this.lens({vignette: Camera.clampLens(vignette)}, {duration, ease: easing});
+    }
+
+    /**
+     * Set any of the lens channels at once — the two strengths and the colour and falloff geometry
+     * they are drawn with.
+     *
+     * The geometry fields take effect the next time the strength they belong to is above `0`, so
+     * they are usually set as a cut before the effect is faded in.
+     *
+     * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     story.camera.lens({vignetteColor: "#1a0b2e", vignetteInner: "20%", vignetteOuter: "95%"}),
+     *     story.camera.vignette(0.9, 400),
+     * ]);
+     * ```
+     */
+    public lens(
+        lens: TransformDefinitions.CameraLensProps,
+        options?: TransformDefinitions.VisualEffectOptions
+    ): Proxied<Camera, Chained<LogicAction.Actions, Camera>> {
+        return this.transform(new Transform<TransformDefinitions.CameraTransformProps>(
+            lens,
+            options
+        ));
+    }
+
+    /**
+     * Return the camera to its neutral pose: centred, zoom `1`, no rotation, fully opaque, no
+     * filter (which also clears {@link Camera.darken}) and no lens effect — the shutter opens and
+     * the vignette lifts.
      *
      * Named `resetCamera` rather than `reset` because every element already owns an internal
      * `reset()` lifecycle hook — the one the engine calls when a new game starts — and an authoring
@@ -173,7 +264,12 @@ export class Camera
         // olive, on the way out of a moonlight grade. Every other prop here interpolates
         // perfectly well, which is why only the filter is lifted out instead of the whole
         // reset being made instant.
-        return this.transform(new Transform<TransformDefinitions.ImageTransformProps>([
+        //
+        // The lens geometry is restored in a third step, after the fade rather than with the
+        // filter, for the same class of reason: snapping the falloff radius while the vignette is
+        // still visible is a visible jump, whereas once the strength has reached 0 the geometry is
+        // inert and can be cut back to neutral without showing.
+        return this.transform(new Transform<TransformDefinitions.CameraTransformProps>([
             {
                 props: {filter: "none"},
                 options: {duration: 0},
@@ -186,10 +282,35 @@ export class Camera
                     zoom: 1,
                     rotation: 0,
                     opacity: 1,
+                    // Eased, not cut: this is the only way out of a closed shutter an author has,
+                    // and a cut would open the eyes with a snap.
+                    shutter: CameraLensDefaults.shutter,
+                    vignette: CameraLensDefaults.vignette,
                 },
                 options: {duration, ease: easing},
             },
+            {
+                props: {
+                    shutterColor: CameraLensDefaults.shutterColor,
+                    vignetteColor: CameraLensDefaults.vignetteColor,
+                    vignetteInner: CameraLensDefaults.vignetteInner,
+                    vignetteOuter: CameraLensDefaults.vignetteOuter,
+                },
+                options: {duration: 0},
+            },
         ]));
+    }
+
+    /**
+     * Lens strengths are read straight into a CSS `inset()` and an opacity, so they are clamped at
+     * the authoring end rather than trusted.
+     * @internal
+     */
+    private static clampLens(value: number): number {
+        if (!Number.isFinite(value)) {
+            return 0;
+        }
+        return Math.max(0, Math.min(1, value));
     }
 
     /**
@@ -237,7 +358,7 @@ export class Camera
     /**@internal */
     public fromData(data: CameraDataRaw): this {
         this.transformState =
-            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState);
+            TransformState.deserialize<TransformDefinitions.CameraTransformProps>(data.transformState);
         return this;
     }
 
@@ -247,8 +368,11 @@ export class Camera
     }
 
     /**@internal */
-    private getInitialTransformState(): TransformState<TransformDefinitions.ImageTransformProps> {
-        const [transformState] = this.userConfig.extract(TransformState.DefaultTransformState.keys());
-        return new TransformState(TransformState.DefaultTransformState.create(transformState.get()).get());
+    private getInitialTransformState(): TransformState<TransformDefinitions.CameraTransformProps> {
+        // Both the key list and the merge come from the camera's own table. Reading them from the
+        // shared image defaults instead is how a new camera-only prop gets silently dropped here.
+        const [transformState] =
+            this.userConfig.extract(Camera.DefaultUserConfig.keys() as Extract<keyof ICameraUserConfig, string>[]);
+        return new TransformState(Camera.DefaultUserConfig.create(transformState.get()).get());
     }
 }

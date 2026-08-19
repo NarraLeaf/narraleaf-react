@@ -48,6 +48,32 @@ export type OverwriteDefinition = {
 };
 type OverwriteHandler<T> = (value: Partial<TransformDefinitions.Types>) => T;
 
+/**
+ * An element that is animated *alongside* the transform's own element, from the same transform
+ * state, in the same `motion` sequence.
+ *
+ * The transform pipeline drives exactly one element, and its style is built by
+ * {@link Transform.constructStyle} — a literal, so a prop it does not know about goes nowhere. A
+ * companion is the escape hatch for props whose picture belongs to a *different* element than the
+ * one being transformed: the camera's lens overlay, which must not inherit the camera's transform,
+ * is the case this exists for.
+ *
+ * `project` turns the accumulated state of a segment into that element's style for that segment.
+ */
+export type TransformCompanion = {
+    el: Element;
+    project: (props: Partial<TransformDefinitions.Types>) => CSSProps;
+};
+
+/**
+ * The same thing before the elements are known — what a React host holds, resolved to
+ * {@link TransformCompanion} at the moment the animation is built.
+ */
+export type TransformCompanionRef = {
+    ref: React.RefObject<HTMLElement | null>;
+    project: (props: Partial<TransformDefinitions.Types>) => CSSProps;
+};
+
 /**@internal */
 export class TransformState<T extends TransformDefinitions.Types> {
     static DefaultTransformState = new ConfigConstructor<TransformDefinitions.ImageTransformProps>({
@@ -435,10 +461,12 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             gameState,
             ref,
             overwrites,
+            companionRefs,
         }: {
             gameState: GameState,
             ref: React.RefObject<HTMLDivElement | null>,
             overwrites?: OverwriteDefinition,
+            companionRefs?: TransformCompanionRef[],
         },
     ): Awaitable<void> {
         if (!ref.current) {
@@ -455,6 +483,13 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             transformState,
             overwrites,
             current: ref.current,
+            // A companion whose element is not mounted is dropped rather than being an error: the
+            // host may legitimately render fewer overlays than it declares, and the settled style
+            // written on mount covers that element either way.
+            companions: companionRefs
+                ?.filter((companion): companion is TransformCompanionRef & { ref: { current: HTMLElement } } =>
+                    !!companion.ref.current)
+                .map(({ref: companionRef, project}) => ({el: companionRef.current, project})),
         });
         if (!sequences.length) {
             gameState.logger.warn("Transform", "No sequences to animate.");
@@ -549,11 +584,13 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             transformState,
             overwrites = {},
             current,
+            companions,
         }: {
             gameState: GameState;
             transformState: TransformState<any>;
             overwrites?: OverwriteDefinition;
             current: Element;
+            companions?: TransformCompanion[];
         }
     ): {
         finalState: TransformState<any>;
@@ -562,16 +599,41 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     } {
         const state = transformState.clone();
         const lock = state.lock();
-        const sequences = this.sequences.map(({ props, options }) => {
-            const segDefinition = state.assign(lock, props).toFramesDefinition(
+        const sequences = this.sequences.flatMap(({ props, options }) => {
+            const nextState = state.assign(lock, props);
+            const segDefinition = nextState.toFramesDefinition(
                 gameState,
                 overwrites
             );
-            return [
+            const segOptions = this.getOptions(options);
+            const segment = [
                 current,
                 segDefinition,
-                this.getOptions(options),
+                segOptions,
             ] satisfies DOMSegmentWithTransition;
+
+            if (!companions || !companions.length) {
+                // Nothing appended, so the array is exactly what `.map` used to produce. Every
+                // displayable other than the camera takes this path, and a test pins it.
+                return [segment];
+            }
+
+            // `at: "<"` starts a segment where the *previous* one started, so each companion
+            // segment lines up with the main segment it was derived from — for the whole sequence,
+            // not just the first step, because `motion` tracks the previous segment's start time as
+            // it walks the list. One `motion` sequence rather than one `animate()` per element is
+            // load-bearing: the sequence's playback control settles every element it contains, so
+            // an interrupted or skipped transform lands the overlay on the same frame as the
+            // camera instead of leaving it mid-close.
+            const projectedState = nextState.get();
+            return [
+                segment,
+                ...companions.map(({el, project}) => [
+                    el,
+                    onlyValidFields(project(projectedState)) as DOMKeyframesDefinition,
+                    {...segOptions, at: "<"},
+                ] satisfies DOMSegmentWithTransition),
+            ];
         }) satisfies DOMSegmentWithTransition[];
         return {
             finalState: state.unlock(lock).freeze(),
@@ -736,6 +798,28 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             this.pushChange({
                 key: key as StringKeyOf<TransformDefinitions.Types>,
                 props: effect[key] as any,
+            });
+        }
+        return this;
+    }
+
+    /**
+     * Set camera lens fields in the current staging sequence.
+     *
+     * Only a {@link Camera} draws these; on any other displayable they are carried in the state and
+     * never painted.
+     * @example
+     * ```ts
+     * Transform.create<TransformDefinitions.CameraTransformProps>()
+     *     .lens({shutter: 1}).commit({duration: 180, ease: "easeInOut"})
+     *     .lens({shutter: 0}).commit({duration: 220, ease: "easeInOut"});
+     * ```
+     */
+    public lens(lens: TransformDefinitions.CameraLensProps): this {
+        for (const key of Object.keys(lens) as (keyof TransformDefinitions.CameraLensProps)[]) {
+            this.pushChange({
+                key: key as StringKeyOf<TransformDefinitions.Types>,
+                props: lens[key] as any,
             });
         }
         return this;

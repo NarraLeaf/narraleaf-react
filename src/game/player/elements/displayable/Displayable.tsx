@@ -1,5 +1,10 @@
 import React, {useEffect, useLayoutEffect, useRef, useState} from "react";
-import {OverwriteDefinition, Transform, TransformState} from "@core/elements/transform/transform";
+import {
+    OverwriteDefinition,
+    Transform,
+    TransformCompanionRef,
+    TransformState
+} from "@core/elements/transform/transform";
 import {
     AnimationController,
     AnimationDataTypeArray,
@@ -32,6 +37,12 @@ export type DisplayableHookConfig<TransitionType extends Transition<U>, U extend
     transformStyle?: React.CSSProperties;
     transitionsProps?: ElementProp<U>[] | ((task: TransitionTaskWithController<TransitionType, U> | null) => (ElementProp<U>[]));
     propOverwrite?: (props: ElementProp<U>) => ElementProp<U>;
+    /**
+     * Elements outside this displayable's own wrapper that are nonetheless driven by its transform
+     * state — see {@link TransformCompanionRef}. They are animated in the same `motion` sequence as
+     * the wrapper, and their settled style is written next to the wrapper's.
+     */
+    companionRefs?: TransformCompanionRef[];
 };
 
 /**@internal */
@@ -67,6 +78,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         onTransition,
         transitionsProps = [],
         propOverwrite,
+        companionRefs,
     }: DisplayableHookConfig<TransitionType, U>): DisplayableHookResult<TransitionType, U> {
     const [transitionTask, setTransitionTask] = useState<null | TransitionTaskWithController<TransitionType, U>>(null);
     const [transformToken, setTransformToken] = useState<null | Awaitable<void>>(null);
@@ -157,6 +169,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         const initialStyle = state.toStyle(gameState, overwriteDefinition);
 
         Object.assign(ref.current!.style, initialStyle);
+        applyCompanionStyles();
         gameState.logger.debug("Displayable", "Initial style applied", ref.current, initialStyle);
     }, []);
 
@@ -172,6 +185,10 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             return;
         }
         Object.assign(ref.current.style, state.toStyle(gameState, overwriteDefinition));
+        // Companions are driven only while an animation is running, so without this they would be
+        // correct for the length of a transform and wrong for the rest of the scene — the settled
+        // pose has to be re-derived for them exactly as it is for the wrapper.
+        applyCompanionStyles();
         // The groups' props are derived from state that outlives a single render — a text's font
         // size and, notably, the stage scale every text is sized by — but they only reach the DOM
         // when this hook writes them, so a settled element whose inputs changed keeps painting the
@@ -194,6 +211,23 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             requestAnimationFrame(() => healSettledStyleRef.current());
         });
     }, [ratio]);
+
+    /**
+     * Write each companion's settled style from the current transform state.
+     *
+     * Called from the mount effect and from the settled-style heal, which together cover every
+     * moment no animation owns the element — the two places the wrapper's own style is written.
+     */
+    function applyCompanionStyles() {
+        if (!companionRefs) {
+            return;
+        }
+        for (const {ref: companionRef, project} of companionRefs) {
+            if (companionRef.current) {
+                Object.assign(companionRef.current.style, project(state.get()));
+            }
+        }
+    }
 
     function updateStyleSync() {
         const evaluatedTransProps = typeof transitionsProps === "function"
@@ -242,6 +276,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
                 gameState,
                 ref,
                 overwrites: overwriteDefinition,
+                companionRefs,
             }
         );
         const timeline = new Timeline(awaitable);

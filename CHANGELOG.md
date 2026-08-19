@@ -1,5 +1,92 @@
 # Changelog
 
+## [0.31.0]
+
+### _Add_
+
+- **The camera has a lens: `shutter` and `vignette`.** Two continuous channels on `Camera`,
+  animated like a pan or a zoom and combinable with them.
+
+  ```ts
+  scene.action([
+      story.camera.shutter(1, 180, "easeInOut"),   // eyes close
+      story.camera.shutter(0, 220, "easeInOut"),   // and open — that is a blink
+      story.camera.vignette(0.72, 300),            // the corners darken
+      jS`Everything narrowed to the middle of the room.`,
+      story.camera.vignette(0, 300),
+  ]);
+  ```
+
+  `shutter` is coverage, `0` open and `1` shut: two blades close symmetrically from the top and
+  bottom of the frame and meet in the middle. Because it is a value rather than a routine, it holds
+  — `story.camera.shutter(0.12)` is a cinematic matte for as long as you leave it, and a blink is
+  just the value driven up and back at whatever pace the moment wants.
+
+  `vignette` is strength, `0` to `1`, faded in and out the same way.
+
+  **Why these belong to the camera and not to the scene.** They are things a lens does, not things
+  in the scene, so they are drawn by an overlay pinned to the viewport, *outside* the camera's
+  transform. A vignette therefore holds still while the stage zooms, pans and rotates underneath
+  it. This is also the fix for a real defect: the previous screen-effect helpers drew into a
+  scene-level layer, which sat inside the camera transform, so a vignette scaled and rotated with
+  the camera — reading as a dark shape stuck to the picture rather than as the edge of the view.
+  Their depth is unchanged: the lens covers the scenes, stage transitions, videos and vfx, and
+  still sits below the dialog box, menus and the NVL layer.
+
+  Being state rather than a routine is the other half of it. The channels are saved and restored
+  with the rest of the camera pose, they combine with `zoom`/`pan`/`darken` in one transform, they
+  settle correctly when the player skips, and `resetCamera` clears them.
+
+- **`Camera.lens()` — the colour and falloff the two channels are drawn with.**
+
+  ```ts
+  scene.action([
+      story.camera.lens({vignetteColor: "#1a0b2e", vignetteInner: "20%", vignetteOuter: "95%"}),
+      story.camera.vignette(0.9, 400),
+  ]);
+  ```
+
+  `vignetteInner` is where the darkening begins and `vignetteOuter` where it reaches full strength,
+  both as CSS lengths or percentages of the frame; `shutterColor` and `vignetteColor` are the
+  plates' colours. The defaults — `44%`, `78%`, and black — are the values the old helpers used, so
+  turning a channel up without touching these gives the picture they gave.
+
+  These take effect the next time the strength they belong to is above `0`, so set them as a cut
+  before fading the effect in rather than during it.
+
+  The same fields are available on a `Transform` via `Transform.lens()`, and to `new Camera({...})`
+  as an initial pose, both typed as `TransformDefinitions.CameraLensProps`. A camera's transform
+  props are now `TransformDefinitions.CameraTransformProps` — everything an image accepts, plus
+  these.
+
+### _Change_
+
+- **`Camera.resetCamera()` now opens the shutter and lifts the vignette too.** It already returned
+  the pose and dropped the filter; it now neutralises the lens as well, which matters because a
+  closed shutter is otherwise only openable by the line that closed it. The strengths ease back
+  over the duration given, along with the pose. The colour and falloff are cut back to their
+  defaults in a final zero-duration step — after the fade rather than with it, because snapping the
+  falloff radius while the vignette is still visible would show as a jump, whereas once the
+  strength has reached `0` the geometry is inert.
+
+  ```ts
+  scene.action([
+      story.camera.shutter(1, 180),
+      story.camera.resetCamera(600),  // the eyes open again
+  ]);
+  ```
+
+- **Old saves load unchanged.** A camera state written before this release carries no lens keys;
+  they read as neutral, and nothing about the saved format changed.
+
+### _Deprecated_
+
+- **The `narraleaf-react/built-in` screen effects `blink` and `vignette` are superseded.** They
+  still work and are still exported. They were assembled out of public API — a scene-level layer
+  holding full-screen plates — and carry the two problems that entails: they are tied to a scene
+  while the camera is tied to the story, and they render inside the camera transform, so a vignette
+  scales and rotates with it. Prefer `story.camera.shutter()` and `story.camera.vignette()`.
+
 ## [0.30.0]
 
 ### _Add_

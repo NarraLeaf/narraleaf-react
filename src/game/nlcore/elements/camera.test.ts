@@ -60,7 +60,9 @@ describe("Camera", () => {
     // dropped in its own zero-duration step and only the pose is allowed to interpolate.
     it("resetCamera drops the filter instantly, then eases the pose", () => {
         const sequences = transformSequences(new Camera({ zoom: 3 }).resetCamera(600));
-        expect(sequences).toHaveLength(2);
+        // A third step follows, cutting the lens geometry back to neutral once the effect it
+        // belongs to has faded out — see cameraLens.test.ts.
+        expect(sequences).toHaveLength(3);
 
         expect(sequences[0].props.filter).toBe("none");
         expect(sequences[0].options?.duration).toBe(0);
