@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.30.0]
+
+### _Add_
+
+- **`Displayable.bringToFront()` — raise one sprite over the others sharing its layer.** Three
+  characters on stage, and the one talking is the one behind: until now there was nothing to call.
+  Depth between layers has always been `Layer`'s z-index, but *within* a layer the order was fixed
+  at the moment each element was added and never moved again, so the only way to change it was to
+  hide the element and show it again — which loses its transform, restarts whatever transition it
+  was shown with, and reads as a flicker.
+
+  ```ts
+  scene.action([
+      yukoSprite.bringToFront(),
+      yuko.say`It was me, all along.`,
+  ]);
+  ```
+
+  It is available on every `Displayable` — `Image`, `Text` and `Puppet` — and it is a chainable
+  action like any other, so it takes its turn in a `scene.action` list and steps back with the rest
+  of the line on undo. Nothing about the element itself changes: same layer, same transform, same
+  src. The move is instant and has no options; there is no animation of depth to tween.
+
+  Two things worth knowing before reaching for it:
+
+  - It cannot lift an element above one on a *higher layer*. Layers are composited by z-index and
+    that comparison happens first, so an element on the background layer brought to the front of it
+    is still behind everything on the layer above. Use `Layer.setZIndex` for that.
+  - The order it leaves behind is part of the saved game. A save taken afterwards restores the same
+    front-to-back order, which is also why this needed no new save field and why old saves load
+    unchanged.
+
+  There is no `sendToBack`. Repeatedly fronting the elements you want in front, in order, arranges a
+  whole group and is the only ordering primitive at present.
+
+- **`Layer.bringToFront()` throws instead of quietly doing nothing.** A `Layer` is a `Displayable`,
+  so it inherits the method, and the inherited behaviour would be a no-op: a layer is not an entry
+  in any layer's list — it *is* one of the lists. Calling it raises a `RuntimeGameError` naming
+  `Layer.setZIndex`, which is the knob that actually orders layers. The throw happens while the
+  story is being built, not mid-playback, so a script that confuses the two models fails at once
+  rather than playing as though the line were not there.
+
+  ```ts
+  layer.setZIndex(10);      // this is how a layer moves forward
+  layer.bringToFront();     // RuntimeGameError
+  ```
+
 ## [0.29.1]
 
 ### _Fix_

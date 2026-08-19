@@ -23,12 +23,14 @@ export const DisplayableActionTypes = {
     applyTransform: "displayable:applyTransform",
     applyTransition: "displayable:applyTransition",
     init: "displayable:init",
+    bringToFront: "displayable:bringToFront",
 } as const;
 export type DisplayableActionContentType<TransitionType extends Transition = Transition> = {
     [K in typeof DisplayableActionTypes[keyof typeof DisplayableActionTypes]]:
     K extends "displayable:applyTransform" ? [Transform] :
     K extends "displayable:applyTransition" ? [TransitionType, ((transition: TransitionType) => TransitionType)?] :
     K extends "displayable:init" ? [scene: Scene | null, layer: Layer | null, isElement?: boolean] :
+    K extends "displayable:bringToFront" ? [] :
     any;
 }
 /* Character */

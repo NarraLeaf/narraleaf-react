@@ -471,6 +471,38 @@ export abstract class Displayable<
         return chain.chain(action);
     }
 
+    /**
+     * Bring the Displayable to the front of the layer it is on.
+     *
+     * Within one layer the order elements are shown in is the order they were added in, so the one
+     * added last is drawn over the others. This moves the element to the end of that order, and
+     * nothing else about it changes — it stays on the same layer, keeps its transform, and the move
+     * is instant.
+     *
+     * Depth *between* layers is a separate thing, decided by each layer's z-index; this cannot lift
+     * an element above one that sits on a higher layer.
+     *
+     * The new order is part of the saved game, so a save taken afterwards restores it.
+     *
+     * @chainable
+     * @example
+     * ```ts
+     * scene.action([
+     *     yukoSprite.bringToFront(),
+     *     yuko.say`It was me, all along.`,
+     * ]);
+     * ```
+     */
+    public bringToFront(): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        const chain: Proxied<Self, Chained<LogicAction.Actions, Self>> = this.chain();
+        const action = new DisplayableAction<typeof DisplayableActionTypes.bringToFront, Self>(
+            chain,
+            DisplayableActionTypes.bringToFront,
+            new ContentNode<DisplayableActionContentType["displayable:bringToFront"]>().setContent([])
+        );
+        return chain.chain(action);
+    }
+
     private registerEffectSrc(effect: TransformDefinitions.VisualEffectTransformProps): void {
         const maskImage = effect.maskImage;
 
