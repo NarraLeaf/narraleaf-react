@@ -18,6 +18,7 @@ import {Image} from "@core/elements/displayable/image";
 import {Text} from "@core/elements/displayable/text";
 import {Scene} from "@core/elements/scene";
 import { Serializer } from "@lib/util/data";
+import { RuntimeGameError } from "@core/common/Utils";
 import { Chained, Proxied } from "../action/chain";
 
 export interface ILayerUserConfig extends TransformDefinitions.ImageTransformProps {
@@ -148,6 +149,22 @@ export class Layer
             LayerActionTypes.setZIndex,
             new ContentNode<LayerActionContentType["layer:setZIndex"]>().setContent([zIndex])
         ));
+    }
+
+    /**
+     * Not available on a layer: depth between layers is the z-index.
+     *
+     * `bringToFront` moves an element to the end of the list its layer draws, and a layer is not
+     * in any such list — it *is* one. Accepting the call would mean accepting a story that reads as
+     * if it raised the layer and plays as if the line were not there, which is the failure the
+     * throw exists to prevent. Use {@link Layer.setZIndex} instead.
+     *
+     * @throws RuntimeGameError - always
+     */
+    public override bringToFront(): never {
+        throw new RuntimeGameError(
+            `A layer cannot be brought to front. Layers are ordered by z-index, not by the order they were added in — use Layer.setZIndex to raise one. (layer: ${this.config.name})`
+        );
     }
 
     /**

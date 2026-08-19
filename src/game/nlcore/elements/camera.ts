@@ -7,6 +7,7 @@ import {Displayable} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {CommonPosition, CommonPositionType} from "@core/elements/transform/position";
 import {Chained, Proxied} from "../action/chain";
+import {RuntimeGameError} from "@core/common/Utils";
 
 /**
  * The public constructor config for a {@link Camera}.
@@ -189,6 +190,29 @@ export class Camera
                 options: {duration, ease: easing},
             },
         ]));
+    }
+
+    /**
+     * Not available on a camera: a camera has no front or back to be moved to.
+     *
+     * `bringToFront` reorders the list of elements a layer draws, and the camera is in no such list
+     * — it is the thing those lists are drawn *inside*. Every layer of every scene moves with it as
+     * one unit, which is the whole point of it, and there is therefore no sprite it could be put in
+     * front of. This is not a matter of the camera not being on stage yet, which is what the
+     * inherited error would have said: waiting changes nothing, because the camera never enters a
+     * layer at all.
+     *
+     * Reach for a transform instead — `zoom`, or {@link Camera.pan} — if the goal was to
+     * bring something into view.
+     *
+     * @throws RuntimeGameError - always
+     */
+    public override bringToFront(): never {
+        throw new RuntimeGameError(
+            "A camera cannot be brought to front. It is not an element inside a layer, it is what the layers are viewed through, "
+            + "so it has nothing to be in front of — waiting for it to be added to the stage will not help. "
+            + `Use a camera transform such as Camera.zoom or Camera.pan to change what is in view. (camera: ${this.config.name})`
+        );
     }
 
     /**

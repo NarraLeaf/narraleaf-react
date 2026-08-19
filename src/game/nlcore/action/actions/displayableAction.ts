@@ -12,6 +12,8 @@ import { Layer } from "@core/elements/layer";
 import { LogicAction } from "@core/action/logicAction";
 import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
 import { Story } from "@core/elements/story";
+import { RuntimeGameError } from "@core/common/Utils";
+import type { PlayerStateElement } from "@player/gameState";
 
 export class DisplayableAction<
     T extends Values<typeof DisplayableActionTypes> = Values<typeof DisplayableActionTypes>,
@@ -39,6 +41,8 @@ export class DisplayableAction<
             const element = this.callee;
 
             return this.initDisplayable(gameState, scene, element, layer || null, isElement, injection);
+        } else if (this.type === DisplayableActionTypes.bringToFront) {
+            return this.bringToFront(gameState, this.callee, injection);
         }
 
         throw this.unknownTypeError();
@@ -146,6 +150,75 @@ export class DisplayableAction<
         });
 
         return awaitable;
+    }
+
+    /**
+     * Move the element to the end of the array its layer draws from.
+     *
+     * A layer renders its elements in array order, so the last entry is the one drawn on top; there
+     * is no per-element depth number to set. Reordering the array rather than introducing one is
+     * what keeps this saveable for free — {@link GameState.toData} writes each layer out as a list
+     * of ids in exactly this order, and loading rebuilds the array from it.
+     *
+     * Nothing is tweened, so the returned awaitable is settled before it is handed back.
+     */
+    public bringToFront(state: GameState, element: Displayable<any, any>, injection: ActionExecutionInjection): Awaitable<CalledActionResult> {
+        const target = state.findElementByDisplayable(element);
+        const elements = target && DisplayableAction.getLayerElements(target, element);
+        if (!elements) {
+            throw new RuntimeGameError(
+                `Displayable not found when bringing it to front. The element may not be on stage yet. (element: ${element.getId()})`
+            );
+        }
+
+        const oldIndex = elements.indexOf(element);
+        if (oldIndex !== elements.length - 1) {
+            elements.splice(oldIndex, 1);
+            elements.push(element);
+            state.flush();
+        }
+
+        state.actionHistory.push<[number]>({
+            action: this,
+            stackModel: injection.stackModel,
+        }, (oldIndex) => {
+            // Resolved again rather than closed over: a save loaded in between replaces the layer
+            // arrays wholesale, and putting the element back into an orphaned one would move nothing.
+            const current = state.findElementByDisplayable(element);
+            const currentElements = current && DisplayableAction.getLayerElements(current, element);
+            if (!currentElements) {
+                return;
+            }
+
+            const currentIndex = currentElements.indexOf(element);
+            if (currentIndex === oldIndex) {
+                return;
+            }
+
+            currentElements.splice(currentIndex, 1);
+            currentElements.splice(oldIndex, 0, element);
+            state.flush();
+        }, [oldIndex]);
+
+        const awaitable = new Awaitable<CalledActionResult>();
+        awaitable.resolve(super.executeAction(state, injection) as CalledActionResult);
+
+        return awaitable;
+    }
+
+    /**
+     * The array of the scene's layer that currently holds this element, or null if none does.
+     */
+    private static getLayerElements(
+        target: PlayerStateElement,
+        element: LogicAction.DisplayableElements
+    ): LogicAction.DisplayableElements[] | null {
+        for (const elements of target.layers.values()) {
+            if (elements.includes(element)) {
+                return elements;
+            }
+        }
+        return null;
     }
 
     stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {

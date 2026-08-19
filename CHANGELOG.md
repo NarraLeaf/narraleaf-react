@@ -4,6 +4,56 @@
 
 ### _Add_
 
+- **`Displayable.bringToFront()` — raise one sprite over the others sharing its layer.** Three
+  characters on stage, and the one talking is the one behind: until now there was nothing to call.
+  Depth between layers has always been `Layer`'s z-index, but *within* a layer the order was fixed
+  at the moment each element was added and never moved again, so the only way to change it was to
+  hide the element and show it again — which loses its transform, restarts whatever transition it
+  was shown with, and reads as a flicker.
+
+  ```ts
+  scene.action([
+      yukoSprite.bringToFront(),
+      yuko.say`It was me, all along.`,
+  ]);
+  ```
+
+  It is available on every `Displayable` — `Image`, `Text` and `Puppet` — and it is a chainable
+  action like any other, so it takes its turn in a `scene.action` list and steps back with the rest
+  of the line on undo. Nothing about the element itself changes: same layer, same transform, same
+  src. The move is instant and has no options; there is no animation of depth to tween.
+
+  Two things worth knowing before reaching for it:
+
+  - It cannot lift an element above one on a *higher layer*. Layers are composited by z-index and
+    that comparison happens first, so an element on the background layer brought to the front of it
+    is still behind everything on the layer above. Use `Layer.setZIndex` for that.
+  - Two `Displayable` subclasses refuse it: `Layer` and `Camera`. Neither is an element inside a
+    layer, so neither has a front to be moved to — see below.
+  - The order it leaves behind is part of the saved game. A save taken afterwards restores the same
+    front-to-back order, which is also why this needed no new save field and why old saves load
+    unchanged.
+
+  There is no `sendToBack`. Repeatedly fronting the elements you want in front, in order, arranges a
+  whole group and is the only ordering primitive at present.
+
+- **`Layer.bringToFront()` and `Camera.bringToFront()` throw instead of quietly doing nothing.**
+  Both are `Displayable`s, so both inherit the method and both appear to offer it — and for both the
+  inherited behaviour would be a no-op. A layer is not an entry in any layer's list; it *is* one of
+  the lists. A camera is not in a list either; it is what the lists are viewed through, and every
+  layer of every scene moves with it as one unit, so there is nothing it could be in front of.
+
+  Each raises a `RuntimeGameError` naming what to reach for instead, and each does so while the
+  story is being built rather than mid-playback, so a script that confuses the two depth models
+  fails at once rather than playing as though the line were not there.
+
+  ```ts
+  layer.setZIndex(10);          // this is how a layer moves forward
+  layer.bringToFront();         // RuntimeGameError
+
+  story.camera.zoom(2, 800);    // this is how the camera changes what is in view
+  story.camera.bringToFront();  // RuntimeGameError
+  ```
 - **`RuleReveal` — transitions driven by a rule image.** A rule image is a greyscale picture that
   says *when* each point of the frame changes over: dark first, bright last. Paint a spiral and the
   scene wipes as a spiral; paint a brush stroke and it wipes as a brush stroke. This is the form
