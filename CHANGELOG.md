@@ -28,6 +28,8 @@
   - It cannot lift an element above one on a *higher layer*. Layers are composited by z-index and
     that comparison happens first, so an element on the background layer brought to the front of it
     is still behind everything on the layer above. Use `Layer.setZIndex` for that.
+  - Two `Displayable` subclasses refuse it: `Layer` and `Camera`. Neither is an element inside a
+    layer, so neither has a front to be moved to — see below.
   - The order it leaves behind is part of the saved game. A save taken afterwards restores the same
     front-to-back order, which is also why this needed no new save field and why old saves load
     unchanged.
@@ -35,16 +37,22 @@
   There is no `sendToBack`. Repeatedly fronting the elements you want in front, in order, arranges a
   whole group and is the only ordering primitive at present.
 
-- **`Layer.bringToFront()` throws instead of quietly doing nothing.** A `Layer` is a `Displayable`,
-  so it inherits the method, and the inherited behaviour would be a no-op: a layer is not an entry
-  in any layer's list — it *is* one of the lists. Calling it raises a `RuntimeGameError` naming
-  `Layer.setZIndex`, which is the knob that actually orders layers. The throw happens while the
-  story is being built, not mid-playback, so a script that confuses the two models fails at once
-  rather than playing as though the line were not there.
+- **`Layer.bringToFront()` and `Camera.bringToFront()` throw instead of quietly doing nothing.**
+  Both are `Displayable`s, so both inherit the method and both appear to offer it — and for both the
+  inherited behaviour would be a no-op. A layer is not an entry in any layer's list; it *is* one of
+  the lists. A camera is not in a list either; it is what the lists are viewed through, and every
+  layer of every scene moves with it as one unit, so there is nothing it could be in front of.
+
+  Each raises a `RuntimeGameError` naming what to reach for instead, and each does so while the
+  story is being built rather than mid-playback, so a script that confuses the two depth models
+  fails at once rather than playing as though the line were not there.
 
   ```ts
-  layer.setZIndex(10);      // this is how a layer moves forward
-  layer.bringToFront();     // RuntimeGameError
+  layer.setZIndex(10);          // this is how a layer moves forward
+  layer.bringToFront();         // RuntimeGameError
+
+  story.camera.zoom(2, 800);    // this is how the camera changes what is in view
+  story.camera.bringToFront();  // RuntimeGameError
   ```
 
 ## [0.29.1]

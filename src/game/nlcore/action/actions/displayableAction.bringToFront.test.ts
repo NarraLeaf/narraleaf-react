@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { Image } from "@core/elements/displayable/image";
 import { Layer } from "@core/elements/layer";
+import { Camera } from "@core/elements/camera";
 import { GameState, PlayerStateData, PlayerStateElement } from "@player/gameState";
 import { DisplayableAction } from "./displayableAction";
 import { DisplayableActionTypes } from "@core/action/actionTypes";
@@ -191,12 +192,22 @@ describe("the order bringToFront leaves behind survives a save", () => {
     });
 });
 
-describe("Layer.bringToFront", () => {
-    it("refuses, and names the knob that does order layers", () => {
+describe("the subclasses that refuse the call", () => {
+    it("Layer names the knob that does order layers", () => {
         // Layers are ordered by z-index and a layer is not inside any layer's array, so accepting
         // the call would read as if it raised the layer and play as if the line were not there.
         const layer = new Layer("foreground");
 
         expect(() => layer.bringToFront()).toThrow(/setZIndex/);
+    });
+
+    it("Camera says there is nothing to be in front of, not that it is not on stage yet", () => {
+        // The camera inherits the method and never enters a layer array, so the base error would
+        // have read "may not be on stage yet" — an invitation to wait for a moment that never
+        // arrives. The refusal has to say why there is no front, not when there might be one.
+        const camera = new Camera();
+
+        expect(() => camera.bringToFront()).toThrow(/nothing to be in front of/);
+        expect(() => camera.bringToFront()).not.toThrow(/on stage yet/);
     });
 });
