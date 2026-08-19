@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.31.1]
+
+### _Deprecated_
+
+- **`blink` and `vignette` from `narraleaf-react/built-in` now carry `@deprecated`.** 0.31.0 said
+  they were superseded but marked nothing, so an editor gave no hint and the note was only findable
+  by reading the release. Both still work and are still exported; the tag names
+  `Camera.shutter()` / `Camera.vignette()` as the replacement and says why — the helpers draw into a
+  scene-level layer, which sits inside the camera transform and is tied to a scene rather than to
+  the story.
+
+### _Fixed_
+
+- **Documentation for `Camera.lens()`.** The 0.31.0 notes did not say that it takes its timing as an
+  options object, `lens(props, {duration, ease})`, where `shutter()` and `vignette()` take
+  positional arguments — nor that the key inside it is `ease`, not `easing`. They also described it
+  as setting only the colour and falloff when it accepts the two strengths as well, and did not
+  mention that both strengths are clamped to `0`–`1` with a non-finite value read as `0`. No code
+  changed; the 0.31.0 entry now says all of it.
+
 ## [0.31.0]
 
 ### _Add_
