@@ -133,10 +133,14 @@
   props are now `TransformDefinitions.CameraTransformProps` — everything an image accepts, plus
   these.
 
-  Both strengths are clamped at the authoring end: a value outside `0`–`1` is pulled into range, and
-  a non-finite one reads as `0`. They land in a CSS `inset()` and an opacity, where an out-of-range
-  number makes the browser drop the whole declaration — the effect would go inert rather than
-  saturate, so the clamp happens before it can.
+  Both strengths end up inside `0`–`1` whatever you pass, with a non-finite value read as `0`. They
+  land in a CSS `inset()` and an opacity, where an out-of-range number makes the browser drop the
+  whole declaration, so the effect would go inert rather than saturate.
+
+  Where that clamp happens depends on the call. `shutter()` and `vignette()` clamp the value as they
+  take it, so what reaches the transform state is already in range. `lens()` and a raw
+  `Camera.transform()` pass the number through and it is clamped when the plates are drawn: the
+  picture is the same, but the out-of-range value is what the state carries and what a save records.
 
 ### _Change_
 
