@@ -54,10 +54,30 @@
   These take effect the next time the strength they belong to is above `0`, so set them as a cut
   before fading the effect in rather than during it.
 
+  `lens()` also accepts `shutter` and `vignette` themselves, so a single call can set a strength and
+  the geometry it is drawn with; `shutter()` and `vignette()` are the shorthand for the strength
+  alone.
+
+  **Its timing is spelled differently from the other two, and the difference is easy to trip on.**
+  `shutter()` and `vignette()` take positional arguments, `(value, duration?, easing?)`. `lens()`
+  takes the props and then an options object, `lens(props, {duration, ease})` — an object rather
+  than positions because it sets any number of fields at once, and the key inside it is `ease`, not
+  `easing`.
+
+  ```ts
+  story.camera.vignette(0.9, 400, "easeInOut");                 // positional
+  story.camera.lens({vignette: 0.9}, {duration: 400, ease: "easeInOut"});   // equivalent
+  ```
+
   The same fields are available on a `Transform` via `Transform.lens()`, and to `new Camera({...})`
   as an initial pose, both typed as `TransformDefinitions.CameraLensProps`. A camera's transform
   props are now `TransformDefinitions.CameraTransformProps` — everything an image accepts, plus
   these.
+
+  Both strengths are clamped at the authoring end: a value outside `0`–`1` is pulled into range, and
+  a non-finite one reads as `0`. They land in a CSS `inset()` and an opacity, where an out-of-range
+  number makes the browser drop the whole declaration — the effect would go inert rather than
+  saturate, so the clamp happens before it can.
 
 ### _Change_
 

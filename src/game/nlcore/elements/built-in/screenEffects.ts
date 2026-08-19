@@ -56,6 +56,11 @@ export function effectLayer(scene: Scene, options: EffectLayerOptions = {}): Lay
     return layer;
 }
 
+/**
+ * @deprecated Superseded by the camera lens in 0.31.0. This draws into a scene-level layer,
+ * which sits inside the camera transform, so it scales and rotates with the camera; it is also
+ * tied to a scene while the camera is tied to the story. Use `Camera.shutter()` instead.
+ */
 export function blink(scene: Scene, options: BlinkOptions = {}): ReturnType<typeof Control.do> {
     const {
         closeDuration = 180,
@@ -105,6 +110,11 @@ export function blink(scene: Scene, options: BlinkOptions = {}): ReturnType<type
     ]);
 }
 
+/**
+ * @deprecated Superseded by the camera lens in 0.31.0. This draws into a scene-level layer,
+ * which sits inside the camera transform, so it scales and rotates with the camera; it is also
+ * tied to a scene while the camera is tied to the story. Use `Camera.vignette()` instead.
+ */
 export function vignette(scene: Scene, options: VignetteOptions = {}): ReturnType<typeof Control.do> {
     const {
         duration = 300,
