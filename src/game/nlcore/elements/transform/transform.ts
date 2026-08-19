@@ -66,6 +66,14 @@ export type TransformCompanion = {
 };
 
 /**
+ * A running looping transform. The only thing a caller can do with one is end it — see
+ * {@link Transform.startLoop}.
+ */
+export type TransformLoopHandle = {
+    stop: () => void;
+};
+
+/**
  * The same thing before the elements are known — what a React host holds, resolved to
  * {@link TransformCompanion} at the moment the animation is built.
  */
@@ -518,6 +526,19 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         if (!sequences.length) {
             gameState.logger.warn("Transform", "No sequences to animate.");
         }
+        // A transform applied this way is something the line waits for, so it has to end. An
+        // endless one used to be writable — `transform.repeat(Infinity)` typechecks and `motion`
+        // honours it — and it wedged the game: the animation never completed, so the action never
+        // resolved, the stack never advanced, and the state stayed locked for every later transform
+        // on that element. None of that reported anything.
+        if (options.repeat !== undefined && !Number.isFinite(options.repeat)) {
+            throw new RuntimeScriptError(
+                "A transform applied with `transform()` (or `show`, `hide`, `pos`, ...) has to end, "
+                + "but this one repeats forever.\n"
+                + "Use `element.loop(transform)` for a motion that runs until it is stopped - the line "
+                + "does not wait for it, and `element.stopLoop()` ends it."
+            );
+        }
 
         let completed = false;
 
@@ -563,6 +584,77 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         }, this);
 
         return awaitable;
+    }
+
+    /**
+     * Start this transform as an endless loop on {@link ref}, and hand back the only way to stop it.
+     *
+     * Deliberately **not** an {@link Awaitable}. Everything else in the transform pipeline hands
+     * back something the caller waits for, and a loop has nothing to wait for — so it returns a
+     * handle instead, and the action that starts one resolves on the spot. That is what keeps a
+     * loop out of the timeline tree and out of the stack model entirely: it is a property of the
+     * element, not a step of the story.
+     *
+     * The element's {@link TransformState} is **not** written, neither at the start nor ever. It
+     * keeps the pose the element had before the loop, which is what the save records and what the
+     * element eases back to when the loop stops — the alternative would freeze whatever half-way
+     * pose the oscillation happened to be in when the player saved.
+     * @internal
+     */
+    public startLoop(
+        transformState: TransformState<T>,
+        {
+            gameState,
+            ref,
+            overwrites,
+            companionRefs,
+        }: {
+            gameState: GameState,
+            ref: React.RefObject<HTMLDivElement | null>,
+            overwrites?: OverwriteDefinition,
+            companionRefs?: TransformCompanionRef[],
+        },
+        loopOptions?: TransformDefinitions.LoopOptions,
+    ): TransformLoopHandle {
+        if (!ref.current) {
+            throw new Error("No ref found when looping.");
+        }
+        this.commit();
+
+        const { sequences, options } = this.constructAnimation({
+            gameState,
+            transformState,
+            overwrites,
+            current: ref.current,
+            companions: companionRefs
+                ?.filter((companion): companion is TransformCompanionRef & { ref: { current: HTMLElement } } =>
+                    !!companion.ref.current)
+                .map(({ ref: companionRef, project }) => ({ el: companionRef.current, project })),
+        });
+        if (!sequences.length) {
+            gameState.logger.warn("Transform", "No sequences to loop.");
+        }
+
+        const token = animate(sequences, {
+            ...options,
+            repeat: Infinity,
+            repeatType: loopOptions?.repeatType ?? options.repeatType ?? "loop",
+            repeatDelay: loopOptions?.repeatDelay !== undefined
+                ? this.toSeconds(loopOptions.repeatDelay, undefined)
+                : options.repeatDelay,
+        });
+        token.play();
+
+        gameState.logger.debug("Transform", "Loop started.", { sequences, options }, this);
+
+        return {
+            stop: () => {
+                // `stop`, not `cancel`: the element stays where the loop left it, and whatever runs
+                // next tweens on from there. `cancel` would snap it back to the pre-loop pose first,
+                // which reads as a jolt in the middle of the move that interrupted the loop.
+                token.stop();
+            },
+        };
     }
 
     /**
@@ -668,10 +760,11 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
 
     /**@internal */
     public getSequenceOptions(): SequenceOptions {
-        const { repeat, repeatDelay } = this.config;
+        const { repeat, repeatDelay, repeatType } = this.config;
         return {
             repeat,
             repeatDelay: this.toSeconds(repeatDelay, undefined),
+            repeatType,
         };
     }
 

@@ -3,7 +3,7 @@ import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {TransformState} from "@core/elements/transform/transform";
 import {EmptyObject} from "./transition/type";
 import {TransformDefinitions} from "@core/elements/transform/type";
-import {Displayable} from "@core/elements/displayable/displayable";
+import {Displayable, DisplayableLoopRaw} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {LayerAction} from "@core/action/actions/layerAction";
 import {
@@ -42,6 +42,7 @@ type LayerState = {
 export type LayerDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;
+    loop?: DisplayableLoopRaw | null;
 };
 
 export class Layer
@@ -187,6 +188,7 @@ export class Layer
         return {
             state: Layer.StateSerializer.serialize(this.state),
             transformState: this.transformState.serialize(),
+            loop: this._serializeLoop(),
         };
     }
 
@@ -195,6 +197,7 @@ export class Layer
         this.state = Layer.StateSerializer.deserialize(data.state);
         this.transformState.resetTo(
             TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState).get());
+        this._deserializeLoop(data.loop);
         return this;
     }
 

@@ -5,12 +5,35 @@ import {DisplayableActionContentType, DisplayableActionTypes} from "@core/action
 import {Chained, Proxied} from "@core/action/chain";
 import {LogicAction} from "@core/action/logicAction";
 import {ContentNode} from "@core/action/tree/actionTree";
-import {EventfulDisplayable} from "@player/elements/displayable/type";
+import {DisplayableLoopBinding, EventfulDisplayable} from "@player/elements/displayable/type";
 import type {TransformDefinitions} from "@core/elements/transform/type";
 import {SrcManager} from "@core/action/srcManager";
 import type {ImageSrc} from "@core/types";
 import {Utils} from "@core/common/Utils";
 import {Control} from "@core/elements/control";
+
+/**
+ * A looping transform as it goes into a save.
+ *
+ * The transform itself is **not** here, and cannot be: its easing may be a function, and a function
+ * does not survive a round trip through JSON. What is stored instead is the id of the action that
+ * started the loop — the transform is authored data hanging off that action's content node, so the
+ * story itself still holds it, and loading resolves the id back to it through the same action map
+ * the stack model is restored with. A save whose action the story no longer has simply loses the
+ * loop rather than failing to load.
+ *
+ * Public, unlike the rest of the loop plumbing, because every displayable's `*DataRaw` names it and
+ * those are public. An internal-tagged type reached from a public signature is deleted from the
+ * emitted declarations while the signature that uses it stays behind naming something that is no
+ * longer declared, and only the consumer's `skipLibCheck` hides the result.
+ *
+ * (Do not write that tag in prose here: `stripInternal` matches it anywhere in the comment, so
+ * merely describing the hazard is enough to cause it.)
+ */
+export type DisplayableLoopRaw = {
+    actionId: string;
+    options: TransformDefinitions.LoopOptions;
+};
 
 export abstract class Displayable<
     StateData extends Record<string, any>,
@@ -39,6 +62,94 @@ export abstract class Displayable<
      * @internal
      */
     abstract readonly transformState: TransformState<any>;
+
+    /**
+     * The looping transform this element declares, and the action that declared it.
+     *
+     * Kept apart from {@link transformState} on purpose. A loop is not a pose — it is a motion
+     * *around* one — so the state keeps the pose the element had when the loop started, and the
+     * loop is what a host plays on top of it. Everything that reads a settled pose (the save, the
+     * repaint that heals a corrupted transform, the transform that interrupts the loop) therefore
+     * reads a stable value rather than whatever frame the oscillation was on.
+     * @internal
+     */
+    private loopTransform: Transform | null = null;
+    /**@internal */
+    private loopOptions: TransformDefinitions.LoopOptions = {};
+    /**@internal */
+    private loopActionId: string | null = null;
+
+    /**@internal */
+    public _getLoop(): DisplayableLoopBinding | null {
+        return this.loopTransform
+            ? {transform: this.loopTransform, options: this.loopOptions}
+            : null;
+    }
+
+    /**@internal */
+    public _setLoop(transform: Transform | null, options: TransformDefinitions.LoopOptions, actionId: string | null): this {
+        this.loopTransform = transform;
+        this.loopOptions = transform ? options : {};
+        this.loopActionId = transform ? actionId : null;
+        return this;
+    }
+
+    /**@internal */
+    public _getLoopActionId(): string | null {
+        return this.loopActionId;
+    }
+
+    /**@internal */
+    public _serializeLoop(): DisplayableLoopRaw | null {
+        // The anchor, not the transform: between a load and {@link _rebindLoop} the transform is
+        // legitimately still unresolved, and a save taken from that window has to carry the loop
+        // rather than quietly drop it.
+        if (!this.loopActionId) {
+            return null;
+        }
+        return {
+            actionId: this.loopActionId,
+            options: {...this.loopOptions},
+        };
+    }
+
+    /**
+     * Take the loop's anchor out of a save. The transform stays unresolved until
+     * {@link _rebindLoop} is given the action map — see {@link DisplayableLoopRaw}.
+     * @internal
+     */
+    public _deserializeLoop(raw: DisplayableLoopRaw | null | undefined): this {
+        this.loopTransform = null;
+        this.loopOptions = raw ? {...raw.options} : {};
+        this.loopActionId = raw ? raw.actionId : null;
+        return this;
+    }
+
+    /**
+     * Resolve a deserialized loop anchor back to the transform the story holds.
+     * @internal
+     */
+    public _rebindLoop(actionMap: Map<string, LogicAction.Actions>): this {
+        if (!this.loopActionId || this.loopTransform) {
+            return this;
+        }
+        const action = actionMap.get(this.loopActionId);
+        const content = action?.contentNode?.getContent();
+        const transform = Array.isArray(content) ? content[0] : undefined;
+        if (!(transform instanceof Transform)) {
+            // The save names an action this story no longer has (or no longer starts a loop with).
+            // Dropping the loop is the only honest outcome; the pose is unaffected either way.
+            return this._setLoop(null, {}, null);
+        }
+        this.loopTransform = transform;
+        return this;
+    }
+
+    /**@internal */
+    override reset() {
+        super.reset();
+        this._setLoop(null, {}, null);
+    }
 
     /**
      * Set Image Position
@@ -480,6 +591,88 @@ export abstract class Displayable<
             DisplayableActionTypes.applyTransform,
             new ContentNode<DisplayableActionContentType["displayable:applyTransform"]>().setContent([
                 transform.copy(),
+            ])
+        );
+        return chain.chain(action);
+    }
+
+    /**
+     * Play a transform on this element over and over until something stops it.
+     *
+     * **The line does not wait.** This is the one difference from {@link Displayable.transform}, and
+     * the only one worth remembering: `transform()` is a step of the story and the next line waits
+     * for it to finish, while `loop()` is a property the element carries — it is set, the story
+     * moves on, and the motion keeps running underneath everything that follows.
+     *
+     * An element carries **one** transform at a time, so anything else applied to it takes the
+     * element back: `transform()`, `pos()`, `zoom()`, `show()`, `hide()` and the rest all end the
+     * loop and move on from wherever it had got to. What does *not* end it: the player skipping or
+     * fast-forwarding, a transition changing the picture, changing scene, or saving and loading —
+     * a loaded save puts the loop back.
+     *
+     * The pose the element had when the loop started is what it returns to, and the only thing a
+     * save records; the frames in between are never written down.
+     *
+     * The transform has to be committed, exactly as for {@link Displayable.transform} — a staged
+     * change that was never `commit()`ed is not part of it.
+     *
+     * @param transform - The motion to repeat. For anything that should not snap on each repeat,
+     * either bring it back to where it started or pass `{repeatType: "mirror"}`.
+     * @param options - See {@link TransformDefinitions.LoopOptions}.
+     * @chainable
+     * @example
+     * ```ts
+     * const breathe = Transform.create()
+     *     .scaleY(1.015)
+     *     .commit({ duration: 1900, ease: "easeInOut" });
+     *
+     * scene.action([
+     *     yuko.loop(breathe, { repeatType: "mirror" }),
+     *     yuko.say`...`,                  // plays while she keeps breathing
+     *     yuko.stopLoop({ duration: 300 }),
+     * ]);
+     * ```
+     */
+    public loop(
+        transform: Transform<TransformType>,
+        options?: TransformDefinitions.LoopOptions
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        const chain: Proxied<Self, Chained<LogicAction.Actions, Self>> = this.chain();
+        const action = new DisplayableAction<typeof DisplayableActionTypes.applyLoop, Self>(
+            chain,
+            DisplayableActionTypes.applyLoop,
+            new ContentNode<DisplayableActionContentType["displayable:applyLoop"]>().setContent([
+                transform.copy(),
+                options,
+            ])
+        );
+        return chain.chain(action);
+    }
+
+    /**
+     * End the element's looping transform and put it back to the pose it had before the loop
+     * started.
+     *
+     * Unlike {@link Displayable.loop}, this **is** something the line waits for — there is a
+     * definite end to wait for. With no duration the element is back in place on the same frame.
+     *
+     * A no-op on an element that is not looping.
+     *
+     * @chainable
+     * @example
+     * ```ts
+     * yuko.stopLoop({ duration: 300, ease: "easeOut" });
+     * ```
+     */
+    public stopLoop(
+        options?: TransformDefinitions.LoopStopOptions
+    ): Proxied<Self, Chained<LogicAction.Actions, Self>> {
+        const chain: Proxied<Self, Chained<LogicAction.Actions, Self>> = this.chain();
+        const action = new DisplayableAction<typeof DisplayableActionTypes.stopLoop, Self>(
+            chain,
+            DisplayableActionTypes.stopLoop,
+            new ContentNode<DisplayableActionContentType["displayable:stopLoop"]>().setContent([
+                options,
             ])
         );
         return chain.chain(action);

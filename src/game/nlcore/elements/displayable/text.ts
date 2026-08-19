@@ -9,7 +9,7 @@ import {DisplayableActionContentType, DisplayableActionTypes, TextActionContentT
 import {TextAction} from "@core/action/actions/textAction";
 import {Scene} from "@core/elements/scene";
 import {Control} from "@core/elements/control";
-import {Displayable} from "@core/elements/displayable/displayable";
+import {Displayable, DisplayableLoopRaw} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
@@ -68,6 +68,7 @@ export interface ITextUserConfig extends TransformDefinitions.TextTransformProps
 export type TextDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;
+    loop?: DisplayableLoopRaw | null;
 };
 
 export class Text
@@ -246,6 +247,7 @@ export class Text
         return {
             state: Text.StateSerializer.serialize(this.state),
             transformState: this.transformState.serialize(),
+            loop: this._serializeLoop(),
         };
     }
 
@@ -254,6 +256,7 @@ export class Text
         this.state = Text.StateSerializer.deserialize(data.state);
         this.transformState.resetTo(
             TransformState.deserialize<TransformDefinitions.TextTransformProps>(data.transformState).get());
+        this._deserializeLoop(data.loop);
         return this;
     }
 

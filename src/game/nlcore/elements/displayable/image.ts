@@ -12,7 +12,7 @@ import {FlexibleTuple, SelectElementFromEach, Serializer} from "@lib/util/data";
 import {Chained, Proxied} from "@core/action/chain";
 import {Control} from "@core/elements/control";
 import {ImageAction} from "@core/action/actions/imageAction";
-import {Displayable} from "@core/elements/displayable/displayable";
+import {Displayable, DisplayableLoopRaw} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
@@ -83,6 +83,7 @@ export interface IImageUserConfig<
 export type ImageDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;
+    loop?: DisplayableLoopRaw | null;
 };
 export type TagGroupDefinition = string[][];
 export type TagSrcResolver<T extends TagGroupDefinition> = (...tags: SelectElementFromEach<T>) => string;
@@ -537,6 +538,7 @@ export class Image<
             transformState: TransformState.TransformStateSerializer.serialize(
                 this.transformState.get(),
             ),
+            loop: this._serializeLoop(),
         };
     }
 
@@ -545,6 +547,7 @@ export class Image<
         this.state = Image.StateSerializer.deserialize(data.state);
         this.transformState.resetTo(
             TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState).get());
+        this._deserializeLoop(data.loop);
         return this;
     }
 

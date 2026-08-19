@@ -22,6 +22,8 @@ export default function Text({state, text}: Readonly<{
         transitionRefs,
         initDisplayable,
         applyTransform,
+        applyLoop,
+        stopLoop,
         applyTransition,
         updateStyleSync,
         deps,
@@ -61,6 +63,8 @@ export default function Text({state, text}: Readonly<{
     useExposeState<ExposedStateType.text>(text, {
         initDisplayable,
         applyTransform,
+        applyLoop,
+        stopLoop,
         applyTransition,
         flush,
         updateStyleSync,

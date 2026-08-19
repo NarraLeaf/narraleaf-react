@@ -3,8 +3,10 @@ import {
     OverwriteDefinition,
     Transform,
     TransformCompanionRef,
+    TransformLoopHandle,
     TransformState
 } from "@core/elements/transform/transform";
+import type {TransformDefinitions} from "@core/elements/transform/type";
 import {
     AnimationController,
     AnimationDataTypeArray,
@@ -61,6 +63,8 @@ export type DisplayableHookResult<TransitionType extends Transition<U>, U extend
     initDisplayable: (resolve: () => void) => Timeline;
     applyTransform: (transform: Transform, resolve: () => void) => Timeline;
     applyTransition: (transition: Transition, resolve: () => void) => Timeline;
+    applyLoop: (transform: Transform, options?: TransformDefinitions.LoopOptions) => void;
+    stopLoop: (options: TransformDefinitions.LoopStopOptions | undefined, resolve: () => void) => Timeline;
     updateStyleSync: () => void;
     flush: () => void;
     deps: React.DependencyList;
@@ -82,6 +86,11 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }: DisplayableHookConfig<TransitionType, U>): DisplayableHookResult<TransitionType, U> {
     const [transitionTask, setTransitionTask] = useState<null | TransitionTaskWithController<TransitionType, U>>(null);
     const [transformToken, setTransformToken] = useState<null | Awaitable<void>>(null);
+    /* A ref, not state: the loop has to be stoppable from inside `applyTransform`, which may run
+       several times before React re-renders, and a stale closure there would leave an orphaned
+       animation writing the wrapper behind the transform that just replaced it. Nothing renders
+       differently for a loop either, so there is no state for it to be. */
+    const loopHandleRef = useRef<TransformLoopHandle | null>(null);
     const ref = React.useRef<HTMLDivElement | null>(null);
     const [keyGen] = useState(() => new KeyGen("displayable.refGroup"));
     const currentKey = useRef<string>(keyGen.next());
@@ -171,6 +180,15 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         Object.assign(ref.current!.style, initialStyle);
         applyCompanionStyles();
         gameState.logger.debug("Displayable", "Initial style applied", ref.current, initialStyle);
+
+        // An element that was already looping when it was mounted — remounted after a load, or put
+        // back on stage by a scene it re-enters — starts looping again here. The element's binding
+        // is what says so; nothing replays the action that set it.
+        reconcileLoop();
+
+        return () => {
+            stopLoopMotion();
+        };
     }, []);
 
     // Self-heal the wrapper's settled style whenever no animation owns the element. The wrapper's
@@ -181,7 +199,26 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     // settled render makes any such corruption converge back to the correct pose.
     const healSettledStyleRef = useRef<() => void>(() => undefined);
     healSettledStyleRef.current = () => {
-        if (transformToken || transitionTask || !ref.current) {
+        if (transitionTask || !ref.current) {
+            return;
+        }
+        // The groups' props are derived from state that outlives a single render — a text's font
+        // size and, notably, the stage scale every text is sized by — but they only reach the DOM
+        // when this hook writes them, so a settled element whose inputs changed keeps painting the
+        // old ones. Re-deriving them here is what makes them converge.
+        //
+        // Ahead of the animation guard below, not under it, because the animation this guard is
+        // about is a *transition* — that is what writes group props every frame, and it is already
+        // excluded above. A transform writes the wrapper and never these, so re-deriving them
+        // while one runs changes nothing. A loop makes the distinction matter rather than merely
+        // being tidy: a loop has no end, so anything held back until the animation settles is held
+        // back forever, and a looping text would keep painting the scale it had before the last
+        // stage resize.
+        updateStyleSync();
+        // A running loop owns the wrapper exactly as a transform does — it is just never going to
+        // settle. Without it in this guard, every render would paint the pre-loop pose over the
+        // frame the loop had just written, and `motion` would take it back on the next tick.
+        if (transformToken || loopHandleRef.current) {
             return;
         }
         Object.assign(ref.current.style, state.toStyle(gameState, overwriteDefinition));
@@ -189,15 +226,14 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         // correct for the length of a transform and wrong for the rest of the scene — the settled
         // pose has to be re-derived for them exactly as it is for the wrapper.
         applyCompanionStyles();
-        // The groups' props are derived from state that outlives a single render — a text's font
-        // size and, notably, the stage scale every text is sized by — but they only reach the DOM
-        // when this hook writes them, so a settled element whose inputs changed keeps painting the
-        // old ones. Re-deriving them here, next to the wrapper's pose and under the same
-        // no-animation guard, is what makes them converge: a running animation owns these
-        // properties and re-applies its own values on every frame anyway.
-        updateStyleSync();
     };
     useLayoutEffect(() => {
+        // `LiveGame.newGame()` resets every element while the player stays mounted, so a loop can
+        // lose its binding without anything else touching this element. Checking on each render is
+        // what stops a motion from outliving the playthrough that started it.
+        if (loopHandleRef.current && !element._getLoop()) {
+            stopLoopMotion();
+        }
         healSettledStyleRef.current();
     });
 
@@ -264,11 +300,90 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         assignElementProps(ref.current, properties, propOverwrite);
     }
 
+    /**
+     * Stop the running loop's motion, leaving the element where the loop had got to.
+     *
+     * Only the motion: the element's binding is untouched, so whatever put the element back in
+     * charge of its own pose decides whether the loop comes back.
+     */
+    function stopLoopMotion() {
+        if (!loopHandleRef.current) {
+            return;
+        }
+        loopHandleRef.current.stop();
+        loopHandleRef.current = null;
+
+        gameState.logger.debug("Displayable", "Loop stopped", element);
+    }
+
+    /**
+     * Make the running motion agree with what the element declares.
+     *
+     * This is the one place a loop is (re)started other than the action that sets it, and it is why
+     * a loop survives everything that repaints an element without meaning to end it: mounting,
+     * `initDisplayable`, and `GameState.forceAnimation` all finish by handing the element back to
+     * itself, and the binding is still there to be read.
+     */
+    function reconcileLoop() {
+        const binding = element._getLoop();
+        if (!binding) {
+            stopLoopMotion();
+            return;
+        }
+        if (loopHandleRef.current) {
+            return;
+        }
+        applyLoop(binding.transform, binding.options);
+    }
+
+    function applyLoop(transform: Transform, options?: TransformDefinitions.LoopOptions): void {
+        if (transformToken) {
+            transformToken.abort();
+            setTransformToken(null);
+        }
+        stopLoopMotion();
+        if (!ref.current) {
+            // Set before the element was mounted. The mount effect reconciles from the binding, so
+            // there is nothing to do here and nothing lost by doing nothing.
+            return;
+        }
+
+        loopHandleRef.current = transform.startLoop(
+            state,
+            {
+                gameState,
+                ref,
+                overwrites: overwriteDefinition,
+                companionRefs,
+            },
+            options,
+        );
+    }
+
+    /**
+     * End the loop by taking the element back to its own pose.
+     *
+     * A plain transform to the state the element already holds - which is the pre-loop pose,
+     * because a loop never writes to it. So this is a normal, finite, waitable transform, and it
+     * ends the loop for the same reason any other transform does.
+     */
+    function stopLoop(options: TransformDefinitions.LoopStopOptions | undefined, resolve: () => void): Timeline {
+        return applyTransform(new Transform({}, {
+            duration: options?.duration ?? 0,
+            ease: options?.ease ?? "linear",
+        }), resolve);
+    }
+
     function applyTransform(transform: Transform, resolve: () => void): Timeline {
         if (transformToken) {
             transformToken.abort();
             setTransformToken(null);
         }
+        // An element carries one transform at a time, so this one takes over. Only the motion is
+        // stopped here - whether the loop comes back once this transform settles is decided by the
+        // element's binding, which the action that applies an authored transform clears and an
+        // internal repaint (mount, `forceAnimation`) leaves alone.
+        stopLoopMotion();
 
         const awaitable = transform.animate(
             state,
@@ -294,6 +409,7 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
             setTransformToken(null);
             handleOnTransform(transform);
             resolve();
+            reconcileLoop();
         });
 
         return timeline;
@@ -403,6 +519,8 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         initDisplayable,
         applyTransform,
         applyTransition: applyTransition as (transition: Transition, resolve: () => void) => Timeline,
+        applyLoop,
+        stopLoop,
         updateStyleSync,
         flush,
         deps: [transformToken, transitionTask, refs],

@@ -28,10 +28,50 @@ export namespace TransformDefinitions {
         /**@deprecated */
         sync?: boolean;
     };
+    /**
+     * How a repeat plays each time round.
+     *
+     * - `"loop"` — start over from the first pose. The jump back is instant, so a sequence that
+     *   does not return to where it began shows a snap on every repeat.
+     * - `"reverse"` — play backwards, then forwards again. No snap.
+     * - `"mirror"` — like `"reverse"`, with the easing mirrored too, so an `easeIn` going out is an
+     *   `easeOut` coming back. This is what a breathing or floating motion wants.
+     */
+    export type RepeatType = "loop" | "reverse" | "mirror";
     export type TransformConfig = {
         sync: boolean;
         repeat?: number;
         repeatDelay?: number;
+        repeatType?: RepeatType;
+    };
+    /**
+     * How a looping transform repeats — see {@link Displayable.loop}.
+     *
+     * There is no "how many times" here on purpose: a loop runs until something stops it. For a
+     * bounded number of repeats use `transform.repeat(n)`, which the line waits for, or
+     * `Control.repeat`.
+     *
+     * This is written into the save as-is, so everything in it has to stay plain JSON.
+     */
+    export type LoopOptions = {
+        /**@default "loop" */
+        repeatType?: RepeatType;
+        /**
+         * Milliseconds to hold the last pose before the next repeat starts.
+         * @default 0
+         */
+        repeatDelay?: number;
+    };
+    /**
+     * How an element eases out of its looping transform — see {@link Displayable.stopLoop}.
+     */
+    export type LoopStopOptions = {
+        /**
+         * Milliseconds spent returning to the pose the element had before the loop started.
+         * @default 0
+         */
+        duration?: number;
+        ease?: EasingDefinition;
     };
     export type VisualEffectTransformProps = {
         maskImage?: React.CSSProperties["maskImage"];

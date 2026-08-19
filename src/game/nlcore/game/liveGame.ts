@@ -10,6 +10,7 @@ import { Sentence } from "@core/elements/character/sentence";
 import { Namespace, Storable } from "@core/elements/persistent/storable";
 import { StorableType } from "@core/elements/persistent/type";
 import { Scene } from "@core/elements/scene";
+import { Displayable } from "@core/elements/displayable/displayable";
 import { ElementStateRaw, Story } from "@core/elements/story";
 import { Game } from "@core/game";
 import { Sound } from "@core/elements/sound";
@@ -351,6 +352,17 @@ export class LiveGame {
             // Restored state is by definition not the authored state, so the next save has to carry
             // this element even if no action touches it again.
             element.markDirty();
+        });
+
+        // A looping transform is stored as the id of the action that started it, because a Transform
+        // itself cannot be serialized - its easing may be a function. The transform is authored data
+        // hanging off that action, so the story still holds it; this is where the ids become objects
+        // again, using the same map the stack model is restored from just below. An element whose
+        // anchor no longer resolves quietly loses its loop and keeps its pose.
+        elementMaps.forEach(element => {
+            if (element instanceof Displayable) {
+                element._rebindLoop(actionMaps);
+            }
         });
 
         // restore game state

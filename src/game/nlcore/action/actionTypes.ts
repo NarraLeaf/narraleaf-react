@@ -22,6 +22,8 @@ export const DisplayableActionTypes = {
     action: "displayable:action",
     applyTransform: "displayable:applyTransform",
     applyTransition: "displayable:applyTransition",
+    applyLoop: "displayable:applyLoop",
+    stopLoop: "displayable:stopLoop",
     init: "displayable:init",
     bringToFront: "displayable:bringToFront",
 } as const;
@@ -29,6 +31,8 @@ export type DisplayableActionContentType<TransitionType extends Transition = Tra
     [K in typeof DisplayableActionTypes[keyof typeof DisplayableActionTypes]]:
     K extends "displayable:applyTransform" ? [Transform] :
     K extends "displayable:applyTransition" ? [TransitionType, ((transition: TransitionType) => TransitionType)?] :
+    K extends "displayable:applyLoop" ? [Transform, TransformDefinitions.LoopOptions?] :
+    K extends "displayable:stopLoop" ? [TransformDefinitions.LoopStopOptions?] :
     K extends "displayable:init" ? [scene: Scene | null, layer: Layer | null, isElement?: boolean] :
     K extends "displayable:bringToFront" ? [] :
     any;

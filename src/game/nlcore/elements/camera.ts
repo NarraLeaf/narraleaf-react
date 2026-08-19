@@ -3,7 +3,7 @@ import {Config, ConfigConstructor} from "@lib/util/config";
 import {Transform, TransformState} from "@core/elements/transform/transform";
 import {EmptyObject} from "./transition/type";
 import {TransformDefinitions} from "@core/elements/transform/type";
-import {Displayable} from "@core/elements/displayable/displayable";
+import {Displayable, DisplayableLoopRaw} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {CommonPosition, CommonPositionType} from "@core/elements/transform/position";
 import {Chained, Proxied} from "../action/chain";
@@ -26,6 +26,7 @@ type CameraConfig = {
 };
 export type CameraDataRaw = {
     transformState: Record<string, any>;
+    loop?: DisplayableLoopRaw | null;
 };
 
 /**
@@ -360,6 +361,7 @@ export class Camera
     public toData(): CameraDataRaw {
         return {
             transformState: this.transformState.serialize(),
+            loop: this._serializeLoop(),
         };
     }
 
@@ -367,6 +369,7 @@ export class Camera
     public fromData(data: CameraDataRaw): this {
         this.transformState.resetTo(
             TransformState.deserialize<TransformDefinitions.CameraTransformProps>(data.transformState).get());
+        this._deserializeLoop(data.loop);
         return this;
     }
 

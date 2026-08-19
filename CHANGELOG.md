@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.32.0]
+
+### _Feature_
+
+- **A displayable can carry a transform that repeats until something stops it** — `element.loop()`
+  and `element.stopLoop()`, on images, texts, layers, puppets and the camera. This is what a
+  breathing sprite, a floating icon, a pulsing glow or a handheld camera needs, and until now there
+  was no way to write one.
+
+  ```ts
+  const breathe = Transform.create()
+      .scaleY(1.015)
+      .commit({ duration: 1900, ease: "easeInOut" });
+
+  scene.action([
+      yuko.loop(breathe, { repeatType: "mirror" }),
+      yuko.say`It's quiet today.`,     // plays while she keeps breathing
+      yuko.stopLoop({ duration: 300 }),
+  ]);
+  ```
+
+  **The line does not wait for a loop**, and that is the only new rule. `transform()` is a step of
+  the story, so the next line waits for it; `loop()` is a property the element carries, so the story
+  moves on and the motion keeps running underneath everything that follows. `stopLoop()` *is*
+  waited for — going back has a duration, even when that duration is zero.
+
+  An element carries **one** transform at a time. Anything else applied to it — `transform()`,
+  `pos()`, `zoom()`, `show()`, `hide()` — ends the loop and takes over from wherever it had got to.
+  What does **not** end it: the player skipping or fast-forwarding, a transition changing the
+  picture, leaving and re-entering a scene, or saving and loading. A loaded save puts the loop back,
+  and undo works in both directions — undoing past a `loop()` ends it, undoing past a `stopLoop()`
+  starts it again.
+
+  The pose the element had when the loop started is what it returns to and the only thing a save
+  records; the frames in between are never written into the element's transform state, so a save
+  taken mid-breath does not freeze a half-scaled sprite.
+
+  `repeatType` (`"loop"` | `"reverse"` | `"mirror"`) and `repeatDelay` are also accepted by
+  `Transform`'s own config now, so a *finite* `transform.repeat(n)` can mirror as well.
+
+  **Saves are compatible in both directions.** A save written before this release simply has no
+  loops; a save written after it is readable by an older build, which ignores the new field.
+
+### _Fix_
+
+- **An endless transform applied with `transform()` now reports itself instead of stopping the
+  game.** `transform.repeat(Infinity)` typechecked, and `motion` honoured it, so the animation never
+  completed — which meant the action never resolved, the stack never advanced, and the element's
+  transform state stayed locked for every later transform on it. Nothing was logged. It now throws
+  a `RuntimeScriptError` naming `element.loop()`, which is the thing that was actually wanted.
+
+- **A displayable whose inputs changed while an animation ran now repaints them.** The settled-style
+  heal held back the transition groups' props — a text's font size, and the stage scale every text
+  is sized by — until no animation owned the element, but those props are written by transitions
+  only, never by a transform. The distinction did not matter while every animation ended; with
+  loops it does, because a looping text would have kept painting the scale it had before the last
+  stage resize.
+
 ## [0.31.4]
 
 ### _Fixed_

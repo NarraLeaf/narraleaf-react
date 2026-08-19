@@ -14,6 +14,8 @@ import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/act
 import { Story } from "@core/elements/story";
 import { RuntimeGameError } from "@core/common/Utils";
 import type { PlayerStateElement } from "@player/gameState";
+import type { TransformDefinitions } from "@core/elements/transform/type";
+import type { DisplayableLoopBinding } from "@player/elements/displayable/type";
 
 export class DisplayableAction<
     T extends Values<typeof DisplayableActionTypes> = Values<typeof DisplayableActionTypes>,
@@ -36,6 +38,14 @@ export class DisplayableAction<
             const transition: TransitionType = handler ? handler(trans) : trans;
 
             return this.applyTransition(gameState, element, transition, injection);
+        } else if (this.type === DisplayableActionTypes.applyLoop) {
+            const [transform, options] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:applyLoop"]>).getContent();
+
+            return this.applyLoop(gameState, this.callee, transform, options, injection);
+        } else if (this.type === DisplayableActionTypes.stopLoop) {
+            const [options] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:stopLoop"]>).getContent();
+
+            return this.stopLoop(gameState, this.callee, options, injection);
         } else if (this.type === DisplayableActionTypes.init) {
             const [scene, layer, isElement] = (this.contentNode as ContentNode<DisplayableActionContentType<TransitionType>["displayable:init"]>).getContent();
             const element = this.callee;
@@ -63,26 +73,171 @@ export class DisplayableAction<
         };
         const exposed = state.getExposedStateForce<LogicAction.DisplayableExposed>(element);
         const originalTransform = element.transformState.clone();
+        // An element carries one transform at a time, so an authored transform ends a loop. Only
+        // this action clears the binding: the host stops the motion for any transform at all, but a
+        // repaint (a mount, `GameState.forceAnimation` after an undo) is not the story asking for
+        // the element's pose back, and the binding is what makes the loop resume after one.
+        const originalLoop = element._getLoop();
+        const originalLoopActionId = element._getLoopActionId();
+        if (originalLoop) {
+            element._setLoop(null, {}, null);
+            element.markDirty();
+        }
         const task = exposed.applyTransform(transform, resolveAction);
         const timeline = state.timelines
             .attachTimeline(awaitable)
             .attachChild(task);
         task.onCancelled(resolveAction);
 
-        state.actionHistory.push<[TransformState<any>]>({
+        state.actionHistory.push<[TransformState<any>, DisplayableLoopBinding | null, string | null]>({
             action: this,
             stackModel: injection.stackModel,
             timeline
-        }, (originalTransform) => {
+        }, (originalTransform, originalLoop, originalLoopActionId) => {
             if (!awaitable.isSettled()) {
                 awaitable.abort();
             }
             task.abort();
             element.transformState
                 .forceOverwrite(originalTransform.state);
-        }, [originalTransform]);
+            DisplayableAction.restoreLoop(state, element, originalLoop, originalLoopActionId);
+        }, [originalTransform, originalLoop, originalLoopActionId]);
 
         return awaitable;
+    }
+
+    /**
+     * Start a looping transform on the element, and let the story carry straight on.
+     *
+     * The one action here that resolves without waiting for anything, because there is nothing to
+     * wait for: the motion repeats until something ends it. Nothing is attached to a timeline and
+     * nothing is left unsettled on the stack — a loop is a property the element carries (see
+     * {@link Displayable.loop}), so it is the element's binding, not this action, that a save and a
+     * remount read.
+     */
+    public applyLoop(
+        state: GameState,
+        element: Displayable<any, any>,
+        transform: Transform,
+        options: TransformDefinitions.LoopOptions | undefined,
+        injection: ActionExecutionInjection
+    ): Awaitable<CalledActionResult> {
+        const originalLoop = element._getLoop();
+        const originalLoopActionId = element._getLoopActionId();
+        const loopOptions = options ?? {};
+
+        element._setLoop(transform, loopOptions, this.getId());
+        element.markDirty();
+        // Absent when the element is not on stage yet. Nothing is lost: the binding is set, and the
+        // host reconciles from it the moment it mounts.
+        state.getExposedState<LogicAction.DisplayableExposed>(element)?.applyLoop(transform, loopOptions);
+
+        state.actionHistory.push<[DisplayableLoopBinding | null, string | null]>({
+            action: this,
+            stackModel: injection.stackModel,
+        }, (originalLoop, originalLoopActionId) => {
+            DisplayableAction.restoreLoop(state, element, originalLoop, originalLoopActionId);
+        }, [originalLoop, originalLoopActionId]);
+
+        const awaitable = new Awaitable<CalledActionResult>();
+        awaitable.resolve(super.executeAction(state, injection) as CalledActionResult);
+
+        return awaitable;
+    }
+
+    /**
+     * End the element's looping transform and ease it back to the pose it kept underneath.
+     *
+     * Unlike {@link DisplayableAction.applyLoop} this *is* awaited — the way back has a duration,
+     * even when that duration is zero.
+     */
+    public stopLoop(
+        state: GameState,
+        element: Displayable<any, any>,
+        options: TransformDefinitions.LoopStopOptions | undefined,
+        injection: ActionExecutionInjection
+    ): Awaitable<CalledActionResult> {
+        const originalLoop = element._getLoop();
+        const originalLoopActionId = element._getLoopActionId();
+
+        element._setLoop(null, {}, null);
+        element.markDirty();
+
+        const awaitable = new Awaitable<CalledActionResult>()
+            .registerSkipController(new SkipController(() => {
+                state.logger.info("Displayable Loop", "Skipped");
+                return super.executeAction(state, injection) as CalledActionResult;
+            }));
+        const resolveAction = () => {
+            if (awaitable.isSettled()) {
+                return;
+            }
+            awaitable.resolve(super.executeAction(state, injection) as CalledActionResult);
+        };
+        const exposed = state.getExposedState<LogicAction.DisplayableExposed>(element);
+
+        if (!exposed || !originalLoop) {
+            // Nothing to end - either the element is not on stage, or it was not looping. The
+            // second case has to skip the host entirely rather than travel back to a pose it never
+            // left: the way back is an ordinary transform, and running one would cancel whatever
+            // move the element happens to be in the middle of.
+            state.actionHistory.push<[DisplayableLoopBinding | null, string | null]>({
+                action: this,
+                stackModel: injection.stackModel,
+            }, (originalLoop, originalLoopActionId) => {
+                DisplayableAction.restoreLoop(state, element, originalLoop, originalLoopActionId);
+            }, [originalLoop, originalLoopActionId]);
+            resolveAction();
+
+            return awaitable;
+        }
+
+        const task = exposed.stopLoop(options, resolveAction);
+        const timeline = state.timelines
+            .attachTimeline(awaitable)
+            .attachChild(task);
+        task.onCancelled(resolveAction);
+
+        state.actionHistory.push<[DisplayableLoopBinding | null, string | null]>({
+            action: this,
+            stackModel: injection.stackModel,
+            timeline
+        }, (originalLoop, originalLoopActionId) => {
+            if (!awaitable.isSettled()) {
+                awaitable.abort();
+            }
+            task.abort();
+            DisplayableAction.restoreLoop(state, element, originalLoop, originalLoopActionId);
+        }, [originalLoop, originalLoopActionId]);
+
+        return awaitable;
+    }
+
+    /**
+     * Put an element's loop binding back to what it was, and make the running motion agree.
+     *
+     * Both halves are needed and neither is enough: the binding is what a save and a remount read,
+     * the motion is what the player sees. Undoing past a `loop()` has to stop a motion that is
+     * running right now; undoing past a `stopLoop()` has to start one that is not.
+     */
+    private static restoreLoop(
+        state: GameState,
+        element: Displayable<any, any>,
+        binding: DisplayableLoopBinding | null,
+        actionId: string | null
+    ): void {
+        element._setLoop(binding?.transform ?? null, binding?.options ?? {}, actionId);
+        element.markDirty();
+
+        const exposed = state.getExposedState<LogicAction.DisplayableExposed>(element);
+        if (!exposed) {
+            return;
+        }
+        if (binding) {
+            exposed.applyLoop(binding.transform, binding.options);
+        } else {
+            exposed.stopLoop(undefined, () => {});
+        }
     }
 
     public applyTransition(state: GameState, element: Displayable<any, any>, transition: TransitionType, injection: ActionExecutionInjection, onFinished?: () => void) {

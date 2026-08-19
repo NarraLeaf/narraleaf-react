@@ -12,7 +12,7 @@ import {
 import {EmptyObject} from "@core/elements/transition/type";
 import {IPosition, PositionUtils} from "@core/elements/transform/position";
 import {EventDispatcher, Values} from "@lib/util/data";
-import {Displayable} from "@core/elements/displayable/displayable";
+import {Displayable, DisplayableLoopRaw} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {Config, ConfigConstructor} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
@@ -106,6 +106,7 @@ export type PuppetCommandOptions = {
 export type PuppetDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;
+    loop?: DisplayableLoopRaw | null;
 };
 
 /**@internal */
@@ -436,6 +437,7 @@ export class Puppet
         return {
             state: Puppet.normalizeState(this.state) as Record<string, any>,
             transformState: this.transformState.serialize(),
+            loop: this._serializeLoop(),
         };
     }
 
@@ -444,6 +446,7 @@ export class Puppet
         this.state = Puppet.normalizeState(data.state);
         this.transformState.resetTo(
             TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState).get());
+        this._deserializeLoop(data.loop);
         return this;
     }
 

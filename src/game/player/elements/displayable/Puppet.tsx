@@ -41,6 +41,8 @@ export default function Puppet({state, puppet}: Readonly<{
         transitionRefs,
         initDisplayable,
         applyTransform,
+        applyLoop,
+        stopLoop,
         applyTransition,
         updateStyleSync,
         deps,
@@ -63,6 +65,8 @@ export default function Puppet({state, puppet}: Readonly<{
     useExposeState<ExposedStateType.puppet>(puppet, {
         initDisplayable,
         applyTransform,
+        applyLoop,
+        stopLoop,
         applyTransition,
         updateStyleSync,
         flush,

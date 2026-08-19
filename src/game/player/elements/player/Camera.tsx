@@ -34,6 +34,8 @@ export function Camera(
         initDisplayable,
         applyTransition,
         applyTransform,
+        applyLoop,
+        stopLoop,
         updateStyleSync,
         deps,
     } = useDisplayable<any, HTMLDivElement>({
@@ -68,6 +70,8 @@ export function Camera(
         initDisplayable,
         applyTransition,
         applyTransform,
+        applyLoop,
+        stopLoop,
         updateStyleSync,
     }, [...deps]);
 
