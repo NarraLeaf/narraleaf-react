@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.31.3]
+
+### _Change_
+
+- **A displayable's `transformState` is `readonly`.** The object was never meant to be swapped after
+  construction, and 0.31.2 fixed the two lifecycle hooks that were doing it. This makes the rule one
+  the compiler holds rather than one the next change has to remember: a mounted host binds a
+  displayable once and keeps animating and repainting the object it captured then, so replacing it
+  leaves the host driving an orphan, and neither object is invalid on its own so nothing reports the
+  split.
+
+  Contents are unaffected. `reset()` and `fromData()` still empty and refill the state through
+  `TransformState.resetTo`, and every prop setter works as before. Only code that assigned the field
+  outright is affected, which the engine itself only ever did in the constructors `readonly` still
+  permits.
+
 ## [0.31.2]
 
 ### _Fixed_
@@ -19,6 +35,8 @@
   place through the new internal `TransformState.resetTo`, which also releases a lock left over from
   an interrupted animation; a stale lock would otherwise make the next transform on that element
   throw. Saves, serialization and the authoring API are unchanged.
+
+## [0.31.1]
 
 ### _Deprecated_
 

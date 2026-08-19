@@ -150,7 +150,7 @@ export class Text
     /**@internal */
     readonly config: Readonly<TextConfig>;
     /**@internal */
-    public transformState: TransformState<TransformDefinitions.TextTransformProps>;
+    public readonly transformState: TransformState<TransformDefinitions.TextTransformProps>;
     /**@internal */
     public state: TextState;
     /**@internal */

@@ -94,7 +94,7 @@ export class Layer
     /**@internal */
     public state: LayerState;
     /**@internal */
-    public transformState: TransformState<TransformDefinitions.ImageTransformProps>;
+    public readonly transformState: TransformState<TransformDefinitions.ImageTransformProps>;
     /**@internal */
     private userConfig: Config<ILayerUserConfig>;
 

@@ -97,7 +97,7 @@ export class Camera
     /**@internal */
     public config: CameraConfig;
     /**@internal */
-    public transformState: TransformState<TransformDefinitions.CameraTransformProps>;
+    public readonly transformState: TransformState<TransformDefinitions.CameraTransformProps>;
     /**@internal */
     private userConfig: Config<ICameraUserConfig>;
 

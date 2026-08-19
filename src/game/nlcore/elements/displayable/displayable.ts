@@ -23,8 +23,22 @@ export abstract class Displayable<
     /**@internal */
     public readonly srcManager = new SrcManager();
 
-    /**@internal */
-    abstract transformState: TransformState<any>;
+    /**
+     * The element's live prop bag: where it sits, how big, how it is filtered.
+     *
+     * **One object for the element's whole life.** `readonly` is the point of this declaration, not a
+     * detail of it: a mounted host binds a displayable once and keeps the *reference* it captured
+     * then, animating and repainting that object for as long as it stays mounted. Handing the
+     * element a replacement leaves the host driving an orphan — the animation writes one object
+     * while the settled repaint reads another — and nothing reports it, because both objects are
+     * perfectly valid on their own.
+     *
+     * So the contents may be changed or emptied at any time ({@link TransformState.resetTo} is what
+     * `reset()` and `fromData()` use); the object may not be swapped. Only the constructor assigns
+     * it, which is what `readonly` still allows and the only moment no host can be holding it.
+     * @internal
+     */
+    abstract readonly transformState: TransformState<any>;
 
     /**
      * Set Image Position

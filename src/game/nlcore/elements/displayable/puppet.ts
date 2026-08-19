@@ -259,7 +259,7 @@ export class Puppet
     /**@internal */
     readonly config: Readonly<PuppetConfig>;
     /**@internal */
-    public transformState: TransformState<TransformDefinitions.ImageTransformProps>;
+    public readonly transformState: TransformState<TransformDefinitions.ImageTransformProps>;
     /**@internal */
     public state: PuppetState;
     /**@internal */

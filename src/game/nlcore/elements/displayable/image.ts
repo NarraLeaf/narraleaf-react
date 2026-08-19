@@ -371,7 +371,7 @@ export class Image<
     /**@internal */
     public state: ImageState<Tags>;
     /**@internal */
-    public transformState: TransformState<TransformDefinitions.ImageTransformProps>;
+    public readonly transformState: TransformState<TransformDefinitions.ImageTransformProps>;
     /**@internal */
     private readonly userConfig: Config<IImageUserConfig<Tags>, { position: IPosition }>;
 
