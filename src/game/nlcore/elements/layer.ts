@@ -178,7 +178,7 @@ export class Layer
     override reset(): this {
         super.reset();
         this.state = this.getInitialState();
-        this.transformState = this.getInitialTransformState();
+        this.transformState.resetTo(this.getInitialTransformState().get());
         return this;
     }
 
@@ -193,8 +193,8 @@ export class Layer
     /**@internal */
     public fromData(data: LayerDataRaw): this {
         this.state = Layer.StateSerializer.deserialize(data.state);
-        this.transformState =
-            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState);
+        this.transformState.resetTo(
+            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState).get());
         return this;
     }
 

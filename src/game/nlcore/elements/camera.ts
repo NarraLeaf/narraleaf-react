@@ -340,11 +340,19 @@ export class Camera
      * The lifecycle hook, not the authoring helper — see {@link Camera.resetCamera} for the
      * chainable one. Returns the camera to the pose its constructor config describes, so a new game
      * or a freshly loaded save never inherits the previous playthrough's framing.
+     *
+     * **The state object is emptied, never replaced** ({@link TransformState.resetTo}). The mounted
+     * `<Camera>` captured this object when it bound the element and keeps animating and repainting
+     * THAT object for as long as it stays mounted; handing the camera a fresh one here — while
+     * `newGame()` runs, with the player already on screen — would leave the host driving an orphan.
+     * The camera is where that goes visibly wrong, because its lens plates are painted only from the
+     * settled state: a `vignette` the story set would be drawn for one frame and then wiped by the
+     * next settled repaint, which reads the replacement and finds nothing there.
      * @internal
      */
     override reset(): this {
         super.reset();
-        this.transformState = this.getInitialTransformState();
+        this.transformState.resetTo(this.getInitialTransformState().get());
         return this;
     }
 
@@ -357,8 +365,8 @@ export class Camera
 
     /**@internal */
     public fromData(data: CameraDataRaw): this {
-        this.transformState =
-            TransformState.deserialize<TransformDefinitions.CameraTransformProps>(data.transformState);
+        this.transformState.resetTo(
+            TransformState.deserialize<TransformDefinitions.CameraTransformProps>(data.transformState).get());
         return this;
     }
 

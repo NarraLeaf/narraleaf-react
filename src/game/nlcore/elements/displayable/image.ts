@@ -543,8 +543,8 @@ export class Image<
     /**@internal */
     fromData(data: ImageDataRaw): this {
         this.state = Image.StateSerializer.deserialize(data.state);
-        this.transformState =
-            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState);
+        this.transformState.resetTo(
+            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState).get());
         return this;
     }
 
@@ -596,7 +596,7 @@ export class Image<
     override reset(): this {
         super.reset();
         this.state = this.getInitialState();
-        this.transformState = this.getInitialTransformState(this.userConfig);
+        this.transformState.resetTo(this.getInitialTransformState(this.userConfig).get());
         return this;
     }
 

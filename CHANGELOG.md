@@ -1,6 +1,24 @@
 # Changelog
 
-## [0.31.1]
+## [Unreleased]
+
+### _Fixed_
+
+- **A camera lens effect written after a new game was drawn and then wiped.** `story.camera.vignette(0.72)`
+  (and `shutter`, and the same channels set through `Camera.lens()` or a plain `Camera.transform()`)
+  reached the plates for a frame and then went back to nothing, so a story that dimmed the corners
+  measured `opacity: 0` once it settled. The two strengths were the visible half of a wider defect:
+  every displayable's `reset()` and `fromData()` lifecycle hooks **replaced** the element's
+  `TransformState` object rather than emptying it, and `LiveGame.newGame()` calls `reset()` on every
+  element while the player is already mounted. A mounted host binds a displayable once and keeps
+  both animating and repainting the object it captured, so from that point the animation wrote one
+  object while the settled repaint read another. On the wrapper element the split is invisible —
+  `motion`'s layout projection puts the wrapper's own transform back after the repaint has cleared
+  it, which is why a camera `zoom` in the same row appeared to work — but the lens plates are painted
+  only from the settled state and had nothing to restore them. Both hooks now empty the state in
+  place through the new internal `TransformState.resetTo`, which also releases a lock left over from
+  an interrupted animation; a stale lock would otherwise make the next transform on that element
+  throw. Saves, serialization and the authoring API are unchanged.
 
 ### _Deprecated_
 

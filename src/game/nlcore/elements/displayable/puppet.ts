@@ -442,8 +442,8 @@ export class Puppet
     /**@internal */
     fromData(data: PuppetDataRaw): this {
         this.state = Puppet.normalizeState(data.state);
-        this.transformState =
-            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState);
+        this.transformState.resetTo(
+            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState).get());
         return this;
     }
 
@@ -462,7 +462,7 @@ export class Puppet
     override reset() {
         super.reset();
         this.state = this.getInitialState();
-        this.transformState = this.getInitialTransformState(this.userConfig);
+        this.transformState.resetTo(this.getInitialTransformState(this.userConfig).get());
     }
 
     /**

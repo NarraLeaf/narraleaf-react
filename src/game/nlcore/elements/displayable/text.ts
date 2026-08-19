@@ -252,8 +252,8 @@ export class Text
     /**@internal */
     fromData(data: TextDataRaw): this {
         this.state = Text.StateSerializer.deserialize(data.state);
-        this.transformState =
-            TransformState.deserialize<TransformDefinitions.TextTransformProps>(data.transformState);
+        this.transformState.resetTo(
+            TransformState.deserialize<TransformDefinitions.TextTransformProps>(data.transformState).get());
         return this;
     }
 
@@ -272,7 +272,7 @@ export class Text
     override reset() {
         super.reset();
         this.state = this.getInitialState();
-        this.transformState = this.getInitialTransformState(this.userConfig);
+        this.transformState.resetTo(this.getInitialTransformState(this.userConfig).get());
     }
 
     /**@internal */

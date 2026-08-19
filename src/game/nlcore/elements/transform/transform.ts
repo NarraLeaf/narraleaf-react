@@ -221,6 +221,30 @@ export class TransformState<T extends TransformDefinitions.Types> {
         this.state = state;
         return this;
     }
+
+    /**
+     * Put this state back to `state` **without changing the object's identity**, and release
+     * whatever a half-finished animation left behind.
+     *
+     * This is what an element's `reset()` / `fromData()` lifecycle hooks use, and the identity is the
+     * whole point of it. A React host binds a displayable once - `useDisplayable({state:
+     * element.transformState})` - and from then on the captured object is BOTH what the exposed
+     * `applyTransform` animates and what the settled-style repaint reads. An element that answered
+     * those hooks by assigning a fresh object would split itself in two: the animation would write
+     * the orphan while the repaint read the replacement, and every value the story set afterwards
+     * would be painted once and then wiped.
+     *
+     * The lock and the freeze are dropped for the same reason they are dropped rather than carried:
+     * they belong to an animation of the playthrough that just ended. Keeping a lock across a new
+     * game would make the next `Transform.animate` throw "Transform state is already locked" on an
+     * element that is, as far as the story is concerned, brand new.
+     */
+    public resetTo(state: Partial<T>): this {
+        this.state = state;
+        this.locked = null;
+        this.frozen = false;
+        return this;
+    }
 }
 
 export class Transform<T extends TransformDefinitions.Types = TransformDefinitions.Types> {
