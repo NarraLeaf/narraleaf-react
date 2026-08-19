@@ -12,9 +12,12 @@
   split.
 
   Contents are unaffected. `reset()` and `fromData()` still empty and refill the state through
-  `TransformState.resetTo`, and every prop setter works as before. Only code that assigned the field
-  outright is affected, which the engine itself only ever did in the constructors `readonly` still
-  permits.
+  `TransformState.resetTo`, and every prop setter works as before.
+
+  **Nothing outside the engine can be affected by this.** The field is `@internal` and is stripped
+  from the published type declarations, so no consumer ever had it to assign; the guard exists for
+  the next change made inside the engine, where the assignment used to typecheck and the damage was
+  invisible until a real game ran.
 
 ## [0.31.2]
 
