@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.30.0]
+
+### _Add_
+
+- **`RuleReveal` — transitions driven by a rule image.** A rule image is a greyscale picture that
+  says *when* each point of the frame changes over: dark first, bright last. Paint a spiral and the
+  scene wipes as a spiral; paint a brush stroke and it wipes as a brush stroke. This is the form
+  transition packs are authored in, and the engine now plays any of them.
+
+  ```ts
+  scene.jumpTo(next, new RuleReveal({duration: 1200, rule: "/rules/spiral.png"}));
+
+  // A crisper edge, running from the bright end of the rule instead of the dark.
+  scene.jumpTo(next, new RuleReveal({duration: 900, rule: spiral, feather: 0.03, inverted: true}));
+  ```
+
+  `feather` is the width of the soft edge as a fraction of the rule's tonal range — `0.12` by
+  default, which keeps roughly an eighth of the rule in transition at any moment. `0` is not
+  available on purpose: an infinitely hard edge aliases against whatever resolution the rule was
+  painted at, and the floor is low enough (`0.002`) to read as hard.
+
+  **Why this is its own engine rather than another `Mask` pattern.** `Reveal` takes a `MaskPattern`,
+  which is a CSS gradient — so it can play any shape that can be *described* (a wipe, an iris, a
+  clock hand, slats, dots) and no shape that cannot. A rule image is per-pixel data with no
+  description, so it needs a different mechanism underneath: the sweep is computed by an SVG filter
+  rather than a mask image. Everything above that is the same — same `duration`/`easing`, same
+  behaviour under skip and undo, and it drives a whole-scene change (`Scene.jumpTo`) and a single
+  image alike.
+
+  The rule is stretched to the element it plays on, so paint it at the stage's aspect ratio. Rules
+  are low-frequency by nature and do not need to be large: 960×540 is ample for a 1080p stage, and a
+  smaller rule is a smaller decode.
+
 ## [0.29.1]
 
 ### _Fix_

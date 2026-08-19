@@ -8,6 +8,7 @@ import {
     Mask,
     Push,
     Reveal,
+    RuleReveal,
     ThroughColor,
 } from "narraleaf-react";
 
@@ -88,6 +89,8 @@ describe("what a transition can leave on a layered stack", () => {
         new ThroughColor({duration: 400, pattern: Mask.fan(), uncover: "continue"}),
         new ThroughColor({duration: 400, pattern: Mask.barnDoor(), uncover: "continue"}),
         new ThroughColor({duration: 400, pattern: Mask.dots({stagger: 0.5})}),
+        new RuleReveal({duration: 400, rule: "/rules/spiral.png"}),
+        new RuleReveal({duration: 400, rule: "/rules/spiral.png", feather: 0.4, inverted: true}),
     ].map(layered);
 
     it("writes nothing to a stack that the settled pose does not reset", () => {

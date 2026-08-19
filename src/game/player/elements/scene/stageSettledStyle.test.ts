@@ -12,6 +12,7 @@ import {BlurDissolve} from "@core/elements/transition/transitions/image/blurDiss
 import {Push} from "@core/elements/transition/transitions/image/push";
 import {ThroughColor} from "@core/elements/transition/transitions/image/throughColor";
 import {Reveal} from "@core/elements/transition/transitions/image/reveal";
+import {RuleReveal} from "@core/elements/transition/transitions/image/ruleReveal";
 import {Mask} from "@core/elements/transition/transitions/image/mask";
 import {Darkness} from "@core/elements/transition/transitions/image/darkness";
 import {Exposure} from "@core/elements/transition/transitions/image/exposure";
@@ -52,6 +53,8 @@ const TRANSITIONS: [string, ImageTransition][] = [
     named(new Darkness({from: 0, to: 1, duration: 300}), "Darkness"),
     named(new Exposure({duration: 300}), "Exposure"),
     named(new Exposure({duration: 300, hold: 0.4}), "Exposure hold"),
+    named(new RuleReveal({duration: 300, rule: "/rules/spiral.png"}), "RuleReveal"),
+    named(new RuleReveal({duration: 300, rule: "/rules/spiral.png", inverted: true}), "RuleReveal inverted"),
 ];
 
 /**

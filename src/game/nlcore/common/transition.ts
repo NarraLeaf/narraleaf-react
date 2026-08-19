@@ -9,6 +9,7 @@ import {Darkness} from "@core/elements/transition/transitions/image/darkness";
 import {Exposure} from "@core/elements/transition/transitions/image/exposure";
 import {ThroughColor} from "@core/elements/transition/transitions/image/throughColor";
 import {Reveal} from "@core/elements/transition/transitions/image/reveal";
+import {RuleReveal} from "@core/elements/transition/transitions/image/ruleReveal";
 import {Mask} from "@core/elements/transition/transitions/image/mask";
 
 export {
@@ -23,6 +24,7 @@ export {
     Exposure,
     ThroughColor,
     Reveal,
+    RuleReveal,
     Mask,
 };
 
@@ -37,6 +39,7 @@ export type {
     ThroughColorUncover,
 } from "@core/elements/transition/transitions/image/throughColor";
 export type {RevealOptions} from "@core/elements/transition/transitions/image/reveal";
+export type {RuleRevealOptions} from "@core/elements/transition/transitions/image/ruleReveal";
 export type {
     MaskPattern,
     WipePatternOptions,
