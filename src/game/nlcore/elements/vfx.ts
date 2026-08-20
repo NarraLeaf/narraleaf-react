@@ -43,6 +43,22 @@ export type VfxConfig = {
 export type VfxFadeOptions = {
     duration?: number;
     easing?: TransformDefinitions.EasingDefinition;
+    /**
+     * Opacity to fade in to, for this showing only. Defaults to `config.opacity`.
+     *
+     * The overlay's own opacity is a property of the material — how strong that rain IS — while this
+     * is a property of the moment: the same rain reading faintly behind a memory and at full strength
+     * in the storm. Read by `show` only; a `hide` always fades to zero.
+     */
+    opacity?: number;
+    /**
+     * Playback speed for this showing only. Defaults to `config.playbackRate`.
+     *
+     * Every `show` restates the speed, so an override lasts exactly as long as the showing that
+     * asked for it and the next `show` is back to the configured rate. Like
+     * {@link Vfx.setPlaybackRate}, it is not persisted: a loaded save plays at `config.playbackRate`.
+     */
+    rate?: number;
 };
 
 export type VfxState = {
@@ -108,10 +124,34 @@ export class Vfx extends Actionable<VfxStateRaw> {
     }
 
     /**
-     * Add the overlay to the stage, fade it in, and start looping playback.
+     * Put the overlay on the stage without showing it: the video element is created and starts
+     * buffering, at zero opacity and paused.
+     *
+     * This is what makes a later {@link show} instant. A video that is not in the document has not
+     * begun to load, let alone decode, so the first frame of an overlay shown from nothing arrives
+     * whenever the decoder gets there — and `show` waits for it rather than fading in an empty
+     * rectangle. Declaring the overlay early moves that wait somewhere the player is not looking.
+     *
+     * Resolves immediately: nothing is waited for, because the point is to stop the story from
+     * waiting later. Calling it on an overlay already on stage does nothing.
+     * @chainable
+     */
+    preload(): Proxied<Vfx, Chained<LogicAction.Actions>> {
+        return this.chain(this.createAction(
+            VfxActionTypes.preload,
+            []
+        ));
+    }
+
+    /**
+     * Fade the overlay in and start looping playback, putting it on the stage first if
+     * {@link preload} has not already.
      *
      * The action waits for the fade-in to finish. Calling it while the overlay is
      * already shown is idempotent (the fade-in is re-applied).
+     *
+     * `options.opacity` and `options.rate` apply to this showing only; both fall back to the
+     * overlay's configured values, so a plain `show()` after an overridden one is back to normal.
      * @chainable
      */
     show(options?: VfxFadeOptions): Proxied<Vfx, Chained<LogicAction.Actions>> {
@@ -122,7 +162,12 @@ export class Vfx extends Actionable<VfxStateRaw> {
     }
 
     /**
-     * Fade the overlay out, then stop playback and remove it from the stage.
+     * Fade the overlay out and stop playback. It stays on the stage, invisible and paused.
+     *
+     * A paused video decodes nothing, so a hidden overlay costs no frame time — and keeping the
+     * element means the next {@link show} has a decoder already holding the clip instead of starting
+     * over. Both halves of the same decision: stop the work, keep the warmth. Only a new game or a
+     * load clears the stage.
      *
      * The action waits for the fade-out to finish. Calling it while the overlay is
      * not shown is a no-op (a weak warning is logged).
@@ -137,6 +182,11 @@ export class Vfx extends Actionable<VfxStateRaw> {
 
     /**
      * Freeze the overlay on its current frame.
+     *
+     * A freeze is explicit state, not a side effect of being invisible: it survives a
+     * {@link hide}/{@link show} pair, so an overlay paused and then hidden comes back still frozen
+     * and only {@link resume} starts it moving again. `hide` stops playback of its own accord and
+     * does not touch this.
      * @chainable
      */
     pause(): Proxied<Vfx, Chained<LogicAction.Actions>> {

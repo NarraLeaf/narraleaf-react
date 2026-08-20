@@ -23,7 +23,25 @@ export class VfxAction<T extends Values<typeof VfxActionTypes> = Values<typeof V
             stackModel: injection.stackModel
         };
 
-        if (action.is<VfxAction<"vfx:show">>(VfxAction, "vfx:show")) {
+        if (action.is<VfxAction<"vfx:preload">>(VfxAction, "vfx:preload")) {
+            // Nothing is waited for and nothing becomes visible: this puts the element in the
+            // document so the browser can start fetching and decoding, which is the whole cost a
+            // later `show` would otherwise pay while the player watches.
+            if (gameState.isVfxAdded(vfx)) {
+                return Awaitable.resolve(super.executeAction(gameState, injection) as CalledActionResult);
+            }
+            gameState.addVfx(vfx);
+            gameState.stage.update();
+
+            gameState.actionHistory.push(historyProps, () => {
+                if (gameState.isVfxAdded(vfx)) {
+                    gameState.removeVfx(vfx);
+                    gameState.stage.update();
+                }
+            });
+
+            return Awaitable.resolve(super.executeAction(gameState, injection) as CalledActionResult);
+        } else if (action.is<VfxAction<"vfx:show">>(VfxAction, "vfx:show")) {
             const [options] = (action as VfxAction<typeof VfxActionTypes.show>).contentNode.getContent();
             const originalVisible = vfx.state.display;
             if (!gameState.isVfxAdded(vfx)) {
@@ -38,7 +56,10 @@ export class VfxAction<T extends Values<typeof VfxActionTypes> = Values<typeof V
 
             return this.changeStateAsync(gameState, (state) => state.show(options), injection);
         } else if (action.is<VfxAction<"vfx:hide">>(VfxAction, "vfx:hide")) {
-            if (!gameState.isVfxAdded(vfx)) {
+            // Not shown covers both ways: never put on stage at all, and on stage but invisible -
+            // which is what a preloaded or an already-hidden overlay is. Either way there is nothing
+            // to fade out, and fading zero to zero would spend the duration on nothing.
+            if (!gameState.isVfxAdded(vfx) || !vfx.state.display) {
                 gameState.logger.weakWarn("NarraLeaf-React: Vfx", "Hiding a Vfx that is not shown, ignored. (src: " + vfx.config.src + ")");
                 return Awaitable.resolve(super.executeAction(gameState, injection) as CalledActionResult);
             }
@@ -54,8 +75,9 @@ export class VfxAction<T extends Values<typeof VfxActionTypes> = Values<typeof V
                     vfx.state.display = prevVisible;
                 }, [originalVisible]);
 
-                gameState.removeVfx(vfx);
-                gameState.stage.update();
+                // The element STAYS on the stage, paused at zero opacity. Removing it would throw
+                // away a warm decoder for a clip the story is likely to want again, and a paused
+                // video costs no frame time - see `Vfx.hide`.
             }, injection);
         } else if (action.is<VfxAction<"vfx:pause">>(VfxAction, "vfx:pause")) {
             return this.changeState(gameState, (state) => {

@@ -63,6 +63,23 @@ describe("Vfx element", () => {
     });
 
     describe("chainable actions", () => {
+        it("preload() emits a single vfx:preload action with no payload", () => {
+            const vfx = new Vfx({ src: "/fx/petals.webm" });
+            const actions = Chained.toActions([vfx.preload()]);
+            expect(actions.map((a) => a.type)).toEqual([VfxActionTypes.preload]);
+            expect(actions[0].contentNode.getContent()).toEqual([]);
+        });
+
+        it("show() carries a per-showing opacity and rate", () => {
+            const vfx = new Vfx({ src: "/fx/petals.webm", opacity: 1, playbackRate: 1 });
+            const actions = Chained.toActions([vfx.show({ duration: 400, opacity: 0.35, rate: 2 })]);
+            expect(actions[0].contentNode.getContent()).toEqual([{ duration: 400, opacity: 0.35, rate: 2 }]);
+            // The overlay itself is untouched: an override belongs to the showing, and the config is
+            // what a plain `show()` - and a loaded save - goes back to.
+            expect(vfx.config.opacity).toBe(1);
+            expect(vfx.config.playbackRate).toBe(1);
+        });
+
         it("show() emits a single vfx:show action carrying the fade options", () => {
             const vfx = new Vfx({ src: "/fx/petals.webm" });
             const actions = Chained.toActions([vfx.show({ duration: 800, easing: "easeIn" })]);
@@ -112,13 +129,14 @@ describe("Vfx element", () => {
             void coverage;
             void exact;
 
-            // Runtime: the action type table holds the five specified operations plus the
+            // Runtime: the action type table holds the six specified operations plus the
             // "vfx:action" marker every element's table carries (required by the Action base
             // class's static side).
             expect(Object.values(VfxActionTypes).sort()).toEqual([
                 "vfx:action",
                 "vfx:hide",
                 "vfx:pause",
+                "vfx:preload",
                 "vfx:resume",
                 "vfx:setRate",
                 "vfx:show",

@@ -1366,13 +1366,21 @@ export class GameState {
             return video;
         });
         // Saves created before 0.16.0 have no "vfx" key; tolerate its absence.
-        this.state.vfx = (data.vfx ?? []).map(([id, state]) => {
+        //
+        // An id the story no longer has is dropped with a warning rather than thrown on, unlike
+        // every other element above. An ambience overlay is decoration: the difference between
+        // loading this save and refusing it is rain that is missing, and refusing to load a save at
+        // all is far worse than that. It is also the element most likely to go missing, because a
+        // save now carries every overlay the story has DECLARED - not only the ones on screen when
+        // the player saved - so an author deleting a `preload` row can strand one.
+        this.state.vfx = (data.vfx ?? []).flatMap(([id, state]) => {
             const vfx = elementMap.get(id) as Vfx;
             if (!vfx) {
-                throw new RuntimeGameError("Vfx not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
+                this.logger.weakWarn("NarraLeaf-React: Vfx", "Vfx not found when loading a saved game, skipped. (id: " + id + ")");
+                return [];
             }
             vfx.fromData(state);
-            return vfx;
+            return [vfx];
         });
 
         if (data.nvlState) {

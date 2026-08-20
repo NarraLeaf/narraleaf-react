@@ -175,10 +175,13 @@ export default function Vfx(
                     try {
                         await waitReady();
                         if (!ref.current) return;
+                        // Restated on every show rather than only when overridden, so an override
+                        // belongs to the showing that asked for it instead of leaking into the next.
+                        el.playbackRate = options?.rate ?? vfx.config.playbackRate;
                         if (!vfx.state.paused) {
                             playSafe();
                         }
-                        await fade(vfx.config.opacity, options, op);
+                        await fade(options?.opacity ?? vfx.config.opacity, options, op);
                     } finally {
                         inFlightOps.delete(op);
                     }

@@ -252,6 +252,7 @@ export type VideoActionContentType = {
 /* Vfx */
 export const VfxActionTypes = {
     action: "vfx:action",
+    preload: "vfx:preload",
     show: "vfx:show",
     hide: "vfx:hide",
     pause: "vfx:pause",
@@ -262,7 +263,7 @@ export type VfxActionContentType = {
     [K in typeof VfxActionTypes[keyof typeof VfxActionTypes]]:
     K extends "vfx:action" ? any :
     K extends "vfx:show" | "vfx:hide" ? [VfxFadeOptions?] :
-    K extends "vfx:pause" | "vfx:resume" ? [] :
+    K extends "vfx:preload" | "vfx:pause" | "vfx:resume" ? [] :
     K extends "vfx:setRate" ? [number] :
     any;
 }

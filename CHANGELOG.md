@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.32.1]
+## [0.33.0]
 
 ### _Known defect_
 
@@ -14,6 +14,31 @@
   error compounds; an endless one cannot. **Do not ship a looping transform in a game whose players
   can load a save until this is fixed.**
 
+### _Feature_
+
+- **An overlay can be put on the stage before it is shown** — `vfx.preload()`. The element is created
+  and starts buffering at zero opacity, paused, and the story does not wait for it.
+
+  A video that is not in the document has not begun to load, let alone decode, so the first frame of
+  an overlay shown from nothing arrives whenever the decoder gets there — and `show` waits for it
+  rather than fading in an empty rectangle. Declaring the overlay early moves that wait somewhere the
+  player is not looking.
+
+  ```ts
+  scene.action([
+      rain.preload(),                    // nothing on screen; the clip starts loading
+      yuko.say`The sky has been grey all afternoon.`,
+      rain.show({ duration: 800 }),      // instant: the decoder already holds the clip
+  ]);
+  ```
+
+- **`show` takes an opacity and a rate for that showing only** — `rain.show({ opacity: 0.35, rate: 2 })`.
+  The overlay's own `opacity` and `playbackRate` are properties of the material: how strong that rain
+  *is*. These are properties of the moment — the same rain faint behind a memory and full strength in
+  the storm. Every `show` restates both, so an override lasts exactly as long as the showing that
+  asked for it and a plain `show()` is back to the configured values. Like `setPlaybackRate`, neither
+  is persisted: a loaded save plays at the configured opacity and rate.
+
 ### _Change_
 
 - **A looping transform states where it starts.** Its first step is now the pre-loop pose at zero
@@ -21,7 +46,23 @@
   the element's style happens to be. Correct on its own terms - it makes a repeat deterministic -
   but note it does **not** fix the defect above, which was what it was written to chase.
 
+- **Hiding an overlay no longer takes it off the stage.** It fades out and stops playing, and the
+  element stays, invisible and paused. A paused video decodes nothing, so a hidden overlay still
+  costs no frame time — and keeping it means the next `show` has a decoder already holding the clip
+  instead of starting over, which is what made re-showing an overlay expensive enough to avoid. Only
+  a new game or a load clears the stage.
+
+  Two consequences worth stating. A `show` after a `hide` **resumes** where the clip was paused
+  rather than restarting from the first frame (invisible in a looping ambience clip, visible in one
+  with content). And a save now records every overlay the story has **declared**, not only the ones
+  visible when the player saved.
+
 ### _Fix_
+
+- **A save that names an overlay the story no longer has now loads.** It is dropped with a warning
+  instead of throwing, unlike every other element: the difference is rain that is missing versus a
+  save the player cannot open at all, and decoration is not worth that. It also became easy to
+  arrive at, now that a save carries declared overlays — deleting a `preload` row can strand one.
 
 - **Stepping back past a transform no longer disturbs an element that was never looping.** The undo
   a transform registers also puts the element's looping transform back, and the way back from a loop

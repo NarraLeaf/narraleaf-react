@@ -13,7 +13,9 @@ import type { LogicAction } from "@core/action/logicAction";
  */
 
 type LoadDataThis = {
-    logger: { debug: (...args: unknown[]) => void };
+    /** Collected rather than discarded: one of the tests below asserts what was warned about. */
+    warnings: string[];
+    logger: { debug: (...args: unknown[]) => void; weakWarn: (...args: unknown[]) => void };
     game: { getLiveGame: () => { story: object } };
     audioManager: { fromData: (...args: unknown[]) => void };
     state: { videos: unknown[]; vfx: Vfx[]; srcManagers: unknown[]; elements: unknown[] };
@@ -22,8 +24,13 @@ type LoadDataThis = {
 };
 
 function createLoadDataThis(): LoadDataThis {
+    const warnings: string[] = [];
     return {
-        logger: { debug: () => void 0 },
+        warnings,
+        logger: {
+            debug: () => void 0,
+            weakWarn: (...args: unknown[]) => warnings.push(args.map(String).join(" ")),
+        },
         game: { getLiveGame: () => ({ story: {} }) },
         audioManager: { fromData: () => void 0 },
         state: {
@@ -71,12 +78,25 @@ describe("GameState.loadData vfx save compatibility", () => {
         expect(vfx.state.paused).toBe(true);
     });
 
-    it("throws a descriptive error when a saved vfx id has no matching element", () => {
+    it("skips a saved vfx id that has no matching element, and says so", () => {
+        // Decoration must not cost a save. Every other element throws here, and an overlay
+        // deliberately does not: the difference is rain that is missing versus a save the player
+        // cannot open at all. A save also carries every DECLARED overlay now, not only the visible
+        // ones, so a deleted row is an ordinary way to arrive here.
         const self = createLoadDataThis();
+        const kept = new Vfx({ src: "/fx/petals.webm" });
+        kept.setId("vfx-1");
         const save: PlayerStateData = {
             ...baseSave,
-            vfx: [["missing-id", { state: { display: true, paused: false } }]],
+            vfx: [
+                ["missing-id", { state: { display: true, paused: false } }],
+                ["vfx-1", { state: { display: true, paused: false } }],
+            ],
         };
-        expect(() => loadData(self, save, new Map())).toThrow(/Vfx not found/);
+
+        expect(() => loadData(self, save, new Map<string, LogicAction.GameElement>([["vfx-1", kept]]))).not.toThrow();
+
+        expect(self.state.vfx).toEqual([kept]);
+        expect(self.warnings.some(message => /Vfx not found/.test(message))).toBe(true);
     });
 });
