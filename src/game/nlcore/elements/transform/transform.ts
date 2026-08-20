@@ -635,7 +635,25 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             gameState.logger.warn("Transform", "No sequences to loop.");
         }
 
-        const token = animate(sequences, {
+        // **A loop states where it starts, always.** A sequence whose first segment names only a
+        // destination leaves `motion` to read the element's CURRENT style as the start - once per
+        // repeat, for ever - and that read is the whole defect: the wrapper's style is also written
+        // by the settled-style heal and by `motion`'s own projection on every render, so any render
+        // that lands mid-loop feeds a foreign value back in as the next repeat's origin. A finite
+        // animation survives that because it settles before the error compounds; an endless one
+        // diverges, and a restore (which re-renders the whole stage) makes it diverge visibly -
+        // measured on a real sprite as `scaleY` running to -580 within a second.
+        //
+        // Prepending the pre-loop pose at zero duration closes it: both endpoints are stated, so
+        // every repeat interpolates between the same two known values no matter what else touched
+        // the element in between.
+        const origin: DOMSegmentWithTransition = [
+            ref.current,
+            onlyValidFields(transformState.toFramesDefinition(gameState, overwrites)),
+            { duration: 0 },
+        ];
+
+        const token = animate([origin, ...sequences], {
             ...options,
             repeat: Infinity,
             repeatType: loopOptions?.repeatType ?? options.repeatType ?? "loop",

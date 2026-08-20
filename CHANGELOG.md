@@ -2,6 +2,25 @@
 
 ## [0.32.1]
 
+### _Known defect_
+
+- **A loop does not survive a restore.** Stepping into a line where a looping transform is running -
+  `redo`, `restoreToHistory`, or loading a save - leaves that element's wrapper style diverging
+  without bound (measured on a real sprite: `scaleY` to -580 and a `top` of 27353px within seconds),
+  and every later transform on that element diverges too. Ordinary play, `stopLoop`, and stepping
+  through lines where no loop is running are all unaffected, and the element's `TransformState` stays
+  correct throughout - the damage is only in the DOM. Root cause is the wrapper having two writers:
+  the imperative animation and the host's own projection. A finite animation settles before the
+  error compounds; an endless one cannot. **Do not ship a looping transform in a game whose players
+  can load a save until this is fixed.**
+
+### _Change_
+
+- **A looping transform states where it starts.** Its first step is now the pre-loop pose at zero
+  duration, so every repeat interpolates between two stated endpoints rather than reading whatever
+  the element's style happens to be. Correct on its own terms - it makes a repeat deterministic -
+  but note it does **not** fix the defect above, which was what it was written to chase.
+
 ### _Fix_
 
 - **Stepping back past a transform no longer disturbs an element that was never looping.** The undo

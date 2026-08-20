@@ -100,6 +100,26 @@ describe("startLoop", () => {
         animateMock.mockImplementation(() => playbackLike());
     });
 
+    it("states where it starts, so a repeat never reads the element's current style", () => {
+        // A first segment that names only a destination leaves `motion` to read the DOM as the
+        // origin - and the wrapper's style is also written by the settled-style heal and by the
+        // host's own projection, so a render landing mid-loop would feed a foreign value back in.
+        const transform = Transform
+            .create<TransformDefinitions.ImageTransformProps>()
+            .scaleY(1.02)
+            .commit({ duration: 900 });
+        const state = transformStateLike();
+
+        transform.startLoop(state, { gameState: stateLike(), ref: refLike() });
+
+        const sequences = animateMock.mock.calls[0][0] as [unknown, Record<string, unknown>, Record<string, unknown>][];
+        expect(sequences.length).toBe(2);
+        expect(sequences[0][2]).toMatchObject({ duration: 0 });
+        // The origin IS the pre-loop pose, not a copy of the destination.
+        expect(String(sequences[0][1].transform)).toContain("scaleY(1)");
+        expect(String(sequences[1][1].transform)).toContain("scaleY(1.02)");
+    });
+
     it("repeats forever, whatever the transform's own repeat count said", () => {
         const transform = Transform
             .create<TransformDefinitions.ImageTransformProps>()
