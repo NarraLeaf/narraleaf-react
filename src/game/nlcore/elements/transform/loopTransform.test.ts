@@ -101,9 +101,10 @@ describe("startLoop", () => {
     });
 
     it("states where it starts, so a repeat never reads the element's current style", () => {
-        // A first segment that names only a destination leaves `motion` to read the DOM as the
-        // origin - and the wrapper's style is also written by the settled-style heal and by the
-        // host's own projection, so a render landing mid-loop would feed a foreign value back in.
+        // A first segment that names only a destination leaves `motion` to supply the start itself,
+        // which makes a positional value resolve to exactly two keyframes - the one shape that sends
+        // `motion` off to measure the element and re-emit the value in `px`. See the next test for
+        // the mechanism; this one pins that the origin is stated and that it is the PRE-LOOP pose.
         const transform = Transform
             .create<TransformDefinitions.ImageTransformProps>()
             .scaleY(1.02)
@@ -118,6 +119,37 @@ describe("startLoop", () => {
         // The origin IS the pre-loop pose, not a copy of the destination.
         expect(String(sequences[0][1].transform)).toContain("scaleY(1)");
         expect(String(sequences[1][1].transform)).toContain("scaleY(1.02)");
+    });
+
+    it("keeps every positional value above two keyframes, which is what stops `motion` measuring it", () => {
+        // This is the whole reason the origin segment above is load-bearing, and it is not obvious
+        // from reading `startLoop`, so it is pinned here rather than left to a comment.
+        //
+        // `motion` converts a positional value's units by measuring the element - but only when that
+        // value resolves to EXACTLY two keyframes (`DOMKeyframesResolver.unresolveKeyframes`:
+        // `if (!positionalKeys.has(name) || unresolvedKeyframes.length !== 2) return`, where
+        // `positionalKeys` covers top/left/right/bottom/width/height). A lone segment is exactly
+        // that shape, because `motion` supplies the missing start itself. The measurement runs
+        // `getBoundingClientRect`, the value comes back in `px`, it is re-emitted every frame, and
+        // each restore feeds the measured value back in as the next origin - which is how a looping
+        // sprite's `bottom` reached 27353px and its `scaleY` -580.
+        //
+        // Three keyframes skip that branch entirely. **Keep a loop's sequence above one segment.**
+        const transform = Transform
+            .create<TransformDefinitions.ImageTransformProps>()
+            .scaleY(1.02)
+            .commit({ duration: 900 });
+
+        transform.startLoop(transformStateLike(), { gameState: stateLike(), ref: refLike() });
+
+        const sequences = animateMock.mock.calls[0][0] as [unknown, Record<string, unknown>, Record<string, unknown>][];
+        expect(sequences.length).toBeGreaterThan(1);
+        // A positional key stated in only one frame still resolves to two keyframes, so it is not
+        // enough that the segments exist - the key has to appear in more than one of them.
+        for (const key of ["top", "bottom", "left", "right"]) {
+            const stated = sequences.filter(([, frame]) => frame[key] !== undefined).length;
+            expect({ key, stated }).toEqual({ key, stated: sequences.length });
+        }
     });
 
     it("repeats forever, whatever the transform's own repeat count said", () => {

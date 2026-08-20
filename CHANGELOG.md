@@ -2,18 +2,6 @@
 
 ## [0.33.0]
 
-### _Known defect_
-
-- **A loop does not survive a restore.** Stepping into a line where a looping transform is running -
-  `redo`, `restoreToHistory`, or loading a save - leaves that element's wrapper style diverging
-  without bound (measured on a real sprite: `scaleY` to -580 and a `top` of 27353px within seconds),
-  and every later transform on that element diverges too. Ordinary play, `stopLoop`, and stepping
-  through lines where no loop is running are all unaffected, and the element's `TransformState` stays
-  correct throughout - the damage is only in the DOM. Root cause is the wrapper having two writers:
-  the imperative animation and the host's own projection. A finite animation settles before the
-  error compounds; an endless one cannot. **Do not ship a looping transform in a game whose players
-  can load a save until this is fixed.**
-
 ### _Feature_
 
 - **An overlay can be put on the stage before it is shown** — `vfx.preload()`. The element is created
@@ -46,11 +34,6 @@
 
 ### _Change_
 
-- **A looping transform states where it starts.** Its first step is now the pre-loop pose at zero
-  duration, so every repeat interpolates between two stated endpoints rather than reading whatever
-  the element's style happens to be. Correct on its own terms - it makes a repeat deterministic -
-  but note it does **not** fix the defect above, which was what it was written to chase.
-
 - **Hiding an overlay no longer takes it off the stage.** It fades out and stops playing, and the
   element stays, invisible and paused. A paused video decodes nothing, so a hidden overlay still
   costs no frame time — and keeping it means the next `show` has a decoder already holding the clip
@@ -63,6 +46,20 @@
   visible when the player saved.
 
 ### _Fix_
+
+- **A looping transform now survives a restore.** Stepping into a line where a loop is running -
+  `redo`, `restoreToHistory`, or loading a save - used to leave that element's wrapper style
+  diverging without bound (measured on a real sprite: `scaleY` to -580 and a `top` of 27353px within
+  seconds), and every later transform on that element diverged with it. A loop's first step is now
+  the pre-loop pose at zero duration, so both ends of every repeat are stated.
+
+  Why that closes it is worth writing down, because the guard reads like a redundancy and is not.
+  `motion` converts a positional value's units by measuring the element with `getBoundingClientRect`,
+  but only when that value resolves to exactly two keyframes. A single-segment loop was exactly that
+  shape - `motion` supplies the missing start itself - so `bottom` came back in `px`, was re-emitted
+  on every frame, and each restore fed the measured value back in as the next origin. Stating the
+  origin makes it three keyframes and the measurement never runs. **A loop's compiled sequence has to
+  stay above one segment**; `loopTransform.test.ts` pins that.
 
 - **A save that names an overlay the story no longer has now loads.** It is dropped with a warning
   instead of throwing, unlike every other element: the difference is rain that is missing versus a
