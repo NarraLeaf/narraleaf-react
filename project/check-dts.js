@@ -8,6 +8,14 @@
  * declare, and both are invisible under `skipLibCheck: true` -- which is what almost
  * everyone runs. So run the check nobody else will: `skipLibCheck: false` over the
  * declarations that actually ship.
+ *
+ * Run once per module resolution mode, because the two do not agree. `node` ignores a
+ * dependency's `exports` map and takes whatever its `types` field points at; `bundler`
+ * honours it and can land on a different declaration file for the same import. That is how
+ * `className?: clsx.ClassValue` shipped in 0.31.x: clsx's CJS declarations declare a `clsx`
+ * namespace and its ESM ones do not, so the reference typechecked here under `node` and
+ * failed for every consumer resolving the way a bundler does. Checking one mode checks half
+ * the consumers.
  */
 import fs from "fs";
 import path from "path";
@@ -25,44 +33,51 @@ if (!fs.existsSync(dist)) {
 }
 
 // `files` in package.json ships dist/ minus the test declarations, so check exactly that.
-fs.writeFileSync(configPath, JSON.stringify({
-    compilerOptions: {
-        noEmit: true,
-        skipLibCheck: false,
-        strict: true,
-        target: "ES6",
-        module: "esnext",
-        moduleResolution: "node",
-        lib: ["dom", "dom.iterable", "esnext"],
-        jsx: "preserve",
-        esModuleInterop: true,
-        resolveJsonModule: true,
-        forceConsistentCasingInFileNames: true,
-        types: ["node"],
-        typeRoots: ["node_modules/@types", "src/types"],
-    },
-    include: ["dist/**/*.d.ts"],
-    exclude: ["dist/**/*.test.d.ts"],
-}, null, 4) + "\n");
+for (const moduleResolution of ["node", "bundler"]) {
+    fs.writeFileSync(configPath, JSON.stringify({
+        compilerOptions: {
+            noEmit: true,
+            skipLibCheck: false,
+            strict: true,
+            target: "ES6",
+            module: "esnext",
+            moduleResolution,
+            lib: ["dom", "dom.iterable", "esnext"],
+            jsx: "preserve",
+            esModuleInterop: true,
+            resolveJsonModule: true,
+            forceConsistentCasingInFileNames: true,
+            types: ["node"],
+            typeRoots: ["node_modules/@types", "src/types"],
+        },
+        include: ["dist/**/*.d.ts"],
+        exclude: ["dist/**/*.test.d.ts"],
+    }, null, 4) + "\n");
 
-try {
-    execFileSync(
-        process.execPath,
-        [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", configPath],
-        { cwd: root, stdio: "inherit" }
-    );
-    console.log("check-dts: ok - every shipped declaration typechecks with skipLibCheck disabled.");
-} catch {
-    console.error("");
-    console.error("check-dts: FAILED - dist/**/*.d.ts does not typecheck with skipLibCheck disabled.");
-    console.error("A declaration references a name the emitted output does not declare. Usual causes:");
-    console.error("  - an @internal type reachable from a public signature (stripInternal deletes the");
-    console.error("    declaration, the reference survives) -- drop the @internal marker;");
-    console.error("  - a tsconfig `paths` alias tsc-alias could not resolve under dist/, so it left the");
-    console.error("    bare alias in the output -- point the alias at an extensionless path.");
-    process.exitCode = 1;
-} finally {
-    fs.rmSync(configPath, { force: true });
+    try {
+        execFileSync(
+            process.execPath,
+            [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", configPath],
+            { cwd: root, stdio: "inherit" }
+        );
+        console.log(`check-dts: ok - every shipped declaration typechecks with skipLibCheck disabled (moduleResolution: ${moduleResolution}).`);
+    } catch {
+        console.error("");
+        console.error(`check-dts: FAILED - dist/**/*.d.ts does not typecheck with skipLibCheck disabled (moduleResolution: ${moduleResolution}).`);
+        console.error("A declaration references a name the emitted output does not declare. Usual causes:");
+        console.error("  - an @internal type reachable from a public signature (stripInternal deletes the");
+        console.error("    declaration, the reference survives) -- drop the @internal marker;");
+        console.error("  - a tsconfig `paths` alias tsc-alias could not resolve under dist/, so it left the");
+        console.error("    bare alias in the output -- point the alias at an extensionless path;");
+        console.error("  - a dependency whose CJS and ESM declarations differ, reached the way only");
+        console.error("    one of them allows -- import the type by name, not through a namespace;");
+        console.error("  - a dependency whose types live in an @types package that is only a");
+        console.error("    devDependency, so it resolves here and nowhere else -- move it to");
+        console.error("    dependencies.");
+        process.exitCode = 1;
+    } finally {
+        fs.rmSync(configPath, { force: true });
+    }
 }
 
 /**

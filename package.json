@@ -36,7 +36,6 @@
     "@tailwindcss/postcss": "^4.1.5",
     "@tailwindcss/postcss7-compat": "^2.2.17",
     "@types/fs-extra": "^11.0.4",
-    "@types/howler": "^2.2.11",
     "@types/lodash": "^4.17.7",
     "@types/node": "^22.15.3",
     "@types/react": ">=19",
@@ -105,6 +104,7 @@
   "license": "MPL-2.0",
   "dependencies": {
     "@narraleaf/sound": "0.1.0",
+    "@types/howler": "^2.2.11",
     "client-only": "^0.0.1",
     "clsx": "^2.1.1",
     "howler": "^2.2.4",

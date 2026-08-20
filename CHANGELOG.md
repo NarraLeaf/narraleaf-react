@@ -58,6 +58,26 @@
   loops it does, because a looping text would have kept painting the scale it had before the last
   stage resize.
 
+- **The shipped declarations now typecheck for a consumer that resolves modules the way a bundler
+  does.** Two of them did not, and both were invisible to anyone with `skipLibCheck: true` — which
+  is nearly everyone, and is why they lasted through 0.31.x.
+
+  `PlayerProps.className` was typed as `clsx.ClassValue`, reached through a default import. clsx
+  ships two declaration files: the CommonJS one declares a `clsx` namespace, the ESM one does not.
+  A `node`-resolving consumer takes the first and compiles; a `bundler`-resolving one takes the
+  second and gets `Cannot find namespace 'clsx'` — inside our own declaration file, with nothing
+  they can do about it. The type is now imported by name (`import type { ClassValue } from "clsx"`)
+  and is the same type it always was, so nothing about `className` changes for anyone using it.
+
+  `@types/howler` was a devDependency while `howler` itself is a dependency and
+  `dist/game/player/gameState.d.ts` imports it. That resolves in this repository and nowhere else,
+  so a strict consumer saw `Could not find a declaration file for module 'howler'`. It is a
+  dependency now, which is what a package whose published types reference it has to be.
+
+  `npm run check:dts` now runs once per module resolution mode rather than only under `node`,
+  because that is the difference the first of these turned on. Checking one mode checks half the
+  consumers.
+
 ## [0.31.4]
 
 ### _Fixed_
