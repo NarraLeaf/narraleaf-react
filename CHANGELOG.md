@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.33.1]
+
+### _Fix_
+
+- **Stepping back in place no longer leaves a looping element frozen.** A loop travels as the id of
+  the action that started it, because a `Transform` cannot be serialized - so restoring an element
+  brings back the anchor and leaves the transform to a pass that holds the story's action map.
+  Loading a save ran that pass. Stepping back in place did not, and the element was left declaring a
+  loop it could not run: `_getLoop()` found no transform so the motion never restarted and the
+  sprite simply stopped moving, while the anchor survived, so every later save kept carrying a loop
+  the player could not see. Loading one of those saves healed it.
+
+  It looked intermittent, and the reason is worth writing down. Only the FIRST step back after a
+  fresh start is taken in place - once anything has gone through a full restore, every later step
+  back falls through to `LiveGame.deserialize`, which was already correct. So the same action worked
+  or did not depending on what the player had done earlier in the session.
+
+  `GameState.restorePresentationSnapshot` now resolves loop anchors exactly as `LiveGame.deserialize`
+  does. Present since 0.32.0, when loops were added.
+
 ## [0.33.0]
 
 ### _Feature_

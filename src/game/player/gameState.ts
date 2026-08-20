@@ -801,6 +801,35 @@ export class GameState {
             SceneAction.restoreSceneSnapshot(sceneSnapshot, this);
         });
         this.restoreNvlSnapshot(snapshot.nvlState);
+        // A snapshot stores a loop as the id of the action that started it, because a Transform
+        // cannot be serialized. `fromData` therefore restores the anchor and leaves the transform
+        // unresolved on purpose, and resolving it needs the story's action map - which
+        // `LiveGame.deserialize` supplies in a pass of its own.
+        //
+        // This is the OTHER way an element's state is put back: stepping back in place, which is
+        // what an ordinary undo does. Without the same pass the element is left half-restored -
+        // `_getLoop()` finds no transform, so the host never restarts the motion, while
+        // `_serializeLoop()` still finds the anchor, so every later save keeps carrying a loop the
+        // player cannot see. It looked intermittent because only the first undo after a fresh start
+        // takes this path; every later one falls through to `deserialize`, which healed it.
+        this.rebindLoops();
+        return this;
+    }
+
+    /**
+     * Resolve every element's loop anchor back to the transform the story holds.
+     *
+     * Idempotent and cheap - {@link Displayable._rebindLoop} returns at once for an element with no
+     * anchor or an already-resolved one - so it is safe after any restore. Running it after all of
+     * them is what keeps a half-resolved loop from ever reaching the player.
+     */
+    private rebindLoops(): this {
+        const [actionMaps, elementMaps] = this.getLiveGame().constructMaps();
+        elementMaps.forEach(element => {
+            if (element instanceof Displayable) {
+                element._rebindLoop(actionMaps);
+            }
+        });
         return this;
     }
 
