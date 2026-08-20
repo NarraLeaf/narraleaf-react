@@ -32,6 +32,11 @@
   ]);
   ```
 
+- **A video can be put on the stage before it is shown** — `video.preload()`, the same idea for the
+  same reason. The element renders hidden with `preload="auto"`, so being on the stage IS the
+  buffering, and a story that declares its movie a few lines before playing it does not make the
+  player wait on the first frame.
+
 - **`show` takes an opacity and a rate for that showing only** — `rain.show({ opacity: 0.35, rate: 2 })`.
   The overlay's own `opacity` and `playbackRate` are properties of the material: how strong that rain
   *is*. These are properties of the moment — the same rain faint behind a memory and full strength in

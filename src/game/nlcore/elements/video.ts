@@ -60,6 +60,23 @@ export class Video extends Actionable<VideoStateRaw> {
     }
 
     /**
+     * Put the video element on the stage without showing it, so it can start buffering.
+     *
+     * A video that is not in the document has not begun to load. Declaring it ahead of the line
+     * that shows or plays it is what turns "the movie starts" into something immediate rather
+     * than a wait of unknown length on the player's connection.
+     *
+     * Resolves immediately, and does nothing to an element already on stage.
+     * @chainable
+     */
+    preload(): Proxied<Video, Chained<LogicAction.Actions>> {
+        return this.chain(this.createAction(
+            VideoActionTypes.preload,
+            []
+        ));
+    }
+
+    /**
      * Show the video element.
      * @chainable
      */

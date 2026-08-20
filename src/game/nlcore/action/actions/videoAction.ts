@@ -23,7 +23,24 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
             stackModel: injection.stackModel
         };
 
-        if (action.is<VideoAction<"video:play">>(VideoAction, "video:play")) {
+        if (action.is<VideoAction<"video:preload">>(VideoAction, "video:preload")) {
+            // On stage, invisible: the component mounts a `preload="auto"` element and keeps it
+            // hidden while `display` is false, which is the whole of what this buys.
+            if (gameState.isVideoAdded(video)) {
+                return Awaitable.resolve(super.executeAction(gameState, injection) as CalledActionResult);
+            }
+            gameState.addVideo(video);
+            gameState.stage.update();
+
+            gameState.actionHistory.push(historyProps, () => {
+                if (gameState.isVideoAdded(video)) {
+                    gameState.removeVideo(video);
+                    gameState.stage.update();
+                }
+            });
+
+            return Awaitable.resolve(super.executeAction(gameState, injection) as CalledActionResult);
+        } else if (action.is<VideoAction<"video:play">>(VideoAction, "video:play")) {
             return this.changeStateAsync(gameState, (state) => state.play(), injection);
         } else if (action.is<VideoAction<"video:pause">>(VideoAction, "video:pause")) {
             return this.changeState(gameState, (state) => state.pause(), injection);
