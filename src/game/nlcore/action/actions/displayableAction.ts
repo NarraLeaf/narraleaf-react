@@ -226,6 +226,16 @@ export class DisplayableAction<
         binding: DisplayableLoopBinding | null,
         actionId: string | null
     ): void {
+        // Nothing to put back and nothing running: leave the element completely alone.
+        //
+        // Load-bearing, because this runs on the undo of EVERY transform, and the way back from a
+        // loop is an ordinary transform. Without the guard, stepping back past a row that never
+        // touched a loop would still run a zero-duration transform on its subject - which aborts
+        // whatever else that element had in flight (a concurrent `Control.allAsync` move) and marks
+        // it dirty for the next save, both for a row that had no loop to restore.
+        if (!binding && !element._getLoop()) {
+            return;
+        }
         element._setLoop(binding?.transform ?? null, binding?.options ?? {}, actionId);
         element.markDirty();
 

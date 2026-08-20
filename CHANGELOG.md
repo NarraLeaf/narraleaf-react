@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.32.1]
+
+### _Fix_
+
+- **Stepping back past a transform no longer disturbs an element that was never looping.** The undo
+  a transform registers also puts the element's looping transform back, and the way back from a loop
+  is an ordinary transform - so on every transform undo, on every subject, a zero-duration transform
+  was run whether or not there had been a loop. That aborts whatever else the element had in flight
+  (a concurrent `Control.allAsync` move) and marks it dirty for the next save, both for a row with
+  nothing to restore. The restore is now a no-op when there is no binding to put back and none
+  running. New in 0.32.0, so no released behaviour depended on it.
+
 ## [0.32.0]
 
 ### _Feature_

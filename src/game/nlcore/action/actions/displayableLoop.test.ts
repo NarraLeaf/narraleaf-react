@@ -200,6 +200,21 @@ describe("displayable:stopLoop", () => {
 });
 
 describe("an authored transform against a looping element", () => {
+    it("leaves an element that never looped completely alone when it is undone", () => {
+        // The way back from a loop is an ordinary transform, and this undo runs on EVERY transform.
+        // Reaching the host here would abort whatever else that element had in flight, for a row
+        // that had no loop to restore.
+        const image = new Image({ src: "yuko.png" });
+        const { state, exposed, undo } = createStateLike();
+
+        run(image, state, DisplayableActionTypes.applyTransform, [Transform.immediate({ opacity: 1 })], "move-1");
+        undo();
+
+        expect(exposed.stopLoop).not.toHaveBeenCalled();
+        expect(exposed.applyLoop).not.toHaveBeenCalled();
+        expect(image._getLoop()).toBeNull();
+    });
+
     it("takes the element back - one transform at a time", () => {
         const image = new Image({ src: "yuko.png" });
         const { state } = createStateLike();
