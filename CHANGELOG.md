@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.34.0]
+
+### _Feature_
+
+- **A line can be set down until it fits its box** — `autoFit` on `<Texts>`. `fontSize` becomes a
+  ceiling rather than a fixed size: the line is set at it whenever the finished line fits the box,
+  and smaller when it does not, down to `autoFitMinFontSize` (12px by default). A line that still
+  overflows at the floor is left overflowing, which is what every line did before.
+
+  What has to fit is the finished line, not the line as far as it has been typed, so the search runs
+  against a hidden copy of the whole sentence laid out under the same box, the same typeface and the
+  same wrapping rules. The size is settled before the first character appears and holds for the rest
+  of the line, so nothing resizes while the player is reading.
+
+  Sizes carried by the sentence or by a single word are multiplied rather than replaced, so their
+  relative weights hold at every scale. The box is the container's parent; a parent with no height
+  of its own leaves the line at its authored size.
+
+  ```tsx
+  <Texts fontSize={24} autoFit autoFitMinFontSize={16} />
+  ```
+
+### _Fix_
+
+- **A sentence revealed without the type effect no longer breaks Latin words apart.** Instant reveal
+  built one element per character where the typewriter builds one per word, so a word was free to
+  wrap between any two of its letters, and a custom word renderer was told the word was still
+  unrevealed for every character but its last. Both paths now hand over the same whole words.
+
 ## [0.33.1]
 
 ### _Fix_

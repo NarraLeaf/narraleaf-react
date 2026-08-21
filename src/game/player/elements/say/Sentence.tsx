@@ -7,7 +7,7 @@ import { Color, LiveGameEventToken } from "@lib/game/nlcore/types";
 import { Awaitable, onlyIf, SkipController, sleep, toHex } from "@lib/util/data";
 import Inspect from "@player/lib/Inspect";
 import clsx from "clsx";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useFlush } from "../../lib/flush";
 import { useGame, useOptionalGame } from "../../provider/game-state";
 import { Timeline } from "../../Tasks";
@@ -17,6 +17,13 @@ import { useNvlDialogState } from "../nvl/useNvlDialogState";
 import type { NvlDialogEntry } from "@player/gameState";
 import { fireInstantRevealEvents, fireTextEventOnce } from "./textEventEffect";
 import { resolveWordRenderer } from "./wordRenderer";
+import {
+    AUTO_FIT_SCALE_MULTIPLIER,
+    DEFAULT_AUTO_FIT_MIN_FONT_SIZE,
+    inheritedScaledFontSize,
+    scaledFontSize,
+    useAutoFitScale,
+} from "./autoFit";
 import {
     isVerticalWritingMode,
     renderWordText,
@@ -114,6 +121,22 @@ export type TextAppearanceProps = {
      * @default true
      */
     tateChuYoko?: TateChuYoko;
+    /**
+     * Set the line down until the whole of it fits the box it is placed in.
+     *
+     * `fontSize` becomes a ceiling rather than a fixed size: the line is set at it whenever the
+     * finished line fits, and smaller when it does not, down to {@link autoFitMinFontSize}. Sizes
+     * carried by the sentence or by a single word scale with it, so their relative weights hold.
+     *
+     * The box is the container's parent, which needs a size of its own for anything to be fitted to.
+     * @default false
+     */
+    autoFit?: boolean;
+    /**
+     * The smallest size auto fit sets, in px. A line that still overflows at it is left overflowing.
+     * @default 12
+     */
+    autoFitMinFontSize?: number;
 };
 
 export type BaseTextsProps = TextAppearanceProps & {
@@ -201,11 +224,29 @@ type ResolvedTextsPreviewLoop = {
     delay: number;
 };
 
-function getGeneratedWords(words: Word<Pausing | string | TextEvent>[]): PureWord[] {
+/**
+ * Every word of a sentence, laid out the way the typewriter leaves it.
+ *
+ * The characters are merged back into their words exactly as {@link updateDisplayingWord} merges
+ * them while typing: a word drawn as one element per character would be free to break between any
+ * two of them, so a Latin word would come apart and the line would wrap differently from the same
+ * line typed out.
+ * @internal
+ */
+export function getGeneratedWords(words: Word<Pausing | string | TextEvent>[]): PureWord[] {
     const generator = textUpdater(words);
     const result: PureWord[] = [];
     for (const value of generator) {
         if (Pause.isPause(value) || TextEvent.isTextEvent(value)) {
+            continue;
+        }
+        const last = result[result.length - 1];
+        if (last && last !== "\n" && value !== "\n" && last.tag === value.tag) {
+            result[result.length - 1] = {
+                ...value,
+                text: last.text + value.text,
+                config: value.config,
+            };
             continue;
         }
         result.push(value);
@@ -370,6 +411,8 @@ function BaseText(
         writingMode,
         textOrientation,
         tateChuYoko,
+        autoFit,
+        autoFitMinFontSize,
         ...props
     }: BaseTextsProps
 ) {
@@ -475,6 +518,26 @@ function BaseText(
             })
         ]).cancel;
     }, []);
+
+    const autoFitEnabled = Boolean(autoFit);
+    const { containerRef, mirrorRef, scale: autoFitScale } = useAutoFitScale({
+        enabled: autoFitEnabled,
+        minFontSize: autoFitMinFontSize ?? DEFAULT_AUTO_FIT_MIN_FONT_SIZE,
+        vertical: isVerticalWritingMode(writingMode),
+        signature: [
+            dialog.config.action.id,
+            fontSize,
+            fontWeight,
+            fontFamily,
+            writingMode,
+            textOrientation,
+            String(tateChuYoko),
+        ].join(" "),
+    });
+    const fullWords = useMemo(
+        () => (autoFitEnabled ? getGeneratedWords(dialog.config.evaluatedWords) : []),
+        [autoFitEnabled, dialog]
+    );
 
     function roll(): RollingTask {
         const mainTask = new Awaitable<void>();
@@ -688,21 +751,28 @@ function BaseText(
     }
 
     const resolvedFontWeightBold = fontWeightBold ?? "bold";
+    const authoredFontSize = sentence.config.fontSize ?? fontSize;
     const calculatedSentence: React.CSSProperties = {
         fontWeight: sentence.config.bold ? resolvedFontWeightBold : fontWeight,
-        fontSize: sentence.config.fontSize ?? fontSize,
+        // Auto fit multiplies rather than replaces, so a size the sentence or a word set for itself
+        // keeps its weight against the rest of the line. A line that inherits its size is set at a
+        // share of what it inherits.
+        fontSize: scaledFontSize(authoredFontSize, autoFitScale) ?? inheritedScaledFontSize(autoFitScale),
         color: toOptionalColor(sentence.config.color ?? defaultColor),
         fontFamily: sentence.config.fontFamily ?? fontFamily,
         fontStyle: sentence.config.italic ? "italic" : undefined,
     };
 
-    const calculateStyle = (word: Exclude<SplitWord, Pausing | TextEvent | "\n">): React.CSSProperties => ({
+    const calculateStyle = (
+        word: Exclude<SplitWord, Pausing | TextEvent | "\n">,
+        scale: number | string = autoFitScale
+    ): React.CSSProperties => ({
         fontWeight: word.config.bold
             ? resolvedFontWeightBold
             : sentence.config.bold
                 ? resolvedFontWeightBold
                 : fontWeight,
-        fontSize: word.config.fontSize ?? sentence.config.fontSize ?? fontSize,
+        fontSize: scaledFontSize(word.config.fontSize ?? authoredFontSize, scale),
         color: toOptionalColor(word.config.color ?? sentence.config.color ?? defaultColor),
         fontFamily: word.config.fontFamily ?? sentence.config.fontFamily ?? fontFamily,
         fontStyle: word.config.italic ?? sentence.config.italic ? "italic" : undefined,
@@ -748,20 +818,75 @@ function BaseText(
         );
     };
 
+    /**
+     * The same word as the line draws it, minus everything that is not layout: no custom renderer,
+     * no click target, no inspection tag. Its size is written against the scale custom property so
+     * one write on the copy resizes every word of it at once.
+     */
+    const getMeasuredElement = (word: PureWord, index: number) => {
+        if (word === "\n") return (<br key={index} />);
+        const wordStyle = calculateStyle(word, AUTO_FIT_SCALE_MULTIPLIER);
+        return (
+            <span
+                key={index}
+                style={{
+                    ...wordStyle,
+                    ...wordBreakStyleFor(),
+                }}
+                className={clsx(
+                    "inline-block",
+                    word.config.className,
+                )}
+            >
+                <WordBody
+                    word={word}
+                    vertical={vertical}
+                    tateChuYoko={tateChuYoko}
+                    done={false}
+                    style={wordStyle}
+                    renderer={null}
+                />
+            </span>
+        );
+    };
+
     return (
         <div
             {...props}
+            ref={containerRef}
             className={clsx(
                 "whitespace-pre-wrap",
                 className,
             )}
             style={{
+                // The copy is measured inside this box, so this box is what it is positioned against.
+                ...onlyIf<React.CSSProperties>(autoFitEnabled, { position: "relative" }),
                 ...calculatedSentence,
                 ...verticalContainerStyle(writingMode, textOrientation),
                 ...style,
             }}
         >
             {displaying.map(getElement)}
+            {autoFitEnabled ? (
+                <div
+                    ref={mirrorRef}
+                    aria-hidden={true}
+                    style={{
+                        position: "absolute",
+                        // Same inline size as the line, so the copy wraps where the line will wrap;
+                        // free along the other axis, so what it takes up is what has to fit.
+                        ...(vertical
+                            ? { top: 0, bottom: 0, left: 0, width: "auto" }
+                            : { left: 0, right: 0, top: 0, height: "auto" }),
+                        padding: "inherit",
+                        boxSizing: "border-box",
+                        visibility: "hidden",
+                        pointerEvents: "none",
+                    }}
+                >
+                    {fullWords.map(getMeasuredElement)}
+                </div>
+            ) : null}
         </div>
     );
 }
