@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.35.0]
+
+### _Changed_
+
+- **Text scaling now follows the line as it is typed, and is on by default.** A dialogue line is set
+  at the size it was written at and stays there for as long as it fits. Once the text reaches the end
+  of its box, every further character is measured and the size comes down by what it takes to keep
+  the whole line inside, to no less than `autoFitMinFontSize`.
+
+  0.34.0 settled the size before the first character appeared, by measuring a hidden copy of the
+  finished line. That cannot survive a line whose own words change size, so the measuring copy is
+  gone: what is measured is what is on screen.
+
+  `autoFit` now defaults to `true`, and `GameConfig.disableTextScaling` turns scaling off for the
+  whole game. A game that wants every line at exactly the size it was written at, overflowing box or
+  not, sets that one flag.
+
+  ```tsx
+  const game = new Game({ disableTextScaling: true });   // nothing on screen resizes itself
+  <Texts fontSize={24} autoFit={false} />                 // ...or just this line
+  ```
+
 ## [0.34.0]
 
 ### _Feature_

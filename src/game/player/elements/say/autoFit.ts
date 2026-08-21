@@ -12,38 +12,31 @@ const MAX_SEARCH_STEPS = 12;
 /** Below this the line is unreadable, so a floor smaller than the box can honour stops here. */
 const MIN_SEARCH_SCALE = 0.05;
 
-/** Smallest size auto fit sets when the line does not say otherwise. */
+/** Smallest size text scaling sets when the line does not say otherwise. */
 export const DEFAULT_AUTO_FIT_MIN_FONT_SIZE = 12;
 
-/** Set on the measuring copy so every explicit word size scales with one write. */
-export const AUTO_FIT_SCALE_VAR = "--nl-auto-fit-scale";
-
 /**
- * The same length, scaled, whatever unit it was written in.
+ * The multiplier every size in the line is written against.
  *
- * The multiplier is a number for the line on screen and the scale custom property for the copy
- * being measured, where one write has to resize every word at once.
+ * One custom property drives the container and every word inside it, so a candidate size is one
+ * write rather than a walk over the elements, and a word that carries a size of its own keeps its
+ * weight against the rest of the line at every scale.
  */
-export function scaledFontSize(
-    value: React.CSSProperties["fontSize"],
-    scale: number | string
-): React.CSSProperties["fontSize"] {
-    if (scale === 1) {
-        return value;
-    }
+export const AUTO_FIT_SCALE_VAR = "--nl-text-scale";
+export const AUTO_FIT_SCALE_MULTIPLIER = `var(${AUTO_FIT_SCALE_VAR}, 1)`;
+
+/** The same length, scaled by the line's current multiplier, whatever unit it was written in. */
+export function scaledFontSize(value: React.CSSProperties["fontSize"]): React.CSSProperties["fontSize"] {
     if (value === undefined || value === null || value === "") {
         return undefined;
     }
     const length = typeof value === "number" ? `${value}px` : String(value);
-    return `calc(${length} * ${scale})`;
+    return `calc(${length} * ${AUTO_FIT_SCALE_MULTIPLIER})`;
 }
 
-/** The multiplier the measuring copy scales by, readable from every word inside it. */
-export const AUTO_FIT_SCALE_MULTIPLIER = `var(${AUTO_FIT_SCALE_VAR}, 1)`;
-
-/** What the line is set at when it inherits its size: a share of the size it inherits. */
-export function inheritedScaledFontSize(scale: number): React.CSSProperties["fontSize"] | undefined {
-    return scale === 1 ? undefined : `${scale * 100}%`;
+/** What the line is set at when it inherits its size: the inherited size, scaled. */
+export function inheritedScaledFontSize(): React.CSSProperties["fontSize"] {
+    return `calc(1em * ${AUTO_FIT_SCALE_MULTIPLIER})`;
 }
 
 function contentBlockSize(box: HTMLElement, vertical: boolean): number {
@@ -60,116 +53,135 @@ export type AutoFitOptions = {
     minFontSize: number;
     /** Vertical writing swaps the axes: the columns advance across the box, not down it. */
     vertical: boolean;
-    /** Everything that changes the laid-out result without changing the box. */
-    signature: string;
+    /**
+     * What has been typed so far. The line is measured again every time this changes, which is what
+     * makes the size follow the text rather than a guess made before it existed.
+     */
+    revealed: number;
 };
 
 export type AutoFitState = {
     containerRef: React.MutableRefObject<HTMLDivElement | null>;
-    mirrorRef: React.MutableRefObject<HTMLDivElement | null>;
-    /** The share of the authored size the line is set at. */
+    /** The share of the authored size the line is currently set at. */
     scale: number;
 };
 
 /**
- * Finds the largest size at which a whole line still fits the box it is placed in.
+ * Keeps a line inside its box while it is being typed.
  *
- * The line being typed is not what has to fit - the finished line is - so the search runs against a
- * hidden copy holding every word, laid out under the same box, the same typeface and the same
- * wrapping rules. The copy is what the bisection resizes; the visible line is set once, when the
- * answer is known, and stays there for the rest of the line.
+ * The line is set at the size it was written at and stays there for as long as it fits, so a short
+ * line is never set small "just in case". The moment the text reaches the bottom of the box, the
+ * next character brings the size down by whatever it takes to fit, and every character after it is
+ * measured again. So the size follows what is actually on screen: a run of larger or smaller words
+ * inside the line is accounted for by having been rendered, not by being predicted.
  *
- * The box is the container's parent: a dialog box has a size of its own, and the line is what has
- * to live inside it. A parent with no height of its own leaves the scale at 1.
+ * Within one line the size only ever comes down, since the text only ever grows. A change in the
+ * size of the box starts the line over at its authored size.
+ *
+ * The box is the container's parent, which is the element the host sized. A parent with no height
+ * of its own leaves the line at its authored size.
  */
-export function useAutoFitScale({ enabled, minFontSize, vertical, signature }: AutoFitOptions): AutoFitState {
+export function useAutoFitScale({ enabled, minFontSize, vertical, revealed }: AutoFitOptions): AutoFitState {
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const mirrorRef = useRef<HTMLDivElement | null>(null);
     const [scale, setScale] = useState(1);
     const scaleRef = useRef(1);
     const measuredBoxRef = useRef(0);
     scaleRef.current = scale;
 
-    const measure = useCallback(() => {
-        const container = containerRef.current;
-        const mirror = mirrorRef.current;
-        const box = container?.parentElement;
-        if (!container || !mirror || !box) {
-            return;
-        }
-        const available = contentBlockSize(box, vertical);
-        if (!Number.isFinite(available) || available <= 0) {
-            return;
-        }
-        measuredBoxRef.current = available;
-        // The container is already carrying whatever scale the last measurement settled on, so the
-        // size it was authored at is read back out of it rather than guessed.
-        const rendered = parseFloat(getComputedStyle(container).fontSize) || 0;
-        const basePx = rendered / (scaleRef.current || 1);
-        if (basePx <= 0) {
-            return;
-        }
-        const floor = Math.min(1, Math.max(MIN_SEARCH_SCALE, minFontSize / basePx));
-        const fitsAt = (candidate: number): boolean => {
-            mirror.style.fontSize = `${basePx * candidate}px`;
-            mirror.style.setProperty(AUTO_FIT_SCALE_VAR, String(candidate));
-            const used = vertical ? mirror.offsetWidth : mirror.offsetHeight;
-            return used <= available + FIT_TOLERANCE_PX;
-        };
-
-        let result: number;
-        if (fitsAt(1)) {
-            result = 1;
-        } else if (floor >= 1 || !fitsAt(floor)) {
-            result = floor;
-        } else {
-            let low = floor;
-            let high = 1;
-            for (let step = 0; step < MAX_SEARCH_STEPS && high - low > SEARCH_PRECISION; step++) {
-                const middle = (low + high) / 2;
-                if (fitsAt(middle)) {
-                    low = middle;
-                } else {
-                    high = middle;
-                }
+    const measure = useCallback(
+        (fromScale: number) => {
+            const container = containerRef.current;
+            const box = container?.parentElement;
+            if (!container || !box) {
+                return;
             }
-            result = low;
-        }
-        setScale(previous => (Math.abs(previous - result) < 0.001 ? previous : result));
-    }, [minFontSize, vertical]);
+            const available = contentBlockSize(box, vertical);
+            if (!Number.isFinite(available) || available <= 0) {
+                return;
+            }
+            measuredBoxRef.current = available;
+
+            const used = () => (vertical ? container.offsetWidth : container.offsetHeight);
+            const apply = (candidate: number) => {
+                container.style.setProperty(AUTO_FIT_SCALE_VAR, String(candidate));
+            };
+            const fitsAt = (candidate: number): boolean => {
+                apply(candidate);
+                return used() <= available + FIT_TOLERANCE_PX;
+            };
+
+            if (fitsAt(fromScale)) {
+                if (fromScale !== scaleRef.current) {
+                    setScale(fromScale);
+                }
+                return;
+            }
+
+            // The size the line was written at, read back off the element so any unit works.
+            apply(1);
+            const basePx = parseFloat(getComputedStyle(container).fontSize) || 0;
+            const floor = basePx > 0 ? Math.min(1, Math.max(MIN_SEARCH_SCALE, minFontSize / basePx)) : MIN_SEARCH_SCALE;
+
+            let result: number;
+            if (floor >= fromScale || !fitsAt(floor)) {
+                result = floor;
+            } else {
+                let low = floor;
+                let high = fromScale;
+                for (let step = 0; step < MAX_SEARCH_STEPS && high - low > SEARCH_PRECISION; step++) {
+                    const middle = (low + high) / 2;
+                    if (fitsAt(middle)) {
+                        low = middle;
+                    } else {
+                        high = middle;
+                    }
+                }
+                result = low;
+            }
+
+            apply(result);
+            setScale(result);
+        },
+        [minFontSize, vertical]
+    );
 
     useLayoutEffect(() => {
         if (!enabled) {
-            setScale(1);
+            if (scaleRef.current !== 1) {
+                setScale(1);
+            }
             return undefined;
         }
-        measure();
+        // Each character is measured against the size the line is already at: it only ever needs to
+        // come down from there, and starting the search at 1 would let a settled line jump back up.
+        measure(scaleRef.current);
+        return undefined;
+    }, [enabled, measure, revealed]);
+
+    useLayoutEffect(() => {
         const box = containerRef.current?.parentElement;
-        if (!box) {
+        if (!enabled || !box || typeof ResizeObserver === "undefined") {
             return undefined;
         }
-        // Only a box that actually changed size asks for a new answer: a box that sizes itself to
-        // its content changes every time the line is set, and re-measuring on that would chase itself.
-        const observer =
-            typeof ResizeObserver === "undefined"
-                ? null
-                : new ResizeObserver(() => {
-                      if (Math.abs(contentBlockSize(box, vertical) - measuredBoxRef.current) > FIT_TOLERANCE_PX) {
-                          measure();
-                      }
-                  });
-        observer?.observe(box);
+        // A box that changed size is a different question, so the line starts over at the size it
+        // was written at rather than staying at whatever the old box forced.
+        const observer = new ResizeObserver(() => {
+            if (Math.abs(contentBlockSize(box, vertical) - measuredBoxRef.current) > FIT_TOLERANCE_PX) {
+                measure(1);
+            }
+        });
+        observer.observe(box);
         let cancelled = false;
         void document.fonts?.ready.then(() => {
             if (!cancelled) {
-                measure();
+                measure(scaleRef.current);
             }
         });
         return () => {
             cancelled = true;
-            observer?.disconnect();
+            observer.disconnect();
         };
-    }, [enabled, measure, signature, vertical]);
+    }, [enabled, measure, vertical]);
 
-    return { containerRef, mirrorRef, scale };
+    return { containerRef, scale };
 }

@@ -4,36 +4,27 @@ import { inheritedScaledFontSize, scaledFontSize } from "@player/elements/say/au
 import { getGeneratedWords } from "@player/elements/say/Sentence";
 
 /**
- * Auto fit's two arithmetic seams, which are the parts that can be checked without a layout engine.
+ * The two seams of text scaling that can be checked without a layout engine.
  *
- * The search itself is measurement against a real box, so it belongs on the machine; what belongs
- * here is that a size survives being scaled whatever unit it was written in, and that the sentence
- * the copy is measured from is the sentence the typewriter will end up drawing.
+ * The measuring itself is a live element against a real box, so it belongs on the machine; what
+ * belongs here is that every size in the line is written against the one multiplier, whatever unit
+ * it was authored in, and that the words the typewriter hands over are whole words.
  */
 
 describe("scaledFontSize", () => {
-    it("leaves the size alone at full scale", () => {
-        expect(scaledFontSize(24, 1)).toBe(24);
-        expect(scaledFontSize("1.5rem", 1)).toBe("1.5rem");
+    it("writes a size against the line's multiplier, whatever unit it carries", () => {
+        expect(scaledFontSize(24)).toBe("calc(24px * var(--nl-text-scale, 1))");
+        expect(scaledFontSize("1.5rem")).toBe("calc(1.5rem * var(--nl-text-scale, 1))");
+        expect(scaledFontSize("2em")).toBe("calc(2em * var(--nl-text-scale, 1))");
     });
 
-    it("scales a size whatever unit it carries", () => {
-        expect(scaledFontSize(24, 0.5)).toBe("calc(24px * 0.5)");
-        expect(scaledFontSize("1.5rem", 0.5)).toBe("calc(1.5rem * 0.5)");
-        expect(scaledFontSize("2em", 0.75)).toBe("calc(2em * 0.75)");
+    it("leaves an unset size unset, so it keeps inheriting the line", () => {
+        expect(scaledFontSize(undefined)).toBeUndefined();
+        expect(scaledFontSize("")).toBeUndefined();
     });
 
-    it("takes the scale as a custom property for the copy being measured", () => {
-        expect(scaledFontSize(24, "var(--nl-auto-fit-scale, 1)")).toBe("calc(24px * var(--nl-auto-fit-scale, 1))");
-    });
-
-    it("leaves an unset size unset, so it keeps inheriting", () => {
-        expect(scaledFontSize(undefined, 0.5)).toBeUndefined();
-    });
-
-    it("sets an inherited size as a share of what it inherits", () => {
-        expect(inheritedScaledFontSize(0.5)).toBe("50%");
-        expect(inheritedScaledFontSize(1)).toBeUndefined();
+    it("scales an inherited size against what it inherits", () => {
+        expect(inheritedScaledFontSize()).toBe("calc(1em * var(--nl-text-scale, 1))");
     });
 });
 

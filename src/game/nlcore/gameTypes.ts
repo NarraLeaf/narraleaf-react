@@ -413,6 +413,14 @@ export type GameConfig = {
         guard: GuardConfig;
     };
     /**
+     * Turn off text scaling for the whole game.
+     *
+     * Dialogue text is kept inside its box by being set down as it is typed. Turning this on
+     * leaves every line at the size it was written at, and a line longer than its box overflows it.
+     * @default false
+     */
+    disableTextScaling: boolean;
+    /**
      * Override the default stage
      * @default null
      */
