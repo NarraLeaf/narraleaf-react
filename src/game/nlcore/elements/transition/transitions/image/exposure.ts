@@ -1,7 +1,7 @@
 import {CSSProps, TransitionAnimationType, TransitionTask} from "@core/elements/transition/type";
 import {TransformDefinitions} from "@core/elements/transform/type";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
-import {clamp01} from "@core/elements/transition/transitions/image/transitionMaskUtils";
+import {clamp01, heldRunCurve} from "@core/elements/transition/transitions/image/transitionMaskUtils";
 
 type AnimationType = [TransitionAnimationType.Number];
 
@@ -23,7 +23,20 @@ export type ExposureOptions = {
      * carries the shadows up without touching the frame at rest. @default 0.04
      */
     lift?: number;
-    /** Fraction (0–1) of the duration spent fully blown out. @default 0 */
+    /**
+     * Time spent fully blown out, in milliseconds, taken out of `duration` and split evenly off
+     * the burn and the cool-down. `{duration: 3000, holdMs: 1500}` burns for 750ms, holds white
+     * for a second and a half, and comes back down over the last 750ms.
+     *
+     * Real time, not a share of an eased curve - see {@link ThroughColor} for why the run is
+     * linear. @default 0
+     */
+    holdMs?: number;
+    /**
+     * Fraction (0–1) of the duration spent fully blown out.
+     * @default 0
+     * @deprecated Use {@link holdMs}. Read only when `holdMs` is absent.
+     */
     hold?: number;
     easing?: TransformDefinitions.EasingDefinition;
 };
@@ -47,7 +60,8 @@ export class Exposure extends ImageTransition<AnimationType> {
     private duration: number;
     private ev: number;
     private lift: number;
-    private hold: number;
+    private hold: number | undefined;
+    private holdMs: number | undefined;
     private easing?: TransformDefinitions.EasingDefinition;
 
     constructor(options: ExposureOptions) {
@@ -55,7 +69,8 @@ export class Exposure extends ImageTransition<AnimationType> {
         this.duration = options.duration;
         this.ev = options.ev ?? 4.6;
         this.lift = options.lift ?? 0.04;
-        this.hold = options.hold ?? 0;
+        this.hold = options.hold;
+        this.holdMs = options.holdMs;
         this.easing = options.easing;
     }
 
@@ -79,17 +94,15 @@ export class Exposure extends ImageTransition<AnimationType> {
     }
 
     createTask(): TransitionTask<HTMLImageElement, AnimationType> {
-        const hold = clamp01(this.hold);
-        const burnEnd = (1 - hold) / 2; // fully blown out by here
-        const coolStart = 1 - burnEnd; // starts coming back down here
         const mid = 0.5; // inside the blown-out window → swap the images here, unseen
 
-        // Burn amount (0–1) of whichever half is on screen: up → hold → down.
-        const burnAt = (progress: number): number => {
-            if (progress <= burnEnd) return burnEnd <= 0 ? 1 : progress / burnEnd;
-            if (progress >= coolStart) return coolStart >= 1 ? 1 : (1 - progress) / (1 - coolStart);
-            return 1;
-        };
+        // Burn amount (0–1) of whichever half is on screen: up → hold → down, against a linear run.
+        const burnAt = heldRunCurve({
+            duration: this.duration,
+            hold: this.hold,
+            holdMs: this.holdMs,
+            easing: this.easing,
+        });
 
         return {
             animations: [{
@@ -97,7 +110,8 @@ export class Exposure extends ImageTransition<AnimationType> {
                 start: 0,
                 end: 1,
                 duration: this.duration,
-                ease: this.easing,
+                // Linear on purpose: `burnAt` owns the easing so the hold can be measured in time.
+                ease: "linear",
             }],
             resolve: [
                 // Previous image: burns out, then hands over inside the white window.
@@ -124,6 +138,7 @@ export class Exposure extends ImageTransition<AnimationType> {
             ev: this.ev,
             lift: this.lift,
             hold: this.hold,
+            holdMs: this.holdMs,
             easing: this.easing,
         });
     }

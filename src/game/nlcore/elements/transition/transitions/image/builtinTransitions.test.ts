@@ -72,8 +72,10 @@ describe("what a transition can leave on a layered stack", () => {
         new Push({duration: 400}),
         new BlurDissolve({duration: 400}),
         new Darkness({from: 0, to: 0.5, duration: 400}),
+        new Darkness({from: 1, to: 0, duration: 400, holdMs: 200}),
         new Exposure({duration: 400}),
         new Exposure({duration: 400, hold: 0.4}),
+        new Exposure({duration: 400, holdMs: 200}),
         new Reveal({duration: 400, pattern: Mask.wipe({direction: 135})}),
         new Reveal({duration: 400, pattern: Mask.clock()}),
         new Reveal({duration: 400, pattern: Mask.fan()}),
@@ -82,7 +84,9 @@ describe("what a transition can leave on a layered stack", () => {
         new Reveal({duration: 400, pattern: Mask.blinds({feather: 4})}),
         new Reveal({duration: 400, pattern: Mask.iris({shape: "ellipse"})}),
         new ThroughColor({duration: 400}),
+        new ThroughColor({duration: 400, holdMs: 200}),
         new ThroughColor({duration: 400, pattern: Mask.wipe()}),
+        new ThroughColor({duration: 400, pattern: Mask.wipe(), holdMs: 200}),
         new ThroughColor({duration: 400, pattern: Mask.iris(), inverted: true}),
         new ThroughColor({duration: 400, pattern: Mask.blinds()}),
         new ThroughColor({duration: 400, pattern: Mask.clock()}),
@@ -176,11 +180,34 @@ describe("built-in image transitions", () => {
         // Exported from the public barrel (imported above from "narraleaf-react"): the transition
         // behind `image.darken(amount, duration)`. Smoke-tests construction + the driven channel;
         // its behaviour is otherwise unchanged by the export.
-        it("one brightness channel running from `from` to `to`", () => {
+        it("one linear 0→1 channel, the brightness read off it", () => {
+            // The channel is progress rather than darkness, and linear rather than eased, so that
+            // `holdMs` can be measured in time. The easing lives inside the resolver.
             const task = prepared(new Darkness({from: 0.2, to: 0.8, duration: 500})).createTask() as any;
             expect(task.animations).toHaveLength(1);
-            expect(task.animations[0]).toMatchObject({start: 0.2, end: 0.8, duration: 500});
+            expect(task.animations[0]).toMatchObject({start: 0, end: 1, duration: 500, ease: "linear"});
             expect(task.resolve).toHaveLength(2);
+            const [target] = task.resolve as ResolverEntry[];
+            expect(call(target, 0).style.filter).toBe("brightness(0.8)"); // darkness 0.2
+            expect(call(target, 1).style.filter).toBe("brightness(0.19999999999999996)"); // darkness 0.8
+        });
+
+        it("holdMs keeps the frame at `from` for that long, then ramps over what is left", () => {
+            // 1000ms run, 400ms of it held: black until 40% of the wall clock, then a 600ms lift.
+            const [target] = prepared(new Darkness({from: 1, to: 0, duration: 1000, holdMs: 400}))
+                .createTask().resolve as ResolverEntry[];
+            expect(call(target, 0).style.filter).toBe("brightness(0)");
+            expect(call(target, 0.4).style.filter).toBe("brightness(0)"); // still fully black
+            // Halfway through the remaining 600ms, on the default easeInOut: half lifted.
+            expect(call(target, 0.7).style.filter).toBe("brightness(0.5)");
+            expect(call(target, 1).style.filter).toBe("brightness(1)");
+        });
+
+        it("a hold longer than the run leaves the frame at `from` throughout", () => {
+            const [target] = prepared(new Darkness({from: 1, to: 0, duration: 500, holdMs: 900}))
+                .createTask().resolve as ResolverEntry[];
+            expect(call(target, 0).style.filter).toBe("brightness(0)");
+            expect(call(target, 1).style.filter).toBe("brightness(0)");
         });
 
         it("darkens the incoming image via a brightness() filter, dropping the outgoing one", () => {
@@ -192,7 +219,7 @@ describe("built-in image transitions", () => {
         });
 
         it("copy() returns an equivalent independent instance", () => {
-            const original = new Darkness({from: 0.1, to: 0.6, duration: 300, easing: "easeOut"});
+            const original = new Darkness({from: 0.1, to: 0.6, duration: 300, holdMs: 90, easing: "easeOut"});
             const clone = original.copy();
             expect(clone).not.toBe(original);
             expect(clone).toBeInstanceOf(Darkness);
@@ -248,8 +275,19 @@ describe("built-in image transitions", () => {
             expect(call(target, 1).style.filter).toBe("none");
         });
 
+        it("holdMs is wall-clock time, and wins over the hold fraction", () => {
+            // 400ms run, 200ms held: blown out by 25% of the run, still blown out at 75%.
+            const [prev, target] = prepared(new Exposure({duration: 400, ev: 2, lift: 0, holdMs: 200, hold: 0.9}))
+                .createTask().resolve as ResolverEntry[];
+            const full = "invert(1) brightness(1) invert(1) brightness(4)";
+            expect(call(prev, 0.25).style.filter).toBe(full);
+            expect(call(target, 0.75).style.filter).toBe(full);
+            // The 0.9 fraction would have blown out by 5%; holdMs is what is read.
+            expect(call(prev, 0.05).style.filter).not.toBe(full);
+        });
+
         it("copy() returns an equivalent independent instance", () => {
-            const original = new Exposure({duration: 300, ev: 3.5, lift: 0.08, hold: 0.2, easing: "easeIn"});
+            const original = new Exposure({duration: 300, ev: 3.5, lift: 0.08, holdMs: 60, easing: "easeIn"});
             const clone = original.copy();
             expect(clone).not.toBe(original);
             expect(clone).toBeInstanceOf(Exposure);
@@ -503,6 +541,60 @@ describe("built-in image transitions", () => {
             const overlayAt = (inst: ThroughColor, t: number) => call(inst.createTask().resolve[2] as ResolverEntry, t).style;
             expect(overlayAt(clone, 0.5)).toEqual(overlayAt(original, 0.5));
             expect(overlayAt(clone, 0.825)).toEqual(overlayAt(original, 0.825));
+        });
+    });
+
+    describe("ThroughColor hold", () => {
+        const overlayAt = (inst: ThroughColor, t: number) =>
+            call(prepared(inst).createTask().resolve[2] as ResolverEntry, t).style;
+
+        // The defect this replaced: the hold was a band of *eased* progress, and the animation
+        // channel carried the easing, so the driver crossed the band at its fastest. Under the
+        // default easeInOut a nominal 30% hold played as 17.8% of the wall clock and a 50% one as
+        // 30.8% - an author could not ask for a number of seconds in the colour and get them.
+        it("runs the channel linearly, so a point of progress is a point of the wall clock", () => {
+            const task = prepared(new ThroughColor({duration: 4000, holdMs: 2000})).createTask() as any;
+            expect(task.animations[0]).toMatchObject({start: 0, end: 1, duration: 4000, ease: "linear"});
+        });
+
+        it("holdMs is time: a 2s hold on a 4s run covers from 25% to 75% of it", () => {
+            const inst = new ThroughColor({duration: 4000, color: "#000000", holdMs: 2000});
+            expect(overlayAt(inst, 0.2499).opacity).toBeLessThan(1);
+            expect(overlayAt(inst, 0.25).opacity).toBe(1);
+            expect(overlayAt(inst, 0.5).opacity).toBe(1);
+            expect(overlayAt(inst, 0.75).opacity).toBe(1);
+            expect(overlayAt(inst, 0.7501).opacity).toBeLessThan(1);
+        });
+
+        it("eases each moving half rather than the run, so the cover still eases in and out", () => {
+            // Midway through the 1s cover half of a 4s / 2s-hold run: easeInOut(0.5) = 0.5.
+            expect(overlayAt(new ThroughColor({duration: 4000, holdMs: 2000}), 0.125).opacity).toBe(0.5);
+            // linear says the same at the midpoint but not at a quarter through it.
+            expect(overlayAt(new ThroughColor({duration: 4000, holdMs: 2000, easing: "linear"}), 0.0625).opacity)
+                .toBe(0.25);
+            expect(overlayAt(new ThroughColor({duration: 4000, holdMs: 2000}), 0.0625).opacity)
+                .toBeLessThan(0.25);
+        });
+
+        it("holdMs wins over the deprecated fraction, and the fraction still works alone", () => {
+            expect(overlayAt(new ThroughColor({duration: 1000, holdMs: 0, hold: 0.9}), 0.5).opacity).toBe(1);
+            expect(overlayAt(new ThroughColor({duration: 1000, holdMs: 0, hold: 0.9}), 0.05).opacity)
+                .toBeLessThan(1);
+            // hold 0.5 alone: covered from 25% of (eased) progress, exactly as before.
+            expect(overlayAt(new ThroughColor({duration: 1000, hold: 0.5}), 0.25).opacity).toBe(1);
+        });
+
+        it("holds for the whole run when the hold outlasts it - a cut to the colour and back", () => {
+            const inst = new ThroughColor({duration: 500, holdMs: 900});
+            expect(overlayAt(inst, 0).opacity).toBe(1);
+            expect(overlayAt(inst, 0.5).opacity).toBe(1);
+            expect(overlayAt(inst, 1).opacity).toBe(1);
+        });
+
+        it("defaults to the 0.3 share when neither spelling is given", () => {
+            // Unchanged default: covered from 35% of progress in.
+            expect(overlayAt(new ThroughColor({duration: 1000}), 0.35).opacity).toBe(1);
+            expect(overlayAt(new ThroughColor({duration: 1000}), 0.3).opacity).toBeLessThan(1);
         });
     });
 

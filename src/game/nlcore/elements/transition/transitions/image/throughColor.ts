@@ -2,10 +2,13 @@ import {CSSProps, TransitionAnimationType, TransitionTask} from "@core/elements/
 import {TransformDefinitions} from "@core/elements/transform/type";
 import {ImageTransition} from "@core/elements/transition/transitions/image/imageTransition";
 import {Image} from "@core/elements/displayable/image";
-import {clamp01, overlayBase} from "@core/elements/transition/transitions/image/transitionMaskUtils";
+import {clamp01, heldRunCurve, holdFraction, overlayBase} from "@core/elements/transition/transitions/image/transitionMaskUtils";
 import {Mask, MaskPattern} from "@core/elements/transition/transitions/image/mask";
 
 type AnimationType = [TransitionAnimationType.Number];
+
+/** The share of the run held in the colour when the caller names neither `holdMs` nor `hold`. */
+const DEFAULT_HOLD = 0.3;
 
 /**
  * How the colour uncovers after the hold:
@@ -23,7 +26,22 @@ export type ThroughColorOptions = {
     duration: number;
     /** Hold colour. @default "#000000" */
     color?: string;
-    /** Fraction (0–1) of the duration spent fully covered by the colour. @default 0.3 */
+    /**
+     * Time spent fully covered by the colour, in milliseconds, taken out of `duration` and split
+     * evenly off the cover and uncover halves. `{duration: 4000, holdMs: 2000}` is one second in,
+     * two seconds of solid colour, one second out.
+     *
+     * Real time, not a share of an eased curve: see {@link ThroughColor} on why the run is linear.
+     * @default 0.3 × duration
+     */
+    holdMs?: number;
+    /**
+     * Fraction (0–1) of the duration spent fully covered by the colour.
+     * @default 0.3
+     * @deprecated Use {@link holdMs}. A fraction cannot say how long the colour is actually held:
+     * it is a share of the run, so the seconds it buys move whenever the duration does. Read only
+     * when `holdMs` is absent.
+     */
     hold?: number;
     /**
      * The coverage geometry the colour covers the frame through. See
@@ -50,14 +68,22 @@ export type ThroughColorOptions = {
  *
  * The geometry lives entirely in the `pattern` option (see {@link Mask});
  * without one, the colour simply fades in and out (fade-to-black/white, or a
- * flash with `hold: 0`). {@link Reveal} is the direct-cut counterpart that
+ * flash with `holdMs: 0`). {@link Reveal} is the direct-cut counterpart that
  * takes the same patterns. The `uncover` option picks how the second half
  * plays: see {@link ThroughColorUncover}.
+ *
+ * The animation channel is deliberately **linear** and the easing is applied to
+ * each moving half by hand. Easing the whole run would make the hold a band of
+ * *progress* rather than of time, and every eased curve crosses the middle at
+ * its fastest: under the driver's default `easeInOut` a nominal 30% hold plays
+ * as 17.8% of the wall clock. `holdMs` can only mean milliseconds because of
+ * this - see `heldRunCurve`.
  */
 export class ThroughColor extends ImageTransition<AnimationType> {
     private duration: number;
     private color: string;
-    private hold: number;
+    private hold: number | undefined;
+    private holdMs: number | undefined;
     private pattern: MaskPattern | null;
     private inverted: boolean;
     private uncover: ThroughColorUncover;
@@ -67,7 +93,10 @@ export class ThroughColor extends ImageTransition<AnimationType> {
         super();
         this.duration = options.duration;
         this.color = options.color ?? "#000000";
-        this.hold = options.hold ?? 0.3;
+        // Neither is defaulted here: `holdFraction` needs to see which of the two the caller gave,
+        // and only falls back to the 0.3 share when neither is set.
+        this.hold = options.hold;
+        this.holdMs = options.holdMs;
         this.pattern = options.pattern ?? null;
         this.inverted = options.inverted ?? false;
         this.uncover = options.uncover ?? "retreat";
@@ -92,17 +121,17 @@ export class ThroughColor extends ImageTransition<AnimationType> {
     }
 
     createTask(): TransitionTask<HTMLImageElement, AnimationType> {
-        const hold = clamp01(this.hold);
-        const closeEnd = (1 - hold) / 2; // fully covered by here
-        const openStart = 1 - closeEnd; // starts uncovering here
+        const timing = {
+            duration: this.duration,
+            hold: this.hold ?? (this.holdMs === undefined ? DEFAULT_HOLD : undefined),
+            holdMs: this.holdMs,
+            easing: this.easing,
+        };
+        const openStart = 1 - (1 - holdFraction(timing)) / 2; // starts uncovering here
         const mid = 0.5; // fully covered window → swap the images here, unseen
 
-        // Coverage (0–1) of the colour overlay: cover → hold → uncover.
-        const coverAt = (progress: number): number => {
-            if (progress <= closeEnd) return closeEnd <= 0 ? 1 : progress / closeEnd;
-            if (progress >= openStart) return openStart >= 1 ? 1 : (1 - progress) / (1 - openStart);
-            return 1;
-        };
+        // Coverage (0–1) of the colour overlay: cover → hold → uncover, against a linear run.
+        const coverAt = heldRunCurve(timing);
 
         return {
             animations: [{
@@ -110,7 +139,8 @@ export class ThroughColor extends ImageTransition<AnimationType> {
                 start: 0,
                 end: 1,
                 duration: this.duration,
-                ease: this.easing,
+                // Linear on purpose: `coverAt` owns the easing so the hold can be measured in time.
+                ease: "linear",
             }],
             resolve: [
                 // Previous image: visible until the frame is fully covered, then gone.
@@ -135,6 +165,7 @@ export class ThroughColor extends ImageTransition<AnimationType> {
             duration: this.duration,
             color: this.color,
             hold: this.hold,
+            holdMs: this.holdMs,
             pattern: this.pattern ?? undefined,
             inverted: this.inverted,
             uncover: this.uncover,

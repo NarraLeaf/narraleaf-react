@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.36.0]
+
+### _Feature_
+
+- **A transition can hold for a length of time, and the length is the one you asked for.**
+  `ThroughColor` and `Exposure` take `holdMs`, and `Darkness` takes one too: milliseconds spent at
+  the extreme, carved out of `duration` and split evenly off the two moving halves.
+
+  ```ts
+  // one second into black, two seconds of black, one second out
+  new ThroughColor({duration: 4000, holdMs: 2000, color: "#000"})
+  // two seconds of black, then a one-second lift out of it
+  new Darkness({from: 1, to: 0, duration: 3000, holdMs: 2000})
+  ```
+
+  `Darkness`'s hold sits at `from`, which is where the image swap happens - the same thing the other
+  two call a hold, the window the swap hides in.
+
+### _Fixed_
+
+- **The hold in `ThroughColor` and `Exposure` was never the fraction of the run it claimed to be.**
+  It was a band of *eased* progress, and the animation channel carried the easing, so the driver
+  crossed the band at its fastest. Under the default easing (`easeInOut`, which is what motion's
+  keyframes generator applies when none is given) a nominal 30% hold played as **17.8%** of the wall
+  clock, 50% as 30.8% and 80% as 55.9%. A `ThroughColor` left at its defaults on a 300ms run held
+  the colour for 53 milliseconds - not long enough to see.
+
+  Both now run their channel linearly and ease each moving half themselves, so the hold is measured
+  in time. The look of a run with no hold is unchanged: easing the two halves of a symmetric run is
+  the same curve as easing the whole of it.
+
+- **`Darkness` drives a linear 0-1 progress channel** rather than animating the darkness value
+  directly, for the same reason. Its `from`/`to` and its easing behave exactly as before.
+
+### _Changed_
+
+- `ThroughColorOptions.hold` and `ExposureOptions.hold` (the 0-1 fraction of the duration) are
+  **deprecated** in favour of `holdMs`. They still work, and are read when `holdMs` is absent, so
+  nothing that set one has to change. A fraction cannot say how long the colour is held: it is a
+  share of the run, so the seconds it buys move whenever the duration does.
+
+- `Darkness` now documents what it always did: the brightness it writes lives for as long as the
+  transition runs and no longer. A run ending at a `to` above zero returns to full brightness on its
+  last frame, because what a settled element looks like is the element's own business - an image
+  renders at `Image.state.darkness`, a scene root at nothing at all. Ending dark is what a black
+  background is for; `Darkness` is a way *through* a darkness, not a way to sit in one.
+
 ## [0.35.0]
 
 ### _Changed_

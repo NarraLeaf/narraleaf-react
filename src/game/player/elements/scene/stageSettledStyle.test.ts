@@ -36,6 +36,7 @@ const TRANSITIONS: [string, ImageTransition][] = [
     named(new BlurDissolve({duration: 300}), "BlurDissolve"),
     named(new Push({duration: 300}), "Push"),
     named(new ThroughColor({duration: 300, color: "#000000"}), "ThroughColor fade"),
+    named(new ThroughColor({duration: 300, color: "#000000", holdMs: 150}), "ThroughColor held"),
     named(new ThroughColor({duration: 300, pattern: Mask.wipe()}), "ThroughColor wipe"),
     named(new ThroughColor({duration: 300, pattern: Mask.blinds()}), "ThroughColor blinds"),
     named(new ThroughColor({duration: 300, pattern: Mask.iris(), inverted: true}), "ThroughColor iris"),
@@ -51,8 +52,10 @@ const TRANSITIONS: [string, ImageTransition][] = [
     named(new Reveal({duration: 300, pattern: Mask.barnDoor()}), "Reveal barnDoor"),
     named(new Reveal({duration: 300, pattern: Mask.dots({stagger: 0.5})}), "Reveal dots"),
     named(new Darkness({from: 0, to: 1, duration: 300}), "Darkness"),
+    named(new Darkness({from: 1, to: 0, duration: 300, holdMs: 120}), "Darkness held"),
     named(new Exposure({duration: 300}), "Exposure"),
     named(new Exposure({duration: 300, hold: 0.4}), "Exposure hold"),
+    named(new Exposure({duration: 300, holdMs: 120}), "Exposure held"),
     named(new RuleReveal({duration: 300, rule: "/rules/spiral.png"}), "RuleReveal"),
     named(new RuleReveal({duration: 300, rule: "/rules/spiral.png", inverted: true}), "RuleReveal inverted"),
 ];
