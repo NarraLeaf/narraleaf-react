@@ -24,6 +24,7 @@ import {
     scaledFontSize,
     useAutoFitScale,
 } from "./autoFit";
+import { emphasisStyle, previewWordFontSize, wordFontSize } from "./wordStyle";
 import {
     isVerticalWritingMode,
     renderWordText,
@@ -772,10 +773,11 @@ function BaseText(
             : sentence.config.bold
                 ? resolvedFontWeightBold
                 : fontWeight,
-        fontSize: scaledFontSize(word.config.fontSize ?? authoredFontSize),
+        fontSize: wordFontSize(word.config, authoredFontSize),
         color: toOptionalColor(word.config.color ?? sentence.config.color ?? defaultColor),
         fontFamily: word.config.fontFamily ?? sentence.config.fontFamily ?? fontFamily,
         fontStyle: word.config.italic ?? sentence.config.italic ? "italic" : undefined,
+        ...emphasisStyle(word.config.emphasis),
     });
 
     const vertical = isVerticalWritingMode(writingMode);
@@ -995,10 +997,11 @@ export function TextsPreview({
             : sentenceConfig?.bold
                 ? resolvedFontWeightBold
                 : fontWeight,
-        fontSize: word.config.fontSize ?? sentenceConfig?.fontSize ?? fontSize,
+        fontSize: previewWordFontSize(word.config, sentenceConfig?.fontSize ?? fontSize),
         color: toOptionalColor(word.config.color ?? sentenceConfig?.color ?? defaultColor),
         fontFamily: word.config.fontFamily ?? sentenceConfig?.fontFamily ?? fontFamily,
         fontStyle: word.config.italic ?? sentenceConfig?.italic ? "italic" : undefined,
+        ...emphasisStyle(word.config.emphasis),
     });
     const vertical = isVerticalWritingMode(writingMode);
     const getElement = (word: PureWord, index: number) => {

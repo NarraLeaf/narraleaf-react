@@ -49,12 +49,51 @@ export type WordRenderProps<T = unknown> = {
  */
 export type WordRenderer<T = any> = string | React.ComponentType<WordRenderProps<T>>;
 
+/**
+ * Emphasis marks: a small glyph drawn beside every character of a word, the typographic way East
+ * Asian text stresses a phrase where a Latin one would go italic (傍点 / 圏点 in Japanese, 着重号 in
+ * Chinese). The marks follow the characters as they are typed out, so a word that is half revealed
+ * carries half its marks.
+ */
+export type WordEmphasis = {
+    /**
+     * The glyph drawn beside each character.
+     * @default "dot"
+     */
+    mark?: "dot" | "circle" | "sesame" | "triangle";
+    /**
+     * Whether that glyph is solid or hollow.
+     * @default "filled"
+     */
+    fill?: "filled" | "open";
+    /**
+     * Which side of the text the marks sit on. In horizontal writing `over` is above the line and
+     * `under` is below it; in vertical writing both sit to the right of the column, where the
+     * convention places them.
+     * @default "over"
+     */
+    position?: "over" | "under";
+};
+
 export type WordConfig = {
     className: string;
     ruby: string;
     color: Color;
     pause: boolean;
     cps?: number;  // characters per second
+    /**
+     * Emphasis marks drawn beside this word's characters. See {@link Word.emphasis}.
+     */
+    emphasis?: WordEmphasis;
+    /**
+     * This word's size as a share of the line's — `1.25` for a quarter larger, `0.8` for a fifth
+     * smaller. Relative rather than absolute, so the word keeps its weight against the rest of the
+     * line whatever size the line is set at, including while text scaling brings the line down to
+     * fit its box.
+     *
+     * Ignored when {@link WordConfig.fontSize} is set, which pins the word to an absolute size.
+     */
+    fontScale?: number;
     /**
      * Renders this word's revealed characters. See {@link Word.custom}.
      */
@@ -139,6 +178,26 @@ export class Word<T extends string | DynamicWord | Pausing | TextEvent = string 
             return text.copy().assign({italic: true});
         }
         return new Word(text, {italic: true});
+    }
+
+    /**
+     * Return a word with emphasis marks beside its characters — the East Asian counterpart of
+     * italicising a phrase.
+     *
+     * @param text - The text or word to emphasise.
+     * @param emphasis - Which glyph to draw and which side of the text to draw it on. Defaults to a
+     * filled dot above the line, the Japanese convention; Chinese text sets `position: "under"`.
+     * @example
+     * ```ts
+     * character.say(["それは", Word.emphasis("わたし"), "が決めることです。"]);
+     * character.say(["这是", Word.emphasis("我", {position: "under"}), "的决定。"]);
+     * ```
+     */
+    public static emphasis(text: string | Word, emphasis: WordEmphasis = {}): Word {
+        if (Word.isWord(text)) {
+            return text.copy().assign({emphasis});
+        }
+        return new Word(text, {emphasis});
     }
 
     /**
@@ -253,6 +312,8 @@ export class Word<T extends string | DynamicWord | Pausing | TextEvent = string 
         this.config.italic = this.config.italic ?? config.italic;
         this.config.bold = this.config.bold ?? config.bold;
         this.config.cps = this.config.cps ?? config.cps;
+        this.config.emphasis = this.config.emphasis ?? config.emphasis;
+        this.config.fontScale = this.config.fontScale ?? config.fontScale;
         return this;
     }
 

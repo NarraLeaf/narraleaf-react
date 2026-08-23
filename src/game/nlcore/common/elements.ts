@@ -90,6 +90,7 @@ export type {
 } from "../elements/character/avatar";
 export type {
     WordConfig,
+    WordEmphasis,
     WordRenderProps,
     WordRenderer,
 } from "../elements/character/word";

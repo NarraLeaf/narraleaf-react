@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.37.0]
+
+### _Feature_
+
+- **A word can carry emphasis marks** - the dots or circles set beside every character of a stressed
+  phrase, which is how East Asian typography does what italics do in a Latin one (傍点 / 圏点 in
+  Japanese, 着重号 in Chinese). `WordConfig.emphasis` takes the glyph, whether it is solid or hollow,
+  and which side of the text it sits on; `Word.emphasis()` is the shorthand.
+
+  ```ts
+  character.say(["それは", Word.emphasis("わたし"), "が決めることです。"]);
+  character.say(["这是", Word.emphasis("我", {position: "under"}), "的决定。"]);
+  character.say(["He said ", new Word("nothing", {emphasis: {mark: "circle", fill: "open"}}), "."]);
+  ```
+
+  The marks are typed out with the characters they belong to, so a word half revealed carries half
+  its marks. `position` is read in horizontal writing only - `over` above the line, `under` below it;
+  vertical writing sets the marks to the right of the column, which is where both conventions place
+  them.
+
+- **A word can be sized against its line instead of in absolute units.** `WordConfig.fontScale` is a
+  share of the size the line is set at - `1.25` for a quarter larger, `0.8` for a fifth smaller - so
+  the word keeps its weight against the rest of the line whatever the line is set at, including while
+  text scaling brings the line down to fit its box. `fontSize` still pins a word to an absolute size
+  and wins when both are given.
+
+  ```ts
+  character.say(["and then it was ", new Word("enormous", {fontScale: 1.6}), "."]);
+  ```
+
 ## [0.36.0]
 
 ### _Feature_
