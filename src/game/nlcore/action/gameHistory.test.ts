@@ -260,6 +260,43 @@ describe("GameHistoryManager play head", () => {
         expect(loaded.canUndo()).toBe(true);
     });
 
+    it("does not list the save's last line twice when the load re-runs it", () => {
+        const { mgr, actions } = threeLines();
+
+        const saved = mgr.serialize();
+        const loaded = createManager();
+        loaded.load(saved, new Map<string, Action>(actions.map(a => [a.getId(), a])));
+
+        // `LiveGame.deserialize` ends by stepping the stack it just restored, and that stack was
+        // saved sitting on the line the save was written at - so that line runs again and is pushed
+        // again. It is the same arrival, not a new one.
+        loaded.push(line("t3-rerun", actions[2]!));
+
+        expect(loaded.getCursor()).toBe(2);
+        expect(loaded.getHistory().map(h => h.element.text)).toEqual(["t1", "t2", "t3-rerun"]);
+        expect(loaded.getFuture()).toEqual([]);
+    });
+
+    it("keeps the token of the line a load re-runs, so a backlog reference survives the load", () => {
+        const { mgr, actions } = threeLines();
+        const loaded = createManager();
+        loaded.load(mgr.serialize(), new Map<string, Action>(actions.map(a => [a.getId(), a])));
+
+        loaded.push(line("t3-rerun", actions[2]!));
+        expect(loaded.getHistory().map(h => h.token)).toEqual(["t1", "t2", "t3"]);
+    });
+
+    it("still records a genuinely new line after a load", () => {
+        const { mgr, actions } = threeLines();
+        const loaded = createManager();
+        loaded.load(mgr.serialize(), new Map<string, Action>(actions.map(a => [a.getId(), a])));
+
+        // The stack resumed somewhere else entirely. Nothing to reconcile: this is the story moving
+        // on, and the backlog grows.
+        loaded.push(line("t4", action("a-4")));
+        expect(loaded.getHistory().map(h => h.token)).toEqual(["t1", "t2", "t3", "t4"]);
+    });
+
     it("moves the play head along when the action history's cap trims the front", () => {
         const { mgr } = threeLines();
         mgr.setCursor(2);

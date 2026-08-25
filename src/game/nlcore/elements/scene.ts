@@ -214,6 +214,36 @@ export class Scene extends Constructable<
         return object instanceof Scene;
     }
 
+    /**
+     * The sounds a scene *owns* rather than acts on: the track named in its config, and the one a
+     * `setBackgroundMusic` row hands it.
+     *
+     * Everything that enumerates a story's elements walks action callees, and a scene's music is
+     * never one - the scene is the callee and the music is state hanging off it. So it was the one
+     * kind of clip that could be playing when a save was written while carrying no id to be written
+     * under. `AudioManager` then looked that id up on the way back in, missed, and the scene's music
+     * did not resume. Both places that need these sounds ask here, so the ids a save is written with
+     * and the table it is read against cannot drift apart.
+     * @internal
+     */
+    static getOwnedSounds(action: LogicAction.Actions): Sound[] {
+        const sounds: Sound[] = [];
+        const callee = action.callee;
+        if (Scene.isScene(callee)) {
+            const configured = callee.userConfig.get().backgroundMusic;
+            if (configured) {
+                sounds.push(configured);
+            }
+        }
+        if (action instanceof SceneAction && action.type === SceneActionTypes.setBackgroundMusic) {
+            const [sound] = (action.contentNode as ContentNode<SceneActionContentType["scene:setBackgroundMusic"]>).getContent();
+            if (sound) {
+                sounds.push(sound);
+            }
+        }
+        return sounds;
+    }
+
     /**@internal */
     static getScene(story: Story, targetScene: Scene | string): Scene | null {
         if (typeof targetScene === "string") {
@@ -800,6 +830,26 @@ export class Scene extends Constructable<
 
         elements.forEach((element, i) => {
             element.resolveId(`e-${i}`);
+        });
+
+        // Scene-owned music is nobody's callee (see {@link Scene.getOwnedSounds}), so the pass
+        // above cannot reach it - and an element with no id is an element a save cannot name.
+        //
+        // Numbered in its own `s-` series rather than continuing `e-`: an element id is a position
+        // in this walk, so folding these in would shift every id after them and point every save
+        // written before today at a different element.
+        const owned = new Set<Sound>();
+        this.getAllChildren(story, this.sceneRoot || []).forEach(action => {
+            Scene.getOwnedSounds(action).forEach(sound => owned.add(sound));
+        });
+        let index = 0;
+        owned.forEach(sound => {
+            // A track that is also acted on already took an `e-` id in the pass above. Renaming it
+            // here would strand every save written against the id it had.
+            if (!sound.getId()) {
+                sound.resolveId(`s-${index}`);
+            }
+            index++;
         });
     }
 

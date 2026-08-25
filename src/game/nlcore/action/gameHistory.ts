@@ -220,6 +220,11 @@ export class GameHistoryManager {
         // A loaded save opens on its last line: everything it carries has been read, and it carries
         // nothing beyond the moment it was written.
         this.cursor = this.history.length - 1;
+        // The same shape as a rewind, and for the same reason: `deserialize` resumes the stack at
+        // the action the save was written on, so the first line pushed after this is the current
+        // one coming round again rather than the next one. Without saying so, `push` reads that
+        // re-run as a new line and the backlog opens with its last entry listed twice.
+        this.resumingAtCursor = this.cursor >= 0;
     }
 
     reset() {

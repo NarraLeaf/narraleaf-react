@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.38.0]
+
+### _Fix_
+
+- **A loaded save no longer lists its last line twice in the backlog.** `deserialize` restores the
+  action stack sitting on the row the save was written at and then steps it, so that row runs a
+  second time and is recorded a second time. The backlog already knew this shape — it is what a
+  rewind does, and `setCursor` says so — but the load path did not, so the entry was appended
+  instead of reconciled and every loaded save opened with its last line duplicated. Loading now
+  marks the play head as resuming, exactly as a rewind does; the re-run line keeps the token it was
+  saved with, so a backlog UI holding a reference to it still resolves.
+
+- **A loaded save brings the scene's background music back.** `AudioManager` records every clip it
+  is playing into the save and looks each one up by element id on the way back in. Element ids are
+  handed out by walking action callees — and a scene's music is never a callee, because the scene is
+  the callee and the music is state hanging off it. So it went into saves under the empty id an
+  unresolved element carries, matched nothing on the way in, and was skipped: the save loaded and
+  played on in silence until the next scene change. Scene-owned tracks (the one in the scene's
+  config, and any handed to `Scene.setBackgroundMusic`) are now given ids of their own and are in
+  the table a load reads.
+
+  They are numbered in a separate `s-` series rather than folded into `e-`, because an element id is
+  a position in the walk: folding them in would have shifted every id after them and pointed saves
+  written before this release at a different element. A track that is also the callee of a sound
+  action keeps the `e-` id it already had. Saves written before this release still carry the empty
+  id for their scene music, so their music does not come back — only saves written from here on do.
+
 ## [0.37.0]
 
 ### _Feature_

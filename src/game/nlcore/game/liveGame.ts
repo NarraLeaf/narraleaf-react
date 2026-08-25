@@ -1131,6 +1131,15 @@ export class LiveGame {
         story.forEachChild(story, story.entryScene?.getSceneRoot() || [], action => {
             actionMaps.set(action.getId(), action);
             elementMaps.set(action.callee.getId(), action.callee);
+            // A scene's background music reaches a save - `AudioManager` records every clip it is
+            // playing - without ever being an action's callee, so a table built from callees alone
+            // cannot answer for it and the music does not come back. See `Scene.getOwnedSounds`.
+            for (const sound of Scene.getOwnedSounds(action)) {
+                const soundId = sound.getId();
+                if (soundId) {
+                    elementMaps.set(soundId, sound);
+                }
+            }
         }, { allowFutureScene: true });
 
         this.mapCache = [actionMaps, elementMaps];
