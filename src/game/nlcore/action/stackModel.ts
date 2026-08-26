@@ -5,6 +5,7 @@ import { CalledActionResult, StackModelWaiting } from "../gameTypes";
 import { LogicAction } from "./logicAction";
 import { Lambda } from "@core/elements/condition";
 import { GameState } from "@player/gameState";
+import type { ExecutedActionResult } from "./action";
 
 
 export enum StackModelItemType {
@@ -250,6 +251,14 @@ export class StackModel {
 
     private stack: Stack<CalledActionResult | Awaitable<CalledActionResult>>;
     private waitingAction: CalledActionResult | null = null;
+    /**
+     * True only for as long as {@link executeActions} is running {@link waitingAction}.
+     *
+     * `waitingAction` is the last action popped off the stack, and it stays set after that action
+     * has run to completion - so on its own it cannot say whether the action is still the one the
+     * model is on. {@link serialize} needs that distinction and nothing else does.
+     */
+    private executingWaitingAction: boolean = false;
 
     // Loop-related fields
     private loopConfig: StackModelLoopConfig | null = null;
@@ -712,9 +721,18 @@ export class StackModel {
 
     executeActions(result: CalledActionResult): CalledActionResult | Awaitable<CalledActionResult> | null {
         if (!result.node?.action) return null;
-        const executed = this.liveGame.executeAction(this.liveGame.getGameStateForce(), result.node.action, {
-            stackModel: this,
-        });
+        // An action can serialize the game from inside its own execution - a `say` snapshots the
+        // state of its line for the backlog, a jump snapshots the stack it is about to leave - and
+        // those snapshots have to come back to the action, not past it. See `serialize`.
+        this.executingWaitingAction = true;
+        let executed: ExecutedActionResult;
+        try {
+            executed = this.liveGame.executeAction(this.liveGame.getGameStateForce(), result.node.action, {
+                stackModel: this,
+            });
+        } finally {
+            this.executingWaitingAction = false;
+        }
 
         const handleActionResult = (result: CalledActionResult | Awaitable<CalledActionResult, CalledActionResult> | null) => {
             if (!result) return null;
@@ -802,7 +820,22 @@ export class StackModel {
         const items = this.stack.map(toData).filter(function (item): item is Exclude<StackModelItemData | null, null> {
             return item !== null;
         });
-        if (frozen && this.waitingAction) {
+        // `waitingAction` is written above the stack so that a load re-runs the action the snapshot
+        // caught in progress. It belongs there only while that action is still in progress, which
+        // is either of two things: it is executing right now (an action that serializes the game
+        // from inside itself), or the stack holds the Awaitable it returned - and `toData` cannot
+        // carry an Awaitable, so re-running the action is the only way back to it.
+        //
+        // Once the action has finished, whatever it produced is on the stack in its own right and
+        // writing the action out as well would run it a second time on load. For a `Control.all` /
+        // `Control.any` that is worse than a duplicate: the `wait` link the group left on the stack
+        // is where each branch's progress lives, so the second run would restart every branch from
+        // the top - and it never got that far, because the stack refuses to hold anything above a
+        // group whose branches have not drained, which is what made such a save unloadable.
+        const top = this.stack.peek();
+        const waitingActionStillInProgress = this.executingWaitingAction
+            || Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(top);
+        if (frozen && this.waitingAction && waitingActionStillInProgress) {
             const actionData = toData(this.waitingAction);
             if (actionData) {
                 items.push(actionData);
@@ -853,6 +886,18 @@ export class StackModel {
         const items = data.items;
 
         for (const item of items) {
+            // Saves written before the rule in `serialize` carry the action that created a
+            // concurrent group written out above the group's own `wait` link. Nothing else can put
+            // an item there - the stack refuses to hold one, which is what made those saves
+            // unloadable - and re-running that action would restart every branch from the top. So
+            // read such a save as the group alone, which is what the run it was taken from was on.
+            if (this.topIsGroupStillRunning()) {
+                this.liveGame.getGameStateForce?.().logger?.debug(
+                    "StackModel", "Dropping an item restored above a running group", item.action
+                );
+                break;
+            }
+
             if (item.type === StackModelItemType.Action) {
                 if (!item.action) continue;
 
@@ -925,6 +970,18 @@ export class StackModel {
 
     isEmpty(): boolean {
         return this.stack.isEmpty();
+    }
+
+    /**
+     * Whether the top of the stack is a `Control.all` / `Control.any` link whose branches have not
+     * all drained - the one state in which the stack accepts nothing on top of it, because the
+     * group has to finish before whatever queued behind it can run.
+     */
+    private topIsGroupStillRunning(): boolean {
+        const top = this.stack.peek();
+        return StackModel.isCalledActionResult(top)
+            && !!top.wait
+            && StackModel.isStackModelsAwaiting(top.wait.type, top.wait.stackModels);
     }
 
     /**
