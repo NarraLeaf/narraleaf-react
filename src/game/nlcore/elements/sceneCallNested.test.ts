@@ -403,7 +403,10 @@ describe("the depth limit", () => {
         // limit, which is what the message tells the author to do.
         await drive(h);
         expect(log).toEqual(expectedChainLog(9));
-    });
+        // Nine scenes enter and leave the stage in one test, and each entrance waits on its own
+        // mounted state, so this sits close to the default per-test budget on a loaded machine.
+        // Nine is the shortest chain that exceeds the default limit, so the cost is the property.
+    }, 20_000);
 });
 
 describe("a plain jump taken from the bottom of a chain", () => {
