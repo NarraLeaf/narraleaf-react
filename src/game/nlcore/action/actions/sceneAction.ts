@@ -105,9 +105,12 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         // Restore the local persistent
         scene.local.getNamespace(state.getStorable()).load(snapshot.local);
 
-        // Restore the scene
+        // Restore the scene. The element table goes with it for the same reason it does on a load:
+        // a scene's background music is a pointer to another element, and an id is the only thing a
+        // snapshot can carry it as.
         if (snapshot.state) {
-            scene.fromData(snapshot.state);
+            const [, elementMaps] = state.getLiveGame().constructMaps();
+            scene.fromData(snapshot.state, elementMaps);
         }
 
         // Restore the background

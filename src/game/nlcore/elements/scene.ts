@@ -113,6 +113,25 @@ export type SceneDataRaw = {
     state: Record<string, any>,
 }
 
+/**
+ * A scene's background music, as a save carries it.
+ *
+ * `scene.state.backgroundMusic` is a *pointer* to a `Sound`, and the only thing a save can carry a
+ * pointer as is an id. {@link SoundDataRaw} has none - it is the sound's state and nothing else -
+ * so the record could not be resolved back to the clip it came from, and the load had to guess:
+ * it poured the saved state into whatever `Sound` the scene was already holding. For a scene that
+ * declares its music in its config that guess is right, because the freshly constructed scene is
+ * holding exactly that clip. For a scene handed its track by a `setBackgroundMusic` row it holds
+ * `null`, the record was dropped, and the scene came back not knowing which clip was its own.
+ *
+ * `id` is the sound's element id, and it is optional on the way in: a save written before this
+ * field existed carries none and is read exactly as it was, from the scene's own instance.
+ * @internal
+ */
+export type SceneBackgroundMusicDataRaw = SoundDataRaw & {
+    id?: string;
+};
+
 /**@internal */
 export type SceneEventTypes = {
     "event:scene.remove": [];
@@ -273,24 +292,47 @@ export class Scene extends Constructable<
         return targetScene;
     }
 
-    /**@internal */
-    static getStateSerializer(scene: Scene) {
+    /**
+     * The scene state a save carries, and how it is put back.
+     *
+     * `elementMap` is the table {@link import("@core/game/liveGame").LiveGame.constructMaps} builds
+     * to restore a save against - the same one every other element is looked up in. It is what turns
+     * the saved background-music id back into the `Sound` the scene was pointing at. Without one
+     * (an old save, which carries no id) the deserializer falls back to the instance the scene is
+     * already holding, which is what it always did.
+     *
+     * `backgroundImage` needs no such treatment: a scene's background is one `Image` created once in
+     * {@link Scene.getInitialState} and never swapped for another, so the instance the scene is
+     * holding is by construction the one the state belongs to.
+     * @internal
+     */
+    static getStateSerializer(scene: Scene, elementMap?: Map<string, LogicAction.GameElement>) {
         return new Serializer<SceneState, {
             backgroundImage: (bg: Image) => ImageDataRaw;
-            backgroundMusic: (sound: Sound | null) => SoundDataRaw | null;
+            backgroundMusic: (sound: Sound | null) => SceneBackgroundMusicDataRaw | null;
         }>({
             backgroundImage: (bg) => bg.toData(),
-            backgroundMusic: (sound) => sound?.toData() || null,
+            backgroundMusic: (sound) => {
+                const data = sound?.toData();
+                if (!data) {
+                    return null;
+                }
+                const id = sound!.getId();
+                return id ? {...data, id} : data;
+            },
         }, {
             backgroundImage: (bg) =>
                 scene.state.backgroundImage.fromData(bg),
-            backgroundMusic: (sound) =>
-                scene.state.backgroundMusic && sound
-                    ? scene.state.backgroundMusic.fromData(sound)
-                    : null,
+            backgroundMusic: (sound) => {
+                if (!sound) {
+                    return null;
+                }
+                const named = sound.id ? elementMap?.get(sound.id) : undefined;
+                const target = named instanceof Sound ? named : scene.state.backgroundMusic;
+                return target ? target.fromData(sound) : null;
+            },
         });
     }
-    
 
     /**@internal */
     public config: SceneConfig;
@@ -605,9 +647,13 @@ export class Scene extends Constructable<
         } satisfies SceneDataRaw;
     }
 
-    /**@internal */
-    override fromData(data: SceneDataRaw): this {
-        this.state = Scene.getStateSerializer(this).deserialize(data.state);
+    /**
+     * @param elementMap - the table a save is restored against, so the background-music id in
+     * `data` can be resolved back to the `Sound` it names. See {@link Scene.getStateSerializer}.
+     * @internal
+     */
+    override fromData(data: SceneDataRaw, elementMap?: Map<string, LogicAction.GameElement>): this {
+        this.state = Scene.getStateSerializer(this, elementMap).deserialize(data.state);
         return this;
     }
 

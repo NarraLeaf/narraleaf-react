@@ -348,7 +348,13 @@ export class LiveGame {
             if (!element) {
                 throw new Error("Element not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
             }
-            element.fromData(data as any);
+            // A scene is the one element whose state points at another element - its background
+            // music - so it is the one that needs the table to put itself back together.
+            if (element instanceof Scene) {
+                element.fromData(data as any, elementMaps);
+            } else {
+                element.fromData(data as any);
+            }
             // Restored state is by definition not the authored state, so the next save has to carry
             // this element even if no action touches it again.
             element.markDirty();

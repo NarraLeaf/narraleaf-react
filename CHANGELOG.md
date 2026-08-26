@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.39.1]
+
+### _Fix_
+
+- **A scene keeps the music it was handed, across a save.** A scene's background music can come
+  from its config or from a `setBackgroundMusic` row, and only the first of those survived a load.
+  `scene.state.backgroundMusic` is a pointer to a `Sound`, and the saved record carried the sound's
+  state without saying *which* sound it was - so the load had to guess, and it guessed the clip the
+  scene was already holding. A scene that declares its music is holding exactly that clip when it is
+  freshly constructed, so it was right every time; a scene handed its track by an action is holding
+  nothing, so the record was dropped and the scene came back not knowing which clip was its own. The
+  clip itself was restored and went on playing, which is why this was inaudible.
+
+  It stopped being inaudible in 0.39.0. `scene:resume` resumes the calling scene's own track when a
+  call returns, so **save inside a called scene, load, and return** left the caller silent for the
+  rest of the scene. The defect is older than the feature that exposed it: the pointer is lost by an
+  ordinary save and load with no scene call anywhere.
+
+  The record now also carries the sound's element id, and the load resolves it against the same
+  table every other element is restored from. A save written before this release carries no id and
+  is read exactly as it was, from the scene's own instance; a save written after it carries one more
+  field on that record, which a reader that predates it ignores.
+
 ## [0.39.0]
 
 ### _Feature_
