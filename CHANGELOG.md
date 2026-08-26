@@ -76,6 +76,22 @@
   is what loading a save performs - fires every waiting request again. A scene parked behind a call
   therefore came back from a save with its music playing over the scene it had called.
 
+- **Stepping back onto a line inside a called scene keeps the caller parked.** A scene's stage entry
+  is rebuilt from its snapshot when the game steps back in place, and the snapshot did not carry
+  whether that scene was a caller suspended behind a returnable jump. Stepping back through a line of
+  dialogue restores the snapshot of every scene on the stage, so a single `LiveGame.undo()` onto a
+  line inside a called scene unparked the whole call stack: the callers stayed mounted, kept
+  painting, and the outermost of them became the scene the next line of dialogue attached to. The two
+  ways of reaching a line disagreed as a result - through a save the caller came back parked, in
+  place it did not.
+
+- **Stepping back to before a scene was entered closes its local namespace again.** Putting a scene
+  on the stage opens its scene-local namespace; the undo `scene:init` registered took the scene off
+  the stage but left the namespace open. A game stepped back to before a scene was entered - which is
+  what stepping back over a jump, or out of a returnable one, does - therefore still carried that
+  scene's locals, and a save written there was not the save the same line would have written on the
+  way through.
+
 ## [0.38.0]
 
 ### _Fix_
