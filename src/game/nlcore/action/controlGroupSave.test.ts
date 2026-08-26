@@ -284,6 +284,21 @@ function callInBranchStory() {
     return { log, gate, main, sub };
 }
 
+/** `Control.all` written as the last statement of the scene, so nothing follows the group. */
+function trailingAllStory() {
+    const log: string[] = [];
+    const gate = new Awaitable<void>();
+    const main = new Scene("main");
+    main.action([
+        mark(log, "before"),
+        Control.all([
+            Control.do([mark(log, "P1"), Control.sleep(gate), mark(log, "P2"), mark(log, "P3")]),
+            Control.do([mark(log, "Q1"), mark(log, "Q2")]),
+        ]),
+    ] as never);
+    return { log, gate, main };
+}
+
 describe("what a save carries while a group is running", () => {
     it("carries the group, and not the action that created it", async () => {
         const { log, main } = allStory();
@@ -334,6 +349,17 @@ describe("a save taken mid-group loads and finishes the same way", () => {
 
         // The group ends when the first branch drains; the other is left where it was parked.
         expect(uninterrupted).toEqual(["before", "P1", "Q1", "Q2", "after"]);
+        expect(beforeSave).not.toEqual(uninterrupted);
+        expect(resumed).toEqual(uninterrupted);
+    });
+
+    it("a group written as the last statement of the scene", async () => {
+        const { beforeSave, uninterrupted, resumed } = await saveAndResume(trailingAllStory, "Q2");
+
+        // Nothing follows the group, so the link it left on the stack names no action to run after
+        // it. A save writes such a link out with a null action and reads it back the same way, and
+        // the branches still come back where they were.
+        expect(uninterrupted).toEqual(["before", "P1", "Q1", "Q2", "P2", "P3"]);
         expect(beforeSave).not.toEqual(uninterrupted);
         expect(resumed).toEqual(uninterrupted);
     });
