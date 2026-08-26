@@ -4,6 +4,44 @@
 
 ### _Fix_
 
+- **A scene parked behind a returnable jump no longer swallows the clicks meant for the scene in
+  front of it.** Every scene on the stage renders a dialog layer of its own, each of those layers
+  covers the whole stage, and a caller suspended by a returnable jump keeps its layer for as long as
+  it is parked - with nothing in it, because a parked scene has nothing to say. The layers are
+  stacked in the order the stage holds the scenes, which puts the parked caller's empty layer on top
+  of the box belonging to the scene the story is actually in. It took the pointer all the same, so
+  for the whole length of a scene call nothing in the live box could be clicked: not the box's own
+  advance, not an inline word with a renderer of its own, not anything a line had drawn over itself,
+  and not a menu the called scene was showing. A click anywhere on the stage still advanced the line,
+  because that is announced from the window and reaches every dialog as a broadcast - which is why
+  this looked like the dialog ignoring the player rather than something standing in front of it. A
+  dialog layer now takes the pointer only while it has something live in it, a line still waiting or
+  a menu, and is transparent to it otherwise.
+
+- **A line that finished typing while something was drawn over it no longer spends the next click on
+  itself.** A dialog box is active while it is showing a line the player still has to answer, and
+  inactive while it is a picture of a line that is over - which is also what it is for as long as
+  another scene's box is drawn over it, or a panel is open across the stage. Whether the line is
+  ready for a click was latched by whichever box was active at the instant the text finished
+  revealing, so a line that finished while it was displaced came back with the latch down: the first
+  advance the player spent went on raising it and the line stayed where it was. The latch now follows
+  the fact - there is nothing left to reveal - rather than who happened to be watching when it
+  became true. A line that has not finished revealing is untouched, so a box that reappears over a
+  half-typed line still reveals the rest of it before a click can settle it.
+
+- **A line already on screen no longer loses the task that is the only thing able to finish it.** The
+  state a dialog box keeps for its line is rebuilt whenever the line changes, and the typing task
+  that reports the text fully revealed belongs to the sentence renderer, which is keyed on the line.
+  One input to that state was not the line: whether to type at all, which is read from a flag every
+  advance in the scene writes, so it could change under a line that was already on screen. When it
+  did, the state was rebuilt and the renderer was not, leaving the new state with no task of its own
+  - the task still running reported to the state that had been thrown away. The new state therefore
+  never reached the end of its line, was never ready for a click, and every advance forwarded to a
+  task that had already finished: the line stayed fully drawn on screen and no click, key press or
+  auto-forward could settle it again, for the rest of the game. The state is now rebuilt exactly when
+  the line is. Whether a line types is decided when it starts revealing, which is what that state
+  records; a line already revealing does not change its mind.
+
 - **A script error says what went wrong, and carries the rest as fields.** `RuntimeScriptError`
   composed everything it knew into a single string, so the sentence an author has to read arrived
   with the offending action's id, its type and the whole of that action's construction stack

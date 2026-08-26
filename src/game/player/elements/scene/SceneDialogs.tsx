@@ -5,32 +5,13 @@ import PlayerDialog from "../say/UIDialog";
 import PlayerMenu from "@lib/game/player/elements/menu/PlayerMenu";
 import clsx from "clsx";
 import React from "react";
-import { DialogAction } from "../say/type";
-
-type DialogPresenceState = {
-    slotKeys: Map<number, string>;
-    exitingKeys: Set<string>;
-    menuPromptIds: WeakMap<PlayerStateElement["menus"][number], string>;
-    nextKey: number;
-};
-
-type DialogRenderItem = {
-    action: DialogAction;
-    onFinished?: (skiped?: boolean) => void;
-    useTypeEffect: boolean;
-    presenceKey: string;
-    slot: number;
-    active: boolean;
-};
-
-type DialogSource = {
-    action: DialogAction;
-    onFinished?: (skiped?: boolean) => void;
-    useTypeEffect: boolean;
-    slot: number;
-};
-
-const DIRECT_DIALOG_REPLACEMENT_GRACE_MS = 120;
+import {
+    DIRECT_DIALOG_REPLACEMENT_GRACE_MS,
+    DialogPresenceState,
+    DialogRenderItem,
+    DialogSource,
+    resolveDialogPresentation,
+} from "./dialogPresentation";
 
 /**
  * The scene's dialog box and menus.
@@ -38,6 +19,10 @@ const DIRECT_DIALOG_REPLACEMENT_GRACE_MS = 120;
  * Rendered as a fixed overlay **outside** the stage {@link Camera} so a camera pan/zoom/rotate
  * moves only the backgrounds and sprites, never the text UI. Split out of the scene stage; it
  * owns all of the dialog-presence bookkeeping.
+ *
+ * What it renders, and whether it takes the pointer at all, is decided by
+ * {@link resolveDialogPresentation} - a pure function, so the rules it enforces can be pinned
+ * without a DOM.
  * @internal
  */
 export default function SceneDialogs(
@@ -96,100 +81,85 @@ export default function SceneDialogs(
         };
     }, []);
 
-    const dialogItems: DialogRenderItem[] = (() => {
-        const presence = dialogPresenceRef.current;
-        const dialogSources: DialogSource[] = texts.length > 0
-            ? texts.map(({ action, onClick }, index) => ({
-                action,
-                slot: index,
-                useTypeEffect: !usingSkipRef.current,
-                onFinished: (skiped?: boolean) => {
-                    if (skiped !== undefined) {
-                        usingSkipRef.current = skiped;
-                    }
-                    onClick();
-                    state.events.emit(GameState.EventTypes["event:state.player.lineEnd"]);
-                    state.stage.next();
+    const presence = dialogPresenceRef.current;
+    const dialogSources: DialogSource[] = texts.length > 0
+        ? texts.map(({ action, onClick }, index) => ({
+            action,
+            slot: index,
+            useTypeEffect: !usingSkipRef.current,
+            onFinished: (skiped?: boolean) => {
+                if (skiped !== undefined) {
+                    usingSkipRef.current = skiped;
+                }
+                onClick();
+                state.events.emit(GameState.EventTypes["event:state.player.lineEnd"]);
+                state.stage.next();
+            },
+        }))
+        : menus.flatMap((menu, index) => {
+            if (!menu.action.prompt || !menu.action.words) {
+                return [];
+            }
+
+            let menuPromptId = presence.menuPromptIds.get(menu);
+            if (!menuPromptId) {
+                menuPromptId = `menu-prompt-${scene.getId()}-${presence.nextKey++}`;
+                presence.menuPromptIds.set(menu, menuPromptId);
+            }
+
+            return [{
+                action: {
+                    sentence: menu.action.prompt,
+                    words: menu.action.words,
+                    character: null,
+                    id: menuPromptId,
                 },
-            }))
-            : menus.flatMap((menu, index) => {
-                if (!menu.action.prompt || !menu.action.words) {
-                    return [];
-                }
-
-                let menuPromptId = presence.menuPromptIds.get(menu);
-                if (!menuPromptId) {
-                    menuPromptId = `menu-prompt-${scene.getId()}-${presence.nextKey++}`;
-                    presence.menuPromptIds.set(menu, menuPromptId);
-                }
-
-                return [{
-                    action: {
-                        sentence: menu.action.prompt,
-                        words: menu.action.words,
-                        character: null,
-                        id: menuPromptId,
-                    },
-                    slot: index,
-                    useTypeEffect: false,
-                }];
-            });
-
-        if (dialogSources.length === 0) {
-            if (!retainedDialogItemsRef.current && lastActiveDialogItemsRef.current.length > 0) {
-                retainedDialogItemsRef.current = lastActiveDialogItemsRef.current.map((item) => ({
-                    ...item,
-                    active: false,
-                }));
-            }
-
-            if (retainedDialogItemsRef.current && !retainedDialogTimerRef.current) {
-                retainedDialogTimerRef.current = setTimeout(
-                    commitRetainedDialogExit,
-                    DIRECT_DIALOG_REPLACEMENT_GRACE_MS,
-                );
-            }
-
-            return retainedDialogItemsRef.current ?? [];
-        }
-
-        clearRetainedDialogTimer();
-        retainedDialogItemsRef.current = null;
-
-        const activeSlots = new Set(dialogSources.map(({ slot }) => slot));
-
-        for (const [slot, key] of Array.from(presence.slotKeys)) {
-            if (activeSlots.has(slot)) continue;
-            presence.exitingKeys.add(key);
-            presence.slotKeys.delete(slot);
-        }
-
-        const activeItems = dialogSources.map(({ slot, ...source }) => {
-            let presenceKey = presence.slotKeys.get(slot);
-            if (!presenceKey || presence.exitingKeys.has(presenceKey)) {
-                presenceKey = `say-${scene.getId()}-${presence.nextKey++}`;
-                presence.slotKeys.set(slot, presenceKey);
-            }
-            return {
-                ...source,
-                presenceKey,
-                slot,
-                active: true,
-            };
+                slot: index,
+                useTypeEffect: false,
+            }];
         });
-        lastActiveDialogItemsRef.current = activeItems;
-        return activeItems;
-    })();
+
+    const presentation = resolveDialogPresentation({
+        sources: dialogSources,
+        menuCount: menus.length,
+        presence,
+        retained: retainedDialogItemsRef.current,
+        lastActive: lastActiveDialogItemsRef.current,
+        sceneId: scene.getId(),
+    });
+
+    retainedDialogItemsRef.current = presentation.retained;
+    lastActiveDialogItemsRef.current = presentation.lastActive;
+
+    if (presentation.retaining) {
+        if (!retainedDialogTimerRef.current) {
+            retainedDialogTimerRef.current = setTimeout(
+                commitRetainedDialogExit,
+                DIRECT_DIALOG_REPLACEMENT_GRACE_MS,
+            );
+        }
+    } else {
+        clearRetainedDialogTimer();
+    }
 
     return (
-        <div className={clsx(className, "w-full h-full absolute")} data-element-type={"scene-dialogs"}>
+        <div
+            className={clsx(className, "w-full h-full absolute")}
+            data-element-type={"scene-dialogs"}
+            // A layer with nothing live in it is transparent to the pointer. Every scene on the
+            // stage has one of these, they all cover the stage, and a scene parked behind a
+            // returnable jump keeps its own - so the layer drawn on top is routinely one with
+            // nothing in it at all. Left interactive, it took every click meant for the box
+            // underneath it.
+            style={{ pointerEvents: presentation.interactive ? "auto" : "none" }}
+        >
             <AnimatePresence
                 propagate={state.game.config.animationPropagate}
                 onExitComplete={() => {
                     dialogPresenceRef.current.exitingKeys.clear();
                 }}
             >
-                {dialogItems.map(({ action, onFinished, presenceKey, active, useTypeEffect }) => (
+                {presentation.items.map(({ action, onFinished, presenceKey, active, useTypeEffect }) => (
                     <PlayerDialog
                         gameState={state}
                         key={presenceKey}

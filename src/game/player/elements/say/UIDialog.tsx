@@ -89,10 +89,27 @@ export class DialogState {
         return this._active;
     }
 
+    /**
+     * Hand the line to a box, or take it away from one.
+     *
+     * A box that becomes active over a line whose text has already finished revealing is idle at
+     * once. `_idle` is the latch between "there is nothing left to reveal" and "the next advance
+     * settles the line", and the `complete` event that used to be its only source is answered only
+     * by a box that was active at the instant the text finished. A line that finished while its box
+     * was displaced - another scene's dialog on top of it, a panel over the stage, the moment of
+     * retention after the line before it - therefore came back with the latch down, and the first
+     * advance the player spent went on raising it instead of settling the line. The latch now
+     * follows the fact rather than who was watching when it happened.
+     *
+     * A line that has *not* finished revealing is untouched: its box coming back must still reveal
+     * the rest of it before a click can settle it.
+     */
     public setActive(active: boolean) {
         this._active = active;
         if (!active) {
             this.cancelAutoForward();
+        } else if (this.state === DialogStateType.Ended) {
+            this._idle = true;
         }
         return this;
     }
@@ -290,13 +307,30 @@ export default function PlayerDialog({
     const words = useMemo(() => action.sentence?.evaluate(Script.getCtx({
         gameState,
     })), [action.sentence, gameState]);
+    /**
+     * The state belongs to the line, so it is rebuilt exactly when the line is - and no more often.
+     *
+     * The only thing that can ever mark a line's text fully revealed is the typing task, and that
+     * task belongs to `Texts`, which is keyed on `action.id`. Rebuilding the state for anything
+     * other than a new action therefore leaves the new state with no task of its own: the task that
+     * is running reports its completion to the state that was thrown away, so the new one never
+     * reaches `Ended`, is never idle, and every advance forwards to a task that has already
+     * finished. The line stays fully drawn on screen and no click, key press or auto-forward can
+     * settle it again.
+     *
+     * `useTypeEffect` used to be able to do that. It is read from a ref that every advance in the
+     * scene writes (skipping a line asks the next one not to type), so it changes under a line that
+     * is already on screen. Whether a line types is decided when it starts revealing, which is what
+     * this state records; a line already revealing does not change its mind. `evaluatedWords` is
+     * derived from the same action and moves with it.
+     */
     const dialogState = useMemo(() => new DialogState({
         useTypeEffect,
         action,
         evaluatedWords: words || [],
         gameState,
         suppressInitialAnimation: isActionReplacement,
-    }), [action, gameState, useTypeEffect, words]);
+    }), [action, gameState]);
     const DialogConstructor: SayComponent = gameState.game.config.dialog;
     const finish = useCallback((skiped?: boolean) => {
         if (!isActive || finishedRef.current) {
