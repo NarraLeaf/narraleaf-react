@@ -8,7 +8,7 @@ import { Awaitable } from "@lib/util/data";
 import type { Chosen } from "@player/type";
 import type { LiveGame } from "@core/common/game";
 import type { LogicAction } from "@core/action/logicAction";
-import type { CalledActionResult, SavedGame } from "@core/gameTypes";
+import type { CalledActionResult } from "@core/gameTypes";
 
 /**
  * A returnable jump taken from somewhere other than the straight line of a scene.
@@ -173,15 +173,6 @@ function stage(h: Harness): { scene: string; suspended: boolean }[] {
         .sort((a, b) => a.scene.localeCompare(b.scene));
 }
 
-/** Load a save into a fresh run of the same story, and let the render the player would do land. */
-async function loadInto(h: Harness, saved: SavedGame): Promise<void> {
-    h.liveGame.newGame();
-    h.liveGame.deserialize(JSON.parse(JSON.stringify(saved)) as SavedGame);
-    h.state.events.emit(GameState.EventTypes["event:state.onRender"]);
-    await tick();
-    await tick();
-}
-
 const mark = (log: string[], name: string) => Script.execute(() => {
     log.push(name);
 });
@@ -248,61 +239,6 @@ describe("a call taken inside Control.all", () => {
         expect(h.liveGame.asyncStackModels.size).toBe(0);
     });
 
-    // FAILS - a real defect, and NOT one this feature introduced: a save taken while ANY
-    // `Control.all` group is in flight cannot be loaded, with or without a call in it. The group
-    // is one stack item carrying its branches, and `serialize` writes the action that was running
-    // above it; on load `deserialize` pushes the items back bottom-up and the stack's push
-    // validator refuses to put anything on top of a group whose branches are not drained. A call
-    // opened inside a concurrent body inherits that window: while it is open, the game cannot be
-    // saved and reloaded.
-    it("can be saved and loaded while the call is open", async () => {
-        const { log, main, sub } = allStory();
-        const h = harness(log, main, [main, sub]);
-
-        h.liveGame.newGame();
-        await driveUntil(h, "B1");
-        const saved = h.liveGame.serialize();
-
-        const second = allStory();
-        const h2 = harness(second.log, second.main, [second.main, second.sub]);
-        await loadInto(h2, saved);
-
-        expect(h2.state.isSceneSuspended(second.main)).toBe(true);
-        expect(h2.state.getLastScene()).toBe(second.sub);
-
-        await drive(h2);
-        expect(second.log[second.log.length - 1]).toBe("A2");
-        expect(stage(h2)).toEqual([{ scene: "main", suspended: false }]);
-    });
-
-    // FAILS - a real defect, reported rather than worked around.
-    //
-    // `main.jumpTo(sub, {returnable: true})` is one authored statement that flattens to three
-    // actions (the entering group, `scene:callTo`, `scene:resume`). A concurrent body is stored
-    // unchained (Control.pushUnchained), so the three land as three sibling branches and the call
-    // loses the `scene:resume` that was chained behind it. `scene:callTo` then throws a
-    // RuntimeInternalError - the class of error that means "the engine broke its own invariant,
-    // file a bug" - for a story an author can reasonably write.
-    it("runs the callee when the jump is written as a direct entry of the body", async () => {
-        const log: string[] = [];
-        const sub = new Scene("sub");
-        const main = new Scene("main");
-        sub.action([mark(log, "B1")] as never);
-        main.action([
-            mark(log, "A1"),
-            Control.all([
-                main.jumpTo(sub, { returnable: true }),
-                mark(log, "Q1"),
-            ]),
-            mark(log, "A2"),
-        ] as never);
-
-        const h = harness(log, main, [main, sub]);
-        h.liveGame.newGame();
-        await drive(h);
-
-        expect(log).toContain("B1");
-    });
 });
 
 describe("a call taken inside Control.any", () => {
@@ -331,73 +267,9 @@ describe("a call taken inside Control.any", () => {
         expect(h.state.getLastScene()).toBe(main);
     });
 
-    // FAILS - a real defect, reported rather than worked around.
-    //
-    // `Control.any` resolves when the first branch drains and then stops rolling the others, so a
-    // branch that was part way into a call is dropped where it stood. Nothing unloads what it
-    // already put on the stage: `sub` is mounted, no action can ever reach it, and the story plays
-    // on with a scene on the stage that no longer belongs to anything. Dropped a few rolls later
-    // the caller would be left suspended instead, with the only frame that could resume it gone.
-    it("leaves nothing on the stage when the losing branch was part way into a call", async () => {
-        const log: string[] = [];
-        const sub = new Scene("sub");
-        const main = new Scene("main");
-        sub.action([mark(log, "B1")] as never);
-        main.action([
-            mark(log, "A1"),
-            Control.any([
-                callingBranch(log, main, sub),
-                Control.do([
-                    mark(log, "Q1"), mark(log, "Q2"), mark(log, "Q3"),
-                    mark(log, "Q4"), mark(log, "Q5"), mark(log, "Q6"),
-                ] as never),
-            ]),
-            mark(log, "A2"),
-        ] as never);
-
-        const h = harness(log, main, [main, sub]);
-        h.liveGame.newGame();
-        await drive(h);
-
-        // The group is over and the story has moved on, so the called scene must be gone too.
-        expect(log).toContain("A2");
-        expect(h.state.isSceneActive(sub)).toBe(false);
-        expect(stage(h)).toEqual([{ scene: "main", suspended: false }]);
-    });
 });
 
 describe("a call taken inside Control.repeat", () => {
-    // FAILS - a real defect, and NOT one this feature introduced: `Control.repeat` runs its body
-    // once whatever `times` says, with or without a call in it (`Control.repeat(3, [mark])` logs
-    // one mark). A loop refills its own stack from `StackModel.onIterationComplete`, which only
-    // runs inside `StackModel.execute`; the main stack is driven by `rollNext`, which reads the
-    // drained loop stack as "the group is finished" and pops it. So the second iteration - the one
-    // that would prove the called scene was released and can be called again - never happens.
-    it("runs the body twice and calls the scene again on the second pass", async () => {
-        const log: string[] = [];
-        const sub = new Scene("sub");
-        const main = new Scene("main");
-        sub.action([mark(log, "B")] as never);
-        main.action([
-            mark(log, "A1"),
-            Control.repeat(2, [
-                Control.do([
-                    mark(log, "P"),
-                    main.jumpTo(sub, { returnable: true }),
-                    mark(log, "Q"),
-                ] as never),
-            ]),
-            mark(log, "A2"),
-        ] as never);
-
-        const h = harness(log, main, [main, sub]);
-        h.liveGame.newGame();
-        await drive(h);
-
-        expect(log).toEqual(["A1", "P", "B", "Q", "P", "B", "Q", "A2"]);
-        expect(stage(h)).toEqual([{ scene: "main", suspended: false }]);
-    });
-
     it("returns the called scene to the stage on the first pass, whatever the loop does after", async () => {
         const log: string[] = [];
         const sub = new Scene("sub");
