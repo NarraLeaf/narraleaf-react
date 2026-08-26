@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.39.1]
+## [0.39.2]
 
 ### _Fix_
 
@@ -42,6 +42,35 @@
   first, exactly as a plain jump unwinds a call stack it walks away from. A scene the branch merely
   *entered* is not unwound, because a plain jump hands that scene to the main stack and it is the
   story's scene from then on.
+
+- **A save taken while a `Control.all` or `Control.any` group is running can be loaded again.** A
+  group leaves a `wait` link on the stack and runs each of its branches as a stack of its own, and
+  that link is what a save carries every branch's progress under. `serialize` also wrote out the
+  action that had just run, so that a load comes back to whatever the snapshot caught in progress -
+  but that rule is only there to stand in for an `Awaitable`, which a save cannot carry, and it went
+  on firing after the action had finished and left behind something a save *can* carry. A save taken
+  mid-group therefore named the group twice: once as the link, and once as the `control:all` that
+  created it, written above the link. Loading threw `StackModel: Unexpected waiting action in stack`
+  part way through rebuilding the stack, because nothing may sit on top of a group whose branches
+  have not drained - and had anything been allowed to, that second copy would have built the group
+  again and restarted every branch from the top.
+
+  The same rule was resurrecting branches. A branch that had already drained came back holding the
+  last action it ran, so a loaded `all` waited on a branch that was finished and re-ran a line of it,
+  and a loaded `any` no longer knew it had been won.
+
+  None of this needs a scene call: it reproduces with no jump anywhere, and has been true for as long
+  as concurrent groups have existed. It surfaced now because a returnable jump can be taken from
+  inside a group, which means a player can be inside an open call when they save.
+
+  The save format is unchanged, so a save written here reads in an older release exactly as one it
+  wrote itself. A save written before this release carries the extra item, and is now read as the
+  group alone rather than refused - though a branch that release resurrected still comes back holding
+  one action, because nothing in the file says it had already finished.
+
+## [0.39.1]
+
+### _Fix_
 
 - **Stepping back onto a line inside a called scene keeps the caller parked.** A scene's stage entry
   is rebuilt from its snapshot when the game steps back in place, and the snapshot did not carry
@@ -86,31 +115,6 @@
   table every other element is restored from. A save written before this release carries no id and
   is read exactly as it was, from the scene's own instance; a save written after it carries one more
   field on that record, which a reader that predates it ignores.
-
-- **A save taken while a `Control.all` or `Control.any` group is running can be loaded again.** A
-  group leaves a `wait` link on the stack and runs each of its branches as a stack of its own, and
-  that link is what a save carries every branch's progress under. `serialize` also wrote out the
-  action that had just run, so that a load comes back to whatever the snapshot caught in progress -
-  but that rule is only there to stand in for an `Awaitable`, which a save cannot carry, and it went
-  on firing after the action had finished and left behind something a save *can* carry. A save taken
-  mid-group therefore named the group twice: once as the link, and once as the `control:all` that
-  created it, written above the link. Loading threw `StackModel: Unexpected waiting action in stack`
-  part way through rebuilding the stack, because nothing may sit on top of a group whose branches
-  have not drained - and had anything been allowed to, that second copy would have built the group
-  again and restarted every branch from the top.
-
-  The same rule was resurrecting branches. A branch that had already drained came back holding the
-  last action it ran, so a loaded `all` waited on a branch that was finished and re-ran a line of it,
-  and a loaded `any` no longer knew it had been won.
-
-  None of this needs a scene call: it reproduces with no jump anywhere, and has been true for as long
-  as concurrent groups have existed. It surfaced now because a returnable jump can be taken from
-  inside a group, which means a player can be inside an open call when they save.
-
-  The save format is unchanged, so a save written here reads in an older release exactly as one it
-  wrote itself. A save written before this release carries the extra item, and is now read as the
-  group alone rather than refused - though a branch that release resurrected still comes back holding
-  one action, because nothing in the file says it had already finished.
 
 ## [0.39.0]
 
