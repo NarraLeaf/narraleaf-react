@@ -85,6 +85,13 @@
   ways of reaching a line disagreed as a result - through a save the caller came back parked, in
   place it did not.
 
+- **Stepping back to before a scene was entered closes its local namespace again.** Putting a scene
+  on the stage opens its scene-local namespace; the undo `scene:init` registered took the scene off
+  the stage but left the namespace open. A game stepped back to before a scene was entered - which is
+  what stepping back over a jump, or out of a returnable one, does - therefore still carried that
+  scene's locals, and a save written there was not the save the same line would have written on the
+  way through.
+
 ## [0.38.0]
 
 ### _Fix_

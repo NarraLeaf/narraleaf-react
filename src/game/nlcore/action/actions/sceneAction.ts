@@ -271,7 +271,13 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 stackModel: injection.stackModel,
                 timeline
             }, () => {
-                this.exit(gameState);
+                // The full unload rather than `exit`: putting the scene on the stage also opened its
+                // local namespace (`handleSceneInit` calls `local.init`), and stepping back over
+                // that has to close it again. `exit` alone left the namespace behind, so a game
+                // stepped back to before a scene was entered still carried that scene's locals -
+                // and a save written there was not the save the same line would have written on the
+                // way through.
+                SceneAction.unloadScene(this.callee, gameState);
             }, []);
 
             const next = {
