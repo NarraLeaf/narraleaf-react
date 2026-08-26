@@ -493,7 +493,12 @@ export class GameState {
     }
 
     /**
-     * Every scene parked by a returnable jump, in the order they were parked.
+     * Every scene parked by a returnable jump, innermost first.
+     *
+     * That is the reverse of the order they were parked in, because `addScene` unshifts - the scene
+     * that entered last is at the front of the list. Unwinding a call stack wants innermost first,
+     * so the order is the useful one rather than an accident, but it is the opposite of what the
+     * name suggests and worth reading twice.
      *
      * Its length is the depth of the call stack, which is what {@link GameConfig.maxSceneCallDepth}
      * is measured against.
