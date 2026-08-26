@@ -1455,12 +1455,16 @@ export class GameState {
             this.state.elements.push(ele);
             this.registerSrcManager(scene.srcManager);
             // A suspended scene is skipped: its track is paused, and the audio manager restores it
-            // that way from the sound's own state a moment later. Starting it here would hand the
-            // player a save that comes back with the parked scene's music playing over the scene it
-            // called - and it would do it through a second, racing writer of the same track.
+            // that way from the record a moment later. Starting it here would hand the player a save
+            // that comes back with the parked scene's music playing over the scene it called - and
+            // it would do it through a second, racing writer of the same track.
+            //
+            // `initBackgroundMusic` refuses a suspended scene as well, and that is not redundant:
+            // this skip stops a pointless listener being armed, while the refusal there catches the
+            // listeners armed BEFORE this load, which the remount below fires all over again.
             if (!ele.suspended) {
                 this.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
-                    SceneAction.initBackgroundMusic(scene, exposed);
+                    SceneAction.initBackgroundMusic(scene, exposed, this);
                 });
             }
         });

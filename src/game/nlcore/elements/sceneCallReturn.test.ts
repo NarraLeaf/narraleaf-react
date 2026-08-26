@@ -8,6 +8,8 @@ import { StackModel } from "@core/action/stackModel";
 import { Awaitable } from "@lib/util/data";
 import type { LiveGame } from "@core/common/game";
 import type { LogicAction } from "@core/action/logicAction";
+import { SceneAction } from "@core/action/actions/sceneAction";
+import { ExposedStateType } from "@player/type";
 import type { CalledActionResult, SavedGame } from "@core/gameTypes";
 
 /**
@@ -452,6 +454,32 @@ describe("save and load", () => {
         expect(h2.state.isSceneSuspended(main2)).toBe(false);
         // The run the save came from was left where it was.
         expect(log).toEqual(["A1", "B1"]);
+    });
+
+    it("refuses to start a suspended scene's music however the request arrives", async () => {
+        // The load path skips the request, but a request armed BEFORE the load is fired again by the
+        // stage remount a load performs - so the refusal has to live where the music starts, not
+        // only where the load asks for it.
+        const theme = Sound.bgm({ src: "/theme.mp3" });
+        const log: string[] = [];
+        const sub = new Scene("sub");
+        const main = new Scene("main", { backgroundMusic: theme });
+        sub.action([mark(log, "B1")] as never);
+        main.action([mark(log, "A1"), main.jumpTo(sub, { returnable: true })] as never);
+
+        const h = harness(log, main, [main, sub]);
+        recordAudio(h);
+        h.liveGame.newGame();
+        await driveUntil(h, "B1");
+        expect(h.state.isSceneSuspended(main)).toBe(true);
+
+        const before = h.audio.length;
+        await SceneAction.initBackgroundMusic(
+            main,
+            h.state.getExposedStateForce<ExposedStateType.scene>(main),
+            h.state,
+        );
+        expect(h.audio.slice(before)).toEqual([]);
     });
 
     it("does not restart a suspended scene's music on load", async () => {

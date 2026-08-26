@@ -40,7 +40,7 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         scene.local.init(state.getStorable());
 
         state.getExposedStateAsync<ExposedStateType.scene>(scene, async (exposed) => {
-            await SceneAction.initBackgroundMusic(scene, exposed);
+            await SceneAction.initBackgroundMusic(scene, exposed, state);
             awaitable.resolve(next);
 
             state.logger.debug("Scene Action", "Scene init");
@@ -53,8 +53,22 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
      * Initialize background music for the target scene.
      * Waits until the previous BGM has completely faded out (if any) before
      * resolving, ensuring seamless audio transition when jumping between scenes.
+     *
+     * A **suspended** scene starts nothing. This is the one place every path that starts a scene's
+     * music passes through, and it has to be the guard, because the call that reaches it is not
+     * always the one that asked: `getExposedStateAsync` waits on a component that is not mounted
+     * yet, and a stage remount - which is what loading a save performs - fires those waiting
+     * callbacks all over again. A caller parked behind a scene call therefore came back from a save
+     * with its music playing over the scene it had called.
      */
-    static async initBackgroundMusic(scene: Scene, exposed: ExposedState[ExposedStateType.scene]): Promise<void> {
+    static async initBackgroundMusic(
+        scene: Scene,
+        exposed: ExposedState[ExposedStateType.scene],
+        state?: GameState,
+    ): Promise<void> {
+        if (state?.isSceneSuspended(scene)) {
+            return;
+        }
         if (!scene.state.backgroundMusic) {
             return;
         }

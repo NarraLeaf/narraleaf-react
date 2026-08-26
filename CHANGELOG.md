@@ -70,6 +70,12 @@
   Saves written before this release have no such field on the record and are read exactly as they
   were, from the element's own state.
 
+- **A suspended scene starts no music, whoever asks.** `SceneAction.initBackgroundMusic` refuses a
+  scene that is suspended. The request that reaches it is not always the one that asked for it:
+  starting a scene's music waits on the scene's component being mounted, and a stage remount - which
+  is what loading a save performs - fires every waiting request again. A scene parked behind a call
+  therefore came back from a save with its music playing over the scene it had called.
+
 ## [0.38.0]
 
 ### _Fix_
