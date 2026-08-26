@@ -330,8 +330,38 @@ export class StaticChecker {
     }
 }
 
+/**
+ * The action a {@link RuntimeScriptError} is about, reduced to what a host can put on screen:
+ * which action it was, and what kind of action it was.
+ */
+export type RuntimeScriptErrorAction = {
+    /** The action's id, as {@link Action.getId} reports it. */
+    id: string;
+    /** The action's type, e.g. `scene:preSuspend`. */
+    type: string;
+};
+
 /**@internal */
 export class RuntimeScriptError extends Error {
+    /**
+     * The one spelling of the trace that follows the sentence.
+     *
+     * The throw sites used to each write their own tail, in two different wordings, so a host
+     * wanting to show the sentence on its own had to guess which one it was looking at and would
+     * silently do nothing for the other. Every trace is now written here.
+     */
+    static describeAction(action: RuntimeScriptErrorAction, actionStack?: string): string {
+        return `\nAction: (id: ${action.id}) ${action.type}`
+            + (actionStack ? `\nAt: ${actionStack}` : "");
+    }
+
+    static getActionTrace(action: Action): string {
+        return RuntimeScriptError.describeAction(
+            {id: action.getId(), type: String(action.type)},
+            action.__stack
+        );
+    }
+
     static toMessage(msg: string | string[], trace?: Action | Action[]) {
         const messages: string[] = [];
         messages.push(...(Array.isArray(msg) ? msg : [msg]));
@@ -345,14 +375,54 @@ export class RuntimeScriptError extends Error {
         return messages.join("");
     }
 
-    static getActionTrace(action: Action): string {
-        return `\nUsing action (id: ${action.getId()})` +
-            `\n    at: ${action.__stack}`;
-    }
+    /**
+     * The action the failure is about, when the throw site has one to name. Absent when it has
+     * not: an element whose config is wrong fails before any action exists to blame.
+     */
+    readonly action?: RuntimeScriptErrorAction;
+    /**
+     * Where the offending action was written - the call stack captured when the story script
+     * constructed it. A field of its own rather than part of `message`, because a host that shows
+     * the failure to an author already has somewhere to put a stack, and printing it above the
+     * sentence buries the one thing the author needs to read.
+     */
+    readonly actionStack?: string;
+    /** Everything `message` used to carry after the sentence. Empty when there is no trace. */
+    private readonly traceTail: string;
 
     constructor(message: string | string[], trace?: Action | Action[]) {
-        super(RuntimeScriptError.toMessage(message, trace));
+        // The sentence alone. Whatever the throw site knows about the offending action is carried
+        // as fields instead, and composed back together on demand.
+        super(Array.isArray(message) ? message.join("") : message);
         this.name = "RuntimeScriptError";
+
+        const actions = trace === undefined ? [] : (Array.isArray(trace) ? trace : [trace]);
+        const offending: Action | undefined = actions[0];
+        if (offending) {
+            this.action = {id: offending.getId(), type: String(offending.type)};
+            this.actionStack = offending.__stack;
+        }
+        this.traceTail = actions.map(RuntimeScriptError.getActionTrace).join("");
+
+        // `Error.stack` is what `console.error(err)` prints, and an engine builds it from the
+        // message handed to `super`. The trace is no longer in that message, so put it back here:
+        // anything that logs the error object still sees everything it used to, while a host
+        // reading `.message` gets the sentence on its own.
+        if (this.traceTail && typeof this.stack === "string") {
+            const at = this.stack.indexOf(this.message);
+            this.stack = at === -1
+                // Engines that put no `name: message` header on the stack at all.
+                ? `${this.name}: ${this.composedMessage}\n${this.stack}`
+                : this.stack.slice(0, at) + this.composedMessage + this.stack.slice(at + this.message.length);
+        }
+    }
+
+    /**
+     * The sentence with the trace appended - the form `message` itself used to take. For anything
+     * that wants the whole failure as one string, such as a console line.
+     */
+    get composedMessage(): string {
+        return this.message + this.traceTail;
     }
 }
 

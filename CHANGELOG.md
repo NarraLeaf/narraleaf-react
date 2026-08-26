@@ -4,6 +4,18 @@
 
 ### _Fix_
 
+- **A script error says what went wrong, and carries the rest as fields.** `RuntimeScriptError`
+  composed everything it knew into a single string, so the sentence an author has to read arrived
+  with the offending action's id, its type and the whole of that action's construction stack
+  appended to it - which, in a host that shows the message in a panel, is eight lines of bundle
+  frames above the fold and a second copy of a stack the host already has its own place for. A host
+  could not split them either: each throw site wrote its own tail, and the two wordings in use did
+  not agree, so any split had to guess which one it was looking at and would silently do nothing
+  for the other. `message` is now the sentence alone; the action is `error.action` (its id and its
+  type), its construction stack is `error.actionStack`, and `error.composedMessage` still gives the
+  one-string form for anything that prints a failure as a line. Nothing that logs the error object
+  loses anything - `error.stack` carries the whole composition, as it did before.
+
 - **Two returnable jumps taken from the same scene at once are refused.** A concurrent group runs
   each branch on an execution stack of its own, so both branches of a `Control.all` can reach a
   returnable jump before either of them returns. The stage cannot hold that: one `Scene` has one

@@ -399,9 +399,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 throw new RuntimeScriptError(
                     `Cannot call scene ${this.getSceneName(target)}: it is already on stage.`
                     + "\nA returnable jump suspends the scene it leaves rather than unloading it, so a scene"
-                    + " cannot be called from itself or from anything it has called."
-                    + `\nAction: (id: ${this.getId()}) ${this.type}`
-                    + `\nAt: ${this.__stack}`
+                    + " cannot be called from itself or from anything it has called.",
+                    this
                 );
             }
 
@@ -423,9 +422,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                     `Scene call depth limit reached (${limit}).`
                     + "\nEach returnable jump keeps the scene it left mounted, so a chain of them holds every"
                     + " scene in the chain on the stage at once. Raise maxSceneCallDepth if the story really"
-                    + " needs to go this deep."
-                    + `\nAction: (id: ${this.getId()}) ${this.type}`
-                    + `\nAt: ${this.__stack}`
+                    + " needs to go this deep.",
+                    this
                 );
             }
 
@@ -683,9 +681,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
 
     _sceneNotFoundError(sceneId: string): Error {
         return new RuntimeScriptError(`Scene with name ${sceneId} not found`
-            + "\nMake sure you have registered the scene using story.register"
-            + `\nAction: (id: ${this.getId()}) ${this.type}`
-            + `\nAt: ${this.__stack}`);
+            + "\nMake sure you have registered the scene using story.register",
+        this);
     }
 
     _callerAlreadyParkedError(target: Scene | string): Error {
@@ -696,9 +693,8 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             + "\nA returnable jump suspends the scene it is taken from, and a scene has one place on"
             + " the stage, so two calls cannot be open from the same scene at the same time. Take the"
             + " calls one after the other in a single branch rather than one per branch of a"
-            + " concurrent group."
-            + `\nAction: (id: ${this.getId()}) ${this.type}`
-            + `\nAt: ${this.__stack}`
+            + " concurrent group.",
+            this
         );
     }
 
