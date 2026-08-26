@@ -80,6 +80,18 @@
   group alone rather than refused - though a branch that release resurrected still comes back holding
   one action, because nothing in the file says it had already finished.
 
+- **A concurrent or looping group written last in a block runs.** `Control.all`, `Control.any`,
+  `Control.repeat` and `Control.whileLoop` hand their bodies to execution stacks of their own, and
+  the result they hand back carries two things: the action chained after the group, and the branch
+  stacks to wait on. Only a result naming an action was kept, so a group with nothing written after
+  it - the last row of a scene, the last statement of a `Control.do` body, of a condition branch, of
+  a menu choice, of another group's branch - was thrown away whole, branch stacks included. Nothing
+  else holds those stacks, so the bodies never ran: no error and no warning, the block simply ended
+  and the story carried on as though the group were not there. The same group with any line at all
+  written after it ran as written, which is what made this look like a defect in loops rather than
+  one about where they are written. A result is now kept when it names branch stacks as well as when
+  it names an action, and such a group is waited on and completes as it does anywhere else.
+
 ## [0.39.1]
 
 ### _Fix_

@@ -247,10 +247,9 @@ describe("Control.whileLoop runs until its condition goes false", () => {
 });
 
 /**
- * A loop is followed by a marker in every body below. A concurrent group whose result carries no
- * chained child is dropped by `executeActions` before it reaches the stack - it keeps only results
- * that name an action - so a loop written as the last statement of a block does not run at all.
- * That is a separate defect, and not what this file is about.
+ * A loop is followed by a marker in every body below, so that an assertion can tell the loop
+ * finishing from the block simply ending. A loop written as the *last* statement of a block runs
+ * just the same, and `trailingGroup.test.ts` is where that is pinned.
  */
 describe("a loop nested inside a concurrent group", () => {
     it("repeats inside a Control.all branch", async () => {

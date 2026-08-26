@@ -755,7 +755,13 @@ export class StackModel {
                 return result;
             }
 
-            if (result.node?.action) {
+            // A result earns its place on the stack by naming the action to run next, or by naming
+            // branch stacks still to be waited on - a `Control.all` / `any` / `repeat` / `while`
+            // carries both. `node` is the action chained *after* the group, so a group written as
+            // the last statement of a block names none, and the branch stacks are the only handle
+            // anyone holds on its bodies. Dropping such a result for having no action would throw
+            // those bodies away unrun and let the block end without them.
+            if (result.node?.action || result.wait?.stackModels.length) {
                 this.liveGame.getGameStateForce().logger.debug("next action (executed)", result);
                 this.stack.push(result);
                 return result;
