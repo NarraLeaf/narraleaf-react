@@ -89,10 +89,27 @@ export class DialogState {
         return this._active;
     }
 
+    /**
+     * Hand the line to a box, or take it away from one.
+     *
+     * A box that becomes active over a line whose text has already finished revealing is idle at
+     * once. `_idle` is the latch between "there is nothing left to reveal" and "the next advance
+     * settles the line", and the `complete` event that used to be its only source is answered only
+     * by a box that was active at the instant the text finished. A line that finished while its box
+     * was displaced - another scene's dialog on top of it, a panel over the stage, the moment of
+     * retention after the line before it - therefore came back with the latch down, and the first
+     * advance the player spent went on raising it instead of settling the line. The latch now
+     * follows the fact rather than who was watching when it happened.
+     *
+     * A line that has *not* finished revealing is untouched: its box coming back must still reveal
+     * the rest of it before a click can settle it.
+     */
     public setActive(active: boolean) {
         this._active = active;
         if (!active) {
             this.cancelAutoForward();
+        } else if (this.state === DialogStateType.Ended) {
+            this._idle = true;
         }
         return this;
     }

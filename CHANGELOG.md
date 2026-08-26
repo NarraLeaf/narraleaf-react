@@ -18,6 +18,17 @@
   dialog layer now takes the pointer only while it has something live in it, a line still waiting or
   a menu, and is transparent to it otherwise.
 
+- **A line that finished typing while something was drawn over it no longer spends the next click on
+  itself.** A dialog box is active while it is showing a line the player still has to answer, and
+  inactive while it is a picture of a line that is over - which is also what it is for as long as
+  another scene's box is drawn over it, or a panel is open across the stage. Whether the line is
+  ready for a click was latched by whichever box was active at the instant the text finished
+  revealing, so a line that finished while it was displaced came back with the latch down: the first
+  advance the player spent went on raising it and the line stayed where it was. The latch now follows
+  the fact - there is nothing left to reveal - rather than who happened to be watching when it
+  became true. A line that has not finished revealing is untouched, so a box that reappears over a
+  half-typed line still reveals the rest of it before a click can settle it.
+
 - **A script error says what went wrong, and carries the rest as fields.** `RuntimeScriptError`
   composed everything it knew into a single string, so the sentence an author has to read arrived
   with the offending action's id, its type and the whole of that action's construction stack
