@@ -59,11 +59,16 @@
 
 ### _Fix_
 
-- **Pausing or resuming a sound now marks it for the next save.** `AudioManager.pause`/`resume`
-  write `paused` onto the sound's own state, and nothing on that path goes through the action
-  dispatch that decides which elements a save carries. A sound paused from anywhere other than a
-  sound action - which is what a scene call does to the calling scene's music - could therefore come
-  back playing from a save written while it was paused.
+- **A paused clip comes back from a save paused.** `AudioManager` records `paused` on each clip's
+  save record and reads it back from there. It could not be left to the sound's own state: a sound
+  reaches the element table only when something marks it dirty *and* its state differs from the
+  script's, and a scene's background music is not any action's callee, so it is routinely not in that
+  table at all. A save written while a track was paused - which is what a suspended scene's music is
+  - came back playing. `AudioManager.pause`/`resume` also mark the sound now, so a clip that does
+  reach the element table carries the flag there too.
+
+  Saves written before this release have no such field on the record and are read exactly as they
+  were, from the element's own state.
 
 ## [0.38.0]
 

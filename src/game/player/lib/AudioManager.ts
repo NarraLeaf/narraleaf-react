@@ -29,6 +29,20 @@ type SoundState = {
 export type AudioDataRaw = {
     isPlaying: boolean;
     position: number;
+    /**
+     * The clip is paused rather than stopped: it is off, and it is expected to be picked up again
+     * from `position`.
+     *
+     * On the record rather than left to the sound element's own state, because a sound only reaches
+     * a save through the element table when something has marked it dirty AND its state differs
+     * from what the script authored - and a scene's background music is not any action's callee, so
+     * it is routinely absent from that table. This record is written for every clip the manager is
+     * holding, so it is the one place that can speak for a paused one.
+     *
+     * Absent in saves written before scene calls existed, where it reads as the element's own state
+     * exactly as it did then.
+     */
+    paused?: boolean;
 };
 
 export type AudioManagerDataRaw = {
@@ -674,6 +688,7 @@ export class AudioManager {
                 {
                     isPlaying: state.token.isPlaying(),
                     position: state.token.getCurrentTime(),
+                    ...(sound.state.paused ? { paused: true } : {}),
                 }
             ]),
             groups: this.getBuses().map(bus => [bus.id, bus.volume])
@@ -742,7 +757,13 @@ export class AudioManager {
                 token.mute(isMuted);
                 sound.state.muted = isMuted;
 
-                if (sound.state.paused) {
+                // The record wins over the element, and falls back to it for a save written before
+                // the record carried this. A paused clip is neither playing nor stopped: it holds
+                // `position` until something resumes it, which is what a scene suspended by a call
+                // is waiting to do.
+                const paused = data.paused ?? sound.state.paused ?? false;
+                sound.state.paused = paused;
+                if (paused) {
                     token.pause();
                 } else if (!data.isPlaying) {
                     token.stop();

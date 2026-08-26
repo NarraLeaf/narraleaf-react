@@ -805,6 +805,47 @@ describe("AudioManager clip regions", () => {
         expect(channel.played[0]?.startTime).toBe(12);
         expect(channel.token.seek).not.toHaveBeenCalled();
     });
+
+    /**
+     * A paused clip has to survive a save, and the sound's own state cannot carry it.
+     *
+     * A sound only reaches a save through the element table when something marks it dirty AND its
+     * state differs from the script's - and a scene's background music is not any action's callee,
+     * so it is routinely not in that table at all. Left to the element, a scene suspended by a call
+     * came back from a save with its music running.
+     */
+    it("writes a paused clip into the save as paused, and brings it back paused", async () => {
+        const { manager, channel } = await readyManager(SoundType.Bgm);
+        const theme = Sound.bgm({ src: "theme.mp3", loop: true });
+
+        await manager.playSoundToken(theme);
+        manager.pause(theme);
+
+        // `isPlaying` is whatever the stub token answers, so only the new field is asserted here;
+        // a real token reports a paused clip as not playing.
+        const record = manager.toData().sounds.find(([, data]) => data.paused)?.[1];
+        expect(record).toMatchObject({ paused: true });
+
+        const restored = Sound.bgm({ src: "theme.mp3", loop: true });
+        manager.soundFromData(restored, { isPlaying: false, position: 28, paused: true });
+        await settle();
+
+        expect(channel.played[channel.played.length - 1]?.startTime).toBe(28);
+        expect(channel.token.pause).toHaveBeenCalled();
+        expect(channel.token.stop).not.toHaveBeenCalled();
+        expect(restored.state.paused).toBe(true);
+    });
+
+    it("reads a save written before the record carried it as the element says", async () => {
+        const { manager, channel } = await readyManager(SoundType.Bgm);
+
+        manager.soundFromData(Sound.bgm({ src: "theme.mp3" }), { isPlaying: false, position: 5 });
+        await settle();
+
+        // Neither the record nor the element says paused, and it was not playing: stopped.
+        expect(channel.token.stop).toHaveBeenCalled();
+        expect(channel.token.pause).not.toHaveBeenCalled();
+    });
 });
 
 /**
