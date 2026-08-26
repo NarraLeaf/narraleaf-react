@@ -150,9 +150,11 @@ export type StackSnapshot = {
 /**
  * The action type of a scene call's return address.
  *
- * Written out rather than imported from `actionTypes`: this module is reached from the action
- * layer, and importing the action-type table back into it closes a cycle that only shows up as an
- * undefined at class-evaluation time. `stackModel.callFrame.test.ts` pins the two together.
+ * Written out rather than imported from `actionTypes`, so that this module - which the action layer
+ * reaches into - does not import the action-type table back. Two tests pin the literal to the table
+ * it copies, and drifting it turns them red: `sceneCallReturn.test.ts` ("looks for the action type
+ * the scene chain actually emits") and `sceneCallRegression.test.ts` ("recognises a return address
+ * by the type the action table declares for it").
  */
 const SCENE_RESUME_ACTION_TYPE = "scene:resume";
 
