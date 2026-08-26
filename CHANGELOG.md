@@ -16,6 +16,18 @@
   one-string form for anything that prints a failure as a line. Nothing that logs the error object
   loses anything - `error.stack` carries the whole composition, as it did before.
 
+- **A scene leaving the stage no longer strands the line still waiting on it.** A pending line lives
+  as a clickable entry in the scene's own stage record, and the click callback in that entry is the
+  only thing that settles the action waiting on it. Taking the record away dropped the line with it:
+  nothing rendered it any more, so no click could reach it, and whatever was waiting waited for ever.
+  On the main stack that never showed, because every path that unloads a scene also clears the stack
+  it would have blocked - but a branch of `Control.all` has a stack of its own, and the group waits
+  for every branch. One line left behind by a returning scene call therefore stopped the story dead:
+  no error, no crash, every click inert. `Control.any` hid the same thing, settling on the first
+  branch to drain and never looking at the one that could not. The line is now advanced as the scene
+  goes, so the branch that queued it carries on. Menus are left alone - choosing on the player's
+  behalf would decide the story.
+
 - **Two returnable jumps taken from the same scene at once are refused.** A concurrent group runs
   each branch on an execution stack of its own, so both branches of a `Control.all` can reach a
   returnable jump before either of them returns. The stage cannot hold that: one `Scene` has one
