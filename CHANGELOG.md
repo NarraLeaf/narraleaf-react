@@ -4,6 +4,17 @@
 
 ### _Fix_
 
+- **A concurrent branch that is cut mid-call gives the call back.** `Control.any` finishes the moment
+  one of its branches drains, and the branches that did not get there were left exactly where they
+  stood. A branch that had taken a returnable jump is holding the only frame that could return to the
+  scene it suspended, so cutting it there parked that scene on the stage for the rest of the game -
+  still mounted, still holding its layers and its locals, and never again the scene a line of
+  dialogue attached to - with the scene it had called mounted beside it and nothing pointing at
+  either. A branch is now given up rather than dropped: every call it had open is unwound innermost
+  first, exactly as a plain jump unwinds a call stack it walks away from. A scene the branch merely
+  *entered* is not unwound, because a plain jump hands that scene to the main stack and it is the
+  story's scene from then on.
+
 - **Stepping back onto a line inside a called scene keeps the caller parked.** A scene's stage entry
   is rebuilt from its snapshot when the game steps back in place, and the snapshot did not carry
   whether that scene was a caller suspended behind a returnable jump. Stepping back through a line of

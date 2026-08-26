@@ -459,6 +459,16 @@ export class StackModel {
                 stackModels.forEach(stack => stack.rollNext());
                 return peek;
             }
+
+            // The group is over, and under "any" that can be true with branches that never got
+            // there - one branch draining is the whole condition. Those branches are given up
+            // rather than simply left behind: a branch cut mid-call is holding the only frame that
+            // could have returned to the scene it suspended.
+            stackModels.forEach(stack => {
+                if (!stack.isEmpty()) {
+                    stack.abandon();
+                }
+            });
         }
 
         // Reset waiting action
@@ -824,6 +834,56 @@ export class StackModel {
         }
 
         return result;
+    }
+
+    /**
+     * Give up everything this stack still holds, unwinding the scene calls it opened on the way.
+     *
+     * {@link reset} clears stacks; it does not put the stage back. A branch cut mid-call is holding
+     * a `scene:resume` - the promise to come back to the scene it suspended - and dropping that
+     * promise without keeping it leaves the caller parked on the stage with nothing able to return
+     * to it, and the called scene mounted with nothing pointing at it. Both are permanent: no later
+     * action names either scene. So the call is given up, innermost first, which is what
+     * `SceneAction.unwindCallStack` does when a plain jump walks away from a call stack.
+     *
+     * Only the call frames are unwound. A scene the branch merely *entered* - what a plain jump
+     * does - belongs to the main stack from the moment the jump re-pointed it at that scene, so it
+     * is the story's scene by then rather than the branch's, and taking it off the stage here would
+     * unload the scene the story is now in.
+     */
+    public abandon(): this {
+        const frames: LogicAction.Actions[] = [];
+        this.collectCallFrames(frames);
+        if (frames.length) {
+            const gameState = this.liveGame.getGameStateForce();
+            frames.forEach(action => action.abandon(gameState));
+        }
+        this.reset();
+        return this;
+    }
+
+    /**
+     * Every scene-call return address this stack is holding, innermost first.
+     *
+     * Nested groups are searched too: a branch can itself be running a `Control.all` whose own
+     * branch opened a call, and that call is held just as firmly.
+     */
+    private collectCallFrames(out: LogicAction.Actions[]): void {
+        const collectFrom = (item: CalledActionResult | Awaitable<CalledActionResult> | undefined) => {
+            if (!StackModel.isCalledActionResult(item)) {
+                return;
+            }
+            item.wait?.stackModels.forEach(stack => stack.collectCallFrames(out));
+            const action = item.node?.action;
+            if (action && action.type === SCENE_RESUME_ACTION_TYPE) {
+                out.push(action);
+            }
+        };
+
+        collectFrom(this.waitingAction ?? undefined);
+        for (let i = this.stack.size() - 1; i >= 0; i--) {
+            collectFrom(this.stack.get(i));
+        }
     }
 
     reset() {
