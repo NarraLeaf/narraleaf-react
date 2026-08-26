@@ -162,6 +162,14 @@ export type PresentationSnapshot = {
 export type PlayerStateElementSnapshot = {
     scene: Scene,
     layers: Map<Layer, [LogicAction.DisplayableElements, Record<string, any>][]>;
+    /**
+     * Whether this scene was a caller parked behind a returnable jump when the snapshot was taken.
+     *
+     * A snapshot is restored by rebuilding the element, so anything the element carries and the
+     * snapshot does not is silently dropped on the way back. This one is the difference between a
+     * scene that is on the stage and one that is on the stage waiting for a call to return.
+     */
+    suspended?: boolean;
 };
 export type PlayerAction = CalledActionResult;
 
@@ -1542,6 +1550,7 @@ export class GameState {
     public createElementSnapshot(element: PlayerStateElement): PlayerStateElementSnapshot {
         return {
             scene: element.scene,
+            suspended: element.suspended === true,
             layers: new Map(Array.from(element.layers.entries()).map(([layer, elements]: [Layer, LogicAction.DisplayableElements[]]) => {
                 return [layer, elements.map((element: LogicAction.DisplayableElements) => {
                     return [element, element.toData()];

@@ -102,6 +102,17 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         const restoredElement = state.fromElementSnapshot(snapshot.element);
         state.addElement(restoredElement);
 
+        // ...including whether it was parked behind a call. The element is rebuilt from the
+        // snapshot, so a flag set on the old one is gone unless it is put back - and this restore
+        // is what every step back in place goes through, one scene at a time, for every scene on
+        // the stage (see `GameState.restorePresentationSnapshot`). Without this a single step back
+        // onto a line inside a called scene left every caller in the chain unparked: still mounted,
+        // still painted, and once again the scene the next line of dialogue attached to.
+        //
+        // Through `setSceneSuspended` rather than the flag alone, because the pose that goes with
+        // it is written imperatively by the stage transition manager and has to agree.
+        state.setSceneSuspended(scene, snapshot.element.suspended === true);
+
         // Restore the local persistent
         scene.local.getNamespace(state.getStorable()).load(snapshot.local);
 
