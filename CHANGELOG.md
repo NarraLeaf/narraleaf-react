@@ -4,6 +4,20 @@
 
 ### _Fix_
 
+- **A scene parked behind a returnable jump no longer swallows the clicks meant for the scene in
+  front of it.** Every scene on the stage renders a dialog layer of its own, each of those layers
+  covers the whole stage, and a caller suspended by a returnable jump keeps its layer for as long as
+  it is parked - with nothing in it, because a parked scene has nothing to say. The layers are
+  stacked in the order the stage holds the scenes, which puts the parked caller's empty layer on top
+  of the box belonging to the scene the story is actually in. It took the pointer all the same, so
+  for the whole length of a scene call nothing in the live box could be clicked: not the box's own
+  advance, not an inline word with a renderer of its own, not anything a line had drawn over itself,
+  and not a menu the called scene was showing. A click anywhere on the stage still advanced the line,
+  because that is announced from the window and reaches every dialog as a broadcast - which is why
+  this looked like the dialog ignoring the player rather than something standing in front of it. A
+  dialog layer now takes the pointer only while it has something live in it, a line still waiting or
+  a menu, and is transparent to it otherwise.
+
 - **A script error says what went wrong, and carries the rest as fields.** `RuntimeScriptError`
   composed everything it knew into a single string, so the sentence an author has to read arrived
   with the offending action's id, its type and the whole of that action's construction stack
