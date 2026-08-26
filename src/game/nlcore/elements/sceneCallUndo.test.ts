@@ -526,8 +526,10 @@ describe("stepping back across a save", () => {
         h.liveGame.newGame();
         await driveToLine(h, "B2");
 
-        // One run steps straight back; the other is saved, loaded, and then steps back. The two
-        // routes through `restoreToIndex` are different code, and they have to agree.
+        // One run steps straight back; the other is saved, loaded, and then steps back. Those are
+        // the two routes through `restoreToIndex` - unwinding in place, and restoring the line's
+        // snapshot - and they have to agree, because which one a player gets depends only on
+        // whether they have loaded a save since.
         const saved = h.liveGame.serialize();
         h.liveGame.undo();
         await settle(h);
@@ -540,7 +542,12 @@ describe("stepping back across a save", () => {
 
         expect(new Map(stage(h2))).toEqual(new Map(stage(h)));
         expect(texts(h2)).toEqual(texts(h));
-        void sub;
-        void sub2;
+        // Named rather than compared as objects: the two runs hold two different `Scene` instances
+        // of the same story.
+        expect(h2.state.getSuspendedScenes().map(scene => scene.config.name))
+            .toEqual(h.state.getSuspendedScenes().map(scene => scene.config.name));
+        expect(h2.state.getLastScene()?.config.name).toBe(h.state.getLastScene()?.config.name);
+        expect(h2.state.isSceneSuspended(main2)).toBe(h.state.isSceneSuspended(main));
+        expect(h2.state.isSceneActive(sub2)).toBe(h.state.isSceneActive(sub));
     });
 });
