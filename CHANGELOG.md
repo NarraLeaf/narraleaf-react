@@ -29,6 +29,19 @@
   became true. A line that has not finished revealing is untouched, so a box that reappears over a
   half-typed line still reveals the rest of it before a click can settle it.
 
+- **A line already on screen no longer loses the task that is the only thing able to finish it.** The
+  state a dialog box keeps for its line is rebuilt whenever the line changes, and the typing task
+  that reports the text fully revealed belongs to the sentence renderer, which is keyed on the line.
+  One input to that state was not the line: whether to type at all, which is read from a flag every
+  advance in the scene writes, so it could change under a line that was already on screen. When it
+  did, the state was rebuilt and the renderer was not, leaving the new state with no task of its own
+  - the task still running reported to the state that had been thrown away. The new state therefore
+  never reached the end of its line, was never ready for a click, and every advance forwarded to a
+  task that had already finished: the line stayed fully drawn on screen and no click, key press or
+  auto-forward could settle it again, for the rest of the game. The state is now rebuilt exactly when
+  the line is. Whether a line types is decided when it starts revealing, which is what that state
+  records; a line already revealing does not change its mind.
+
 - **A script error says what went wrong, and carries the rest as fields.** `RuntimeScriptError`
   composed everything it knew into a single string, so the sentence an author has to read arrived
   with the offending action's id, its type and the whole of that action's construction stack

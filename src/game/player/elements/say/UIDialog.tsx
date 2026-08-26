@@ -307,13 +307,30 @@ export default function PlayerDialog({
     const words = useMemo(() => action.sentence?.evaluate(Script.getCtx({
         gameState,
     })), [action.sentence, gameState]);
+    /**
+     * The state belongs to the line, so it is rebuilt exactly when the line is - and no more often.
+     *
+     * The only thing that can ever mark a line's text fully revealed is the typing task, and that
+     * task belongs to `Texts`, which is keyed on `action.id`. Rebuilding the state for anything
+     * other than a new action therefore leaves the new state with no task of its own: the task that
+     * is running reports its completion to the state that was thrown away, so the new one never
+     * reaches `Ended`, is never idle, and every advance forwards to a task that has already
+     * finished. The line stays fully drawn on screen and no click, key press or auto-forward can
+     * settle it again.
+     *
+     * `useTypeEffect` used to be able to do that. It is read from a ref that every advance in the
+     * scene writes (skipping a line asks the next one not to type), so it changes under a line that
+     * is already on screen. Whether a line types is decided when it starts revealing, which is what
+     * this state records; a line already revealing does not change its mind. `evaluatedWords` is
+     * derived from the same action and moves with it.
+     */
     const dialogState = useMemo(() => new DialogState({
         useTypeEffect,
         action,
         evaluatedWords: words || [],
         gameState,
         suppressInitialAnimation: isActionReplacement,
-    }), [action, gameState, useTypeEffect, words]);
+    }), [action, gameState]);
     const DialogConstructor: SayComponent = gameState.game.config.dialog;
     const finish = useCallback((skiped?: boolean) => {
         if (!isActive || finishedRef.current) {
