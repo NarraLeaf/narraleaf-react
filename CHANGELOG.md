@@ -76,6 +76,15 @@
   is what loading a save performs - fires every waiting request again. A scene parked behind a call
   therefore came back from a save with its music playing over the scene it had called.
 
+- **A faded pause is countermanded by whatever follows it.** `AudioManager.pause` and
+  `AudioManager.resume` only act once their fade has finished, and a fade's `finished` resolves when
+  it is *cancelled* as well as when it runs out - which is what any later transport call does to it.
+  A scene call that returned while the caller's pause fade was still running therefore landed the
+  pause after the resume, with nothing left to undo it: the caller's music stayed silent for the
+  rest of the scene while `paused` said it was playing, so the next save recorded a stopped clip.
+  Every transport call now supersedes a faded one still in flight. Affects any scene with a
+  `backgroundMusicFade` calling a scene shorter than the fade.
+
 ## [0.38.0]
 
 ### _Fix_
