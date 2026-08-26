@@ -289,10 +289,15 @@ export class Awaitable<T = any, U = T> {
         awaitables.forEach(awaitable => {
             awaitable.onSettled(() => result.resolve());
             awaitable.onFailed(error => {
+                // The failure is recorded before the others are given up, and the order is the
+                // whole point: aborting an awaitable settles it, which runs the `onSettled` above
+                // and resolves the result - so failing afterwards found the result already settled
+                // and did nothing. An error thrown inside one branch of a `Control.any` was
+                // swallowed that way, and the group carried on as if the branch had simply won.
+                result.fail(error);
                 awaitables.forEach(item => {
                     if (item !== awaitable) item.abort();
                 });
-                result.fail(error);
             });
         });
         result.registerSkipController(new SkipController(() => {

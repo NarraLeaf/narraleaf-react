@@ -45,6 +45,19 @@ export class Action<ContentNodeType = any, Callee = LogicAction.GameElement, Typ
         };
     }
 
+    /**
+     * Give up whatever this action was still holding, without running it and without going on to
+     * the next one.
+     *
+     * Called on an action that is dropped from an execution stack rather than executed - today
+     * only when a concurrent branch is abandoned (see {@link StackModel.abandon}). Almost every
+     * action holds nothing outside its own stack and so does nothing here; the exception is a
+     * scene call's return address, which is a promise made to a scene that is sitting suspended on
+     * the stage waiting for it.
+     */
+    public abandon(_state: GameState): void {
+    }
+
     getId() {
         return this._id;
     }

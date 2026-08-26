@@ -230,6 +230,39 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         this.callee.state.backgroundImage.reset();
     }
 
+    /**
+     * Give up the call this return address stands for.
+     *
+     * Reached when the stack holding a `scene:resume` is thrown away rather than run to it - a
+     * `Control.any` branch that lost, today. The stage half of `scene:resume` and nothing else: the
+     * scene the call entered leaves, and the scene the call had suspended is running again. What is
+     * deliberately missing is the rest of it - a return address nobody is coming back to has no
+     * next action, and no history entry either, because the branch it was on is not a place a step
+     * back can land.
+     *
+     * Every other scene action holds nothing once it is off the stack, so this is the only override.
+     */
+    public override abandon(state: GameState): void {
+        if (this.type !== SceneActionTypes.resume) {
+            return;
+        }
+        const calledScene = (this.contentNode as ContentNode<SceneActionContentType["scene:resume"]>).getContent()[0];
+        const caller = this.callee;
+        const music = caller.state.backgroundMusic;
+
+        if (state.isSceneActive(calledScene)) {
+            // The event is what stops the called scene's music, exactly as it does when the call
+            // returns the ordinary way.
+            calledScene.events.emit("event:scene.preUnmount");
+            SceneAction.unloadScene(calledScene, state);
+        }
+
+        state.setSceneSuspended(caller, false);
+        if (music && state.audioManager.isManaged(music)) {
+            state.audioManager.resume(music, caller.config.backgroundMusicFade);
+        }
+    }
+
     applyNvlVisibility(
         gameState: GameState,
         visible: boolean,
@@ -372,6 +405,17 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 );
             }
 
+            // One `Scene` is one place on the stage, and a scene parked behind a call is already
+            // using it. Two calls open from the same scene at once - which is what a concurrent
+            // group asks for when both of its branches take a returnable jump - would each expect
+            // to be the one that un-parks it, and the first of them to return hands the stage back
+            // while the other call is still running. Nothing downstream can tell those apart, so
+            // the story goes quietly wrong: `Control.all` waits for a branch that can no longer
+            // finish, and `Control.any` settles on the other branch and hides it.
+            if (gameState.isSceneSuspended(this.callee)) {
+                throw this._callerAlreadyParkedError(target);
+            }
+
             const depth = gameState.getSuspendedScenes().length;
             const limit = gameState.game.config.maxSceneCallDepth;
             if (depth >= limit) {
@@ -417,6 +461,13 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             }
 
             const caller = this.callee;
+            // Checked again here, and not only in `scene:preSuspend`: two branches of a concurrent
+            // group run far enough into the entrance to pass that check before either of them
+            // parks anything, so this is the point at which the second call becomes impossible.
+            if (gameState.isSceneSuspended(caller)) {
+                throw this._callerAlreadyParkedError(targetScene);
+            }
+
             const stackSnapshot = gameState.getLiveGame().getStackModelForce().serialize();
             gameState.actionHistory.push<[StackModelRawData]>({
                 action: this,
@@ -635,6 +686,20 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             + "\nMake sure you have registered the scene using story.register"
             + `\nAction: (id: ${this.getId()}) ${this.type}`
             + `\nAt: ${this.__stack}`);
+    }
+
+    _callerAlreadyParkedError(target: Scene | string): Error {
+        const caller = this.getSceneName(this.callee);
+        return new RuntimeScriptError(
+            `Cannot call scene ${this.getSceneName(target)} from ${caller}: `
+            + `${caller} is already parked behind another call.`
+            + "\nA returnable jump suspends the scene it is taken from, and a scene has one place on"
+            + " the stage, so two calls cannot be open from the same scene at the same time. Take the"
+            + " calls one after the other in a single branch rather than one per branch of a"
+            + " concurrent group."
+            + `\nAction: (id: ${this.getId()}) ${this.type}`
+            + `\nAt: ${this.__stack}`
+        );
     }
 
     getSceneName(scene: Scene | string): string {

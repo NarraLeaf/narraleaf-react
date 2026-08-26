@@ -4,6 +4,33 @@
 
 ### _Fix_
 
+- **Two returnable jumps taken from the same scene at once are refused.** A concurrent group runs
+  each branch on an execution stack of its own, so both branches of a `Control.all` can reach a
+  returnable jump before either of them returns. The stage cannot hold that: one `Scene` has one
+  place on it and one suspension flag, so the second call parked a scene that was already parked and
+  the first return un-parked it while the second call was still running. Nothing downstream could
+  tell those apart, and the story did not fail - it stopped. `Control.all` waits for every branch,
+  and the branch left behind could no longer finish. The second call now says so, with the two
+  scenes named, in the same place the other impossible calls are refused.
+
+- **An error thrown inside a `Control.any` branch is no longer swallowed.** Giving up the other
+  branches settles them, and settling one was enough to resolve the group - so the failure that
+  started it arrived at an already-settled group and did nothing. A script error inside a race
+  therefore vanished and the story carried on as though that branch had simply won. The failure is
+  recorded before the other branches are given up, which is the same thing `Control.all` has always
+  done with one.
+
+- **A concurrent branch that is cut mid-call gives the call back.** `Control.any` finishes the moment
+  one of its branches drains, and the branches that did not get there were left exactly where they
+  stood. A branch that had taken a returnable jump is holding the only frame that could return to the
+  scene it suspended, so cutting it there parked that scene on the stage for the rest of the game -
+  still mounted, still holding its layers and its locals, and never again the scene a line of
+  dialogue attached to - with the scene it had called mounted beside it and nothing pointing at
+  either. A branch is now given up rather than dropped: every call it had open is unwound innermost
+  first, exactly as a plain jump unwinds a call stack it walks away from. A scene the branch merely
+  *entered* is not unwound, because a plain jump hands that scene to the main stack and it is the
+  story's scene from then on.
+
 - **Stepping back onto a line inside a called scene keeps the caller parked.** A scene's stage entry
   is rebuilt from its snapshot when the game steps back in place, and the snapshot did not carry
   whether that scene was a caller suspended behind a returnable jump. Stepping back through a line of
