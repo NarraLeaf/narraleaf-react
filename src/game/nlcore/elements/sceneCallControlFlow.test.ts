@@ -8,7 +8,7 @@ import { Awaitable } from "@lib/util/data";
 import type { Chosen } from "@player/type";
 import type { LiveGame } from "@core/common/game";
 import type { LogicAction } from "@core/action/logicAction";
-import type { CalledActionResult } from "@core/gameTypes";
+import type { CalledActionResult, SavedGame } from "@core/gameTypes";
 
 /**
  * A returnable jump taken from somewhere other than the straight line of a scene.
@@ -173,6 +173,15 @@ function stage(h: Harness): { scene: string; suspended: boolean }[] {
         .sort((a, b) => a.scene.localeCompare(b.scene));
 }
 
+/** Load a save into a fresh run of the same story, and let the render the player would do land. */
+async function loadInto(h: Harness, saved: SavedGame): Promise<void> {
+    h.liveGame.newGame();
+    h.liveGame.deserialize(JSON.parse(JSON.stringify(saved)) as SavedGame);
+    h.state.events.emit(GameState.EventTypes["event:state.onRender"]);
+    await tick();
+    await tick();
+}
+
 const mark = (log: string[], name: string) => Script.execute(() => {
     log.push(name);
 });
@@ -237,6 +246,33 @@ describe("a call taken inside Control.all", () => {
         expect(h.state.getLastScene()).toBe(main);
         expect(h.liveGame.getStackModelForce().isEmpty()).toBe(true);
         expect(h.liveGame.asyncStackModels.size).toBe(0);
+    });
+
+    // FAILS - a real defect, and NOT one this feature introduced: a save taken while ANY
+    // `Control.all` group is in flight cannot be loaded, with or without a call in it. The group
+    // is one stack item carrying its branches, and `serialize` writes the action that was running
+    // above it; on load `deserialize` pushes the items back bottom-up and the stack's push
+    // validator refuses to put anything on top of a group whose branches are not drained. A call
+    // opened inside a concurrent body inherits that window: while it is open, the game cannot be
+    // saved and reloaded.
+    it("can be saved and loaded while the call is open", async () => {
+        const { log, main, sub } = allStory();
+        const h = harness(log, main, [main, sub]);
+
+        h.liveGame.newGame();
+        await driveUntil(h, "B1");
+        const saved = h.liveGame.serialize();
+
+        const second = allStory();
+        const h2 = harness(second.log, second.main, [second.main, second.sub]);
+        await loadInto(h2, saved);
+
+        expect(h2.state.isSceneSuspended(second.main)).toBe(true);
+        expect(h2.state.getLastScene()).toBe(second.sub);
+
+        await drive(h2);
+        expect(second.log[second.log.length - 1]).toBe("A2");
+        expect(stage(h2)).toEqual([{ scene: "main", suspended: false }]);
     });
 
     // FAILS - a real defect, reported rather than worked around.
