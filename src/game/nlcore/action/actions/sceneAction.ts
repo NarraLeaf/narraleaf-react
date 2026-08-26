@@ -183,6 +183,10 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
      * giving up the callers parked behind it.
      */
     static unloadScene(scene: Scene, state: GameState) {
+        // Before the stage entry goes, and so before the lines living in it go with it. See
+        // `GameState.settlePendingLines`: a line nobody can click any more is one nothing can
+        // settle, and on a concurrent branch that is a story that stops.
+        state.settlePendingLines(scene);
         state.getStorable().removeNamespace(scene.local.getNamespaceName());
         state
             .offSrcManager(scene.srcManager)

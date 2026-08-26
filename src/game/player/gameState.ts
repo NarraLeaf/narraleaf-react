@@ -433,6 +433,36 @@ export class GameState {
         return this;
     }
 
+    /**
+     * Advance every line still waiting for a click on `scene`, because the scene is leaving.
+     *
+     * A pending line lives as a `Clickable` in the scene's own stage entry, and the click callback
+     * in it is the only thing that settles the action waiting on it. Taking the entry away used to
+     * drop the line with it: nothing rendered the line any more, so no click could reach it, and
+     * whatever was waiting on it waited for ever.
+     *
+     * On the main stack that never showed, because every path that unloads a scene also clears the
+     * stack it would have blocked. A concurrent branch has a stack of its own and `Control.all`
+     * waits for every branch, so a single line left behind by a returning scene call stopped the
+     * story with no error and every click inert.
+     *
+     * Advanced rather than abandoned, because advancing is the only handle a pending line offers -
+     * its click callback is what settles it. The line is over either way, since it is no longer on
+     * screen; this way the branch that queued it carries on instead of stopping where it stood.
+     *
+     * Menus are deliberately not touched: choosing on the player's behalf would decide the story,
+     * which is worse than any of this.
+     */
+    public settlePendingLines(scene: Scene): this {
+        const element = this.findElementByScene(scene);
+        if (!element || !element.texts.length) {
+            return this;
+        }
+        // Copied first: the click callback splices the entry out of the array being walked.
+        [...element.texts].forEach(text => text.onClick());
+        return this;
+    }
+
     public removeScene(scene: Scene): this {
         this.removeElements(scene);
         this.logger.debug("GameState", "Removing scene", scene.getId());
