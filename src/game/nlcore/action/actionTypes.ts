@@ -56,6 +56,9 @@ export const SceneActionTypes = {
     init: "scene:init",
     exit: "scene:exit",
     jumpTo: "scene:jumpTo",
+    callTo: "scene:callTo",
+    preSuspend: "scene:preSuspend",
+    resume: "scene:resume",
     setBackgroundMusic: "scene:setBackgroundMusic",
     preUnmount: "scene:preUnmount",
     transitionToScene: "scene:transitionToScene",
@@ -74,6 +77,9 @@ export type SceneActionContentType = {
     K extends typeof SceneActionTypes["init"] ? [Scene] :
     K extends typeof SceneActionTypes["exit"] ? [] :
     K extends typeof SceneActionTypes["jumpTo"] ? [Scene] :
+    K extends typeof SceneActionTypes["callTo"] ? [Scene] :
+    K extends typeof SceneActionTypes["preSuspend"] ? [Scene] :
+    K extends typeof SceneActionTypes["resume"] ? [Scene] :
     K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
     K extends typeof SceneActionTypes["preUnmount"] ? [] :
     K extends typeof SceneActionTypes["transitionToScene"] ? [Transition, Scene] :

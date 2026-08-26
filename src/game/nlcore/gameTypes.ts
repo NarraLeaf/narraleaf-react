@@ -435,6 +435,18 @@ export type GameConfig = {
      * @default 100
      */
     maxActionHistory: number;
+    /**
+     * How many scenes a chain of returnable jumps may keep suspended at once.
+     *
+     * A returnable jump keeps the scene it left mounted, so a chain of them holds every scene in
+     * the chain on the stage together with its layers and sprites. This is the ceiling on that
+     * chain; the story throws when a call would cross it.
+     *
+     * It is not a recursion guard - recursion is impossible either way, because a scene that is
+     * already on the call stack cannot be called again.
+     * @default 8
+     */
+    maxSceneCallDepth: number;
 };
 export type GameSettings = {
     volume: number;

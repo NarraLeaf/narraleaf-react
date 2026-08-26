@@ -83,6 +83,27 @@ export type JumpConfig = {
      * expected to be gone by the time a scene ends.
      */
     transition: Transition;
+    /**
+     * Come back here when the target scene runs out of actions, instead of leaving for good.
+     *
+     * Defaults to `false`, which is the plain jump this method has always performed: the calling
+     * scene is unloaded and everything after the jump is unreachable.
+     *
+     * With `true` the calling scene is **suspended** rather than unloaded. It keeps its stage, its
+     * sprites, its layers and its scene-local variables, its background music is paused, and it
+     * stops painting while the target scene is on screen. When the target scene runs out of
+     * actions the call returns: the target is unloaded, the calling scene paints again, its music
+     * resumes from where it was paused, and the action after the jump runs.
+     *
+     * Only the scene's own background music is suspended. Everything else a sound plays through
+     * belongs to the story rather than to one scene, and plays on across a call exactly as it
+     * plays on across a plain jump.
+     *
+     * A scene cannot be called while it is already on the call stack: one `Scene` owns one place
+     * on the stage and one set of local variables, so it cannot be in two of them at once. Calling
+     * one that is already there throws.
+     */
+    returnable: boolean;
 }
 
 type ChainableAction = Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>> | LogicAction.Actions;
@@ -368,9 +389,11 @@ export class Scene extends Constructable<
     }
 
     /**
-     * Jump to another scene and discard the current one.
+     * Jump to another scene, either for good or for the length of that scene.
      *
-     * After the jump the calling scene is unloaded and any actions that follow are ignored.
+     * By default the calling scene is unloaded and any actions that follow the jump are ignored.
+     * Pass `returnable: true` to suspend the calling scene instead and come back to the action
+     * after the jump once the target scene runs out of actions; see {@link JumpConfig.returnable}.
      *
      * A `transition` plays across the whole stage rather than across the background alone; see
      * {@link JumpConfig.transition}.
@@ -383,17 +406,27 @@ export class Scene extends Constructable<
      *     scene.jumpTo(nextScene, new FadeIn({duration: 800}))
      * ]);
      * ```
+     * @example
+     * ```ts
+     * // Play the title card, then carry on with the line after the jump.
+     * scene.action([
+     *     scene.jumpTo(titleCard, {returnable: true}),
+     *     character.say("...and we were back."),
+     * ]);
+     * ```
      */
     public jumpTo(scene: Scene, config: Partial<JumpConfig> | JumpConfig["transition"] = {}): ChainableAction {
+        const jumpConfig = deepMerge<JumpConfig>({},
+            config instanceof Transition
+                ? {transition: config} satisfies Partial<JumpConfig>
+                : config
+        );
+        if (jumpConfig.returnable) {
+            return this._callScene(scene, jumpConfig.transition);
+        }
         return this.combineActions(new Control({
             allowFutureScene: false,
         }), chain => {
-            const defaultJumpConfig: Partial<JumpConfig> = {};
-            const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig,
-                config instanceof Transition
-                    ? {transition: config} satisfies Partial<JumpConfig>
-                    : config
-            );
             chain
                 .chain(new SceneAction<typeof SceneActionTypes.preUnmount>(
                     chain,
@@ -405,6 +438,30 @@ export class Scene extends Constructable<
                 .chain(this._exit());
             return chain;
         })._jumpTo(scene);
+    }
+
+    /**
+     * The returnable half of {@link jumpTo}: the same stage choreography, minus the two steps that
+     * throw the calling scene away.
+     *
+     * `scene:preUnmount` becomes `scene:preSuspend` - the same place in the order, pausing this
+     * scene's music where the other stops it - and there is no `scene:exit` at all, so the scene
+     * keeps its stage and its local variables. The two actions after the group are the call frame:
+     * `scene:callTo` parks the calling scene and puts the target scene's root on the stack with
+     * `scene:resume` underneath it, so when the target runs out the stack falls through to
+     * `scene:resume` and the story continues here.
+     * @internal
+     */
+    private _callScene(scene: Scene, transition: Transition | undefined): ChainableAction {
+        return this.combineActions(new Control({
+            allowFutureScene: false,
+        }), chain => {
+            chain
+                .chain(this._preSuspend(scene))
+                .chain(this._initScene(scene))
+                ._transitionToScene(transition, scene);
+            return chain;
+        })._callTo(scene)._resume(scene);
     }
 
     /**
@@ -717,7 +774,7 @@ export class Scene extends Constructable<
 
         const seenActions = new Set<LogicAction.Actions>();
 
-        const seenJump = new Set<SceneAction<typeof SceneActionTypes["jumpTo"]>>();
+        const seenJump = new Set<SceneAction>();
         const queue: LogicAction.Actions[] = [this.sceneRoot];
         const futureScene = new Set<Scene>();
 
@@ -737,11 +794,18 @@ export class Scene extends Constructable<
                     });
                 }
 
-                if (action.type === SceneActionTypes.jumpTo) {
-                    const jumpTo = action as SceneAction<typeof SceneActionTypes["jumpTo"]>;
-                    const scene = Scene.getScene(story, jumpTo.contentNode.getContent()[0]);
+                // A call reaches its target the same way a jump does, so its sources are
+                // registered the same way. Naninovel's `@gosub` preloads its target for the same
+                // reason: the target of a call is entered from a scene that is still on stage, so
+                // fetching it on arrival would stall a stage the player is already looking at.
+                const leavesForScene = action.type === SceneActionTypes.jumpTo
+                    || action.type === SceneActionTypes.callTo;
+                if (leavesForScene) {
+                    const leaving = action as SceneAction<"scene:jumpTo" | "scene:callTo">;
+                    const target = leaving.contentNode.getContent()[0] as Scene | string;
+                    const scene = Scene.getScene(story, target);
                     if (!scene) {
-                        throw action._sceneNotFoundError(action.getSceneName(jumpTo.contentNode.getContent()[0]));
+                        throw action._sceneNotFoundError(action.getSceneName(target));
                     }
 
                     const background = SrcManager.getPreloadableSrc(story, action);
@@ -749,13 +813,16 @@ export class Scene extends Constructable<
                         this.srcManager.register(background);
                     }
 
-                    if (seenJump.has(jumpTo) || seen.has(scene)) {
+                    if (!seenJump.has(leaving) && !seen.has(scene)) {
+                        seenJump.add(leaving);
+                        futureScene.add(scene);
+                        seen.add(scene);
+                    } else if (action.type === SceneActionTypes.jumpTo) {
+                        // Nothing follows a jump, so a target already walked ends this branch. A
+                        // call is the other way round: the actions after it are where the story
+                        // carries on, and skipping them here would leave their sources unregistered.
                         continue;
                     }
-
-                    seenJump.add(jumpTo);
-                    futureScene.add(scene);
-                    seen.add(scene);
                 }
             } else if (action instanceof ImageAction) {
                 const src = SrcManager.getPreloadableSrc(story, action);
@@ -972,6 +1039,37 @@ export class Scene extends Constructable<
                 scene
             ])
         ));
+    }
+
+    /**@internal */
+    private _callTo(scene: Scene): ChainedScene {
+        return this.chain(new SceneAction<"scene:callTo">(
+            this.chain(),
+            "scene:callTo",
+            new ContentNode<SceneActionContentType["scene:callTo"]>().setContent([
+                scene
+            ])
+        ));
+    }
+
+    /**@internal */
+    private _resume(scene: Scene): ChainedScene {
+        return this.chain(new SceneAction<"scene:resume">(
+            this.chain(),
+            "scene:resume",
+            new ContentNode<SceneActionContentType["scene:resume"]>().setContent([
+                scene
+            ])
+        ));
+    }
+
+    /**@internal */
+    private _preSuspend(target: Scene): SceneAction<"scene:preSuspend"> {
+        return new SceneAction(
+            this.chain(),
+            "scene:preSuspend",
+            new ContentNode<SceneActionContentType["scene:preSuspend"]>().setContent([target])
+        );
     }
 
     /**@internal */

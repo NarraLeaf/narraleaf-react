@@ -151,6 +151,7 @@ export class Game {
         stage: null,
         maxStackModelLoop: 1000,
         maxActionHistory: 100,
+        maxSceneCallDepth: 8,
         audioBuses: [],
     };
     static GameSettingsNamespace = GameSettingsNamespace;

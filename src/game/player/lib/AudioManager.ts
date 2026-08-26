@@ -451,6 +451,11 @@ export class AudioManager {
         }
 
         const state = this.state.get(sound)!;
+        // `paused` is part of the sound's serialised state, and nothing here goes through the
+        // action dispatch that marks an element for the next save. A scene call pauses the calling
+        // scene's music from a scene action, so without this the save would come back with the
+        // suspended scene's track playing.
+        sound.markDirty();
 
         if (duration === 0) {
             // Record pause position before pausing so that resume can be sample-accurate
@@ -480,6 +485,7 @@ export class AudioManager {
         }
 
         const state = this.state.get(sound)!;
+        sound.markDirty();
 
         if (duration === 0) {
             // If we have an accurate pause position saved, seek first to eliminate drift

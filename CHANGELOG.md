@@ -1,5 +1,70 @@
 # Changelog
 
+## [0.39.0]
+
+### _Feature_
+
+- **A jump can come back.** `Scene.jumpTo` takes `returnable: true`, and the scene it is called from
+  is then suspended instead of unloaded: when the scene it jumped to runs out of actions, the story
+  resumes at the action after the jump.
+
+  ```ts
+  scene.action([
+      character.say("Three years earlier."),
+      scene.jumpTo(flashback, {returnable: true, transition: new Dissolve({duration: 600})}),
+      character.say("...and that is how it went."),
+  ]);
+  ```
+
+  This is `call`/`return` as every other visual-novel engine has it, but with one difference that
+  comes from NarraLeaf's scenes being real: in engines where the stage and the music are global, a
+  call is only a move of the play head and everything on screen keeps going. A NarraLeaf scene owns
+  its own layers, sprites and background music, so a suspended one has to be held rather than left
+  running. Held means:
+
+  - It stays mounted and keeps everything it has - its layers, its sprites' load state and its
+    scene-local variables are all exactly as it left them, so returning costs nothing and shows no
+    reload.
+  - It stops painting for as long as the call is open, so the called scene has the stage to itself.
+  - Its background music is **paused** and resumed where it left off. Only the scene's own music:
+    everything else a sound plays through belongs to the story rather than to one scene, and plays
+    on across a call exactly as it plays on across a plain jump.
+  - It is not the scene new dialogue and menus attach to. That is the called scene, for as long as
+    the call is open.
+
+  The default is `false`, and a jump without it does what it has always done, to the letter: the
+  calling scene is unloaded and everything after the jump is unreachable.
+
+  Three things follow from a suspended scene being a real, single scene rather than a saved
+  position, and they are worth knowing before you build on this:
+
+  - **A scene cannot be called while it is already on the call stack.** One `Scene` owns one place
+    on the stage and one set of local variables, so `A -> B -> A` cannot be given two of them. It
+    throws rather than quietly driving the first copy's stage. Recursion is therefore not a matter
+    of depth; `maxSceneCallDepth` (default 8) bounds a *chain* of distinct scenes, because every one
+    of them is on the stage at once.
+  - **A plain jump taken while a call is open gives the call up.** A jump is one-way: it clears the
+    execution stack, and the frames it clears are the only things that could have returned. Every
+    scene parked behind it is unloaded with it, rather than left on the stage with nothing able to
+    reach it.
+  - **A `Control.jump` (an in-scene label jump) taken while a call is open keeps it.** A label is
+    scene-scoped, so moving the play head inside a called scene is a move within that scene and the
+    call still returns.
+
+  Saving inside a called scene is supported, and so is stepping back across the boundary with
+  `undo`/`restoreToHistory`. Neither needed a new save format: the return address is an ordinary
+  stack item naming a real action by id, and the suspended scene is an ordinary entry in the stage's
+  scene list carrying one new flag. A save written before this release has no such flag and reads as
+  nothing suspended.
+
+### _Fix_
+
+- **Pausing or resuming a sound now marks it for the next save.** `AudioManager.pause`/`resume`
+  write `paused` onto the sound's own state, and nothing on that path goes through the action
+  dispatch that decides which elements a save carries. A sound paused from anywhere other than a
+  sound action - which is what a scene call does to the calling scene's music - could therefore come
+  back playing from a save written while it was paused.
+
 ## [0.38.0]
 
 ### _Fix_

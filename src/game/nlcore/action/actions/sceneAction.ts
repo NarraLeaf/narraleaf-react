@@ -7,7 +7,7 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {TypedAction} from "@core/action/actions";
 import {Story} from "@core/elements/story";
-import {RuntimeScriptError} from "@core/common/Utils";
+import {RuntimeInternalError, RuntimeScriptError} from "@core/common/Utils";
 import type {Transition} from "@core/elements/transition/transition";
 import {ActionSearchOptions} from "@core/types";
 import {ExposedState, ExposedStateType} from "@player/type";
@@ -149,6 +149,52 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         return awaitable;
     }
 
+    /**
+     * Take a scene off the stage: the same three steps `scene:exit` performs, for the two paths
+     * that unload a scene the exit action never runs for - a call returning, and a plain jump
+     * giving up the callers parked behind it.
+     */
+    static unloadScene(scene: Scene, state: GameState) {
+        state.getStorable().removeNamespace(scene.local.getNamespaceName());
+        state
+            .offSrcManager(scene.srcManager)
+            .removeScene(scene);
+        scene.state.backgroundImage.reset();
+    }
+
+    /**
+     * Give up every scene parked by a returnable jump, innermost first.
+     *
+     * A plain jump clears the execution stack, and the frames it clears are the only things that
+     * could ever have returned to those scenes. Leaving them mounted would leave the stage carrying
+     * scenes no player can reach, each still holding its layers and its local variables.
+     *
+     * The snapshots come back so the jump can put them all back if it is undone - the same
+     * bargain `scene:exit` strikes with its own single scene.
+     */
+    static unwindCallStack(state: GameState): [scene: Scene, snapshot: SceneSnapshot][] {
+        const suspended = state.getSuspendedScenes();
+        const unwound: [Scene, SceneSnapshot][] = suspended.map(scene =>
+            [scene, SceneAction.createSceneSnapshot(scene, state)] as [Scene, SceneSnapshot]);
+
+        suspended.forEach(scene => {
+            scene.events.emit("event:scene.preUnmount");
+            SceneAction.unloadScene(scene, state);
+        });
+        return unwound;
+    }
+
+    /** Put back what {@link SceneAction.unwindCallStack} took away, in the order it took it. */
+    static rewindCallStack(unwound: [scene: Scene, snapshot: SceneSnapshot][], state: GameState) {
+        unwound.forEach(([scene, snapshot]) => {
+            const awaitable = new Awaitable<CalledActionResult, any>(v => v);
+            state.timelines.attachTimeline(awaitable);
+            SceneAction.handleSceneInit(scene, {type: SceneActionTypes.callTo, node: null}, state, awaitable);
+            SceneAction.restoreSceneSnapshot(snapshot, state);
+            state.setSceneSuspended(scene, true);
+        });
+    }
+
     exit(state: GameState) {
         state
             .offSrcManager(this.callee.srcManager)
@@ -238,14 +284,17 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
             }
 
             const stackSnapshot = gameState.getLiveGame().getStackModelForce().serialize();
-            gameState.actionHistory.push<[StackModelRawData]>({
+            const unwound = SceneAction.unwindCallStack(gameState);
+            gameState.actionHistory.push<[StackModelRawData, [Scene, SceneSnapshot][]]>({
                 action: this,
                 stackModel: injection.stackModel
-            }, (prevStackSnapshot) => {
+            }, (prevStackSnapshot, prevUnwound) => {
+                SceneAction.rewindCallStack(prevUnwound, gameState);
+
                 const [actionMaps] = gameState.getLiveGame().constructMaps();
 
                 gameState.getLiveGame().getStackModelForce().deserialize(prevStackSnapshot, actionMaps);
-            }, [stackSnapshot]);
+            }, [stackSnapshot, unwound]);
 
             const future = scene.getSceneRoot().contentNode;
             gameState.getLiveGame()
@@ -257,6 +306,153 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
                 });
 
             return null;
+        } else if (this.type === SceneActionTypes.preSuspend) {
+            // The suspending half of `scene:preUnmount`, in the same place in the order: the music
+            // of the scene being left goes quiet before the scene being entered starts its own, so
+            // the two cross-fade rather than overlap. Paused rather than stopped, because this
+            // scene is coming back and is expected to pick its track up where it left it.
+            //
+            // It is also where a call that cannot happen is refused, and that is why the refusals
+            // are here rather than in `scene:callTo`: by the time the call itself runs, the target
+            // scene has already been mounted by the `scene:init` between the two, so asking then
+            // whether it is on stage would always answer yes. Nothing has happened yet at this
+            // point, so a throw here leaves the stage exactly as the story left it.
+            const target = (this.contentNode as ContentNode<SceneActionContentType["scene:preSuspend"]>).getContent()[0];
+            const targetScene = gameState.getStory().getScene(target);
+            if (!targetScene) {
+                throw this._sceneNotFoundError(this.getSceneName(target));
+            }
+
+            // One `Scene` owns one place on the stage, one set of layers and one local namespace,
+            // so it cannot be in two places on the call stack at once. This is what makes a
+            // recursive call (A calls B calls A) impossible rather than merely deep, and saying so
+            // here is the only way an author finds out: `addScene` would quietly do nothing and the
+            // second copy would drive the stage of the first.
+            if (gameState.isSceneActive(targetScene)) {
+                throw new RuntimeScriptError(
+                    `Cannot call scene ${this.getSceneName(target)}: it is already on stage.`
+                    + "\nA returnable jump suspends the scene it leaves rather than unloading it, so a scene"
+                    + " cannot be called from itself or from anything it has called."
+                    + `\nAction: (id: ${this.getId()}) ${this.type}`
+                    + `\nAt: ${this.__stack}`
+                );
+            }
+
+            const depth = gameState.getSuspendedScenes().length;
+            const limit = gameState.game.config.maxSceneCallDepth;
+            if (depth >= limit) {
+                throw new RuntimeScriptError(
+                    `Scene call depth limit reached (${limit}).`
+                    + "\nEach returnable jump keeps the scene it left mounted, so a chain of them holds every"
+                    + " scene in the chain on the stage at once. Raise maxSceneCallDepth if the story really"
+                    + " needs to go this deep."
+                    + `\nAction: (id: ${this.getId()}) ${this.type}`
+                    + `\nAt: ${this.__stack}`
+                );
+            }
+
+            const music = this.callee.state.backgroundMusic;
+
+            gameState.actionHistory.push({
+                action: this,
+                stackModel: injection.stackModel
+            }, () => {
+                if (music && gameState.audioManager.isManaged(music)) {
+                    gameState.audioManager.resume(music, 0);
+                }
+            }, []);
+
+            if (music && gameState.audioManager.isManaged(music)) {
+                gameState.audioManager.pause(music, this.callee.config.backgroundMusicFade);
+            }
+
+            return super.executeAction(gameState, injection);
+        } else if (this.type === SceneActionTypes.callTo) {
+            const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:callTo"]>).getContent()[0];
+            const scene = gameState.getStory().getScene(targetScene);
+            if (!scene) {
+                throw this._sceneNotFoundError(this.getSceneName(targetScene));
+            }
+
+            const resumeNode = this.contentNode.getChild();
+            if (!resumeNode?.action) {
+                throw new RuntimeInternalError(
+                    "A scene call has no return address. `scene:callTo` is only ever built with a "
+                    + "`scene:resume` chained behind it (see Scene._callScene)."
+                );
+            }
+
+            const caller = this.callee;
+            const stackSnapshot = gameState.getLiveGame().getStackModelForce().serialize();
+            gameState.actionHistory.push<[StackModelRawData]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevStackSnapshot) => {
+                gameState.setSceneSuspended(caller, false);
+
+                const [actionMaps] = gameState.getLiveGame().constructMaps();
+
+                gameState.getLiveGame().getStackModelForce().deserialize(prevStackSnapshot, actionMaps);
+            }, [stackSnapshot]);
+
+            // Parked here rather than in `scene:preSuspend`, which runs before the target scene is
+            // even mounted: a transition, if the author asked for one, is still to play, and both
+            // of its halves are painted from the scene roots. This is the first moment at which the
+            // calling scene is genuinely done being looked at.
+            gameState.setSceneSuspended(caller, true);
+
+            // The return address goes on FIRST so it ends up underneath: the called scene runs to
+            // the end of its own actions, its last one pushes nothing, and the stack falls through
+            // to `scene:resume`. That is the whole return mechanism - the same shape `Control.do`
+            // uses to run a body and carry on afterwards - and it asks nothing of the save format
+            // that was not already there, because both items name a real action by id.
+            const future = scene.getSceneRoot().contentNode;
+            return [
+                {
+                    type: this.type,
+                    node: resumeNode,
+                },
+                {
+                    type: this.type,
+                    node: future,
+                },
+            ];
+        } else if (this.type === SceneActionTypes.resume) {
+            const calledScene = (this.contentNode as ContentNode<SceneActionContentType["scene:resume"]>).getContent()[0];
+            const caller = this.callee;
+            const music = caller.state.backgroundMusic;
+            const calledSnapshot = SceneAction.createSceneSnapshot(calledScene, gameState);
+
+            gameState.actionHistory.push<[SceneSnapshot]>({
+                action: this,
+                stackModel: injection.stackModel
+            }, (prevSnapshot) => {
+                const awaitable = new Awaitable<CalledActionResult, any>(v => v);
+                gameState.timelines.attachTimeline(awaitable);
+
+                SceneAction.handleSceneInit(calledScene, {
+                    type: this.type,
+                    node: this.contentNode.getChild()
+                }, gameState, awaitable);
+                SceneAction.restoreSceneSnapshot(prevSnapshot, gameState);
+
+                gameState.setSceneSuspended(caller, true);
+                if (music && gameState.audioManager.isManaged(music)) {
+                    gameState.audioManager.pause(music, 0);
+                }
+            }, [calledSnapshot]);
+
+            // The called scene leaves the way any scene leaves: the event is what stops its music,
+            // exactly as it does for a scene a plain jump is about to unload.
+            calledScene.events.emit("event:scene.preUnmount");
+            SceneAction.unloadScene(calledScene, gameState);
+
+            gameState.setSceneSuspended(caller, false);
+            if (music && gameState.audioManager.isManaged(music)) {
+                gameState.audioManager.resume(music, caller.config.backgroundMusicFade);
+            }
+
+            return super.executeAction(gameState, injection);
         } else if (this.type === SceneActionTypes.setBackgroundMusic) {
             const [sound, fade] = (this.contentNode as ContentNode<SceneActionContentType["scene:setBackgroundMusic"]>).getContent();
             const scene = this.callee;
@@ -359,6 +555,25 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
     }
 
     getFutureActions(story: Story, searchOptions: ActionSearchOptions = {}): LogicAction.Actions[] {
+        if (this.type === SceneActionTypes.callTo && searchOptions.allowFutureScene !== false) {
+            const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:callTo"]>).getContent()[0];
+            const scene = story.getScene(targetScene, true);
+
+            if (!scene.isSceneRootConstructed()) {
+                scene.constructSceneRoot(story);
+            }
+
+            // Both, and that is the difference from a jump: a call comes back, so the action after
+            // it is as much a future of this one as the scene it calls. Dropping it would leave
+            // everything after the call out of the action map a save is restored against.
+            const sceneRootNode = scene.getSceneRoot()?.contentNode;
+            const returnTo = this.contentNode.getChild()?.action;
+            return [
+                ...(sceneRootNode?.action ? [sceneRootNode.action] : []),
+                ...(returnTo ? [returnTo] : []),
+            ];
+        }
+
         if (this.type === SceneActionTypes.jumpTo && searchOptions.allowFutureScene !== false) {
             const targetScene = (this.contentNode as ContentNode<SceneActionContentType["scene:jumpTo"]>).getContent()[0];
             const scene = story.getScene(targetScene, true);
@@ -393,6 +608,17 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
     }
 
     stringify(story: Story, seen: Set<LogicAction.Actions>, _strict: boolean): string {
+        if (this.type === SceneActionTypes.callTo) {
+            if (seen.has(this)) {
+                return super.stringifyWithContent("Scene", "[[recursive]]");
+            }
+            seen.add(this);
+
+            const [targetScene] = (this.contentNode as ContentNode<SceneActionContentType["scene:callTo"]>).getContent();
+
+            return super.stringifyWithContent("Scene", `callTo {${targetScene.stringify(story, seen, _strict)}}`);
+        }
+
         if (this.type === SceneActionTypes.jumpTo) {
             if (seen.has(this)) {
                 return super.stringifyWithContent("Scene", "[[recursive]]");

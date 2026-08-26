@@ -191,9 +191,39 @@ export class StageTransitionManager {
     public registerScene(scene: Scene, element: HTMLElement | null): void {
         if (element) {
             this.sceneElements.set(scene.getId(), element);
+            // A suspended scene has to be put back off screen the moment its root exists again.
+            // Its pose is an inline style, and a remount - loading a save is one - hands back a
+            // fresh node with none, so a caller parked behind a call would otherwise come back
+            // painting over the scene it called. Only the retired pose is re-applied: a scene that
+            // is not suspended already looks the way a bare root looks.
+            if (this.gameState.isSceneSuspended(scene)) {
+                Object.assign(element.style, stageRetiredStyle());
+            }
         } else {
             this.sceneElements.delete(scene.getId());
         }
+    }
+
+    /**
+     * Hold a scene off screen while it is suspended, and put it back when it is not.
+     *
+     * Written straight onto the root rather than routed through a transition: suspending is not an
+     * animation, it is the scene ceasing to paint at the moment the call is made. A transition, if
+     * the author asked for one, has already run by then and left the caller retired - so this is
+     * what makes a call with no transition look the same as one with.
+     *
+     * A run still in flight is left alone. Its own settle writes the final pose for both halves,
+     * and reaching in mid-animation would fight it frame by frame.
+     */
+    public syncScenePose(scene: Scene, suspended: boolean): void {
+        if (this.running && (this.running.roles.from === scene || this.running.roles.to === scene)) {
+            return;
+        }
+        const element = this.sceneElements.get(scene.getId());
+        if (!element) {
+            return;
+        }
+        Object.assign(element.style, suspended ? stageRetiredStyle() : stageSettledStyle());
     }
 
     /** Bind the (empty, always-present) node overlay elements are created inside. */

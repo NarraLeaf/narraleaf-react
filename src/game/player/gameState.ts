@@ -105,6 +105,13 @@ export type PlayerStateElement = {
     layers: Map<Layer, LogicAction.DisplayableElements[]>;
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Chosen>[];
+    /**
+     * Set while this scene is a caller waiting for a returnable jump to come back
+     * ({@link JumpConfig.returnable}). A suspended scene keeps everything it has - its layers, its
+     * sprites, its local variables - but stops painting, stops being the scene new dialog and
+     * menus attach to, and has its background music paused.
+     */
+    suspended?: boolean;
 };
 export type NvlStateData = {
     active: boolean;
@@ -128,6 +135,11 @@ export type NvlDialogEntryData = {
 export type PlayerStateData = {
     scenes: {
         sceneId: string;
+        /**
+         * Whether this scene is a suspended caller waiting for a returnable jump to return.
+         * Absent in saves written before scene calls existed; readers must read it as `false`.
+         */
+        suspended?: boolean;
         elements: {
             /**@deprecated */
             displayable?: string[];
@@ -424,8 +436,63 @@ export class GameState {
         return this.state.elements;
     }
 
+    /**
+     * The scene the story is currently running in.
+     *
+     * Walks from the end of the list past any **suspended** scene. A suspended scene is a caller
+     * parked mid-jump: it is still mounted and still holds its stage, but it is not where the next
+     * line of dialogue belongs. Without this skip a called scene's dialogue would attach to the
+     * scene that called it, which still renders its own dialog box.
+     *
+     * With nothing suspended - which is every story that never makes a returnable jump, and every
+     * moment of one that does not have a call open - this is byte for byte what it always was.
+     */
     public getLastScene(): Scene | null {
-        return this.state.elements[this.state.elements.length - 1]?.scene || null;
+        for (let i = this.state.elements.length - 1; i >= 0; i--) {
+            const element = this.state.elements[i];
+            if (!element.suspended) {
+                return element.scene;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Park a scene, or bring it back.
+     *
+     * The visual half is not React's to do: a scene root's paint is written imperatively by the
+     * stage transition manager (that is how a transition drives two live scene subtrees), so
+     * putting `visibility` in the component's props would have React and the transition writing the
+     * same property. The manager owns the pose either way; this tells it which one to hold.
+     * @internal
+     */
+    public setSceneSuspended(scene: Scene, suspended: boolean): this {
+        const element = this.findElementByScene(scene);
+        if (!element) {
+            this.logger.weakWarn("Scene not found when suspending", scene.getId());
+            return this;
+        }
+        element.suspended = suspended;
+        this.stageTransition.syncScenePose(scene, suspended);
+        this.logger.debug("GameState", suspended ? "Suspending scene" : "Resuming scene", scene.getId());
+        this.stage.update();
+        return this;
+    }
+
+    /**@internal */
+    public isSceneSuspended(scene: Scene): boolean {
+        return this.findElementByScene(scene)?.suspended === true;
+    }
+
+    /**
+     * Every scene parked by a returnable jump, in the order they were parked.
+     *
+     * Its length is the depth of the call stack, which is what {@link GameConfig.maxSceneCallDepth}
+     * is measured against.
+     * @internal
+     */
+    public getSuspendedScenes(): Scene[] {
+        return this.state.elements.filter(element => element.suspended).map(element => element.scene);
     }
 
     public getCurrentScene(): Scene | null {
@@ -1319,6 +1386,7 @@ export class GameState {
             scenes: this.state.elements.map(e => {
                 return {
                     sceneId: e.scene.getId(),
+                    ...(e.suspended ? {suspended: true} : {}),
                     elements: {
                         layers: Object.fromEntries(
                             Array.from(e.layers.entries())
@@ -1364,7 +1432,7 @@ export class GameState {
         }
 
         const {scenes, audio, videos} = data;
-        scenes.forEach(({sceneId, elements}) => {
+        scenes.forEach(({sceneId, elements, suspended}) => {
             this.logger.debug("Loading scene: " + sceneId);
 
             const scene = elementMap.get(sceneId) as Scene;
@@ -1377,13 +1445,24 @@ export class GameState {
                 layers: this.constructLayerMap(elements.layers, elementMap),
                 menus: [],
                 texts: [],
+                // A save written mid-call carries the callers it was parked behind. The pose itself
+                // is re-applied when the scene root mounts (`StageTransitionManager.registerScene`)
+                // - the remount this load performs throws away every inline style the manager had
+                // written, so nothing but the flag survives the trip.
+                suspended: suspended === true,
             };
 
             this.state.elements.push(ele);
             this.registerSrcManager(scene.srcManager);
-            this.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
-                SceneAction.initBackgroundMusic(scene, exposed);
-            });
+            // A suspended scene is skipped: its track is paused, and the audio manager restores it
+            // that way from the sound's own state a moment later. Starting it here would hand the
+            // player a save that comes back with the parked scene's music playing over the scene it
+            // called - and it would do it through a second, racing writer of the same track.
+            if (!ele.suspended) {
+                this.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
+                    SceneAction.initBackgroundMusic(scene, exposed);
+                });
+            }
         });
         this.audioManager.fromData(audio, elementMap);
         this.state.videos = videos.map(([id, state]) => {

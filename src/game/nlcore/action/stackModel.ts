@@ -146,6 +146,15 @@ export type StackSnapshot = {
  *    - Serialize StackModel and execute directly on deserialize
  */
 
+/**
+ * The action type of a scene call's return address.
+ *
+ * Written out rather than imported from `actionTypes`: this module is reached from the action
+ * layer, and importing the action-type table back into it closes a cycle that only shows up as an
+ * undefined at class-evaluation time. `stackModel.callFrame.test.ts` pins the two together.
+ */
+const SCENE_RESUME_ACTION_TYPE = "scene:resume";
+
 /** Threshold for infinite loop detection in debug mode */
 const LOOP_DEBUG_THRESHOLD = 32767;
 /** Minimum time in ms that LOOP_DEBUG_THRESHOLD iterations should take to not be considered suspicious */
@@ -916,6 +925,39 @@ export class StackModel {
 
     isEmpty(): boolean {
         return this.stack.isEmpty();
+    }
+
+    /**
+     * Drop everything above the innermost scene-call return address, or the whole stack if there
+     * is none.
+     *
+     * This is what moving the play head has to do instead of clearing outright once a scene can be
+     * called. A `scene:resume` item on the stack is a promise to come back to the scene that made
+     * the call, and it sits below everything the called scene has queued - so clearing to it moves
+     * the head within the called scene and leaves the promise intact, while clearing past it would
+     * strand a suspended scene on the stage with nothing able to return to it.
+     *
+     * With no call open the stack has no such item and this is exactly {@link reset}, which is what
+     * an in-scene jump has always done.
+     */
+    public clearAboveCallFrame(): this {
+        for (let i = this.stack.size() - 1; i >= 0; i--) {
+            const item = this.stack.get(i);
+            if (StackModel.isCalledActionResult(item) && item.node?.action?.type === SCENE_RESUME_ACTION_TYPE) {
+                while (this.stack.size() > i + 1) {
+                    const dropped = this.stack.pop();
+                    if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(dropped)) {
+                        dropped.abort();
+                    } else if (StackModel.isCalledActionResult(dropped)) {
+                        dropped.wait?.stackModels.forEach(stack => stack.reset());
+                    }
+                }
+                this.waitingAction = null;
+                return this;
+            }
+        }
+        this.reset();
+        return this;
     }
 
     push(...items: (CalledActionResult | Awaitable<CalledActionResult>)[]): this {

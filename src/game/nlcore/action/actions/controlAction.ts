@@ -312,9 +312,14 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             // A label is an invisible marker: it just passes through to the next action.
             return super.executeAction(gameState, injection);
         } else if (this.type === ControlActionTypes.jump) {
-            // In-scene jump. Mirrors scene:jumpTo (clear the main stack, push the target node),
-            // but stays inside the current scene — nothing is unloaded or re-initialized, only the
-            // play head moves. The target is resolved once at construction (Scene.constructLabels).
+            // In-scene jump. Mirrors scene:jumpTo (clear the stack, push the target node), but
+            // stays inside the current scene — nothing is unloaded or re-initialized, only the play
+            // head moves. The target is resolved once at construction (Scene.constructLabels).
+            //
+            // Cleared down to the innermost scene-call return address rather than to the bottom.
+            // A label is scene-scoped, so a `/goto` inside a called scene is a move within that
+            // scene and has no business dropping the frame that returns to whatever called it.
+            // With no call open the two are the same thing.
             const target = this._jumpTarget;
             if (!target) {
                 const [name] = (this.contentNode as ContentNode<ControlActionContentType["control:jump"]>).getContent();
@@ -333,8 +338,8 @@ export class ControlAction<T extends typeof ControlActionTypes[keyof typeof Cont
             }, [stackSnapshot]);
 
             liveGame
-                .clearMainStack()
                 .getStackModelForce()
+                .clearAboveCallFrame()
                 .push({
                     type: this.type,
                     node: target.contentNode
