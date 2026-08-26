@@ -24,6 +24,12 @@ type SoundState = {
     cachedAudio: CachedAudio;
     originalVolume: number;
     pausePosition?: number; // position (seconds) where playback was paused
+    /**
+     * Bumped by every transport call that changes which direction a faded one is heading in. A
+     * faded pause or resume only acts once its fade has finished, and this is what tells it whether
+     * it is still the last word by then.
+     */
+    transport?: number;
 };
 
 export type AudioDataRaw = {
@@ -399,6 +405,9 @@ export class AudioManager {
         }
 
         const state = this.state.get(sound)!;
+        // Stopping is the last word on a clip: a faded pause or resume still in flight is
+        // countermanded rather than allowed to land on a track that is on its way out.
+        this.arm(sound, state);
 
         if (duration === 0) {
             state.token.stop();
@@ -456,6 +465,25 @@ export class AudioManager {
         return awaitable;
     }
 
+    /**
+     * Arm a transport change that will only act once a fade has finished, and hand back the test
+     * for whether it is still wanted by then.
+     *
+     * `FadeToken.finished` resolves when the fade is **cancelled** as well as when it runs out, and
+     * every later transport call on the same token cancels it - `resume` writes a volume, which is
+     * what cancels a pause's fade-out. Without this test, a scene call that returned while the
+     * caller's pause fade was still in flight landed the pause *after* the resume, with nothing
+     * left to undo it: the caller's music stayed silent for the rest of the scene while
+     * `sound.state.paused` said it was playing, so the next save recorded a stopped clip.
+     */
+    private arm(sound: SoundElement, state: SoundState): () => boolean {
+        const generation = (state.transport ?? 0) + 1;
+        state.transport = generation;
+        // The entry identity matters as well as the counter: `play` and `soundFromData` replace the
+        // whole record, and a fade left over from the clip's previous life must not write onto it.
+        return () => this.state.get(sound) === state && state.transport === generation;
+    }
+
     public pause(sound: SoundElement, duration: number = 0): Awaitable<void> {
         const awaitable = new Awaitable<void>();
 
@@ -470,6 +498,7 @@ export class AudioManager {
         // scene's music from a scene action, so without this the save would come back with the
         // suspended scene's track playing.
         sound.markDirty();
+        const isCurrent = this.arm(sound, state);
 
         if (duration === 0) {
             // Record pause position before pausing so that resume can be sample-accurate
@@ -479,6 +508,10 @@ export class AudioManager {
             awaitable.resolve();
         } else {
             state.token.fade(state.token.getVolume(), 0, duration).finished.then(() => {
+                if (!isCurrent()) {
+                    awaitable.resolve();
+                    return;
+                }
                 state.pausePosition = state.token.getCurrentTime();
                 state.token.pause();
                 state.token.setVolume(state.originalVolume);
@@ -500,6 +533,7 @@ export class AudioManager {
 
         const state = this.state.get(sound)!;
         sound.markDirty();
+        const isCurrent = this.arm(sound, state);
 
         if (duration === 0) {
             // If we have an accurate pause position saved, seek first to eliminate drift
@@ -516,7 +550,16 @@ export class AudioManager {
                 state.token.seek(state.pausePosition);
             }
             state.token.resume();
+            // The clip is audible from here, so the flag is written now rather than when the
+            // fade-in lands: a save taken during the fade describes a playing clip, which is what
+            // it is. The symmetric guard to `pause`'s - a pause that arrives mid-fade cancels this
+            // one, and must not have its `paused` overwritten a moment later.
+            sound.state.paused = false;
             state.token.fade(0, state.originalVolume, duration).finished.then(() => {
+                if (!isCurrent()) {
+                    awaitable.resolve();
+                    return;
+                }
                 sound.state.paused = false;
                 awaitable.resolve();
             });

@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.39.1]
+
+### _Fix_
+
+- **Stepping back onto a line inside a called scene keeps the caller parked.** A scene's stage entry
+  is rebuilt from its snapshot when the game steps back in place, and the snapshot did not carry
+  whether that scene was a caller suspended behind a returnable jump. Stepping back through a line of
+  dialogue restores the snapshot of every scene on the stage, so a single `LiveGame.undo()` onto a
+  line inside a called scene unparked the whole call stack: the callers stayed mounted, kept
+  painting, and the outermost of them became the scene the next line of dialogue attached to. The two
+  ways of reaching a line disagreed as a result - through a save the caller came back parked, in
+  place it did not.
+
+- **Stepping back to before a scene was entered closes its local namespace again.** Putting a scene
+  on the stage opens its scene-local namespace; the undo `scene:init` registered took the scene off
+  the stage but left the namespace open. A game stepped back to before a scene was entered - which is
+  what stepping back over a jump, or out of a returnable one, does - therefore still carried that
+  scene's locals, and a save written there was not the save the same line would have written on the
+  way through.
+
+- **A faded pause is countermanded by whatever follows it.** `AudioManager.pause` and
+  `AudioManager.resume` only act once their fade has finished, and a fade's `finished` resolves when
+  it is *cancelled* as well as when it runs out - which is what any later transport call does to it.
+  A scene call that returned while the caller's pause fade was still running therefore landed the
+  pause after the resume, with nothing left to undo it: the caller's music stayed silent for the
+  rest of the scene while `paused` said it was playing, so the next save recorded a stopped clip.
+  Every transport call now supersedes a faded one still in flight. Affects any scene with a
+  `backgroundMusicFade` calling a scene shorter than the fade.
+
 ## [0.39.0]
 
 ### _Feature_
@@ -75,22 +104,6 @@
   starting a scene's music waits on the scene's component being mounted, and a stage remount - which
   is what loading a save performs - fires every waiting request again. A scene parked behind a call
   therefore came back from a save with its music playing over the scene it had called.
-
-- **Stepping back onto a line inside a called scene keeps the caller parked.** A scene's stage entry
-  is rebuilt from its snapshot when the game steps back in place, and the snapshot did not carry
-  whether that scene was a caller suspended behind a returnable jump. Stepping back through a line of
-  dialogue restores the snapshot of every scene on the stage, so a single `LiveGame.undo()` onto a
-  line inside a called scene unparked the whole call stack: the callers stayed mounted, kept
-  painting, and the outermost of them became the scene the next line of dialogue attached to. The two
-  ways of reaching a line disagreed as a result - through a save the caller came back parked, in
-  place it did not.
-
-- **Stepping back to before a scene was entered closes its local namespace again.** Putting a scene
-  on the stage opens its scene-local namespace; the undo `scene:init` registered took the scene off
-  the stage but left the namespace open. A game stepped back to before a scene was entered - which is
-  what stepping back over a jump, or out of a returnable one, does - therefore still carried that
-  scene's locals, and a save written there was not the save the same line would have written on the
-  way through.
 
 ## [0.38.0]
 
