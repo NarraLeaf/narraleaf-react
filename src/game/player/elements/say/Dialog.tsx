@@ -7,6 +7,7 @@ import { useRatio } from "@player/provider/ratio";
 import clsx from "clsx";
 import React, { useEffect, useRef, useState } from "react";
 import { useDialogContext } from "./context";
+import { resolveDialogVisibility } from "./dialogVisibility";
 import { DialogOverlayContext } from "./dialogOverlay";
 import { Texts } from "./Sentence";
 import { DialogState } from "./UIDialog";
@@ -39,8 +40,13 @@ function BaseDialog({
     // State rather than a ref: the overlay element has to reach the context on the render after it
     // is attached, and a ref would leave every popup rendered on the first pass with nowhere to go.
     const [overlayNode, setOverlayNode] = useState<HTMLDivElement | null>(null);
+    const visibility = resolveDialogVisibility(showDialog);
 
     function onElementClick() {
+        // With the box put away, what a click means is not this box's to decide: the stage announcer
+        // turns it into bringing the box back. Answering it here as well would settle the line the
+        // player never saw, which is the whole thing that restore exists to prevent.
+        if (!showDialog) return;
         if (dialog.config.gameState.isAdvanceSuspended()) return;
         dialog.requestComplete();
     }
@@ -93,8 +99,9 @@ function BaseDialog({
             <div
                 className={clsx(
                     "absolute bottom-0 w-full h-full",
-                    !showDialog && "invisible pointer-events-auto"
+                    visibility.className
                 )}
+                aria-hidden={visibility.ariaHidden}
                 onClick={onElementClick}
                 style={{
                     ...onlyIf<React.CSSProperties>(game.config.useAspectScale, {
