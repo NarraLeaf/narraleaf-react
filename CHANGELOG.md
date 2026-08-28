@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.39.3]
+
+### _Fix_
+
+- **Clicking the stage with the dialog box put away brings the box back instead of spending a line
+  nobody read.** Hiding the box is how a player looks at the picture behind it, and the box is the
+  thing a click on the stage acts on - so once it is away, a click has nothing on screen it could
+  have been aimed at. It advanced the story all the same: a click is announced from the player
+  element and reaches the dialog as a broadcast, and that announcement never asked whether there was
+  a box to click. The line it settled was one the player never saw, and the box came back showing the
+  line after it, so the text was gone with nothing to say it had been. A click on the stage while the
+  box is hidden now restores it and settles nothing, which is what every visual novel does with the
+  first click after a hide and the only reading of it that cannot lose text. It restores the box even
+  while something is holding the line - a suspension is taken by something drawn inside the box, so
+  with the box away the hold is invisible and would otherwise leave the player able to reach neither
+  the box nor the thing holding the line. Restoring settles nothing, so the hold is still in charge
+  the moment the box is back.
+
+- **A dialog box that has been put away is still reachable.** Hiding the box drew it with
+  `visibility: hidden`, which does not mean "do not draw this" but "this is not here": the whole
+  subtree leaves hit testing, and a host renders its own dialog into that subtree. So for as long as
+  the box was hidden nothing the host had drawn inside it could be scrolled, tapped or dismissed, and
+  nothing said why - every element was still present and still styled to receive the pointer. The
+  same element asked for `pointer-events: auto` in the same breath, which is the instruction that was
+  meant and the one that could not be followed. A hidden box is now drawn transparent instead, so it
+  is invisible and still there; it is marked `aria-hidden` explicitly, since transparency does not
+  remove it from the accessibility tree the way the old rule did as a side effect. The box claims no
+  `pointer-events` of its own in either state - whether it is reachable at all remains its layer's to
+  say, so a scene parked behind a returnable jump still keeps its empty layer transparent to the
+  pointer.
+
 ## [0.39.2]
 
 ### _Fix_
