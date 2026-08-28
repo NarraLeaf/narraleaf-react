@@ -426,8 +426,12 @@ export class Scene extends Constructable<
      * ```
      */
     public setBackground(background: Color | ImageSrc, transition?: ImageTransition): ChainedScene {
-        const chain = this.chain();
-        return chain.chain(Control.do([this.background.char(background, transition)]));
+        // `combineActions` rather than a bare `chain.chain(Control.do(...))`: the latter leaves the
+        // Control's own chain in the scene's action list instead of the action inside it, and a
+        // caller that walks the list by hand then reads `contentNode` off a chain that has none.
+        // A menu branch does exactly that, so a branch carrying a background change and anything
+        // after it used to fail to build.
+        return this.combineActions(new Control(), () => this.background.char(background, transition));
     }
 
     /**
