@@ -19,6 +19,8 @@
 
   `WordConfig.pause` was the same field one level down: never read, and never documented.
 
+## [0.40.1]
+
 ### _Fix_
 
 - **A menu branch can change the background and then carry on.** `Scene.setBackground` handed back
