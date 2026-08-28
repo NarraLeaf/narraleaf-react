@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.39.3]
+
+### _Fix_
+
+- **Clicking the stage with the dialog box put away brings the box back instead of spending a line
+  nobody read.** Hiding the box is how a player looks at the picture behind it, and the box is the
+  thing a click on the stage acts on - so once it is away, a click has nothing on screen it could
+  have been aimed at. It advanced the story all the same: a click is announced from the player
+  element and reaches the dialog as a broadcast, and that announcement never asked whether there was
+  a box to click. The line it settled was one the player never saw, and the box came back showing the
+  line after it, so the text was gone with nothing to say it had been. A click on the stage while the
+  box is hidden now restores it and settles nothing, which is what every visual novel does with the
+  first click after a hide and the only reading of it that cannot lose text. It restores the box even
+  while something is holding the line - a suspension is taken by something drawn inside the box, so
+  with the box away the hold is invisible and would otherwise leave the player able to reach neither
+  the box nor the thing holding the line. Restoring settles nothing, so the hold is still in charge
+  the moment the box is back.
+
 ## [0.39.2]
 
 ### _Fix_

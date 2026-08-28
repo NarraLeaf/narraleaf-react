@@ -1,6 +1,8 @@
 import React, { useEffect } from "react";
 import { useGame } from "@player/provider/game-state";
 import { GameState } from "@player/gameState";
+import { Game } from "@core/game";
+import { resolveStageClickIntent } from "./stageClickIntent";
 
 /**
  * Check if an element is inside the PageRouter GUI layer
@@ -102,7 +104,24 @@ export function StageClickAnnouncer({ state }: Readonly<{
                 return;
             }
 
-            if (state.isAdvanceSuspended()) {
+            // Everything above answers "is this click the stage's". What it means once it is - and
+            // in particular that a click with the box put away brings the box back rather than
+            // spending a line nobody saw - is decided away from the DOM, in `resolveStageClickIntent`.
+            const intent = resolveStageClickIntent({
+                onStage: true,
+                dialogShown: game.preference.getPreference(Game.Preferences.showDialog),
+                advanceSuspended: state.isAdvanceSuspended(),
+            });
+
+            if (intent === "ignore") {
+                return;
+            }
+
+            if (intent === "restoreDialog") {
+                // Read and written at click time rather than through `usePreference`, so the answer
+                // is the one that holds now: this listener is attached once and outlives any number
+                // of changes to the preference, including the ones it makes itself.
+                game.preference.setPreference(Game.Preferences.showDialog, true);
                 return;
             }
 
