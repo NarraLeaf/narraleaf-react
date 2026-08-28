@@ -16,7 +16,6 @@ import type { DialogAvatar } from "@core/elements/character/avatar";
 export type SentenceMetadata = Record<string, unknown>;
 
 export type SentenceConfig = {
-    pause?: boolean | number;
     voice: Sound | null;
     character: Character | null;
     voiceId: string | number | null;
@@ -49,7 +48,6 @@ export type SentencePrompt = SingleWord[] | SingleWord;
 export class Sentence {
     /**@internal */
     static defaultConfig: SentenceConfig = {
-        pause: true,
         voice: null,
         character: null,
         voiceId: null,

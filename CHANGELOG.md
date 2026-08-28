@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.40.0]
+
+### _Incompatible Changes_
+
+- **`SentenceConfig.pause` and `WordConfig.pause` have been removed.** Neither was ever read by the
+  engine. `pause` was added to the sentence config in October 2024 alongside `voice` and `voiceId`,
+  thirteen days before the `Pause` element existed; once `Pause` arrived nothing went back to wire
+  the flag up, and no release since has consulted it. Both behaviours it was described as having -
+  continuing without waiting for a click on `{ pause: false }`, and holding the line for a given
+  duration - were descriptions of a field that did nothing, so removing it changes how nothing
+  plays: a line that waited for the player still waits, and one that did not still does not. Passing
+  it is now a type error rather than a silent no-op, which is the point of the removal.
+
+  A pause *inside* a line is what `Pause` has always been - `Pause.wait(1000)` for a duration, a bare
+  `Pause` to hold until the player clicks - and a wait *between* lines is `Control.sleep(duration)`
+  or `Control.waitForClick()`. Anything written against the removed field wanted one of those.
+
+  `WordConfig.pause` was the same field one level down: never read, and never documented.
+
 ## [0.39.2]
 
 ### _Fix_

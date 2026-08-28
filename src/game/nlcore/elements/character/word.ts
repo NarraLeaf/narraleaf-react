@@ -79,7 +79,6 @@ export type WordConfig = {
     className: string;
     ruby: string;
     color: Color;
-    pause: boolean;
     cps?: number;  // characters per second
     /**
      * Emphasis marks drawn beside this word's characters. See {@link Word.emphasis}.
