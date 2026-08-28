@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.42.0]
+
+### _Fix_
+
+- **A click no longer walks past the pauses in the line it lands on.** A click on the stage and the
+  skip key reached the dialog through a dispatcher of their own, and where a click on the box asked
+  the sentence to complete, that one told it to force-skip. The two differ on exactly one thing:
+  force-skipping is written to step over a `Pause`, because that is what holding the skip key is
+  for. So a line built as `["...", Pause, "..."]` lost the whole of its remainder to a single
+  click - both halves on screen at once, the pause the author wrote spent without ever being
+  offered to the player, and every pause after it in the same line gone with it. An advance now
+  means the same thing whoever asks for it, and only the skip mode forces.
+
+- **One tap of the skip key no longer stops the typewriter for the rest of the scene.** Settling a
+  line through that dispatcher reported the line as *skipped*, and a scene carries that answer to
+  the next line as "do not type" - with a menu as the only thing that ever lowered it again. So a
+  single tap of the skip key on a line that had finished revealing left every line after it
+  appearing complete the instant it arrived, for the rest of the scene, which also meant every
+  later line with a `Pause` in it was drawn past its pause as well. Reading a line and then
+  advancing is not skipping; the flag is gone, and each line types on its own account.
+
+- **The skip key tells a tap from a hold.** Its first press is now an ordinary advance - the same
+  one a click produces, honouring pauses - and only the repeats that arrive while the key is still
+  down are the skip mode, which forces as it always has. The mode is unchanged for anything that
+  asks for it directly: `LiveGame.skipDialog` and the fast-forward pump still force.
+
 ## [0.41.0]
 
 ### _Incompatible Changes_

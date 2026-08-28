@@ -36,7 +36,6 @@ export default function SceneDialogs(
         elements: PlayerStateElement;
     }>) {
     const { scene, texts, menus } = elements;
-    const usingSkipRef = useRef(false);
     const dialogPresenceRef = useRef<DialogPresenceState>({
         slotKeys: new Map(),
         exitingKeys: new Set(),
@@ -86,11 +85,13 @@ export default function SceneDialogs(
         ? texts.map(({ action, onClick }, index) => ({
             action,
             slot: index,
-            useTypeEffect: !usingSkipRef.current,
-            onFinished: (skiped?: boolean) => {
-                if (skiped !== undefined) {
-                    usingSkipRef.current = skiped;
-                }
+            // Every line types. Whether the player is skipping is not a property a line inherits
+            // from the one before it: the skip mode reveals each line as it arrives, and the flag
+            // that used to carry it here was raised by any advance of an already-revealed line and
+            // lowered only by a menu, so one tap of the skip key stopped the typewriter for the
+            // rest of the scene.
+            useTypeEffect: true,
+            onFinished: () => {
                 onClick();
                 state.events.emit(GameState.EventTypes["event:state.player.lineEnd"]);
                 state.stage.next();
@@ -178,8 +179,6 @@ export default function SceneDialogs(
                         choices={action.choices}
                         renderPrompt={!action.prompt}
                         afterChoose={(choice) => {
-                            usingSkipRef.current = false;
-
                             onClick(choice);
                             state.stage.next();
                         }}

@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from "react";
+import React, {useEffect} from "react";
 import {useGame} from "@player/provider/game-state";
 import {GameState} from "@player/gameState";
 import {Game} from "@core/common/game";
@@ -6,6 +6,7 @@ import {useRouter} from "@player/lib/PageRouter/router";
 import { usePreference } from "../../libElements";
 import { KeyBindingType } from "@lib/game/nlcore/game/types";
 import { useKeyBinding } from "../../lib/keyMap";
+import { SkipKeySignal } from "./skipKeySignal";
 
 /**@internal */
 export function KeyEventAnnouncer({state}: Readonly<{
@@ -13,10 +14,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
 }>) {
     const game = useGame();
     const router = useRouter();
-    const keyIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const isKeyPressedRef = useRef<boolean>(false);
-    
+
     const [skipDelay] = usePreference(Game.Preferences.skipDelay);
     const [skipInterval] = usePreference(Game.Preferences.skipInterval);
     const [skipKeyBinding] = useKeyBinding(KeyBindingType.skipAction);
@@ -32,17 +30,19 @@ export function KeyEventAnnouncer({state}: Readonly<{
             return;
         }
 
-        const cleanup = () => {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-                timeoutRef.current = null;
-            }
-            if (keyIntervalRef.current) {
-                clearInterval(keyIntervalRef.current);
-                keyIntervalRef.current = null;
-            }
-            isKeyPressedRef.current = false;
-        };
+        /**
+         * The press is one advance and the hold is the skip mode - see {@link SkipKeySignal}.
+         *
+         * The first emission is deliberately unforced. A tap of the skip key used to force, which
+         * made it the only input in the game that walked past the pauses an author wrote, and made
+         * the line it settled report itself as skipped.
+         */
+        const signal = new SkipKeySignal(
+            (forced: boolean) => {
+                state.events.emit(GameState.EventTypes["event:state.player.skip"], forced);
+            },
+            { delay: skipDelay, interval: skipInterval },
+        );
 
         const handleKeyDown = (event: KeyboardEvent) => {
             // Something drawn over the line is holding it - see `GameState.suspendAdvance`. Skipping
@@ -54,34 +54,17 @@ export function KeyEventAnnouncer({state}: Readonly<{
             if (game.keyMap.match(KeyBindingType.skipAction, event.key)
                 && game.preference.getPreference(Game.Preferences.skip)
             ) {
-                if (!isKeyPressedRef.current) {
+                // The OS repeats key-down while the key is held; only the first is a new press.
+                if (!signal.isHeld()) {
                     state.logger.verbose("KeyEventAnnouncer", "Skipping");
-                    
-                    const startContinuousSkip = () => {
-                        keyIntervalRef.current = setInterval(() => {
-                            state.events.emit(GameState.EventTypes["event:state.player.skip"], false);
-                        }, skipInterval);
-                    };
-
-                    // Clean up any existing timers before starting new ones
-                    cleanup();
-
-                    // Trigger immediately on first press
-                    state.events.emit(GameState.EventTypes["event:state.player.skip"], false);
-                    isKeyPressedRef.current = true;
-
-                    if (skipDelay === 0) {
-                        startContinuousSkip();
-                    } else {
-                        timeoutRef.current = setTimeout(startContinuousSkip, skipDelay);
-                    }
                 }
+                signal.press();
             }
         };
 
         const handleKeyUp = (event: KeyboardEvent) => {
             if (game.keyMap.match(KeyBindingType.skipAction, event.key)) {
-                cleanup();
+                signal.release();
             }
         };
 
@@ -89,7 +72,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
             const cancelKeyDown = game.getLiveGame().onWindowEvent("keydown", handleKeyDown).cancel;
             const cancelKeyUp = game.getLiveGame().onWindowEvent("keyup", handleKeyUp).cancel;
             return () => {
-                cleanup();
+                signal.dispose();
                 cancelKeyDown();
                 cancelKeyUp();
             };
@@ -97,7 +80,7 @@ export function KeyEventAnnouncer({state}: Readonly<{
             const cancelKeyDown = game.getLiveGame().onPlayerEvent("keydown", handleKeyDown).cancel;
             const cancelKeyUp = game.getLiveGame().onPlayerEvent("keyup", handleKeyUp).cancel;
             return () => {
-                cleanup();
+                signal.dispose();
                 cancelKeyDown();
                 cancelKeyUp();
             };

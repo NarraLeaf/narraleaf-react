@@ -1,5 +1,6 @@
 import { CharacterAction } from "@core/action/actions/characterAction";
 import { Pausing } from "@core/elements/character/pause";
+import { applyDialogAdvance } from "./dialogAdvanceIntent";
 import { TextEvent } from "@core/elements/character/textEvent";
 import { Word } from "@core/elements/character/word";
 import { SoundToken } from "@narraleaf/sound";
@@ -382,22 +383,15 @@ export default function PlayerDialog({
      * — the click was recognised, the event was emitted, and no one advanced the line. NVL dialogs
      * have always listened to both.
      *
-     * A click never carries `force`: forcing is what the skip key does when it is held down, and a
-     * player clicking has asked for one line, not for the rest of the scene.
+     * What an advance means is {@link applyDialogAdvance}'s to say, and an unforced one
+     * means exactly what a click on the box itself means: `requestComplete`. Answering it here
+     * instead - force-skipping a line still revealing, settling a revealed one as though the
+     * player had been skipping - is what made a click on the stage walk straight past a `Pause`,
+     * and what made one tap of the skip key ask every line after it not to type.
      */
     useLayoutEffect(() => {
         const advance = (force?: boolean) => {
-            if (!isActive) {
-                return;
-            }
-            if (force) {
-                dialogState.setIdle(true);
-                dialogState.forceSkip();
-            } else if (dialogState.isIdle()) {
-                finish(true);
-            } else {
-                dialogState.forceSkip();
-            }
+            applyDialogAdvance(dialogState, { active: isActive, forced: force === true });
         };
 
         const skipToken = gameState.events.on(GameState.EventTypes["event:state.player.skip"], advance);
@@ -409,7 +403,7 @@ export default function PlayerDialog({
             skipToken.cancel();
             stageToken.cancel();
         };
-    }, [dialogState, finish, gameState, isActive]);
+    }, [dialogState, gameState, isActive]);
 
     return (
         <>
