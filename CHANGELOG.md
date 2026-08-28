@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.40.1]
+
+### _Fix_
+
+- **A menu branch can change the background and then carry on.** `Scene.setBackground` handed back
+  a chain with the action still inside it rather than the action itself. At the top level of a
+  scene that made no difference, because the scene's own action list is flattened on the way in,
+  but a menu branch links its statements together by reading each one's node - so a branch that
+  changed the background and then said a line, or changed it twice, asked a chain for a node it
+  does not have and the story failed to build with `Cannot read properties of undefined`. A branch
+  whose very last statement was the background change worked, which is why this went unnoticed:
+  nothing after it needed linking. Wrapping the call in `Control.do` did not help either, since the
+  chain survives inside the control action and the failure moves to the walk over future actions.
+  `setBackground` now yields an action like every other chainable.
+
+- **A menu that follows another menu shows its own options.** The evaluated choices were computed
+  once per mounted menu and never recomputed. React reuses the same element when one menu is
+  immediately replaced by another, so the second menu drew the first one's options while its prompt
+  updated around them - a topic list that stayed on screen after the topic had been picked. The
+  evaluation now follows the choices it was given.
+
 ## [0.40.0]
 
 ### _Fix_
