@@ -18,6 +18,19 @@
   the box nor the thing holding the line. Restoring settles nothing, so the hold is still in charge
   the moment the box is back.
 
+- **A dialog box that has been put away is still reachable.** Hiding the box drew it with
+  `visibility: hidden`, which does not mean "do not draw this" but "this is not here": the whole
+  subtree leaves hit testing, and a host renders its own dialog into that subtree. So for as long as
+  the box was hidden nothing the host had drawn inside it could be scrolled, tapped or dismissed, and
+  nothing said why - every element was still present and still styled to receive the pointer. The
+  same element asked for `pointer-events: auto` in the same breath, which is the instruction that was
+  meant and the one that could not be followed. A hidden box is now drawn transparent instead, so it
+  is invisible and still there; it is marked `aria-hidden` explicitly, since transparency does not
+  remove it from the accessibility tree the way the old rule did as a side effect. The box claims no
+  `pointer-events` of its own in either state - whether it is reachable at all remains its layer's to
+  say, so a scene parked behind a returnable jump still keeps its empty layer transparent to the
+  pointer.
+
 ## [0.39.2]
 
 ### _Fix_
