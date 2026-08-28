@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.41.2]
+
+### _Fix_
+
+- **A tap of the skip key no longer walks past a `Pause` in an NVL line either.** The ADV dialog
+  learned to tell a tap from a hold in 0.41.1; NVL still forced on every emission of the skip key,
+  so a single tap of it revealed the rest of the line in one go and spent the pause the author
+  wrote without ever offering it to the player - while a click on the same line honoured it. NVL
+  now follows the same rule: an advance asks the line to complete, and only the skip mode, which is
+  the key held down, forces.
+
+  The four ways a player advances an NVL line - a click on the stage, the advance key, a host
+  calling `simulateClick`, and the skip key - each walked the same two steps by hand and it was
+  the skip key that walked them differently. They now share one path, so the next input added
+  cannot quietly differ again.
+
 ## [0.41.1]
 
 ### _Fix_
