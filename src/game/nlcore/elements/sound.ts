@@ -264,14 +264,18 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
      * It is *not* the same as {@link Scene.setBackgroundMusic}: a clip played here is not in the
      * scene's background-music slot, so leaving the scene will not stop it and no cross-fade is
      * arranged for it. That is true of every clip played this way, on any bus.
+     * The script carries on as soon as the clip is playing. A clip that is meant to hold the script
+     * until it finishes says so: `sound.play(0, {waitForEnd: true})`.
+     *
      * @param duration - Optional fade duration in milliseconds.
+     * @param options.waitForEnd - Hold the script until the clip finishes. Ignored for a looping clip.
      * @chainable
      * @example
      * ```ts
      * sound.play(1000);
      * ```
      */
-    public play(duration?: number): ChainedSound {
+    public play(duration?: number, options?: {waitForEnd?: boolean}): ChainedSound {
         // "Under the music bus", not "is the music bus" - a clip on `ambience` beneath `bgm` is
         // just as much not-the-scene's-slot as one on `bgm` itself. A bus nobody declared reads as
         // `false` here on purpose: this is a nudge, and nudging about a bus the engine cannot
@@ -294,6 +298,7 @@ export class Sound extends Actionable<SoundDataRaw, Sound> {
         return this.pushAction<SoundActionContentType["sound:play"]>(SoundAction.ActionTypes.play, [{
             end: this.state.volume,
             duration: duration || 0,
+            waitForEnd: options?.waitForEnd === true,
         }]);
     }
 

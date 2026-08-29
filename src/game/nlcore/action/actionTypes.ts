@@ -11,7 +11,7 @@ import type { Script } from "@core/elements/script";
 import type { Sentence } from "@core/elements/character/sentence";
 import type { TransformDefinitions } from "@core/elements/transform/type";
 import type { Image, TagGroupDefinition } from "@core/elements/displayable/image";
-import type { FadeOptions } from "@core/elements/type";
+import type { FadeOptions, SoundPlayOptions } from "@core/elements/type";
 import type { Transition } from "@core/elements/transition/transition";
 import type { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
 import type { Layer } from "@core/elements/layer";
@@ -156,7 +156,7 @@ export const SoundActionTypes = {
 } as const;
 export type SoundActionContentType = {
     [K in typeof SoundActionTypes[keyof typeof SoundActionTypes]]:
-    K extends "sound:play" ? [FadeOptions] :
+    K extends "sound:play" ? [SoundPlayOptions] :
     K extends "sound:stop" ? [FadeOptions] :
     K extends "sound:setVolume" ? [volume: number, duration: number] :
     K extends "sound:setRate" ? [number] :

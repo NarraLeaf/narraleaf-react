@@ -1,6 +1,6 @@
 import { Sound as SoundElement, SoundBusId } from "@core/elements/sound";
 import { Sound as NarraSound, Channel, SoundToken, CachedAudio } from "@narraleaf/sound";
-import { FadeOptions } from "@core/elements/type";
+import { FadeOptions, SoundPlayOptions } from "@core/elements/type";
 import { Awaitable, EventToken } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { RuntimeGameError } from "@core/common/Utils";
@@ -277,7 +277,16 @@ export class AudioManager {
         return { end: sound.state.volume, duration: 0 };
     }
 
-    public play(sound: SoundElement, options: FadeOptions = AudioManager.defaultFade(sound)): Awaitable<void> {
+    /**
+     * Start `sound`, and resolve when it is playing.
+     *
+     * `options.waitForEnd` moves the resolution to the end of the clip. It defaults to ON here and
+     * OFF at {@link Sound.play}, and the asymmetry is deliberate: the callers inside the engine - a
+     * voice line, a text-event effect - are tracking a clip's whole life and were written against
+     * that, while an authored sound-effect row is not asking the script to stop for the length of
+     * the file. A looping clip never ends, so it is always resolved once it is playing.
+     */
+    public play(sound: SoundElement, options: SoundPlayOptions = AudioManager.defaultFade(sound)): Awaitable<void> {
         const awaitable = new Awaitable<void>();
 
         this.ready.then(async () => {
@@ -318,8 +327,8 @@ export class AudioManager {
                 sound.state.volume = options.end;
                 sound.state.paused = false;
 
-                // Wait for sound to end (if not looping)
-                if (!sound.config.loop) {
+                // Wait for sound to end (if not looping, and only when the caller asked for it)
+                if (!sound.config.loop && options.waitForEnd !== false) {
                     await new Promise<void>(resolve => {
                         token.once("ended", () => resolve());
                     });

@@ -159,6 +159,18 @@ export class Utils {
         return src.startsWith("data:");
     }
 
+    /**
+     * Whether `src` already carries its own bytes, so there is nothing for a preloader to fetch.
+     *
+     * A data URI, or an object URL - which is what {@link ImageCacheManager} now hands back for
+     * everything it has cached. The cached form used to be a data URI, so a resolved src that came
+     * back around was recognised by the check above; an object URL has to be recognised here or the
+     * cache's own output reads as an image nobody preloaded.
+     */
+    public static isInlineSrc(src: string) {
+        return Utils.isDataURI(src) || src.startsWith("blob:");
+    }
+
     public static offset(
         ori: [xOri: string, yOri: string],
         offset: [xOffset: number, yOffset: number],

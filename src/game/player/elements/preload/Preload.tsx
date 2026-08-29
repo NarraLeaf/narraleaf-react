@@ -43,13 +43,18 @@ export function Preload(
      *
      * Fetch the images and store them as base64 in the stack.
      *
-     * Split into two tiers. The critical tier is what the scene that is about to paint needs
-     * itself; it runs unpaced and is the only tier that gates `event:preloaded.complete`, i.e.
-     * the first painted frame. The look-ahead tier is every asset the scenes reachable from here
-     * need; it runs afterwards, paced by {@link GameConfig.preloadDelay}, and nothing waits for
-     * it. Before this split a game could not show its first frame until every reachable scene's
-     * images had been fetched, base64-encoded and decoded — seconds of latency on a large story,
-     * all of it spent on assets the player was not about to see.
+     * Split into three tiers. The first-frame tier is the scene's opening background - the one
+     * image the frame about to paint cannot do without. The critical tier is everything else the
+     * scene registers, which is a whole chapter's artwork and runs unpaced because the player is a
+     * click away from needing it. The look-ahead tier is every asset the scenes reachable from here
+     * need; it runs afterwards, paced by {@link GameConfig.preloadDelay}.
+     *
+     * {@link GameConfig.preloadGate} decides which of the first two gates
+     * `event:preloaded.complete`, i.e. the first painted frame. Before the tiers existed a game
+     * could not show its first frame until every reachable scene's images had been fetched and
+     * decoded - seconds of latency on a large story, all of it spent on assets the player was not
+     * about to see - and the split that fixed that left the whole registered scene on the gate,
+     * which on a real project is still most of the library.
      */
     useEffect(() => {
         if (typeof fetch === "undefined") {
@@ -79,9 +84,10 @@ export function Preload(
 
         const timeStart = performance.now();
         const plan = planScenePreload(lastScene);
-        // The critical tier is on the path to the first frame, so it is not paced: `preloadDelay`
-        // exists to keep speculative look-ahead work from saturating the network, not to throttle
-        // assets the player is already waiting on.
+        // Neither of the first two tiers is paced: `preloadDelay` exists to keep speculative
+        // look-ahead work from saturating the network, not to throttle assets the player is either
+        // waiting on or one click away from.
+        const firstFramePool = new TaskPool(game.config.preloadConcurrency, 0);
         const criticalPool = new TaskPool(game.config.preloadConcurrency, 0);
         const lookAheadPool = new TaskPool(
             game.config.preloadConcurrency,
@@ -112,9 +118,10 @@ export function Preload(
             });
         };
 
-        // Only the critical tier retains its decoded bitmaps: those are the ones that must paint
+        // Only the two scene tiers retain their decoded bitmaps: those are the ones that must paint
         // without an asynchronous decode. Retaining the look-ahead tier's would mean holding a
         // full-resolution bitmap for every reachable scene.
+        enqueue(firstFramePool, plan.firstFrame, "first frame", true);
         enqueue(criticalPool, plan.critical, "first scene", true);
         enqueue(lookAheadPool, plan.lookAhead, "look-ahead", false);
 
@@ -128,21 +135,39 @@ export function Preload(
 
         logGroup.end();
 
-        void criticalPool.start().then(async () => {
-            state.logger.info(
-                LogTag,
-                "Image preload (first scene)",
-                `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`,
-            );
-
+        const openGate = () => {
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
             if (game.config.waitForPreload) {
                 preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
+            }
+        };
+        const gateOnFirstFrame = game.config.preloadGate !== "scene";
+
+        void firstFramePool.start().then(async () => {
+            state.logger.info(
+                LogTag,
+                "Image preload (first frame)",
+                `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`,
+            );
+            if (gateOnFirstFrame) {
+                openGate();
             }
 
             // A superseded pass must neither keep fetching for a scene that is gone nor run its
             // eviction: `filter()` keeps only this pass's src list, so a stale one would drop the
             // images the current scene just cached.
+            if (cancelled) {
+                return;
+            }
+            await criticalPool.start();
+            state.logger.info(
+                LogTag,
+                "Image preload (first scene)",
+                `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`,
+            );
+            if (!gateOnFirstFrame) {
+                openGate();
+            }
             if (cancelled) {
                 return;
             }

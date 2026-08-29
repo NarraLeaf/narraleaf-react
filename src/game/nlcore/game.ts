@@ -119,6 +119,7 @@ export class Game {
         preloadDelay: 100,
         preloadConcurrency: 5,
         waitForPreload: true,
+        preloadGate: "firstFrame",
         preloadAllImages: true,
         forceClearCache: false,
         maxPreloadActions: 10,

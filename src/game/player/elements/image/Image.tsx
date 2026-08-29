@@ -162,7 +162,7 @@ function ImageComponent(
         : null;
 
     function resolveCachedSrc(src: string): string {
-        if (!Utils.isDataURI(src)
+        if (!Utils.isInlineSrc(src)
             && (!cacheManager.has(src) && !cacheManager.isPreloading(src))
             && !ignored.current.includes(src)
         ) {

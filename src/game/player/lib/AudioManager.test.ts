@@ -926,6 +926,42 @@ describe("AudioManager default volume", () => {
         expect(channel.token.setVolume).not.toHaveBeenCalledWith(1);
     });
 
+    it("settles once the clip is playing when the caller does not ask to wait for it", async () => {
+        const { manager } = await readyManager(SoundType.Sound);
+        const sound = Sound.sound({ src: "chime.wav" });
+        let settled = false;
+
+        // What an authored `/sound` row compiles to. A mock token never fires "ended", so a pass
+        // that still waited for it would leave this false - which is exactly the seven seconds of
+        // dead script a long sound effect used to cost between two lines.
+        manager.play(sound, { end: 1, duration: 0, waitForEnd: false }).then(() => {
+            settled = true;
+        });
+        await settle();
+
+        expect(settled).toBe(true);
+    });
+
+    it("waits for the clip to end when asked, and for a voice line by default", async () => {
+        const { manager } = await readyManager(SoundType.Sound);
+        const sound = Sound.sound({ src: "chime.wav" });
+        const voice = Sound.voice({ src: "line.mp3" });
+        let waitedSettled = false;
+        let voiceSettled = false;
+
+        manager.play(sound, { end: 1, duration: 0, waitForEnd: true }).then(() => {
+            waitedSettled = true;
+        });
+        // No options at all: the engine's own callers track a clip's whole life and are unchanged.
+        manager.play(voice).then(() => {
+            voiceSettled = true;
+        });
+        await settle();
+
+        expect(waitedSettled).toBe(false);
+        expect(voiceSettled).toBe(false);
+    });
+
     it("restarts at the volume it was last set to, not the one it was authored with", async () => {
         const { manager, channel } = await readyManager(SoundType.Sound);
         const sound = Sound.sound({ src: "hit.wav", volume: 0.4 });

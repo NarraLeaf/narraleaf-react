@@ -188,6 +188,21 @@ export type GameConfig = {
      */
     waitForPreload: boolean;
     /**
+     * How much of a scene has to be warm before the game is shown.
+     *
+     * `"firstFrame"` waits for the scene's opening background and nothing else, then keeps fetching
+     * the rest behind the game. `"scene"` waits for every image the scene registers anywhere in it,
+     * which is what this always did.
+     *
+     * The two differ by an order of magnitude on a real project: a chapter's registered set is
+     * every pose of every character it shows and every background it cuts to, while its first frame
+     * is one picture. Choose `"scene"` when a game would rather open late than risk an image
+     * arriving after the frame that wanted it.
+     *
+     * @default "firstFrame"
+     */
+    preloadGate: "firstFrame" | "scene";
+    /**
      * Preload all possible images in the scene
      *
      * Enabling this may have a performance impact but is better for the user experience

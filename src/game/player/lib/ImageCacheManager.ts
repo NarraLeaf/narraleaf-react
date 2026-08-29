@@ -1,5 +1,5 @@
 import { Game } from "@lib/game/nlcore/game";
-import {getImageDataUrl} from "@lib/util/data";
+import {getImageObjectUrl} from "@lib/util/data";
 import {GameState} from "@player/gameState";
 
 type ImageCacheTask = {
@@ -14,7 +14,7 @@ export type PreloadedToken = {
 
 export class ImageCacheManager {
     public static getImage(src: string, abortSignal?: AbortSignal, options?: RequestInit): Promise<string> {
-        return getImageDataUrl(src, {
+        return getImageObjectUrl(src, {
             ...options,
             signal: abortSignal,
         });
@@ -62,9 +62,30 @@ export class ImageCacheManager {
     constructor(private readonly game: Game) {
         this.game.addSideEffect(() => {
             this.abortAll();
+            this.releaseAll();
             this.src.clear();
             this.decoded.clear();
         });
+    }
+
+    /**
+     * Release the object URL an entry holds.
+     *
+     * Every path that drops an entry goes through this. An object URL pins its blob for the
+     * lifetime of the document, so a cache that forgets an entry without revoking leaks the whole
+     * image - which on a scene change is most of a scene's artwork.
+     */
+    private release(name: string): void {
+        const url = this.src.get(name);
+        if (url && url.startsWith("blob:")) {
+            URL.revokeObjectURL(url);
+        }
+    }
+
+    private releaseAll(): void {
+        for (const name of this.src.keys()) {
+            this.release(name);
+        }
     }
 
     public has(name: string): boolean {
@@ -72,11 +93,15 @@ export class ImageCacheManager {
     }
 
     public add(name: string, src: string): this {
+        if (this.src.get(name) !== src) {
+            this.release(name);
+        }
         this.src.set(name, src);
         return this;
     }
 
     public remove(name: string): this {
+        this.release(name);
         this.src.delete(name);
         this.decoded.delete(name);
         return this;
@@ -95,6 +120,7 @@ export class ImageCacheManager {
     }
 
     public clear(): this {
+        this.releaseAll();
         this.src.clear();
         this.decoded.clear();
         return this;
@@ -109,7 +135,7 @@ export class ImageCacheManager {
     }
 
     /**
-     * Fetch `url`, cache it as a data URL and decode it, resolving the returned token's
+     * Fetch `url`, cache it as an object URL and decode it, resolving the returned token's
      * `onFinished` only once the decode has settled.
      *
      * @param options.retainDecoded keep the decoded bitmap alive until this source leaves the
@@ -143,19 +169,26 @@ export class ImageCacheManager {
         const signal = controller.signal;
         const errorHandlers: ((reason: any) => void)[] = [];
 
-        const promise = ImageCacheManager.getImage(srcUrl, signal, requestInit).then(async (dataUrl) => {
+        const promise = ImageCacheManager.getImage(srcUrl, signal, requestInit).then(async (objectUrl) => {
             this.preloadTasks.delete(url);
-            if (dataUrl) {
-                this.add(url, dataUrl);
-                // Decode ahead of time (against the exact URL that will be assigned to
-                // `<img src>`) so revealing the image later doesn't decode on its first
-                // visible frame.
-                const decodedImage = await ImageCacheManager.decodeImage(dataUrl);
-                // Only keep the element when asked to: holding it is what stops the decoded
-                // bitmap from being evicted before the reveal, and also what makes it cost memory.
-                if (decodedImage && options?.retainDecoded && this.src.get(url) === dataUrl) {
-                    this.decoded.set(url, decodedImage);
-                }
+            if (!objectUrl) {
+                return;
+            }
+            this.add(url, objectUrl);
+            // Decode ahead of time (against the exact URL that will be assigned to
+            // `<img src>`) so revealing the image later doesn't decode on its first
+            // visible frame.
+            const decodedImage = await ImageCacheManager.decodeImage(objectUrl);
+            // The cache may have been cleared or refilled while the decode was in flight. The URL
+            // this pass minted is then owned by nobody, and nothing else will ever revoke it.
+            if (this.src.get(url) !== objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+                return;
+            }
+            // Only keep the element when asked to: holding it is what stops the decoded
+            // bitmap from being evicted before the reveal, and also what makes it cost memory.
+            if (decodedImage && options?.retainDecoded) {
+                this.decoded.set(url, decodedImage);
             }
         })
             .catch((reason) => {
@@ -214,8 +247,9 @@ export class ImageCacheManager {
 
     public filter(names: string[]): this {
         const keep = new Set(names);
-        for (const name of this.src.keys()) {
+        for (const name of [...this.src.keys()]) {
             if (!keep.has(name)) {
+                this.release(name);
                 this.src.delete(name);
                 this.decoded.delete(name);
             }

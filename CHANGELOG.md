@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.42.0]
+
+### _Incompatible Changes_
+
+- **`Sound.play()` no longer holds the script until the clip finishes.** It resolves once the clip
+  is playing, and a clip that is meant to hold the script says so:
+
+  ```ts
+  sound.play();                          // starts the clip, the next action runs
+  sound.play(0, {waitForEnd: true});     // the next action waits for the clip to end
+  ```
+
+  A sound effect written between two lines is not a wait the author asked for. A seven-second chime
+  placed before the first line of a scene stopped the script for seven seconds with a finished stage
+  on screen and nothing saying why, and there was no way to write the other behaviour. Looping clips
+  are unaffected: they never end, so they never waited.
+
+  `AudioManager.play` still waits by default, because the engine's own callers - a voice line, a
+  text-event effect - are tracking a clip's whole life. Only the authored action changed sides.
+
+- **`ImageCacheManager` caches object URLs instead of data URLs.** `getImageDataUrl` is gone from
+  `@lib/util/data`, replaced by `getImageObjectUrl`. The cached value handed back by
+  `cacheManager.get(src)` is now a `blob:` URL rather than a `data:` URL; anything that assumed the
+  latter (persisting it, matching on the prefix) has to be updated.
+
+  The data URL cost a base64 encode of every image, kept a string about a third larger than the file
+  alive for as long as the entry was cached, and made the browser decode that base64 back to bytes
+  before it could decode the image. Measured over a 241 MB image library, the fetch-and-decode pass
+  dropped by about a third and the retained strings went away entirely. Object URLs pin their blob
+  until revoked, so the cache now revokes on every path that drops an entry.
+
+### _Features_
+
+- **`GameConfig.preloadGate` decides how much of a scene has to be warm before the game is shown.**
+  `"firstFrame"` (the new default) waits for the scene's opening background and keeps fetching the
+  rest behind the game; `"scene"` waits for every image the scene registers anywhere in it, which is
+  what this always did.
+
+  ```ts
+  new Game({preloadGate: "scene"});      // the previous behaviour
+  ```
+
+  A scene's registered set is every pose of every character it shows and every background it cuts
+  to - on a real project, most of the library - while its first frame is one picture. `ScenePreloadPlan`
+  gained a `firstFrame` tier ahead of `critical` to match, and both are fetched unpaced.
+
 ## [0.41.2]
 
 ### _Fix_
