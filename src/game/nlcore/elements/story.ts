@@ -271,7 +271,38 @@ export class Story extends Constructable<
 
         this.runStaticCheck(scene);
         this.captureElementBaseline();
+        this.scheduleHashWarmUp();
         return this;
+    }
+
+    /**
+     * Take the hash while the host is doing nothing, so that whoever asks for it first does not.
+     *
+     * The first asker is normally `newGame()`, which means the player pressing Start - the one
+     * moment in a game where a walk of the whole story is least affordable. Between construction
+     * and that press there is usually a title screen and a person looking at it, which is idle
+     * time this has no better use for.
+     *
+     * Idle only, never a timer: a host that never goes idle is a host that is busy, and the lazy
+     * path in {@link Story.hash} still answers correctly there. Nothing waits on this.
+     * @internal
+     */
+    private scheduleHashWarmUp(): void {
+        const idle = (globalThis as typeof globalThis & {
+            requestIdleCallback?: (callback: () => void) => unknown;
+        }).requestIdleCallback;
+        if (typeof idle !== "function") {
+            return;
+        }
+        idle(() => {
+            try {
+                this.hash();
+            } catch {
+                // A hash taken ahead of time is an optimisation, not a step. Whatever went wrong
+                // here will go wrong again where someone is waiting for the answer, and that is
+                // where it belongs.
+            }
+        });
     }
 
     /**

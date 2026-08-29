@@ -49,6 +49,36 @@ describe("Story.hash", () => {
         expect(stringify).toHaveBeenNthCalledWith(2, true);
     });
 
+    it("takes the hash on the host's idle time, so the first asker does not", () => {
+        const callbacks: Array<() => void> = [];
+        vi.stubGlobal("requestIdleCallback", (callback: () => void) => {
+            callbacks.push(callback);
+            return 1;
+        });
+        try {
+            const story = storyWithLines(4);
+            expect(callbacks).toHaveLength(1);
+
+            callbacks[0]!();
+            const stringify = vi.spyOn(story, "stringify");
+            story.hash();
+
+            expect(stringify).not.toHaveBeenCalled();
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("still answers when the host never goes idle", () => {
+        vi.stubGlobal("requestIdleCallback", undefined);
+        try {
+            const story = storyWithLines(4);
+            expect(story.hash()).toBe(story.hash());
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
     it("goes back to the story after it has been constructed again", () => {
         const story = storyWithLines(4);
         story.hash();

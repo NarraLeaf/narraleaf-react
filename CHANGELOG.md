@@ -17,6 +17,11 @@
   Only the hash is kept, not the string it was taken over, which on a story that size runs to
   megabytes.
 
+  `constructStory()` also schedules the first computation on `requestIdleCallback`, so it lands
+  in whatever gap the host leaves between building a story and starting one - normally a title
+  screen with a person looking at it. A host with no idle callback, or one that never goes idle,
+  computes it lazily as before.
+
 ## [0.42.0]
 
 ### _Incompatible Changes_
