@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.42.1]
+
+### _Fixes_
+
+- **`Story.hash()` is computed once per constructed story instead of on every call.** The answer
+  is the same every time - the graph it walks is fixed by `constructStory()` - so it is kept and
+  handed back, and a story constructed again computes a new one.
+
+  It is not an incidental call. `LiveGame.newGame()` stamps the hash into the new save's
+  metadata, which puts a walk of every action reachable from the entry scene, a concatenation of
+  what each one stringifies to, and an FNV-1a pass over the result between the player pressing
+  Start and anything at all appearing. Measured on a 17-scene, 3,900-line story: 113ms of the
+  144ms `newGame()` took. `LiveGame.serialize()` paid the same on every save.
+
+  Only the hash is kept, not the string it was taken over, which on a story that size runs to
+  megabytes.
+
 ## [0.42.0]
 
 ### _Incompatible Changes_

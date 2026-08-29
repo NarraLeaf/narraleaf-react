@@ -64,6 +64,19 @@ export class Story extends Constructable<
      * @internal
      */
     private elementBaseline: Map<string, string> | null = null;
+    /**
+     * The story's hash, per strictness, kept from one call to the next.
+     *
+     * {@link Story.hash} walks every action reachable from the entry scene, concatenates what
+     * each one stringifies to and hashes the result - tens of milliseconds on a full-length
+     * story, and it is asked for where it hurts most: `newGame()` stamps it into the new save's
+     * metadata, so a player pressing Start pays for it before the first frame, and every save
+     * pays for it again. Nothing can change the answer once {@link Story.constructStory} has
+     * run, so the first caller computes it and the rest read it back. Only the hash is kept,
+     * not the string it was taken over, which on a large story runs to megabytes.
+     * @internal
+     */
+    private hashCache: Map<boolean, string> = new Map();
 
     constructor(name: string, config: Partial<IStoryConfig> = {}) {
         super();
@@ -172,7 +185,13 @@ export class Story extends Constructable<
      * However, the hash is **not** calculated with the text content of the story.
      */
     public hash(strict: boolean = false): string {
-        return fnv1a64(this.stringify(strict));
+        const cached = this.hashCache.get(strict);
+        if (cached !== undefined) {
+            return cached;
+        }
+        const computed = fnv1a64(this.stringify(strict));
+        this.hashCache.set(strict, computed);
+        return computed;
     }
 
     public stringify(strict: boolean = false): string {
@@ -240,6 +259,10 @@ export class Story extends Constructable<
         if (!scene) {
             throw new Error("Story must have an entry scene");
         }
+
+        // Constructing a second time can reach a different set of actions, which makes whatever
+        // the last construction hashed no longer an answer about this one.
+        this.hashCache.clear();
 
         this.constructSceneRoots(scene);
         scene.registerSrc(this);
