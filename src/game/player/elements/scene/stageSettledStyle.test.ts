@@ -47,6 +47,7 @@ const TRANSITIONS: [string, ImageTransition][] = [
     named(new Reveal({duration: 300, pattern: Mask.wipe({direction: 135})}), "Reveal wipe"),
     named(new Reveal({duration: 300, pattern: Mask.iris()}), "Reveal iris"),
     named(new Reveal({duration: 300, pattern: Mask.blinds({feather: 4})}), "Reveal blinds"),
+    named(new Reveal({duration: 300, pattern: Mask.blinds({slats: 6, stagger: 0.6})}), "Reveal staggered blinds"),
     named(new Reveal({duration: 300, pattern: Mask.clock()}), "Reveal clock"),
     named(new Reveal({duration: 300, pattern: Mask.fan()}), "Reveal fan"),
     named(new Reveal({duration: 300, pattern: Mask.barnDoor()}), "Reveal barnDoor"),

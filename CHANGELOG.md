@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.42.3]
+
+### _Feature_
+
+- **`Mask.blinds` can stagger its slats.** The slats have always widened in lockstep, because
+  the whole blind was one tiled gradient and a tile cannot know which one it is. `stagger` gives
+  each slat its own start, spaced along the axis, so the blind opens in a run rather than all at
+  once:
+
+  ```ts
+  new Reveal({duration: 1200, pattern: Mask.blinds({slats: 8, stagger: 0.6})});
+  new ThroughColor({duration: 1800, pattern: Mask.blinds({stagger: 1}), uncover: "continue"});
+  ```
+
+  `0` (the default) is the old lockstep blind, byte for byte - it still emits the single tiled
+  gradient. `1` runs the slats strictly one after the next, and the values between overlap them.
+  The spread is taken out of each slat's own run rather than added to the duration, so the last
+  slat still lands exactly on the end of the transition however wide it is spread; a negative
+  value runs the delay back the other way along the axis.
+
+  Inverting the pattern reverses the order as well, so the slat that covered first is the first
+  to clear and `uncover: "continue"` reads as the blind carrying on rather than backing out.
+
+  A staggered blind costs one gradient layer per slat, where the lockstep one is a single tiled
+  gradient whatever `slats` says - so the slat count is worth watching here in a way it was not
+  before. `slats` is now rounded to a whole number, since a fraction of a slat cannot be given a
+  layer of its own.
+
 ## [0.42.2]
 
 ### _Fixes_

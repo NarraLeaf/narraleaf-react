@@ -82,6 +82,7 @@ describe("what a transition can leave on a layered stack", () => {
         new Reveal({duration: 400, pattern: Mask.barnDoor()}),
         new Reveal({duration: 400, pattern: Mask.dots({stagger: 0.5})}),
         new Reveal({duration: 400, pattern: Mask.blinds({feather: 4})}),
+        new Reveal({duration: 400, pattern: Mask.blinds({slats: 6, stagger: 0.6})}),
         new Reveal({duration: 400, pattern: Mask.iris({shape: "ellipse"})}),
         new ThroughColor({duration: 400}),
         new ThroughColor({duration: 400, holdMs: 200}),
@@ -426,6 +427,67 @@ describe("built-in image transitions", () => {
                 .toBe("repeating-linear-gradient(to bottom, #000 0, #000 6.25%, transparent 6.25%, transparent 12.5%)");
             expect(Mask.blinds({orientation: 30, slats: 4, feather: 5}).mask(0.5))
                 .toContain("repeating-linear-gradient(30deg");
+        });
+
+        it("blinds: an unstaggered blind is still one tiled gradient, whatever the slat count", () => {
+            expect(Mask.blinds({slats: 24, stagger: 0}).mask(0.5).split(", linear-gradient")).toHaveLength(1);
+            expect(Mask.blinds({slats: 24}).mask(0.5)).toContain("repeating-linear-gradient");
+        });
+
+        it("blinds: a staggered blind is one layer per slat, each on its own stripe", () => {
+            const blinds = Mask.blinds({slats: 4, stagger: 1});
+            // stagger 1 runs the slats strictly one after the next, so half the run
+            // is exactly the first two stripes - and the last one still ends at t=1.
+            expect(blinds.mask(0.5)).toBe([
+                "linear-gradient(to bottom, transparent 0%, #000 0%, #000 25%, transparent 25%)",
+                "linear-gradient(to bottom, transparent 25%, #000 25%, #000 50%, transparent 50%)",
+                "linear-gradient(to bottom, transparent 50%, #000 50%, #000 50%, transparent 50%)",
+                "linear-gradient(to bottom, transparent 75%, #000 75%, #000 75%, transparent 75%)",
+            ].join(", "));
+        });
+
+        it("blinds: staggered ends are clear and covered all the same, in both orientations", () => {
+            const blinds = Mask.blinds({slats: 6, feather: 4, stagger: 0.7});
+            // t=0: every stripe is a zero-width band. t=1: every stripe is full.
+            for (const inverted of [false, true]) {
+                for (const layer of blinds.mask(0, inverted).split("), ")) {
+                    const stops = layer.match(/[\d.]+%/g)!.map(parseFloat);
+                    expect(stops[0]).toBe(stops[stops.length - 1]);
+                }
+                const covered = blinds.mask(1, inverted).split("), ").map((layer, i) => {
+                    const stops = layer.match(/[\d.]+%/g)!.map(parseFloat);
+                    return [stops[1], stops[2], i];
+                });
+                expect(covered).toEqual([
+                    [0, 100 / 6, 0], [100 / 6, 100 / 3, 1], [100 / 3, 50, 2],
+                    [50, 100 / 3 * 2, 3], [100 / 3 * 2, 100 / 6 * 5, 4], [100 / 6 * 5, 100, 5],
+                ].map(([a, b, i]) => [Number(a.toFixed(3)), Number(b.toFixed(3)), i]));
+            }
+        });
+
+        it("blinds: the delay runs along the axis, and back the other way when negative", () => {
+            const width = (mask: string) => mask.split("), ").map(layer => {
+                const stops = layer.match(/[\d.]+%/g)!.map(parseFloat);
+                return Number((stops[2] - stops[1]).toFixed(3));
+            });
+            const forward = width(Mask.blinds({slats: 4, stagger: 0.5}).mask(0.5));
+            expect(forward[0]).toBeGreaterThan(forward[3]);
+            expect(width(Mask.blinds({slats: 4, stagger: -0.5}).mask(0.5))).toEqual([...forward].reverse());
+        });
+
+        it("blinds: inverted clears the slats in the order they covered, at the same coverage", () => {
+            const blinds = Mask.blinds({slats: 4, stagger: 1});
+            const covered = (mask: string) => mask.split("), ").map(layer => {
+                const stops = layer.match(/[\d.]+%/g)!.map(parseFloat);
+                return Number((stops[2] - stops[1]).toFixed(3));
+            });
+            // Same total coverage as the natural orientation ...
+            const natural = covered(blinds.mask(0.5));
+            const flipped = covered(blinds.mask(0.5, true));
+            expect(flipped.reduce((a, b) => a + b, 0)).toBeCloseTo(natural.reduce((a, b) => a + b, 0));
+            // ... but held by the stripes the natural orientation had not reached yet, so
+            // an uncover that keeps going clears the first slat first.
+            expect(flipped).toEqual([...natural].reverse());
         });
 
         it("iris: reveals centre-out, and rim-in when inverted", () => {

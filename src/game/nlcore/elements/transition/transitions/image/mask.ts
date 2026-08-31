@@ -87,10 +87,24 @@ export type FanPatternOptions = {
 export type BlindsPatternOptions = {
     /** Slat orientation, or any CSS gradient angle in degrees. @default "horizontal" */
     orientation?: BlindsOrientation | number;
-    /** Number of slats. @default 8 */
+    /** Number of slats, rounded to a whole one. @default 8 */
     slats?: number;
     /** Width of each slat's soft edge, in percent of the frame. @default 0 (hard slats) */
     feather?: number;
+    /**
+     * How far apart the slats start, as a share of the run: `0` moves every slat
+     * together, `1` runs them strictly one after the next along the axis, and the
+     * values between overlap them. Whatever the spread, the last slat still
+     * finishes at `t = 1`, so the run is not lengthened - the earlier slats simply
+     * finish sooner. A negative value runs the delay back the other way along the
+     * axis (the last slat leads).
+     *
+     * A staggered blind costs one gradient layer per slat, where the unstaggered
+     * one is a single tiled gradient whatever `slats` says - so a high slat count
+     * is much the more expensive mask here.
+     * @default 0
+     */
+    stagger?: number;
 };
 
 export type DotsPatternOptions = {
@@ -265,18 +279,53 @@ export class Mask {
 
     /**
      * Venetian slats widening until they cover the frame. Hard-edged by
-     * default; raise `feather` for soft slats, or pass an angle for slanted
-     * ones.
+     * default; raise `feather` for soft slats, pass an angle for slanted ones,
+     * or `stagger` them so they open in turn along the axis instead of together.
      */
     static blinds(options: BlindsPatternOptions = {}): MaskPattern {
         const orientation = options.orientation ?? "horizontal";
-        const slats = Math.max(1, options.slats ?? 8);
+        const slats = Math.max(1, Math.round(options.slats ?? 8));
         const f = Math.max(0, options.feather ?? 0);
+        const stagger = clamp(options.stagger ?? 0, -1, 1);
         const axis = typeof orientation === "number" ? `${fmt(orientation)}deg` : blindsAxis(orientation);
         const pitch = 100 / slats;
+        // The spread of start times eats into every slat's own run, so the last one
+        // still lands on t=1: slat `i` runs from `spread * i` for `span`, and the
+        // last start plus that span is exactly 1.
+        const spread = Math.abs(stagger) / slats;
+        const span = 1 - spread * (slats - 1);
+
+        // Which slat leads. The delay runs along the axis; a negative `stagger` runs
+        // it back the other way, and inverting flips it again - so the slat that
+        // covered first is also the first to clear, and `uncover: "continue"` reads
+        // as the blind carrying on rather than backing out.
+        const startOf = (i: number, inverted: boolean): number =>
+            spread * ((stagger >= 0) !== inverted ? i : slats - 1 - i);
+
+        // One slat's band, as a full-frame gradient: transparent everywhere outside
+        // its own `pitch`-wide stripe, so the layers union into the whole blind.
+        const layer = (i: number, p: number, inverted: boolean): string => {
+            const e = -f + (inverted ? 1 - p : p) * (pitch + f);
+            const solid = clamp(e, 0, pitch);
+            const soft = clamp(e + f, 0, pitch);
+            const s = i * pitch;
+
+            return inverted
+                ? `linear-gradient(${axis}, transparent ${fmt(s + solid)}%, #000 ${fmt(s + soft)}%, #000 ${fmt(s + pitch)}%, transparent ${fmt(s + pitch)}%)`
+                : `linear-gradient(${axis}, transparent ${fmt(s)}%, #000 ${fmt(s)}%, #000 ${fmt(s + solid)}%, transparent ${fmt(s + soft)}%)`;
+        };
 
         return {
             mask: (t, inverted) => {
+                if (stagger !== 0) {
+                    const layers: string[] = [];
+                    for (let i = 0; i < slats; i++) {
+                        layers.push(layer(i, clamp01((clamp01(t) - startOf(i, !!inverted)) / span), !!inverted));
+                    }
+                    return layers.join(", ");
+                }
+
+                // Every slat moves together, so one tiled gradient draws all of them.
                 const e = -f + (inverted ? 1 - clamp01(t) : clamp01(t)) * (pitch + f);
                 const solid = clamp(e, 0, pitch);
                 const soft = clamp(e + f, 0, pitch);
