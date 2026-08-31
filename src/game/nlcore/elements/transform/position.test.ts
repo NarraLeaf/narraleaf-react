@@ -42,7 +42,9 @@ describe("a zero component survives to CSS", () => {
 
     it("carries a zero alignment from a displayable's constructor config to its CSS", () => {
         const image = new Image({src: "portrait.png", position: {xalign: 0.5, yalign: 0}});
-        const position = PositionUtils.toCoord2D(image.transformState.get().position);
+        // `tryParsePosition` rather than `toCoord2D`: the transform state holds a raw bag until
+        // something asks for it, which is the same route `constructStyle` takes.
+        const position = PositionUtils.tryParsePosition(image.transformState.get().position);
         expect(PositionUtils.D2PositionToCSS(position.toCSS(), false, true, design))
             .toMatchObject({left: "50%", bottom: "0%"});
     });
