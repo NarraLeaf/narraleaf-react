@@ -566,6 +566,18 @@ describe("built-in image transitions", () => {
             expect(call(overlay, 1).style.opacity).toBe(0);
         });
 
+        it("covers a pixel past the frame, so no hairline of the picture survives the hold", () => {
+            // The stage scales by a non-integer factor, so the frame's outermost row of pixels is
+            // drawn part-covered. An overlay sized exactly to the frame stops at the whole pixel
+            // inside that row and leaves it showing - a hairline of the picture along the top or
+            // the bottom edge of a frame that is meant to be solid colour. The centring transform
+            // is what splits the extra width evenly either side.
+            const style = call(prepared(new ThroughColor({duration: 600})).createTask().resolve[2] as ResolverEntry, 0.5).style;
+            expect(style.width).toBe("calc(100% + 2px)");
+            expect(style.height).toBe("calc(100% + 2px)");
+            expect(style.transform).toBe("translate(-50%, -50%)");
+        });
+
         it("swaps the prev/target images under the colour at the midpoint", () => {
             const task = prepared(new ThroughColor({duration: 600, color: "#000000", hold: 0.4})).createTask() as any;
             expect(call(task.resolve[0], 0.2).style.opacity).toBe(1);

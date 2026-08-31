@@ -23,6 +23,13 @@ import {
 /** Orientation of the {@link Mask.blinds} slats. */
 export type BlindsOrientation = "horizontal" | "vertical";
 
+/**
+ * How far a synthetic colour overlay reaches past the frame it covers, per side, in CSS pixels.
+ * One pixel is enough to swallow the sub-pixel edge described on {@link overlayBase}, and small
+ * enough that the spill outside the frame is not itself visible.
+ */
+const OVERLAY_BLEED = 1;
+
 /** Clamp a value into the `[0, 1]` range. */
 export function clamp01(value: number): number {
     return value < 0 ? 0 : value > 1 ? 1 : value;
@@ -40,14 +47,25 @@ export function maskStyle(image: string, size = "100% 100%", repeat = "no-repeat
     };
 }
 
-/** Full-bleed positioning for a synthetic colour overlay layer. */
+/**
+ * Full-bleed positioning for a synthetic colour overlay layer.
+ *
+ * The box reaches {@link OVERLAY_BLEED} past the frame on every side. The stage scales by a
+ * non-integer factor, so the images this covers are laid out at fractional sizes and the browser
+ * draws their outermost row of pixels with partial coverage; a colour box that matches the frame
+ * exactly stops at the whole pixel inside that row and leaves it showing, as a hairline of the
+ * picture along the top or the bottom edge. For a fade *through* a colour - which is meant to
+ * reach a frame of solid colour and hand the images over behind it - that hairline is the one
+ * thing the frame must not have. The layer is synthetic and has no content to distort, so
+ * growing it costs nothing.
+ */
 export function overlayBase(color: string): CSSProps {
     return {
         position: "absolute",
         top: "50%",
         left: "50%",
-        width: "100%",
-        height: "100%",
+        width: `calc(100% + ${OVERLAY_BLEED * 2}px)`,
+        height: `calc(100% + ${OVERLAY_BLEED * 2}px)`,
         transform: "translate(-50%, -50%)",
         backgroundColor: color,
     };

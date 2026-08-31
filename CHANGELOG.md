@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.42.4]
+
+### _Fixes_
+
+- **A fade through a colour no longer leaves a hairline of the picture along the frame.**
+  `ThroughColor` covers the frame with a synthetic colour layer sized to the images beneath it.
+  The stage scales by a non-integer factor, so those images are laid out at fractional sizes and
+  their outermost row of pixels is drawn part-covered; a colour box that matched the frame exactly
+  stopped at the whole pixel inside that row and left it showing - about a pixel of the background
+  along the top or the bottom edge of a frame that is meant to be solid colour. The layer now
+  reaches a pixel past the frame on every side. It is synthetic and has no content to distort, so
+  nothing else about the transition changes, patterned covers included.
+
 ## [0.42.3]
 
 ### _Feature_
