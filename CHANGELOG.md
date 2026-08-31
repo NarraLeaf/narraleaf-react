@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.42.2]
+
+### _Fixes_
+
+- **`0` is a position again.** An alignment or coordinate of `0` — the left edge, the bottom edge —
+  was read as "no value given" by two guards that test the component with `!value`, and the two
+  readings compound:
+
+  - `Coord2D.fromAlignPosition` turned a zero alignment into `Unknown`, which is the token that
+    means *leave the other value alone* when two positions merge. A transform moving a displayable
+    to `{xalign: 0.5, yalign: 0}` therefore kept whatever alignment it already had.
+  - `PositionUtils.calc` answered `"auto"` for it, so a displayable **created** at a zero alignment
+    got neither `top` nor `bottom`. An absolutely positioned element with both unset falls back to
+    its static position, which for a stage-wide sprite is off the stage — the sprite did not appear
+    at all.
+
+  ```ts
+  new Image({src: "portrait.png", position: {xalign: 0.5, yalign: 0}});
+  // now sits on the bottom edge, as it reads
+  ```
+
+  An absent component is still `Unknown`, and still merges as "leave it alone".
+
+- **A bare pixel coordinate resolves to a valid CSS length when no design size is known.**
+  `PositionUtils.calc` built `calc(100 + 0px)` for a numeric position with no offset, which is not a
+  length: the browser dropped the declaration and the axis went unset. It now writes the number as
+  pixels on both arms, the way the offset arm always did. Games that pass `width`/`height` in their
+  config never reached this arm.
+
 ## [0.42.1]
 
 ### _Fixes_

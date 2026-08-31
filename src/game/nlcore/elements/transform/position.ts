@@ -81,9 +81,13 @@ export class PositionUtils {
      * animatable piece and any align change would be silently dropped.
      *
      * Without a dimension it falls back to the legacy `calc(<pos> + <offset>px)` form.
+     *
+     * Only an absent component resolves to `auto`. `0` is a position - the left or bottom edge of
+     * the stage - and reading it as "not stated" would leave the axis unset, which drops the
+     * displayable out of its absolute placement altogether rather than putting it on the edge.
      */
     static calc(pos: number | string, offset?: UnknownAble<number>, dimension?: number): string {
-        if (!pos || PositionUtils.isUnknown(pos)) {
+        if (pos === undefined || pos === null || pos === "" || PositionUtils.isUnknown(pos)) {
             return "auto";
         }
         const hasOffset = !(offset === undefined || PositionUtils.isUnknown(offset));
@@ -95,10 +99,12 @@ export class PositionUtils {
                 return `${percent}%`;
             }
         }
-        if (!hasOffset) {
-            return `calc(${pos} + 0px)`;
-        }
+        // A bare number is pixels on both arms: `calc(100 + 0px)` is not a valid CSS length, so the
+        // browser would drop the declaration and the axis would end up unset.
         const left = typeof pos === "number" ? `${pos}px` : pos;
+        if (!hasOffset) {
+            return `calc(${left} + 0px)`;
+        }
         return `calc(${left} + ${offset}px)`;
     }
 
@@ -257,8 +263,12 @@ export class Coord2D implements IPosition {
     }
 
     static fromAlignPosition(position: Partial<AlignPosition>): Coord2D {
+        // `0` is an alignment - the left or bottom edge - so only an absent component is Unknown.
+        // Reading `0` as absent made it merge as "leave the other value alone", so a row that moved
+        // a sprite to the edge kept whatever alignment it already had, and one that placed it there
+        // on creation left the axis unset entirely (`bottom: auto`), which is off the stage.
         const toPercentage = (align: number | undefined): UnknownAble<Coord2DPosition["x"]> => {
-            if (!align || PositionUtils.isUnknown(align)) {
+            if (typeof align !== "number" || !Number.isFinite(align)) {
                 return PositionUtils.Unknown;
             }
             return `${align * 100}%`;
