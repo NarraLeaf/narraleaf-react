@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.43.0]
+
+### _Feature_
+
+- **Dialogue text can fade in as it is typed.** `GameConfig.textRevealDuration` gives a newly typed
+  character a moment to come up from nothing instead of appearing at full strength, so the newest
+  few characters of a line are always part-way in and the line has a soft edge rather than a hard
+  one:
+
+  ```ts
+  new Game({textRevealDuration: 120});   // milliseconds; 0 (the default) is the hard edge
+  ```
+
+  The fade is driven by the typewriter's own cadence and costs it nothing - no timers, no change to
+  the typing speed. It is bounded by that cadence too: a fade may run for at most eight character
+  intervals, so a player who raises the typing speed gets a shorter fade and one who raises it a
+  long way gets none worth seeing, which is what asking for fast text means.
+
+  It applies only to text actually being typed. A line revealed at once, one skipped to the end, one
+  drawn again from a save, and a finished NVL line re-drawn as the log grows are all settled text
+  and are drawn exactly as they were before this existed - as is every line while the setting is
+  `0`. A player whose system asks for reduced motion never sees it.
+
+  Only `opacity` is animated, and a fading character is `display: inline`, so the line breaks where
+  it always did: nothing here can take a word apart. Ruby, emphasis marks, vertical writing and
+  tate-chu-yoko are unaffected - a combined vertical run fades as the single glyph cluster it is -
+  and a word with a custom renderer fades like any other without the renderer knowing it does.
+
+
 ## [0.42.4]
 
 ### _Fixes_

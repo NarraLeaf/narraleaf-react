@@ -61,3 +61,34 @@
 .pointer-events-auto-rest * {
     pointer-events: auto;
 }
+
+/*
+ * Text reveal: a newly typed character fades in instead of appearing at full strength.
+ *
+ * The animation is one-shot and starts when the element is mounted, which the typewriter does one
+ * character at a time - so the cadence of the effect is the cadence of the typing and nothing here
+ * has to be scheduled. The length comes from a custom property on the line's container rather than
+ * from each character's own style, so a character's style never changes while it is running and it
+ * can never be restarted mid-fade.
+ *
+ * Only `opacity` is animated. A transform would need the character to be `inline-block`, and a line
+ * of those may break between any two of them - which takes Latin words apart.
+ */
+@keyframes __narraleaf_text_reveal {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.__narraleaf_text_reveal {
+    animation: __narraleaf_text_reveal var(--nl-reveal-duration, 0ms) ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .__narraleaf_text_reveal {
+        animation: none;
+    }
+}

@@ -149,6 +149,7 @@ export class Game {
         nvlDialog: DefaultElements.nvlDialog,
         onError: (error: Error) => { console.error(error); },
         disableTextScaling: false,
+        textRevealDuration: 0,
         stage: null,
         maxStackModelLoop: 1000,
         maxActionHistory: 100,

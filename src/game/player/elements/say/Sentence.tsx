@@ -25,6 +25,7 @@ import {
     useAutoFitScale,
 } from "./autoFit";
 import { emphasisStyle, previewWordFontSize, wordFontSize } from "./wordStyle";
+import { REVEAL_DURATION_VAR, resolveRevealTiming, revealTailFor, type RevealTiming } from "./textReveal";
 import {
     isVerticalWritingMode,
     renderWordText,
@@ -262,6 +263,23 @@ export function getGeneratedWords(words: Word<Pausing | string | TextEvent>[]): 
     return result;
 }
 
+/**
+ * Where each word starts among the characters revealed so far, and how many there are.
+ *
+ * The count is what asks text scaling for its next measurement; the offsets are what tells a word
+ * which of its own characters are among the newest few in the line, and so still fading in.
+ * @internal
+ */
+export function revealOffsets(displaying: PureWord[]): { offsets: number[], revealed: number } {
+    const offsets: number[] = [];
+    let revealed = 0;
+    for (const word of displaying) {
+        offsets.push(revealed);
+        revealed += word === "\n" ? 1 : word.text.length;
+    }
+    return { offsets, revealed };
+}
+
 function updateDisplayingWord(
     setDisplaying: React.Dispatch<React.SetStateAction<PureWord[]>>,
     value: Exclude<SplitWord, Pausing | TextEvent>
@@ -337,6 +355,12 @@ export type WordBodyProps = {
     done: boolean;
     style: React.CSSProperties;
     renderer: React.ComponentType<WordRenderProps<any>> | null;
+    /**
+     * How many of this word's trailing characters are still fading in. `0` - the default, and what
+     * every line that is not being typed out gets - draws the word exactly as it is drawn without
+     * the reveal effect.
+     */
+    revealTail?: number;
 };
 
 /**
@@ -364,14 +388,14 @@ function isWordRevealed(word: Exclude<PureWord, "\n">): boolean {
  * vertical writing mode and tate-chu-yoko survive a renderer that does not know they exist.
  * @internal
  */
-export function WordBody({ word, vertical, tateChuYoko, done, style, renderer: Renderer }: WordBodyProps) {
+export function WordBody({ word, vertical, tateChuYoko, done, style, renderer: Renderer, revealTail = 0 }: WordBodyProps) {
     const content = word.config.ruby ? (
         <ruby className={"align-bottom inline-block"}>
             <rt className={"block text-center"}>{word.config.ruby}</rt>
-            {renderWordText(word.text, vertical, tateChuYoko)}
+            {renderWordText(word.text, vertical, tateChuYoko, revealTail)}
         </ruby>
     ) : (
-        renderWordText(word.text, vertical, tateChuYoko)
+        renderWordText(word.text, vertical, tateChuYoko, revealTail)
     );
 
     if (!Renderer) {
@@ -530,11 +554,20 @@ function BaseText(
     // The game-wide switch wins over the line's own: a game that has turned text scaling off has
     // decided nothing on screen resizes itself, whoever asked for it.
     const autoFitEnabled = (autoFit ?? true) && !game.config.disableTextScaling;
-    // How many characters are on screen. It changes with every one of them, which is what asks for
-    // the next measurement; the number of words does not (the typewriter grows the last one).
-    const revealed = useMemo(
-        () => displaying.reduce((total, word) => total + (word === "\n" ? 1 : word.text.length), 0),
-        [displaying]
+    // How many characters are on screen, and where each word starts among them. The count changes
+    // with every character, which is what asks for the next measurement; the number of words does
+    // not (the typewriter grows the last one). The offsets are what tells a word which of its own
+    // characters are among the newest few in the line.
+    const { offsets, revealed } = useMemo(() => revealOffsets(displaying), [displaying]);
+    // The reveal effect belongs to text being typed, not to text being on screen: a line revealed
+    // at once, one skipped to the end, and one drawn again from a save or an NVL re-mount are all
+    // finished text and are drawn as they always were. Read straight from the preferences rather
+    // than held in state - every character re-renders this anyway, so a speed the player changes
+    // mid-line is picked up by the next one.
+    const revealTiming: RevealTiming = resolveRevealTiming(
+        dialog.config.useTypeEffect ? game.config.textRevealDuration : 0,
+        game.preference.getPreference(Game.Preferences.cps),
+        game.preference.getPreference(Game.Preferences.gameSpeed),
     );
     const { containerRef, scale: autoFitScale } = useAutoFitScale({
         enabled: autoFitEnabled,
@@ -815,6 +848,7 @@ function BaseText(
                     done={done}
                     style={wordStyle}
                     renderer={renderer}
+                    revealTail={revealTailFor(revealTiming, offsets[index] ?? 0, word.text.length, revealed)}
                 />
             </Inspect.Span>
         );
@@ -829,8 +863,12 @@ function BaseText(
                 className,
             )}
             style={{
-                // The multiplier every size inside the line is written against.
-                ...({ [AUTO_FIT_SCALE_VAR]: autoFitScale } as React.CSSProperties),
+                // The multiplier every size inside the line is written against, and how long a
+                // character of it takes to fade in.
+                ...({
+                    [AUTO_FIT_SCALE_VAR]: autoFitScale,
+                    ...onlyIf(revealTiming.duration > 0, { [REVEAL_DURATION_VAR]: `${revealTiming.duration}ms` }),
+                } as React.CSSProperties),
                 ...calculatedSentence,
                 ...verticalContainerStyle(writingMode, textOrientation),
                 ...style,
@@ -1004,6 +1042,14 @@ export function TextsPreview({
         ...emphasisStyle(word.config.emphasis),
     });
     const vertical = isVerticalWritingMode(writingMode);
+    // A sample line is typed the same way a real one is, so it fades the same way - a settings
+    // screen showing the typewriter should show what the game does with it.
+    const revealTiming = resolveRevealTiming(
+        useTypeEffect ? gameConfig.textRevealDuration : 0,
+        resolvedCps,
+        resolvedGameSpeed,
+    );
+    const { offsets, revealed } = revealOffsets(displaying);
     const getElement = (word: PureWord, index: number) => {
         if (word === "\n") return (<br key={index} />);
         const wordStyle = calculateStyle(word);
@@ -1029,6 +1075,7 @@ export function TextsPreview({
                     done={false}
                     style={wordStyle}
                     renderer={resolveWordRenderer(word.config.render)}
+                    revealTail={revealTailFor(revealTiming, offsets[index] ?? 0, word.text.length, revealed)}
                 />
             </span>
         );
@@ -1042,6 +1089,7 @@ export function TextsPreview({
                 className,
             )}
             style={{
+                ...onlyIf(revealTiming.duration > 0, { [REVEAL_DURATION_VAR]: `${revealTiming.duration}ms` }) as React.CSSProperties,
                 ...calculatedSentence,
                 ...verticalContainerStyle(writingMode, textOrientation),
                 ...style,

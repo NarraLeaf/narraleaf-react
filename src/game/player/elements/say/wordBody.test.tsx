@@ -192,3 +192,58 @@ describe("WordBody", () => {
         expect.assertions(5);
     });
 });
+
+describe("WordBody reveal", () => {
+    it("draws the word as one node when nothing is fading", () => {
+        // The default, and what every line that is not being typed out gets. Byte-identical to the
+        // markup the word had before the reveal effect existed, which is the point.
+        const plain = renderToStaticMarkup(
+            <WordBody word={baseWord()} vertical={false} tateChuYoko={undefined} done={false} style={style} renderer={null} />
+        );
+        const explicit = renderToStaticMarkup(
+            <WordBody word={baseWord()} vertical={false} tateChuYoko={undefined} done={false} style={style} renderer={null} revealTail={0} />
+        );
+
+        expect(plain).toBe("以太浓度");
+        expect(explicit).toBe(plain);
+    });
+
+    it("gives the fading characters their own elements and leaves the rest settled", () => {
+        const markup = renderToStaticMarkup(
+            <WordBody word={baseWord()} vertical={false} tateChuYoko={undefined} done={false} style={style} renderer={null} revealTail={2} />
+        );
+
+        expect(markup).toBe("以太<span class=\"__narraleaf_text_reveal\">浓</span>"
+            + "<span class=\"__narraleaf_text_reveal\">度</span>");
+    });
+
+    it("keeps ruby around a word that is still fading", () => {
+        const markup = renderToStaticMarkup(
+            <WordBody
+                word={baseWord({ config: { ruby: "エーテル" } })}
+                vertical={false}
+                tateChuYoko={undefined}
+                done={false}
+                style={style}
+                renderer={null}
+                revealTail={2}
+            />
+        );
+
+        expect(markup).toContain("<ruby");
+        expect(markup).toContain("エーテル");
+        expect(markup).toContain("__narraleaf_text_reveal");
+    });
+
+    it("hands a custom renderer the split text rather than making it do the splitting", () => {
+        // The whole reason the split lives where it does: a word with its own renderer fades in
+        // like any other and the renderer never learns that it does.
+        const Term = ({ children }: WordRenderProps) => <span className="term">{children}</span>;
+        const markup = renderToStaticMarkup(
+            <WordBody word={baseWord()} vertical={false} tateChuYoko={undefined} done={false} style={style} renderer={Term} revealTail={1} />
+        );
+
+        expect(markup).toBe("<span class=\"term\">以太浓"
+            + "<span class=\"__narraleaf_text_reveal\">度</span></span>");
+    });
+});

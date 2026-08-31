@@ -14,6 +14,7 @@
  */
 
 import React from "react";
+import { REVEAL_CLASS_NAME } from "@player/elements/say/textReveal";
 
 export type TextWritingMode = "horizontal-tb" | "vertical-rl" | "vertical-lr";
 export type TextGlyphOrientation = "mixed" | "upright" | "sideways";
@@ -125,27 +126,107 @@ export function wordBreakStyleFor(): React.CSSProperties {
     return { wordBreak: "normal", lineBreak: "strict", overflowWrap: "break-word" };
 }
 
-/**
- * Renders a word's text with its short runs set upright.
- *
- * Returns the string itself when nothing would be combined, so horizontal text - and vertical text
- * with no Latin in it - is one text node, exactly as before.
- */
-export function renderWordText(text: string, vertical: boolean, tateChuYoko: TateChuYoko | undefined): React.ReactNode {
-    if (!vertical) {
-        return text;
-    }
-    const maxLength = resolveTateChuYokoMaxLength(tateChuYoko);
+function segmentsOf(text: string, vertical: boolean, tateChuYoko: TateChuYoko | undefined): VerticalTextSegment[] {
+    const maxLength = vertical ? resolveTateChuYokoMaxLength(tateChuYoko) : 0;
     if (maxLength <= 0) {
-        return text;
+        return [{ text, combineUpright: false }];
     }
-    const segments = segmentVerticalText(text, maxLength);
+    return segmentVerticalText(text, maxLength);
+}
+
+function renderSegments(segments: VerticalTextSegment[], keyPrefix: string): React.ReactNode {
     if (!segments.some((segment) => segment.combineUpright)) {
-        return text;
+        return segments.map((segment) => segment.text).join("");
     }
     return segments.map((segment, index) => (
         segment.combineUpright
-            ? <span key={index} style={{ textCombineUpright: "all" }}>{segment.text}</span>
-            : <React.Fragment key={index}>{segment.text}</React.Fragment>
+            ? <span key={`${keyPrefix}${index}`} style={{ textCombineUpright: "all" }}>{segment.text}</span>
+            : <React.Fragment key={`${keyPrefix}${index}`}>{segment.text}</React.Fragment>
     ));
+}
+
+/**
+ * The smallest pieces of a word that may fade in on their own.
+ *
+ * A character each, except where the text has already been combined: a tate-chu-yoko run is one
+ * glyph cluster set across the column and has to arrive as one, or it would be laid on its side for
+ * as long as its halves were fading separately. Characters are taken by code point rather than by
+ * code unit so a surrogate pair is never cut in half.
+ */
+export function revealAtoms(segments: VerticalTextSegment[]): VerticalTextSegment[] {
+    const atoms: VerticalTextSegment[] = [];
+    for (const segment of segments) {
+        if (segment.combineUpright) {
+            atoms.push(segment);
+            continue;
+        }
+        for (const character of segment.text) {
+            atoms.push({ text: character, combineUpright: false });
+        }
+    }
+    return atoms;
+}
+
+/**
+ * Renders a word's text with its short runs set upright, and its newest characters still fading.
+ *
+ * Returns the string itself when nothing would be combined and nothing is fading, so horizontal
+ * text - and vertical text with no Latin in it - is one text node, exactly as before.
+ *
+ * `revealTail` is how many of the word's trailing characters are still fading. Each of those gets
+ * an element of its own so that mounting it starts its animation; everything before them is one
+ * settled run again, which is what keeps the markup of a long line from growing with it. The
+ * elements are `display: inline` - which they are by default, and which is the whole reason this
+ * splits at all: an `inline-block` per character would let the line break between any two of them
+ * and take a Latin word apart. Nothing here may be given a transform for the same reason.
+ */
+export function renderWordText(
+    text: string,
+    vertical: boolean,
+    tateChuYoko: TateChuYoko | undefined,
+    revealTail: number = 0,
+): React.ReactNode {
+    if (revealTail <= 0) {
+        if (!vertical) {
+            return text;
+        }
+        return renderSegments(segmentsOf(text, vertical, tateChuYoko), "");
+    }
+
+    const atoms = revealAtoms(segmentsOf(text, vertical, tateChuYoko));
+
+    // Walk back from the end until the characters covered reach the tail, so the split never lands
+    // inside an atom.
+    let cut = atoms.length, remaining = revealTail;
+    while (cut > 0 && remaining > 0) {
+        cut--;
+        remaining -= atoms[cut].text.length;
+    }
+
+    const nodes: React.ReactNode[] = [];
+    if (cut > 0) {
+        // Re-segmenting the settled prefix gives what this function would have returned for it on
+        // its own: the cut fell on an atom boundary, so no combined run was split to get here.
+        const settled = atoms.slice(0, cut).map((atom) => atom.text).join("");
+        nodes.push(
+            <React.Fragment key={"s"}>
+                {renderSegments(segmentsOf(settled, vertical, tateChuYoko), "s")}
+            </React.Fragment>
+        );
+    }
+    for (let index = cut; index < atoms.length; index++) {
+        const atom = atoms[index];
+        nodes.push(
+            // Keyed on the atom's place in the word, which does not move as the word grows: a
+            // character keeps its element - and so its running animation - until it settles.
+            <span
+                key={`r${index}`}
+                className={REVEAL_CLASS_NAME}
+                style={atom.combineUpright ? { textCombineUpright: "all" } : undefined}
+            >
+                {atom.text}
+            </span>
+        );
+    }
+    return nodes;
 }
