@@ -582,6 +582,11 @@ function BaseText(
             }),
             game.preference.onPreferenceChange(Game.Preferences.cps, () => {
                 taskRef.current?.update();
+            }),
+            // The fade is read as the line is drawn rather than while it is paced, so this one
+            // asks for a redraw instead of restarting the wait the typewriter is in.
+            game.preference.onPreferenceChange(Game.Preferences.textRevealDuration, () => {
+                flush();
             })
         ]).cancel;
     }, []);
@@ -600,7 +605,7 @@ function BaseText(
     // than held in state - every character re-renders this anyway, so a speed the player changes
     // mid-line is picked up by the next one.
     const revealTiming: RevealTiming = resolveRevealTiming(
-        dialog.config.useTypeEffect ? game.config.textRevealDuration : 0,
+        dialog.config.useTypeEffect ? game.preference.getPreference(Game.Preferences.textRevealDuration) : 0,
         game.preference.getPreference(Game.Preferences.cps),
         game.preference.getPreference(Game.Preferences.gameSpeed),
     );
@@ -1082,7 +1087,7 @@ export function TextsPreview({
     // A sample line is typed the same way a real one is, so it fades the same way - a settings
     // screen showing the typewriter should show what the game does with it.
     const revealTiming = resolveRevealTiming(
-        useTypeEffect ? gameConfig.textRevealDuration : 0,
+        useTypeEffect ? gamePreferences.textRevealDuration : 0,
         resolvedCps,
         resolvedGameSpeed,
     );

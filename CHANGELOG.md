@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.44.0]
+
+### _Breaking_
+
+- **`textRevealDuration` is a preference now, not game config.** It arrived in 0.43.0 as
+  `GameConfig.textRevealDuration`, which was the wrong half of the API: how softly text arrives is
+  the player's to set, beside the typing speed it is measured against. As a preference it can be
+  offered on a settings screen, it is kept with the rest of what the player chose, and it is
+  readable and writable at runtime through the same store as `cps` and `gameSpeed`.
+
+  ```ts
+  // 0.43.x
+  new Game({textRevealDuration: 120});
+
+  // 0.44.0 - the author's value is the starting point, and the player owns it after that
+  const game = new Game({});
+  game.preference.setPreference("textRevealDuration", 120);
+  ```
+
+  Nothing else about the effect changes. `0` is still the default and still means text is typed
+  at full strength, and a game that never sets it is unaffected. A `textRevealDuration` left in a
+  `new Game({...})` call is now an unknown config key and does nothing, so move it.
+
+
 ## [0.43.1]
 
 ### _Fixes_

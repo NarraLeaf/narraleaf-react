@@ -436,22 +436,6 @@ export type GameConfig = {
      */
     disableTextScaling: boolean;
     /**
-     * How long a newly typed character takes to fade in, in milliseconds. `0` turns it off.
-     *
-     * Dialogue text is normally typed at full strength, one character appearing after another. With
-     * a duration here, each character arrives faded and comes up over that time while the typewriter
-     * carries on, so the few newest characters of a line are always part-way in and the line has a
-     * soft edge rather than a hard one.
-     *
-     * The fade never outlasts the gap between two characters by more than a little: a player who
-     * raises the typing speed gets a shorter fade, and one who raises it a long way gets none worth
-     * seeing, which is what asking for fast text means. It applies only to text actually being typed
-     * - a line revealed at once, skipped, or drawn again from a save is not faded in - and a player
-     * whose system asks for reduced motion never sees it.
-     * @default 0
-     */
-    textRevealDuration: number;
-    /**
      * Override the default stage
      * @default null
      */
@@ -498,6 +482,23 @@ export interface NotificationToken extends LiveGameEventToken {
     promise: Promise<void>;
 }
 export type GamePreference = {
+    /**
+     * How long a newly typed character takes to fade in, in milliseconds. `0` turns it off.
+     *
+     * Dialogue text is normally typed at full strength, one character appearing after another.
+     * With a duration here each character arrives faded and comes up over that time while the
+     * typewriter carries on, so the few newest characters of a line are always part-way in and
+     * the line has a soft edge rather than a hard one.
+     *
+     * The player's, like the typing speed it is read against: someone who finds the softness
+     * distracting turns it down, and a settings screen can offer it beside `cps`. The fade never
+     * outlasts the gap between two characters by more than a little, so raising the typing speed
+     * shortens it and raising it a long way leaves none worth seeing. It applies only to text
+     * actually being typed - a line revealed at once, skipped, or drawn again from a save is not
+     * faded in - and a player whose system asks for reduced motion never sees it.
+     * @default 0
+     */
+    textRevealDuration: number;
     /**
      * If true, the game will automatically forward to the next sentence when the player has finished the current sentence
      * @default false

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Game } from "@core/game";
 import { MAX_REVEAL_INTERVALS, resolveRevealTiming, revealTailFor } from "./textReveal";
 
 /**
@@ -105,5 +106,21 @@ describe("revealTailFor", () => {
         // four, and not one character further back.
         expect(revealTailFor(timing, 0, 10, 10, 6)).toBe(3);
         expect(revealTailFor({ duration: 400, inFlight: 9 }, 0, 10, 10, 6)).toBe(4);
+    });
+});
+
+/**
+ * Where the setting lives. It is the player's, beside the typing speed it is read against - a
+ * settings screen offers it, it is kept with the rest of what the player chose, and a game that
+ * writes it at runtime does so through the same store as every other preference. It spent one
+ * version in the game's config, where none of that was true of it.
+ */
+describe("textRevealDuration", () => {
+    it("is a preference, and starts at no fade", () => {
+        expect(Game.DefaultPreference.textRevealDuration).toBe(0);
+    });
+
+    it("is not game config", () => {
+        expect("textRevealDuration" in Game.DefaultConfig).toBe(false);
     });
 });
