@@ -94,4 +94,16 @@ describe("revealTailFor", () => {
     it("has nothing to say about an empty word", () => {
         expect(revealTailFor(timing, 4, 0, 4)).toBe(0);
     });
+
+    it("fades nothing in a word that landed all at once", () => {
+        // What a skip leaves behind: every character of the word is settled, however new it is.
+        expect(revealTailFor(timing, 0, 10, 10, 10)).toBe(0);
+    });
+
+    it("stops the tail where the typed part of a word begins", () => {
+        // Six characters landed at once and four were typed after them: the tail may reach the
+        // four, and not one character further back.
+        expect(revealTailFor(timing, 0, 10, 10, 6)).toBe(3);
+        expect(revealTailFor({ duration: 400, inFlight: 9 }, 0, 10, 10, 6)).toBe(4);
+    });
 });

@@ -49,6 +49,17 @@ type SplitWord = {
     tag: any;
     tag2?: any;
     cps?: number;
+    /**
+     * How many of this fragment's leading characters arrived all at once rather than one at a
+     * time, and so must not be faded in.
+     *
+     * A skip lands the whole rest of the line in a single render. Every one of those characters
+     * mounts together, and mounting is what starts a fade - so without this the line appears at
+     * once and then its last few characters fade in behind it, which is the opposite of what the
+     * player just asked for. It is carried per fragment rather than held beside the line because
+     * the typewriter goes on growing the same fragment afterwards, and those characters do fade.
+     */
+    revealFrom?: number;
 } | "\n" | Pausing | TextEvent;
 
 function* textUpdater(w: Word<string | Pausing | TextEvent>[]): Generator<SplitWord> {
@@ -251,14 +262,16 @@ export function getGeneratedWords(words: Word<Pausing | string | TextEvent>[]): 
         }
         const last = result[result.length - 1];
         if (last && last !== "\n" && value !== "\n" && last.tag === value.tag) {
+            const text = last.text + value.text;
             result[result.length - 1] = {
                 ...value,
-                text: last.text + value.text,
+                text,
                 config: value.config,
+                revealFrom: text.length,
             };
             continue;
         }
-        result.push(value);
+        result.push(value === "\n" ? value : { ...value, revealFrom: value.text.length });
     }
     return result;
 }
@@ -280,21 +293,43 @@ export function revealOffsets(displaying: PureWord[]): { offsets: number[], reve
     return { offsets, revealed };
 }
 
+/**
+ * The line with one more piece of text on the end of it.
+ *
+ * `instant` is what the caller knows and the words do not: whether this arrived on its own -
+ * the typewriter - or as part of a run landing in a single render, which is what a skip is.
+ * Characters that arrived in a run are marked as already settled, so a skipped line is drawn at
+ * full strength instead of fading in behind itself.
+ * @internal
+ */
+export function appendDisplayingWord(
+    prev: PureWord[],
+    value: Exclude<SplitWord, Pausing | TextEvent>,
+    instant: boolean = false,
+): PureWord[] {
+    const last = prev[prev.length - 1];
+    if (last && last !== "\n" && value !== "\n" && last.tag === value.tag) {
+        const text = last.text + value.text;
+        return [...prev.slice(0, -1), {
+            ...value,
+            text,
+            config: value.config,
+            // A run settles everything before it; a typed character leaves the mark where it is.
+            revealFrom: instant ? text.length : last.revealFrom,
+        }];
+    }
+    if (value === "\n") {
+        return [...prev, value];
+    }
+    return [...prev, { ...value, revealFrom: instant ? value.text.length : 0 }];
+}
+
 function updateDisplayingWord(
     setDisplaying: React.Dispatch<React.SetStateAction<PureWord[]>>,
-    value: Exclude<SplitWord, Pausing | TextEvent>
+    value: Exclude<SplitWord, Pausing | TextEvent>,
+    instant: boolean = false,
 ) {
-    setDisplaying((prev) => {
-        const last = prev[prev.length - 1];
-        if (last && last !== "\n" && value !== "\n" && last.tag === value.tag) {
-            return [...prev.slice(0, -1), {
-                ...value,
-                text: last.text + value.text,
-                config: value.config,
-            }];
-        }
-        return [...prev, value];
-    });
+    setDisplaying((prev) => appendDisplayingWord(prev, value, instant));
 }
 
 function getPreviewWords(
@@ -620,8 +655,8 @@ function BaseText(
                 },
             };
         };
-        const updateDisplaying = (value: Exclude<SplitWord, Pausing | TextEvent>) => {
-            updateDisplayingWord(setDisplaying, value);
+        const updateDisplaying = (value: Exclude<SplitWord, Pausing | TextEvent>, instant: boolean = false) => {
+            updateDisplayingWord(setDisplaying, value, instant);
         };
 
         const trySkip = (untilEnd: boolean = false) => {
@@ -649,7 +684,9 @@ function BaseText(
                     setDisplaying((prev) => [...prev, value]);
                 } else if (typeof value === "object" && "text" in value && !seen.has(value)) {
                     seen.add(value);
-                    updateDisplaying(value);
+                    // Landing in a run: every character of the rest of the line is drawn at full
+                    // strength, including the ones already part-way through a fade.
+                    updateDisplaying(value, true);
                 }
             }
 
@@ -848,7 +885,7 @@ function BaseText(
                     done={done}
                     style={wordStyle}
                     renderer={renderer}
-                    revealTail={revealTailFor(revealTiming, offsets[index] ?? 0, word.text.length, revealed)}
+                    revealTail={revealTailFor(revealTiming, offsets[index] ?? 0, word.text.length, revealed, word.revealFrom ?? 0)}
                 />
             </Inspect.Span>
         );
@@ -1075,7 +1112,7 @@ export function TextsPreview({
                     done={false}
                     style={wordStyle}
                     renderer={resolveWordRenderer(word.config.render)}
-                    revealTail={revealTailFor(revealTiming, offsets[index] ?? 0, word.text.length, revealed)}
+                    revealTail={revealTailFor(revealTiming, offsets[index] ?? 0, word.text.length, revealed, word.revealFrom ?? 0)}
                 />
             </span>
         );

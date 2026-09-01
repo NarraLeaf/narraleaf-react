@@ -83,12 +83,22 @@ export function resolveRevealTiming(authored: number | undefined, cps: number, g
  *
  * The fading characters are the last few of the *line*, so a word only holds some of them, and a
  * word the typewriter has long passed holds none. `offset` is where the word starts in the line,
- * counted the way the line counts its own revealed characters.
+ * counted the way the line counts its own revealed characters; `revealFrom` is the first character
+ * of the word that was actually typed rather than landed in a run.
  */
-export function revealTailFor(timing: RevealTiming, offset: number, length: number, revealed: number): number {
+export function revealTailFor(
+    timing: RevealTiming,
+    offset: number,
+    length: number,
+    revealed: number,
+    revealFrom: number = 0,
+): number {
     if (timing.inFlight <= 0 || length <= 0) {
         return 0;
     }
     const tailStart = revealed - timing.inFlight;
-    return Math.max(0, Math.min(length, offset + length - tailStart));
+    const tail = Math.min(length, offset + length - tailStart);
+    // Characters that landed in a run are settled however new they are, so the tail stops where
+    // the typed part of the word begins. A skipped line has no typed part left and fades nothing.
+    return Math.max(0, Math.min(tail, length - Math.max(0, revealFrom)));
 }

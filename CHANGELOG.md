@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.43.1]
+
+### _Fixes_
+
+- **A skipped line no longer fades in behind itself.** Pressing on through a line being typed
+  lands the whole rest of it in one go, and every character of it appeared at that moment - which
+  is what starts a fade, so the last few characters of a line the player had just asked to see
+  immediately went on arriving after it. Short fades hid it; at `textRevealDuration: 400` the tail
+  of the line visibly came in behind the rest of it.
+
+  Text that lands in a run is now drawn at full strength, including the characters that were
+  part-way through a fade when the skip landed. Only text the typewriter is actually putting down
+  one character at a time fades, which is what the effect was always described as doing; the
+  typing itself is unchanged.
+
+
 ## [0.43.0]
 
 ### _Feature_
@@ -309,7 +325,8 @@
   became true. A line that has not finished revealing is untouched, so a box that reappears over a
   half-typed line still reveals the rest of it before a click can settle it.
 
-- **A line already on screen no longer loses the task that is the only thing able to finish it.** The
+- **A line already on screen no longer loses the task that is the only thing able to finish it.**
+  The
   state a dialog box keeps for its line is rebuilt whenever the line changes, and the typing task
   that reports the text fully revealed belongs to the sentence renderer, which is keyed on the line.
   One input to that state was not the line: whether to type at all, which is read from a flag every
@@ -362,7 +379,8 @@
   recorded before the other branches are given up, which is the same thing `Control.all` has always
   done with one.
 
-- **A concurrent branch that is cut mid-call gives the call back.** `Control.any` finishes the moment
+- **A concurrent branch that is cut mid-call gives the call back.** `Control.any` finishes the
+  moment
   one of its branches drains, and the branches that did not get there were left exactly where they
   stood. A branch that had taken a returnable jump is holding the only frame that could return to the
   scene it suspended, so cutting it there parked that scene on the stage for the rest of the game -
@@ -713,7 +731,8 @@
 
 ### _Feature_
 
-- **An overlay can be put on the stage before it is shown** — `vfx.preload()`. The element is created
+- **An overlay can be put on the stage before it is shown** — `vfx.preload()`. The element is
+  created
   and starts buffering at zero opacity, paused, and the story does not wait for it.
 
   A video that is not in the document has not begun to load, let alone decode, so the first frame of
@@ -734,7 +753,8 @@
   buffering, and a story that declares its movie a few lines before playing it does not make the
   player wait on the first frame.
 
-- **`show` takes an opacity and a rate for that showing only** — `rain.show({ opacity: 0.35, rate: 2 })`.
+- **`show` takes an opacity and a rate for that showing only** — `rain.show({ opacity: 0.35, rate:
+  2 })`.
   The overlay's own `opacity` and `playbackRate` are properties of the material: how strong that rain
   *is*. These are properties of the moment — the same rain faint behind a memory and full strength in
   the storm. Every `show` restates both, so an override lasts exactly as long as the showing that
@@ -865,7 +885,8 @@
 
 ### _Fixed_
 
-- **A `Vfx`'s `blendMode` never reached the stage.** `new Vfx({src, blendMode: "screen"})` composited
+- **A `Vfx`'s `blendMode` never reached the stage.** `new Vfx({src, blendMode: "screen"})`
+  composited
   as `normal`, so an overlay rendered as light on black — sparks, dust, rain, snow — covered the
   scene with an opaque black rectangle instead of adding its light to it. The mode was declared on
   the `<video>`, which sits inside a wrapper carrying the overlay's `zIndex`; a positioned element
@@ -899,7 +920,8 @@
 
 ### _Fixed_
 
-- **A camera lens effect written after a new game was drawn and then wiped.** `story.camera.vignette(0.72)`
+- **A camera lens effect written after a new game was drawn and then wiped.**
+  `story.camera.vignette(0.72)`
   (and `shutter`, and the same channels set through `Camera.lens()` or a plain `Camera.transform()`)
   reached the plates for a frame and then went back to nothing, so a story that dimmed the corners
   measured `opacity: 0` once it settled. The two strengths were the visible half of a wider defect:
@@ -1469,7 +1491,8 @@
 
 ### _Change_
 
-- **A save carries the elements that differ from the script, not the whole cast (save format v3).** A
+- **A save carries the elements that differ from the script, not the whole cast (save format
+  v3).** A
   story reaches every element of every scene it can jump to, and `elementStates` listed all of them —
   so a project's entire cast was written into every save, and into every per-line history snapshot
   besides. The cost grew with the size of the project rather than with what was on stage. Played in a
@@ -1609,7 +1632,8 @@
   instead of restarting it. The cache is keyed by resolved src, not by id, so switching dub language
   still yields a different `Sound` for the same id.
 
-- **"Let it play on" no longer stacks voices.** `voiceEndMode: "none"` leaves a clip running past the
+- **"Let it play on" no longer stacks voices.** `voiceEndMode: "none"` leaves a clip running past
+  the
   end of its own sentence, which is the point — but nothing cut it when the *next* voiced line
   started, so advancing through voiced dialogue layered every clip over the last and a player
   clicking quickly could have three or four actors talking at once. A new voice now stops the one
@@ -1869,7 +1893,8 @@
 
 ### _Fix_
 
-- **A `Text`'s constructor config reaches it.** `ITextUserConfig extends TextTransformProps`, so this
+- **A `Text`'s constructor config reaches it.** `ITextUserConfig extends TextTransformProps`, so
+  this
   has always type-checked:
 
   ```ts
@@ -2244,7 +2269,13 @@
 
 ### _Feature_
 
-- **The store now says when a value changes.** `Storable` had no notification of any kind: `namespace.set()` was an assignment and nothing else, so a host that wanted to react to a persistent value — light a badge when `gold` reaches 100, mirror a flag into an editor panel — had no way to learn about it except to read the whole store on a timer and diff it itself. Polling is the wrong shape for something the engine knows exactly: it is late by up to an interval, it burns work on the overwhelming majority of frames where nothing moved, and it cannot tell you what the value *was*.
+- **The store now says when a value changes.** `Storable` had no notification of any kind:
+  `namespace.set()` was an assignment and nothing else, so a host that wanted to react to a
+  persistent value — light a badge when `gold` reaches 100, mirror a flag into an editor panel —
+  had no way to learn about it except to read the whole store on a timer and diff it itself.
+  Polling is the wrong shape for something the engine knows exactly: it is late by up to an
+  interval, it burns work on the overwhelming majority of frames where nothing moved, and it
+  cannot tell you what the value *was*.
 
   `Storable` now reports every write:
 
@@ -2268,9 +2299,20 @@
 
   Subscriptions live on the `Storable`, which is created once per `LiveGame` and never replaced, so they survive `newGame()` and loading a save even though both rebuild every namespace underneath them.
 
-- **A write that does not move the value reports nothing.** A line that re-asserts a flag it has already set, or a script that runs `assign` with the values already in place, would otherwise wake every listener on every pass. Equality is structural rather than by reference: a stored value is by definition serializable — a primitive, a `Date`, or a plain object/array of those — so comparing it costs no more than writing it to a save, and the ordinary idioms (`assign({...})`, `set(k, v => ({...v, gold: v.gold}))`, a value round-tripped through a host) rebuild the container even when nothing inside it moved. Dates compare by timestamp, not identity.
+- **A write that does not move the value reports nothing.** A line that re-asserts a flag it has
+  already set, or a script that runs `assign` with the values already in place, would otherwise
+  wake every listener on every pass. Equality is structural rather than by reference: a stored
+  value is by definition serializable — a primitive, a `Date`, or a plain object/array of those —
+  so comparing it costs no more than writing it to a save, and the ordinary idioms
+  (`assign({...})`, `set(k, v => ({...v, gold: v.gold}))`, a value round-tripped through a host)
+  rebuild the container even when nothing inside it moved. Dates compare by timestamp, not
+  identity.
 
-- **Loading a save reports itself once instead of replaying every key.** A save carries every key of every namespace it knew about, so reporting a load as changes would turn one `deserialize()` into hundreds of callbacks describing a history the player never lived through — the values did not evolve, they were replaced wholesale. Bulk application instead fires **`onRestore`** exactly once, naming the namespaces involved:
+- **Loading a save reports itself once instead of replaying every key.** A save carries every key
+  of every namespace it knew about, so reporting a load as changes would turn one `deserialize()`
+  into hundreds of callbacks describing a history the player never lived through — the values did
+  not evolve, they were replaced wholesale. Bulk application instead fires **`onRestore`** exactly
+  once, naming the namespaces involved:
 
   ```ts
   storable.onRestore(({namespaces}) => rereadMyDerivedView());
@@ -2280,15 +2322,26 @@
 
 ### Upgrading
 
-- **Nothing that was valid before changes behaviour**, and no existing signature moved. `onChange` / `onRestore` / `Storable.events` are new surface on a class that previously had none.
+- **Nothing that was valid before changes behaviour**, and no existing signature moved. `onChange`
+  / `onRestore` / `Storable.events` are new surface on a class that previously had none.
 
-- **A host that polls the store can stop.** Replace the timer with `onChange` for the values you care about and `onRestore` for the reload discontinuity. Watching a value across a save load takes both: `onChange` is deliberately silent during a load, so a listener that must also fire when a loaded save *arrives* already at the interesting value has to re-check it on `onRestore`.
+- **A host that polls the store can stop.** Replace the timer with `onChange` for the values you
+  care about and `onRestore` for the reload discontinuity. Watching a value across a save load
+  takes both: `onChange` is deliberately silent during a load, so a listener that must also fire
+  when a loaded save *arrives* already at the interesting value has to re-check it on `onRestore`.
 
 ## [0.18.0]
 
 ### _Feature_
 
-- **One tag group can now drive several layers of a layered image.** A layered image derived its tag groups from its layers one-for-one — each variants layer declared its own group, and tags had to be globally unique — so a group could only ever move a single layer. That is the wrong shape for the thing layered sprites exist to do: "angry" is not a mouth, it is a mouth *and* a pair of brows *and* whatever else the artist split out, and expressing it meant either flattening those layers back into one image or falling back to a `LayerResolver` per follower, whose sources the preloader cannot see and therefore fetches mid-scene, on the frame the expression changes.
+- **One tag group can now drive several layers of a layered image.** A layered image derived its
+  tag groups from its layers one-for-one — each variants layer declared its own group, and tags
+  had to be globally unique — so a group could only ever move a single layer. That is the wrong
+  shape for the thing layered sprites exist to do: "angry" is not a mouth, it is a mouth *and* a
+  pair of brows *and* whatever else the artist split out, and expressing it meant either
+  flattening those layers back into one image or falling back to a `LayerResolver` per follower,
+  whose sources the preloader cannot see and therefore fetches mid-scene, on the frame the
+  expression changes.
 
   A group is now identified by its tag *set* rather than by the layer that offers it, so every layer offering the same tags is driven by one group:
 
@@ -2307,7 +2360,10 @@
 
   This also removes the reason to model an outfit as a separate image. A layer that draws nothing for some tags of a group it follows (the jacket above) is how a variant-specific layer is expressed, so one stack can carry a character's whole wardrobe and a change of clothes keeps the current expression and can cross-fade like any other tag change.
 
-- **`DevTools.getLayerSrcs(image, tags?)`** returns a layered image's per-layer srcs, bottom to top, with `null` for the layers that draw nothing. A layered image has no single src to read — it is a stack — so an editor host rendering its own thumbnail of an on-stage element previously had nothing to read at all.
+- **`DevTools.getLayerSrcs(image, tags?)`** returns a layered image's per-layer srcs, bottom to
+  top, with `null` for the layers that draw nothing. A layered image has no single src to read —
+  it is a stack — so an editor host rendering its own thumbnail of an on-stage element previously
+  had nothing to read at all.
 
 ### Docs
 
@@ -2315,39 +2371,97 @@
 
 ### Upgrading
 
-- **Nothing that was valid before changes behaviour.** Grouping only merges layers offering *identical* tag sets, and any two such layers were rejected outright by the old uniqueness check, so no working configuration is reinterpreted. What changes is that those configurations now load instead of throwing.
+- **Nothing that was valid before changes behaviour.** Grouping only merges layers offering
+  *identical* tag sets, and any two such layers were rejected outright by the old uniqueness
+  check, so no working configuration is reinterpreted. What changes is that those configurations
+  now load instead of throwing.
 
-- **Offering only part of a group's tags on a follower is an error, and it is the easy mistake to make.** A layer that lists `{angry: "vein.png"}` alone declares a *new* group whose only tag is `angry`, which then collides with the group that already owns it. Repeat the whole set and use `null` for the tags where the layer draws nothing (`{happy: null, angry: "vein.png"}`). The error names the offending tag and says so.
+- **Offering only part of a group's tags on a follower is an error, and it is the easy mistake to
+  make.** A layer that lists `{angry: "vein.png"}` alone declares a *new* group whose only tag is
+  `angry`, which then collides with the group that already owns it. Repeat the whole set and use
+  `null` for the tags where the layer draws nothing (`{happy: null, angry: "vein.png"}`). The
+  error names the offending tag and says so.
 
 ## [0.17.1]
 
 ### Fixed
 
-- **`liveGame.fastForward()` no longer hangs forever, and always settles.** Skipping a line is a request broadcast to the renderer (`event:state.player.skip`), and the only things that can honour it — the mounted dialog, the mounted displayable — exist only once React has *committed* that line. The fast-forward loop resumed on a microtask, long before that commit, so for a line the renderer had not painted yet the single broadcast it sent reached no listener at all and was simply dropped. Nothing then settled the step, and the returned promise settled neither way: in practice the play head advanced two lines and stopped, with the caller still awaiting minutes later, the game stuck on that line, and — because the `finally` that restores them never ran — audio left muted and the game left permanently in fast-forward mode. This affected every host of the API and was not new in 0.17; the same two-step signature was measured on 0.16.1.
+- **`liveGame.fastForward()` no longer hangs forever, and always settles.** Skipping a line is a
+  request broadcast to the renderer (`event:state.player.skip`), and the only things that can
+  honour it — the mounted dialog, the mounted displayable — exist only once React has *committed*
+  that line. The fast-forward loop resumed on a microtask, long before that commit, so for a line
+  the renderer had not painted yet the single broadcast it sent reached no listener at all and was
+  simply dropped. Nothing then settled the step, and the returned promise settled neither way: in
+  practice the play head advanced two lines and stopped, with the caller still awaiting minutes
+  later, the game stuck on that line, and — because the `finally` that restores them never ran —
+  audio left muted and the game left permanently in fast-forward mode. This affected every host of
+  the API and was not new in 0.17; the same two-step signature was measured on 0.16.1.
 
   The skip request is now re-issued on a frame-ish interval until the step settles, so it survives the render it has to outlive. A line that settles on the first request still costs no extra frame.
 
-- **A step that genuinely cannot be skipped now ends the run instead of parking on it.** Each suspended line is given `stepTimeout` ms (default `10000`) to settle; if it does not, `fastForward` returns the new reason **`"stalled"`** — `{ reason: "stalled" }`, or `{ reason: "stalled", reachedTarget: false }` for an `actionId` jump — and restores volume and the fast-forward flag on the way out. `fastForward` now terminates in every case, so hosts can rely on the promise settling.
+- **A step that genuinely cannot be skipped now ends the run instead of parking on it.** Each
+  suspended line is given `stepTimeout` ms (default `10000`) to settle; if it does not,
+  `fastForward` returns the new reason **`"stalled"`** — `{ reason: "stalled" }`, or `{ reason:
+  "stalled", reachedTarget: false }` for an `actionId` jump — and restores volume and the
+  fast-forward flag on the way out. `fastForward` now terminates in every case, so hosts can rely
+  on the promise settling.
 
 ### Upgrading
 
-- **`fastForward()`'s `reason` gained `"stalled"`.** Runtime behaviour for the existing values is unchanged, but the return type is wider: an exhaustive `switch` over `reason` needs the extra arm to keep compiling. Hosts that ignore the result are unaffected.
+- **`fastForward()`'s `reason` gained `"stalled"`.** Runtime behaviour for the existing values is
+  unchanged, but the return type is wider: an exhaustive `switch` over `reason` needs the extra
+  arm to keep compiling. Hosts that ignore the result are unaffected.
 
-- **A run can now end early on an unskippable step.** In-flight `Control.sleep`, a transition declared `skipTransition: false`, and long video are not skippable, so a fast-forward that meets one waits out `stepTimeout` (default `10000` ms) and returns `"stalled"` instead of continuing past it. Previously the run hung there instead, so nothing that works today starts failing — but a host that treats any non-`"menu"` reason as success should now distinguish `"stalled"`. Raise `stepTimeout` for a story that fast-forwards through long unskippable media.
+- **A run can now end early on an unskippable step.** In-flight `Control.sleep`, a transition
+  declared `skipTransition: false`, and long video are not skippable, so a fast-forward that meets
+  one waits out `stepTimeout` (default `10000` ms) and returns `"stalled"` instead of continuing
+  past it. Previously the run hung there instead, so nothing that works today starts failing — but
+  a host that treats any non-`"menu"` reason as success should now distinguish `"stalled"`. Raise
+  `stepTimeout` for a story that fast-forwards through long unskippable media.
 
 ## [0.17.0]
 
 ### _Feature_
 
-- **The opening scene is now loaded and decoded before the game is entered.** Until now the preloader had nothing to work with until `liveGame.newGame()`: it derives its work list from the *mounted* scene, and no scene is mounted before then. A game that shows a main menu first therefore did all of its fetching, base64-encoding and decoding between the player pressing "start" and the first painted frame — on a real project, most of a second of dead time on the one interaction that should feel instant. `Player` now registers `story.entryScene` as the preloading scene as soon as the story is loaded, so that work happens behind whatever the player is already looking at and entering the game becomes a reveal rather than a load.
+- **The opening scene is now loaded and decoded before the game is entered.** Until now the
+  preloader had nothing to work with until `liveGame.newGame()`: it derives its work list from the
+  *mounted* scene, and no scene is mounted before then. A game that shows a main menu first
+  therefore did all of its fetching, base64-encoding and decoding between the player pressing
+  "start" and the first painted frame — on a real project, most of a second of dead time on the
+  one interaction that should feel instant. `Player` now registers `story.entryScene` as the
+  preloading scene as soon as the story is loaded, so that work happens behind whatever the player
+  is already looking at and entering the game becomes a reveal rather than a load.
 
   Hosts that already call `gameState.preloadScene(...)` themselves are unaffected: the automatic registration only applies when there is neither a preloading scene nor a mounted scene yet.
 
-- **The preload pass runs in two tiers.** The *critical* tier is what the scene about to paint registers directly: its own backgrounds and images, plus the immediate background of any scene it jumps to. It runs unpaced, and it alone gates `event:preloaded.complete`. The *look-ahead* tier is the full asset set of every scene reachable from here (`srcManager.getFutureSrc()`); it runs after the critical tier, paced by `preloadDelay`, and nothing waits for it. Both used to be a single pass, so a large story could not show its first frame until every reachable scene's images had been fetched and decoded — seconds spent on assets the player was not about to see. The cache-eviction pass still runs once over the union of both tiers, and no longer runs at all for a superseded pass, which used to drop the images the *current* scene had just cached. Games running with `preloadAllImages: false` keep their existing predict-by-action behaviour unchanged.
+- **The preload pass runs in two tiers.** The *critical* tier is what the scene about to paint
+  registers directly: its own backgrounds and images, plus the immediate background of any scene
+  it jumps to. It runs unpaced, and it alone gates `event:preloaded.complete`. The *look-ahead*
+  tier is the full asset set of every scene reachable from here (`srcManager.getFutureSrc()`); it
+  runs after the critical tier, paced by `preloadDelay`, and nothing waits for it. Both used to be
+  a single pass, so a large story could not show its first frame until every reachable scene's
+  images had been fetched and decoded — seconds spent on assets the player was not about to see.
+  The cache-eviction pass still runs once over the union of both tiers, and no longer runs at all
+  for a superseded pass, which used to drop the images the *current* scene had just cached. Games
+  running with `preloadAllImages: false` keep their existing predict-by-action behaviour
+  unchanged.
 
-- **Preloaded images keep their decoded bitmap.** A decoded bitmap only survives while something still references it, so the throwaway element the preloader decoded through let it be evicted again before the reveal — and the first visible frame decoded from scratch anyway. The critical tier now holds its decoded elements until the source leaves the cache. The look-ahead tier deliberately does not: a full-resolution bitmap costs width × height × 4 bytes, which is worth paying for the one scene about to paint and not for a whole reachable graph.
+- **Preloaded images keep their decoded bitmap.** A decoded bitmap only survives while something
+  still references it, so the throwaway element the preloader decoded through let it be evicted
+  again before the reveal — and the first visible frame decoded from scratch anyway. The critical
+  tier now holds its decoded elements until the source leaves the cache. The look-ahead tier
+  deliberately does not: a full-resolution bitmap costs width × height × 4 bytes, which is worth
+  paying for the one scene about to paint and not for a whole reachable graph.
 
-- **The scene's sounds are warmed too**, through a new `preload(sound)` on the audio manager (`gameState.audioManager.preload(...)`), which fetches and decodes a source into the audio cache without playing it. A scene whose BGM is still being fetched when it opens stutters into its own first line, and the audio cache was the only place that could be fixed. Nothing waits for this and nothing should: the audio context stays locked until the browser's autoplay policy is satisfied by a user gesture, so an audio warm-up can legitimately sit pending on a page nobody has touched yet. It starts alongside the critical tier and lands on its own; a source that fails to load simply loads on first play, as before. Only the current scene's sounds are warmed — a look-ahead scene's audio is left to that scene's own pass.
+- **The scene's sounds are warmed too**, through a new `preload(sound)` on the audio manager
+  (`gameState.audioManager.preload(...)`), which fetches and decodes a source into the audio cache
+  without playing it. A scene whose BGM is still being fetched when it opens stutters into its own
+  first line, and the audio cache was the only place that could be fixed. Nothing waits for this
+  and nothing should: the audio context stays locked until the browser's autoplay policy is
+  satisfied by a user gesture, so an audio warm-up can legitimately sit pending on a page nobody
+  has touched yet. It starts alongside the critical tier and lands on its own; a source that fails
+  to load simply loads on first play, as before. Only the current scene's sounds are warmed — a
+  look-ahead scene's audio is left to that scene's own pass.
 
 ### Fixed
 
@@ -2447,7 +2561,10 @@
   - `Reveal` is the new direct-cut engine (the A→B counterpart of `ThroughColor`); both take the same patterns, so a scene change moves between the two families with a one-word edit.
   - `ThroughColor` gained `inverted` (cover through the pattern's complementary orientation — `Mask.iris()` + `inverted: true` is the classic iris-to-black) and `uncover`: `"retreat"` (default; the pattern backs out the way it came), `"continue"` (the edge keeps travelling, so the pattern passes through the frame — a wipe exits out the far side, a clock hand completes a second lap), or a custom pattern for asymmetric cover/uncover.
 
-- **In-scene jumping** with `Control.label` and `Control.jump`. Until now the only way to redirect the story was `Scene.jumpTo`, which unloads the current scene and starts another. `Control.jump` moves the play head to a named point *inside the same scene* — nothing is unloaded or re-initialized, so backgrounds, sprites, and music stay exactly as they are.
+- **In-scene jumping** with `Control.label` and `Control.jump`. Until now the only way to redirect
+  the story was `Scene.jumpTo`, which unloads the current scene and starts another. `Control.jump`
+  moves the play head to a named point *inside the same scene* — nothing is unloaded or
+  re-initialized, so backgrounds, sprites, and music stay exactly as they are.
 
   Mark a point with `Control.label(name)` (an invisible marker that just passes through at runtime) and jump to it with `Control.jump(name)`:
 
@@ -2470,7 +2587,10 @@
 
   `Control.jump` redirects the main story flow, so place it as the last action of a branch (e.g. a menu choice); for looping a scene, drive the loop through a menu or condition rather than jumping out of a `repeat`/`while` body. Both `label` and `jump` are available as chainable methods and as static `Control.label(...)` / `Control.jump(...)`.
 
-- **Text events** fire an effect *inside* a line, at the moment the typewriter reveals it. Until now a portrait could only change between lines, so a mid-sentence expression change meant splitting the sentence in two. A `TextEvent` sits in a sentence's word stream the way `Pause` does — it renders nothing, and fires when the reveal reaches it:
+- **Text events** fire an effect *inside* a line, at the moment the typewriter reveals it. Until
+  now a portrait could only change between lines, so a mid-sentence expression change meant
+  splitting the sentence in two. A `TextEvent` sits in a sentence's word stream the way `Pause`
+  does — it renders nothing, and fires when the reveal reaches it:
 
   ```ts
   import {TextEvent} from "narraleaf-react";
@@ -2513,7 +2633,10 @@
 
   The result gains `"action"` as a stop reason and — only when an `actionId` target was requested — a `reachedTarget` flag, so an unreachable or already-passed id is distinguishable from a successful jump. A menu that blocks the path stops the run just as it does for `until: "menu"`, since the target cannot be reached until the player decides. Only the root execution stack is scanned: an id buried inside an in-flight `Control.all`/`any` or async branch is not a stop point. The `"menu"` and `"end"` forms are unchanged.
 
-- **Experimental read-only introspection** for external tooling that has to follow a running game — an editor play head, a call-stack view. Nothing here mutates runtime state, and everything here is explicitly experimental: the shapes are a convenience projection, not a stability contract, so do not serialize them or drive game logic from them.
+- **Experimental read-only introspection** for external tooling that has to follow a running game
+  — an editor play head, a call-stack view. Nothing here mutates runtime state, and everything
+  here is explicitly experimental: the shapes are a convenience projection, not a stability
+  contract, so do not serialize them or drive game logic from them.
 
   ```ts
   const liveGame = game.getLiveGame();
