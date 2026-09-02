@@ -103,7 +103,7 @@
   "author": "helloyork@icloud.com",
   "license": "MPL-2.0",
   "dependencies": {
-    "@narraleaf/sound": "0.1.0",
+    "@narraleaf/sound": "^0.2.0",
     "@types/howler": "^2.2.11",
     "client-only": "^0.0.1",
     "clsx": "^2.1.1",

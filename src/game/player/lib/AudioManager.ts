@@ -1,5 +1,5 @@
 import { Sound as SoundElement, SoundBusId } from "@core/elements/sound";
-import { Sound as NarraSound, Channel, SoundToken, CachedAudio } from "@narraleaf/sound";
+import { Sound as NarraSound, CacheStats, Channel, SoundToken } from "@narraleaf/sound";
 import { FadeOptions, SoundPlayOptions } from "@core/elements/type";
 import { Awaitable, EventToken } from "@lib/util/data";
 import { GameState } from "@player/gameState";
@@ -21,7 +21,6 @@ type ClipRegion = {
 
 type SoundState = {
     token: SoundToken;
-    cachedAudio: CachedAudio;
     originalVolume: number;
     pausePosition?: number; // position (seconds) where playback was paused
     /**
@@ -88,11 +87,29 @@ export class AudioManager {
      */
     private static readonly BusRampSettle = AudioManager.BusRampTimeConstant * 5;
 
+    /**
+     * How long the backend keeps a decoded clip that nothing holds any more, in milliseconds.
+     *
+     * Zero would be the tidiest answer, but a clip nothing references is exactly the shape of a
+     * short effect fired repeatedly - an interface click, a footstep - and re-fetching and
+     * re-decoding one per keystroke is worse than holding it. A few seconds is long enough to
+     * cover a burst and short enough that nothing accumulates: what is still resident after this
+     * is only what is playing or what {@link AudioManager.preload} is holding for the scene.
+     */
+    private static readonly CacheGrace = 5000;
+
     private state: Map<SoundElement, SoundState> = new Map();
     private channels: Map<string, Channel> = new Map();
     private busTree: AudioBusTree | null = null;
     private busSubscription: EventToken | null = null;
     private unknownBuses: Set<string> = new Set();
+    /**
+     * Sources this manager holds a cache reference on - the current scene's, plus anything a host
+     * preloaded by hand. One reference per distinct source, given back by
+     * {@link AudioManager.retainOnly} when the scene that wanted it is left. The value resolves to
+     * whether the reference was really taken, which a release has to wait for.
+     */
+    private retained: Map<string, Promise<boolean>> = new Map();
     private globalVolume: number = 1;
     private sound!: NarraSound; // will be initialized in initialize()
     private ready: Promise<void> = Promise.resolve();
@@ -127,7 +144,10 @@ export class AudioManager {
         // apparently just having no sound.
         this.mixer.getTree();
 
-        const sound = new NarraSound({ maxChannels: AudioManager.MaxChannels });
+        const sound = new NarraSound({
+            maxChannels: AudioManager.MaxChannels,
+            cacheReleaseDelay: AudioManager.CacheGrace,
+        });
         this.sound = sound;
         this.isInitializing = true;
 
@@ -298,23 +318,16 @@ export class AudioManager {
 
             try {
                 const channel = this.channelFor(sound)!;
-                const cachedAudio = await this.sound.load(sound.config.src);
-                const region = AudioManager.clipRegionOf(sound);
-                const token = await channel.play(cachedAudio, {
+                const token = await channel.play(sound.config.src, {
                     volume: 0,
-                    ...AudioManager.playRegionOf(region, sound.config.loop),
-                    loop: sound.config.loop,
-                    rate: sound.state.rate,
+                    ...this.playOptionsOf(sound),
                 });
-                if (sound.config.loop) {
-                    AudioManager.applyLoopRegion(token, region);
-                }
 
                 const isMuted = sound.state.muted ?? false;
                 token.mute(isMuted);
                 sound.state.muted = isMuted;
 
-                this.state.set(sound, { token, cachedAudio, originalVolume: options.end });
+                this.state.set(sound, { token, originalVolume: options.end });
 
                 // Apply fade in
                 if (options.duration > 0) {
@@ -371,23 +384,16 @@ export class AudioManager {
             if (!channel) {
                 throw new RuntimeGameError(`Channel not found for audio bus: "${sound.config.type}"`);
             }
-            const cachedAudio = await this.sound.load(sound.config.src);
-            const region = AudioManager.clipRegionOf(sound);
-            const token = await channel.play(cachedAudio, {
+            const token = await channel.play(sound.config.src, {
                 volume: 0,
-                ...AudioManager.playRegionOf(region, sound.config.loop),
-                loop: sound.config.loop,
-                rate: sound.state.rate,
+                ...this.playOptionsOf(sound),
             });
-            if (sound.config.loop) {
-                AudioManager.applyLoopRegion(token, region);
-            }
 
             const isMuted = sound.state.muted ?? false;
             token.mute(isMuted);
             sound.state.muted = isMuted;
 
-            this.state.set(sound, { token, cachedAudio, originalVolume: options.end });
+            this.state.set(sound, { token, originalVolume: options.end });
 
             if (options.duration > 0) {
                 token.fade(0, options.end, options.duration);
@@ -618,80 +624,66 @@ export class AudioManager {
     }
 
     /**
-     * The region as the sound backend's play options.
+     * Everything the backend needs to start a clip, apart from the volume the caller is fading to.
      *
-     * A looping clip deliberately hands over **no** `endTime`. The backend turns `endTime` into a
-     * timer that stops the token after one pass, whether or not the clip loops, so passing it here
-     * is what kept the loop region from ever repeating. The region reaches a looping clip through
-     * {@link AudioManager.applyLoopRegion} instead; for a one-shot `endTime` *is* the out point and
-     * the backend's timer is exactly the right mechanism.
+     * The region goes over as it stands: an out point is an out point for a one-shot and the point
+     * a looping clip repeats *from* when `loop` is set, and `loopStart` moves that repeat's in
+     * point without moving where the first pass begins. A streamed clip has no region to speak of
+     * (see {@link AudioManager.loadModeOf}) and the backend ignores both keys for one.
      */
-    private static playRegionOf(region: ClipRegion, loop: boolean): { startTime: number; endTime?: number } {
-        if (loop || region.endTime === undefined) {
-            return { startTime: region.startTime };
-        }
-        return { startTime: region.startTime, endTime: region.endTime };
+    private playOptionsOf(sound: SoundElement): {
+        startTime: number;
+        endTime?: number;
+        loopStart?: number;
+        loop: boolean;
+        rate: number;
+        load: "stream" | "full";
+    } {
+        return {
+            ...AudioManager.clipRegionOf(sound),
+            loop: sound.config.loop,
+            rate: sound.state.rate,
+            load: this.loadModeOf(sound),
+        };
     }
 
     /**
-     * Write a looping clip's region onto the Web Audio node the backend is playing it through.
+     * Whether a clip is decoded into memory or streamed through an `<audio>` element.
      *
-     * **This is a shim against `@narraleaf/sound@0.1.0`'s internals, and the only place in this
-     * repo that reaches into them.** Two things in that version make the region unusable from the
-     * outside:
+     * Decoding is what a short clip wants: it can start on the frame it is asked to, several copies
+     * can overlap, and its loop region is sample-accurate. What it costs is memory, and the cost has
+     * nothing to do with the size of the file - decoded audio is float32 PCM, so a five-minute
+     * 44.1 kHz stereo track is about 106 MB however small the mp3 was. Background music is the worst
+     * case of exactly that: long, and playing for as long as the scene lasts.
      *
-     * - `SoundToken`'s constructor arms `setTimeout(stop, duration * 1000)` whenever a duration was
-     *   given, without consulting `loop` — so a looping clip with an out point hard-stops after its
-     *   first pass through the region.
-     * - `Sound.createToken` pins `loopStart` to the playback start offset, so "play the intro from
-     *   0s, then repeat 12s→90s forever" cannot be expressed at all.
+     * So a clip is streamed when it is background music by construction:
      *
-     * The fix belongs upstream and is small: honour `loop` before arming the duration timer, and
-     * accept an independent `loopStart` in `PlayOptions`. Until that ships, this manager withholds
-     * `endTime` from a looping clip's play options (which is what disarms the timer) and sets the
-     * loop region here.
+     * - the author set `streaming` on it, which has always meant "force this one to stream";
+     * - or it loops the **whole file**. A whole-file loop is a track meant to play under a scene
+     *   rather than to punctuate it, and repeating a whole file is the one thing an element does
+     *   exactly. A loop with an out point is asking for a region instead, which only a decoded
+     *   buffer has, so it keeps decoding.
      *
-     * `SoundToken.sourceController` is TypeScript-`private` while `AudioSourceController.getSource`
-     * is public, so the node is reachable at runtime but not through the types — hence the cast and
-     * the shape check. If a later backend changes that shape this returns silently and the clip
-     * degrades to the behaviour it has today: the region plays once and the clip stops.
+     * `data:` and `blob:` sources are already in memory and are always decoded; there is nothing to
+     * stream and an element would only add latency.
      *
-     * Seeking survives this. `SoundToken.seek` rebuilds the buffer source and copies `loop`,
-     * `loopStart` and `loopEnd` off the old node onto the new one, so a jump inside a looping track
-     * keeps the region.
+     * {@link import("@core/gameTypes").GameConfig.audioStreaming} set to `"declared"` drops the
+     * second rule, for a game that would rather spend the memory than let its music loop through an
+     * element - `<audio>` repeats the file rather than the samples, so a loop point can be heard on
+     * some browsers and formats.
      */
-    private static applyLoopRegion(token: SoundToken, region: ClipRegion): void {
-        const { startTime, endTime } = region;
-        if (endTime === undefined || !Number.isFinite(endTime) || endTime <= startTime) {
-            return;
+    private loadModeOf(sound: SoundElement): "stream" | "full" {
+        const { src, streaming, loop, endTime } = sound.config;
+        if (src.startsWith("data:") || src.startsWith("blob:")) {
+            return "full";
         }
-        // A clip decoded on a server, or under a backend that swapped the streaming path in, has no
-        // buffer source to write to.
-        if (typeof AudioBufferSourceNode === "undefined") {
-            return;
+        if (streaming) {
+            return "stream";
         }
-
-        const controller = (token as unknown as {
-            sourceController?: { getSource?: () => unknown };
-        }).sourceController;
-        if (typeof controller?.getSource !== "function") {
-            return;
+        if (this.gameState.game.config.audioStreaming === "declared") {
+            return "full";
         }
-        const node = controller.getSource();
-        if (!(node instanceof AudioBufferSourceNode)) {
-            return;
-        }
-
-        // An in point for the repeat that sits outside the region describes nothing playable, so it
-        // falls back to the region's own start rather than producing an inverted or zero-length loop.
-        const requested = region.loopStart;
-        const clamped = requested !== undefined && Number.isFinite(requested)
-            ? Math.min(Math.max(requested, startTime), endTime)
-            : startTime;
-
-        node.loop = true;
-        node.loopStart = clamped < endTime ? clamped : startTime;
-        node.loopEnd = endTime;
+        return loop && endTime === undefined ? "stream" : "full";
     }
 
     private static clampToRegion(time: number, region: ClipRegion): number {
@@ -782,7 +774,6 @@ export class AudioManager {
         this.ready.then(async () => {
             try {
                 const channel = this.channelFor(sound)!;
-                const cachedAudio = await this.sound.load(sound.config.src);
                 const region = AudioManager.clipRegionOf(sound);
                 // A clip with a loop region has to start at its in point even when we are restoring
                 // a save from halfway through: the region's start is also the point each repeat
@@ -790,21 +781,16 @@ export class AudioManager {
                 // session. Start where the region says and seek forward - the jump preserves the
                 // loop (it rebuilds the source node with loopStart/loopEnd intact).
                 const anchored = region.endTime !== undefined && sound.config.loop;
-                const token = await channel.play(cachedAudio, {
+                const token = await channel.play(sound.config.src, {
                     volume: sound.state.volume,
-                    ...AudioManager.playRegionOf(region, sound.config.loop),
+                    ...this.playOptionsOf(sound),
                     startTime: anchored ? region.startTime : data.position,
-                    loop: sound.config.loop,
-                    rate: sound.state.rate,
                 });
-                if (sound.config.loop) {
-                    AudioManager.applyLoopRegion(token, region);
-                }
                 if (anchored && Math.abs(data.position - region.startTime) > 0.01) {
                     token.seek(AudioManager.clampToRegion(data.position, region));
                 }
 
-                this.state.set(sound, { token, cachedAudio, originalVolume: sound.state.volume });
+                this.state.set(sound, { token, originalVolume: sound.state.volume });
                 const isMuted = sound.state.muted ?? false;
                 token.mute(isMuted);
                 sound.state.muted = isMuted;
@@ -834,6 +820,16 @@ export class AudioManager {
      * Fetch and decode a sound into the audio cache without playing it, so the first `play()` of
      * this source starts on the same frame it is asked to instead of after a fetch and a decode.
      *
+     * **Holds the clip decoded until it is released.** A decoded clip is dropped as soon as nothing
+     * plays it, which is what keeps a session's audio from growing without bound; a preload is the
+     * one thing that says "keep this one anyway". The reference is given back by
+     * {@link AudioManager.retainOnly} - what the player preloads is the scene's set, and a scene
+     * change replaces it - or by {@link AudioManager.reset}.
+     *
+     * A clip that streams rather than decodes ({@link AudioManager.loadModeOf}) has nothing to warm:
+     * an element fetches as it plays, so there is no decoded buffer to have ready and this resolves
+     * having done nothing.
+     *
      * Deliberately **not** something to gate a loading screen on: the audio context only becomes
      * ready once the browser's autoplay policy is satisfied by a user gesture, so this can sit
      * pending indefinitely on a page nobody has interacted with yet. Start it and let it land —
@@ -842,16 +838,83 @@ export class AudioManager {
      * as it did before.
      */
     public preload(sound: SoundElement): Promise<void> {
-        return this.ready
-            .then(() => this.sound.load(sound.config.src))
-            .then(() => void 0)
+        const src = sound.config.src;
+        if (this.loadModeOf(sound) === "stream" || this.retained.has(src)) {
+            return Promise.resolve();
+        }
+        // Recorded before the fetch resolves, not after: two preloads of the same source in the
+        // same frame would otherwise each take a reference, and only one would be given back. What
+        // is recorded is whether the reference was taken at all, so that a release arriving while
+        // the fetch is still in flight lands after it rather than on an entry that is not there yet.
+        const held = this.ready
+            .then(() => this.sound.load(src))
+            .then(() => true)
             .catch((error) => {
                 this.gameState.logger.weakWarn(
                     "AudioManager",
-                    `Failed to preload sound (src: "${sound.config.src}")`,
+                    `Failed to preload sound (src: "${src}")`,
                     error,
                 );
+                return false;
             });
+        this.retained.set(src, held);
+        return held.then(() => void 0);
+    }
+
+    /**
+     * Preload `sounds` and give back every cache reference this manager holds that is not among
+     * them - the audio counterpart of the image cache being filtered down to the scene that is
+     * about to paint.
+     *
+     * Called with a scene's own sounds when that scene opens. Clips shared with the previous scene
+     * keep their reference rather than being released and re-decoded, so the common case of a
+     * carried-over effect costs nothing.
+     *
+     * Releasing a reference does not stop anything: a clip that is still playing is held by its
+     * token until it ends, and only then does the buffer go.
+     */
+    public retainOnly(sounds: SoundElement[]): void {
+        const wanted = new Set(sounds.map(sound => sound.config.src));
+        for (const src of [...this.retained.keys()]) {
+            if (!wanted.has(src)) {
+                this.releaseSource(src);
+            }
+        }
+        for (const sound of sounds) {
+            void this.preload(sound);
+        }
+    }
+
+    /**
+     * What the audio cache is holding: decoded clips, clips in flight, and the bytes of PCM the
+     * decoded ones occupy. Zeroes before the audio context has unlocked.
+     *
+     * Here so that a game can see its own audio residency - the number that used to grow for the
+     * length of a session and now tracks what is playing plus what the current scene declared.
+     */
+    public getCacheStats(): CacheStats {
+        if (!this.isReady) {
+            return { entries: 0, loading: 0, decodedBytes: 0 };
+        }
+        return this.sound.getCacheStats();
+    }
+
+    /**
+     * Give back the cache reference held on one source, if there is one, once it has actually been
+     * taken - a release that overtook its own load would find nothing to release and leave the
+     * reference behind for good.
+     */
+    private releaseSource(src: string): void {
+        const held = this.retained.get(src);
+        if (!held) {
+            return;
+        }
+        this.retained.delete(src);
+        void held.then(taken => {
+            if (taken && this.isReady) {
+                this.sound.release(src);
+            }
+        });
     }
 
     /**
@@ -871,6 +934,9 @@ export class AudioManager {
             state.token.stop();
         });
         this.state.clear();
+        // Nothing is playing and no scene has opened yet, so nothing is owed a warm clip. The next
+        // scene's preload takes back whatever it needs.
+        this.retainOnly([]);
 
         // Reset global volume to 1
         this.globalVolume = 1;
@@ -945,8 +1011,11 @@ export class AudioManager {
 
     public destroy(): void {
         this.reset();
+        this.retained.clear();
         this.busSubscription?.cancel();
         this.busSubscription = null;
+        // Drops every decoded clip whatever holds it, so the references `reset` has just handed
+        // back on the way here are not the only thing standing between the cache and the collector.
         this.sound.destroy();
     }
 

@@ -303,6 +303,30 @@ export type GameConfig = {
      */
     audioBuses: AudioBusDeclaration[];
     /**
+     * Which clips are streamed through an `<audio>` element instead of being decoded into memory.
+     *
+     * Decoded audio is float32 PCM, so its size has nothing to do with the size of the file it came
+     * from: a five-minute 44.1 kHz stereo track occupies about 106 MB decoded however small the mp3
+     * was. Background music is the worst case of that — long, and resident for as long as the scene
+     * lasts — while a short effect wants to be decoded so that it can start on the frame it is
+     * asked to and overlap with itself.
+     *
+     * - `"loops"` — a clip is streamed when {@link import("@core/elements/sound").ISoundUserConfig.streaming} says so, **or** when
+     *   it loops the whole file (`loop` with no `endTime`). A whole-file loop is background music
+     *   by construction, and repeating a whole file is the one thing an `<audio>` element does
+     *   exactly. A loop that marks an out point is asking for a sample-accurate loop *region*,
+     *   which only a decoded buffer has, so it keeps decoding.
+     * - `"declared"` — only clips whose `streaming` is set are streamed; everything else is decoded.
+     *   Choose this when a game would rather spend the memory than let its music loop through an
+     *   element: `<audio>` repeats the file rather than the samples, and on some browsers and
+     *   formats the loop point is audible.
+     *
+     * A `data:` or `blob:` source is already in memory and is always decoded, whichever this says.
+     *
+     * @default "loops"
+     */
+    audioStreaming: "loops" | "declared";
+    /**
      * Src of the cursor image, if null, the game will show the default cursor
      * @default null
      */

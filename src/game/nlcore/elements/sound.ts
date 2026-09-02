@@ -55,9 +55,18 @@ export interface ISoundUserConfig {
      */
     rate: number;
     /**
-     * Set to `true` to force HTML5 Audio.
-     * This should be used for large audio files
-     * so that you don't have to wait for the full file to be downloaded and decoded before playing.
+     * Set to `true` to force this clip to be streamed through an HTML5 `<audio>` element instead of
+     * decoded into memory. Use it for large audio files: playback starts as soon as the first bytes
+     * arrive rather than after the whole file has been downloaded and decoded, and no decoded PCM
+     * buffer is held for as long as it plays.
+     *
+     * Leaving it `false` does not forbid streaming — it leaves the choice to the engine, which
+     * streams whole-file loops (background music, by construction) and decodes everything else. See
+     * {@link import("@core/gameTypes").GameConfig.audioStreaming} for that rule and how to turn it
+     * off.
+     *
+     * A streamed clip has no loop *region*: with `loop` it repeats the whole file, so
+     * {@link ISoundUserConfig.endTime} and {@link ISoundUserConfig.loopStart} are ignored for one.
      * @default false
      */
     streaming: boolean;

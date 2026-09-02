@@ -466,15 +466,16 @@ describe("a paused clip across the save boundary", () => {
             setVolume: vi.fn(),
         };
         const manager = new AudioManager({
+            // `config` because deciding whether a clip is decoded or streamed reads
+            // `audioStreaming`; nothing else here touches the game.
+            game: { config: { audioStreaming: "loops" } },
             logger: { error: vi.fn(), weakWarn: vi.fn(), debug: vi.fn() },
         } as unknown as GameState);
         manager.getBuses = () => [];
         const internals = manager as unknown as {
             state: Map<unknown, unknown>;
-            sound: { load: (src: string) => Promise<unknown> };
             channelFor: () => unknown;
         };
-        internals.sound = { load: async () => ({}) };
         internals.channelFor = () => ({ play: async () => token });
         return { manager, token, internals };
     }
@@ -494,7 +495,7 @@ describe("a paused clip across the save boundary", () => {
         const { manager, token, internals } = stubbedManager();
         const clip = Sound.bgm({ src: "/theme.mp3" });
 
-        internals.state.set(clip, { token, cachedAudio: {}, originalVolume: 1 });
+        internals.state.set(clip, { token, originalVolume: 1 });
 
         const [, record] = manager.toData().sounds[0];
         expect(Object.keys(record).sort()).toEqual(["isPlaying", "position"]);
