@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.45.0]
+
+### _Fixes_
+
+- **Audio no longer stays in memory for the whole session.** Every clip a game played was decoded
+  once and then held decoded until the page went away, whether or not anything was still playing it.
+  Decoded audio is float32 PCM, so what it costs has nothing to do with the size of the file it came
+  from: a five-minute 44.1 kHz stereo track is about 106 MB decoded, and a game with twenty such
+  tracks reached two gigabytes of audio by simply having been played for long enough.
+
+  A clip is now released when the token playing it stops or ends. What stays decoded is what a token
+  is playing, plus the sounds the open scene asked to keep warm — the same rule the image cache
+  already followed, and the reason `Preload` now hands the audio manager the scene's clips as a set
+  rather than one at a time. Leaving a scene gives its clips back; clips shared with the scene being
+  entered are not released and decoded again. A clip nothing holds lingers for a few seconds before
+  it goes, so an effect fired repeatedly is not re-fetched per keystroke.
+
+  Requires `@narraleaf/sound@^0.2.0`, which is where the release actually happens.
+
+- **A looping clip's out point reaches the audio backend directly.** `AudioManager` used to withhold
+  `endTime` from a looping clip and write `loop`/`loopStart`/`loopEnd` onto the Web Audio node by
+  hand, because the backend armed a stop-at-duration timer whether or not the clip looped and pinned
+  the repeat's in point to the playback offset. Both are fixed upstream, so the region goes over as
+  the author wrote it and the engine no longer reaches into the backend's internals. No authored
+  behaviour changes.
+
+### _Features_
+
+- **Background music is streamed rather than decoded.** A clip that loops the whole file — `loop`
+  with no `endTime` — plays through an `<audio>` element, which starts as soon as the first bytes
+  arrive and never holds a decoded buffer. `Sound.streaming` still forces streaming for any one clip,
+  and `GameConfig.audioStreaming` decides the rest:
+
+  ```ts
+  new Game({audioStreaming: "declared"});  // only clips whose `streaming` is set are streamed
+  ```
+
+  `"loops"` is the default and is the rule above. Choose `"declared"` for a game that would rather
+  spend the memory: an element repeats the file rather than the samples, so on some browsers and
+  formats a loop point can be heard. A loop that marks an out point is asking for a sample-accurate
+  loop *region*, which only a decoded buffer has, and keeps decoding whichever this says; so does a
+  `data:` or `blob:` source, which is already in memory.
+
+  Everything a token can do it can still do when it is streamed: fades, mute, volume, rate, seek,
+  pause and resume, `waitForEnd`, the bus it plays on, and coming back from a save at the position it
+  was saved at.
+
+- **`AudioManager.getCacheStats()` reports what audio is resident** — decoded clips, clips in flight,
+  and the bytes of PCM the decoded ones occupy — so a game can watch the number that used to grow for
+  the length of a session.
+
+  ```ts
+  const {entries, decodedBytes} = gameState.audioManager.getCacheStats();
+  ```
+
+- **`AudioManager.retainOnly(sounds)`** takes the sounds a scene wants kept warm and gives back every
+  reference the manager holds outside that set. `AudioManager.preload(sound)` is what takes one, so a
+  clip warmed by hand is held until the next scene change releases it, and warming a clip that will be
+  streamed does nothing — an element fetches as it plays, so there is no decoded buffer to have ready.
+
 ## [0.44.0]
 
 ### _Breaking_

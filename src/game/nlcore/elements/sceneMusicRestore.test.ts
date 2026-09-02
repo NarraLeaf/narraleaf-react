@@ -82,12 +82,74 @@ class FakeAudioBufferSourceNode {
     }
 }
 
+/**
+ * The `<audio>` element a streamed clip plays through - scene background music, which loops the
+ * whole file and is therefore streamed rather than decoded.
+ *
+ * Its play head is the element's own `currentTime` rather than an offset into a decoded buffer, so
+ * the fake derives one from the same clock the context runs on: a playing track advances with the
+ * clock, a paused one holds where it was, and a seek moves it. `start:<src>@<offset>` is written
+ * here for the same reason the buffer source writes it - it is the graph being told to begin
+ * playing at that position.
+ */
+class FakeHTMLAudioElement {
+    public src: string;
+    public loop = false;
+    public crossOrigin: string | null = null;
+    public playbackRate = 1;
+    public preservesPitch = true;
+    public paused = true;
+    public duration = 600;
+    /** The play head as of `since`; it only moves on its own while playing. */
+    private head = 0;
+    private since = 0;
+    private readonly listeners = new Map<string, Set<() => void>>();
+
+    constructor(src = "") {
+        this.src = src;
+    }
+
+    get currentTime(): number {
+        return this.paused ? this.head : this.head + (clock.now - this.since) * this.playbackRate;
+    }
+    set currentTime(time: number) {
+        this.head = time;
+        this.since = clock.now;
+    }
+    play(): Promise<void> {
+        this.head = this.currentTime;
+        this.since = clock.now;
+        this.paused = false;
+        timeline.push(`start:${this.src}@${this.head.toFixed(2)}`);
+        return Promise.resolve();
+    }
+    pause(): void {
+        this.head = this.currentTime;
+        this.since = clock.now;
+        this.paused = true;
+    }
+    /** Called by the backend after it blanks `src`, which is how a stopped element lets its media go. */
+    load(): void {
+        timeline.push(`halt:${this.src}`);
+    }
+    addEventListener(name: string, callback: () => void): void {
+        if (!this.listeners.has(name)) {
+            this.listeners.set(name, new Set());
+        }
+        this.listeners.get(name)!.add(callback);
+    }
+    removeEventListener(name: string, callback: () => void): void {
+        this.listeners.get(name)?.delete(callback);
+    }
+}
+
 class FakeAudioContext {
     public state = "running";
     public destination = new FakeGainNode();
     get currentTime(): number { return clock.now; }
     createGain(): FakeGainNode { return new FakeGainNode(); }
     createBufferSource(): FakeAudioBufferSourceNode { return new FakeAudioBufferSourceNode(); }
+    createMediaElementSource(_element: FakeHTMLAudioElement): FakeGainNode { return new FakeGainNode(); }
     /** The "decoded" clip carries the path it came from, so the graph log can name it. */
     decodeAudioData(data: { src?: string }): Promise<unknown> {
         return Promise.resolve({ src: data?.src, duration: 600, sampleRate: 44100, numberOfChannels: 2 });
@@ -98,11 +160,12 @@ class FakeAudioContext {
 
 const globals = globalThis as unknown as Record<string, unknown>;
 globals.AudioContext = FakeAudioContext;
-// The backend and `AudioManager.applyLoopRegion` both branch on `instanceof`, so these have to be
-// the same classes the fake context hands out.
+// The backend tells its two kinds of source apart with `instanceof`, so these have to be the same
+// classes the fake context and `new Audio(...)` hand out.
 globals.AudioBufferSourceNode = FakeAudioBufferSourceNode;
 globals.GainNode = FakeGainNode;
-globals.HTMLAudioElement = class { };
+globals.HTMLAudioElement = FakeHTMLAudioElement;
+globals.Audio = FakeHTMLAudioElement;
 globals.fetch = (path: string) => Promise.resolve({
     ok: true,
     headers: { get: () => null },

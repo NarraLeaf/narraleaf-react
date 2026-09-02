@@ -129,9 +129,11 @@ export function Preload(
         // fetched when it opens stutters into its own first line, and the audio cache is the only
         // place that can be fixed — but the audio context may be locked behind a user gesture, so
         // nothing may block on it.
-        for (const sound of plan.criticalAudio) {
-            void state.audioManager.preload(sound);
-        }
+        //
+        // `retainOnly` is also the audio half of `cacheManager.filter` below: a decoded clip costs
+        // memory for as long as it is held, so the scene that is opening keeps its own and the
+        // previous scene's are let go. Clips the two scenes share are not released and re-decoded.
+        state.audioManager.retainOnly(plan.criticalAudio);
 
         logGroup.end();
 

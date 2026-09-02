@@ -25,39 +25,20 @@ type PlayOptionsRecord = {
     volume?: number;
     startTime?: number;
     endTime?: number;
+    loopStart?: number;
     loop?: boolean;
     rate?: number;
-};
-
-/** The Web Audio node the backend plays a decoded clip through, as far as the loop region cares. */
-type SourceNodeMock = {
-    loop: boolean;
-    loopStart: number;
-    loopEnd: number;
+    load?: "stream" | "full";
 };
 
 type ChannelMock = {
     setVolume: ReturnType<typeof vi.fn>;
     play: (source: unknown, options?: PlayOptionsRecord) => Promise<Record<string, unknown>>;
     played: PlayOptionsRecord[];
+    /** The source each `play` was given, in the same order as `played`. */
+    sources: unknown[];
     token: Record<string, ReturnType<typeof vi.fn>> & { seek: ReturnType<typeof vi.fn> };
-    node: SourceNodeMock;
 };
-
-/**
- * `AudioManager` reaches the buffer source through `token.sourceController.getSource()` and checks
- * the result with `instanceof AudioBufferSourceNode` - a global that does not exist outside a
- * browser, so the seam needs one to exist at all.
- */
-const audio = vi.hoisted(() => {
-    class AudioBufferSourceNodeStub {
-        public loop = false;
-        public loopStart = 0;
-        public loopEnd = 0;
-    }
-    (globalThis as unknown as Record<string, unknown>).AudioBufferSourceNode = AudioBufferSourceNodeStub;
-    return { AudioBufferSourceNodeStub };
-});
 
 const soundMock = vi.hoisted(() => ({
     instances: [] as Array<{
@@ -65,6 +46,9 @@ const soundMock = vi.hoisted(() => ({
         createdChannels: string[];
         readyResolvers: Array<() => void>;
         loaded: string[];
+        released: string[];
+        /** References the manager holds per source: one `load` up, one `release` down. */
+        references: Map<string, number>;
         loadRejection: Error | null;
         options: Record<string, unknown> | undefined;
     }>,
@@ -94,7 +78,7 @@ vi.mock("@narraleaf/sound", () => {
         public readonly gainNode = { gain: new GainParamStub() };
         public readonly subChannels = new Map<string, ChannelStub>();
         public readonly played: Record<string, unknown>[] = [];
-        public readonly node = new audio.AudioBufferSourceNodeStub();
+        public readonly sources: unknown[] = [];
         public readonly token: Record<string, any>;
         public volume: number;
         public setVolume: ReturnType<typeof vi.fn>;
@@ -107,9 +91,7 @@ vi.mock("@narraleaf/sound", () => {
         ) {
             this.volume = clamp(options.volume ?? 1);
             this.gainNode.gain.value = this.volume;
-            const node = this.node;
             this.token = {
-                sourceController: { getSource: () => node },
                 mute: vi.fn(),
                 unmute: vi.fn(),
                 setVolume: vi.fn(),
@@ -173,7 +155,8 @@ vi.mock("@narraleaf/sound", () => {
             return this.subChannels.get(name) ?? null;
         }
 
-        play(_source: unknown, options: Record<string, unknown> = {}) {
+        play(source: unknown, options: Record<string, unknown> = {}) {
+            this.sources.push(source);
             this.played.push(options);
             return Promise.resolve(this.token);
         }
@@ -185,6 +168,8 @@ vi.mock("@narraleaf/sound", () => {
         public createdChannels: string[] = [];
         public readyResolvers: Array<() => void> = [];
         public loaded: string[] = [];
+        public released: string[] = [];
+        public references = new Map<string, number>();
         public loadRejection: Error | null = null;
         public options: Record<string, unknown> | undefined;
         public context = { currentTime: 0 };
@@ -196,12 +181,36 @@ vi.mock("@narraleaf/sound", () => {
             soundMock.instances.push(this);
         }
 
+        /**
+         * The real `load` hands out a reference that keeps the clip decoded, and the real
+         * `release` gives one back. Counting them is the only way a test can say whether a clip
+         * the manager warmed is still being held.
+         */
         load(path: string): Promise<unknown> {
             if (this.loadRejection) {
                 return Promise.reject(this.loadRejection);
             }
             this.loaded.push(path);
+            this.references.set(path, (this.references.get(path) ?? 0) + 1);
             return Promise.resolve({ path });
+        }
+
+        release(path: string): boolean {
+            this.released.push(path);
+            const held = this.references.get(path) ?? 0;
+            if (held === 0) {
+                return false;
+            }
+            if (held === 1) {
+                this.references.delete(path);
+            } else {
+                this.references.set(path, held - 1);
+            }
+            return true;
+        }
+
+        getCacheStats() {
+            return { entries: this.references.size, loading: 0, decodedBytes: 0 };
         }
 
         onceReady(): Promise<Sound> {
@@ -244,6 +253,7 @@ vi.mock("@narraleaf/sound", () => {
 function createGameState(
     declarations: AudioBusDeclaration[] = [],
     preferences: Partial<Record<"soundVolume" | "bgmVolume" | "voiceVolume", number>> = {},
+    config: { audioStreaming?: "loops" | "declared" } = {},
 ) {
     const preference = new Preference({
         soundVolume: 1,
@@ -255,6 +265,9 @@ function createGameState(
     return {
         game: {
             preference,
+            // Only the keys the manager reads; `audioStreaming` decides whether a clip is decoded
+            // or streamed.
+            config: { audioStreaming: "loops", ...config },
             audioBuses: new AudioBusMixer(
                 () => declarations,
                 createPreferenceBusAliases(preference as never),
@@ -267,9 +280,28 @@ function createGameState(
     } as any;
 }
 
-/** Only `config.src` is read by `preload`. */
-function soundLike(src: string) {
-    return { config: { src } } as any;
+/** Only `config` is read by `preload`, and only to decide how the clip would be played. */
+function soundLike(src: string, config: Record<string, unknown> = {}) {
+    return { config: { src, ...config } } as any;
+}
+
+/** A manager whose audio context has already unlocked, and the backend behind it. */
+async function readyForPreload(config: { audioStreaming?: "loops" | "declared" } = {}) {
+    const manager = new AudioManager(createGameState([], {}, config));
+    manager.initialize();
+    const sound = soundMock.instances[0];
+    sound.readyResolvers.forEach(resolve => resolve());
+    await settle();
+    return { manager, sound };
+}
+
+/** The same, plus the channel a given bus plays on. */
+async function readyManagerFor(
+    type: SoundType,
+    config: { audioStreaming?: "loops" | "declared" } = {},
+) {
+    const { manager, sound } = await readyForPreload(config);
+    return { manager, sound, channel: sound.channels.get(type) as unknown as ChannelMock };
 }
 
 describe("AudioManager", () => {
@@ -671,40 +703,187 @@ describe("AudioManager.preload", () => {
         await expect(manager.preload(soundLike("missing.mp3"))).resolves.toBeUndefined();
         expect(gameState.logger.weakWarn).toHaveBeenCalled();
     });
+
+    it("takes one reference however many times the same source is warmed", async () => {
+        const { manager, sound } = await readyForPreload();
+
+        await manager.preload(soundLike("hit.wav"));
+        await manager.preload(soundLike("hit.wav"));
+
+        expect(sound.loaded).toEqual(["hit.wav"]);
+        expect(sound.references.get("hit.wav")).toBe(1);
+    });
+
+    it("does not warm a clip that will be streamed", async () => {
+        const { manager, sound } = await readyForPreload();
+
+        // An element fetches as it plays, so there is no decoded buffer to have ready - warming one
+        // would decode the very thing streaming exists to avoid decoding.
+        await manager.preload(soundLike("theme.mp3", { loop: true }));
+        await manager.preload(soundLike("ambience.ogg", { streaming: true }));
+
+        expect(sound.loaded).toEqual([]);
+    });
+});
+
+/**
+ * What stays decoded, and for how long.
+ *
+ * A decoded clip is float32 PCM - a five-minute stereo track is ~106 MB whatever the file weighed -
+ * and every clip a game had ever played used to stay decoded for the rest of the session. What is
+ * resident now is what a token is playing plus what the scene that is open asked to keep warm.
+ */
+describe("AudioManager cache residency", () => {
+    beforeEach(() => {
+        soundMock.instances.length = 0;
+    });
+
+    it("takes no cache reference to play a clip", async () => {
+        const { manager, sound, channel } = await readyManagerFor(SoundType.Sound);
+
+        await manager.playSoundToken(Sound.sound({ src: "hit.wav" }));
+
+        // The source goes over by path and the token's own hold on it is what keeps it decoded, so
+        // a clip that is played and stopped leaves nothing behind. Loading it here is what used to
+        // pin every clip the game ever played.
+        expect(channel.sources).toEqual(["hit.wav"]);
+        expect(sound.loaded).toEqual([]);
+        expect(sound.references.size).toBe(0);
+    });
+
+    it("keeps the scene's own sounds warm and lets the previous scene's go", async () => {
+        const { manager, sound } = await readyForPreload();
+
+        manager.retainOnly([soundLike("hit.wav"), soundLike("door.wav")]);
+        await settle();
+        expect(sound.references.size).toBe(2);
+
+        // `door.wav` is in both scenes: it must not be released and decoded again.
+        manager.retainOnly([soundLike("door.wav"), soundLike("bell.wav")]);
+        await settle();
+
+        expect(sound.released).toEqual(["hit.wav"]);
+        expect(sound.loaded).toEqual(["hit.wav", "door.wav", "bell.wav"]);
+        expect([...sound.references.keys()].sort()).toEqual(["bell.wav", "door.wav"]);
+    });
+
+    it("gives a reference back even when the release overtakes the load", async () => {
+        const manager = new AudioManager(createGameState());
+        manager.initialize();
+        const sound = soundMock.instances[0];
+
+        // Warmed while the audio context is still locked, then dropped before it unlocks. A release
+        // that ran at once would find nothing cached and leave the reference held for good.
+        void manager.preload(soundLike("hit.wav"));
+        manager.retainOnly([]);
+        sound.readyResolvers.forEach(resolve => resolve());
+        await settle();
+
+        expect(sound.loaded).toEqual(["hit.wav"]);
+        expect(sound.references.size).toBe(0);
+    });
+
+    it("holds nothing after a new game", async () => {
+        const { manager, sound } = await readyForPreload();
+        manager.retainOnly([soundLike("hit.wav")]);
+        await settle();
+
+        manager.reset();
+        await settle();
+
+        expect(sound.references.size).toBe(0);
+    });
+
+    it("reports what the cache is holding, and nothing before the context unlocks", () => {
+        const manager = new AudioManager(createGameState());
+        manager.initialize();
+
+        expect(manager.getCacheStats()).toEqual({ entries: 0, loading: 0, decodedBytes: 0 });
+    });
+});
+
+/**
+ * Which clips are decoded into memory and which are streamed through an `<audio>` element.
+ */
+describe("AudioManager streaming rule", () => {
+    beforeEach(() => {
+        soundMock.instances.length = 0;
+    });
+
+    it("streams a whole-file loop and decodes everything else", async () => {
+        const { manager, channel } = await readyManagerFor(SoundType.Bgm);
+
+        await manager.playSoundToken(Sound.bgm({ src: "theme.mp3", loop: true }));
+        await manager.playSoundToken(Sound.bgm({ src: "sting.mp3" }));
+
+        // Background music is long and plays for as long as the scene lasts, which is the worst
+        // case for holding a decoded buffer; a one-shot wants the latency of a decoded one.
+        expect(channel.played.map(options => options.load)).toEqual(["stream", "full"]);
+    });
+
+    it("decodes a loop that marks an out point", async () => {
+        const { manager, channel } = await readyManagerFor(SoundType.Bgm);
+
+        await manager.playSoundToken(Sound.bgm({ src: "theme.mp3", loop: true, seek: 0, endTime: 90 }));
+
+        // An element repeats the file, not a region of it, so a marked loop has to be decoded.
+        expect(channel.played[0]?.load).toBe("full");
+    });
+
+    it("streams a clip the author declared streaming, region or not", async () => {
+        const { manager, channel } = await readyManagerFor(SoundType.Sound);
+
+        await manager.playSoundToken(Sound.sound({ src: "rain.ogg", streaming: true }));
+        await manager.playSoundToken(Sound.sound({
+            src: "rain.ogg", streaming: true, loop: true, seek: 1, endTime: 20,
+        }));
+
+        expect(channel.played.map(options => options.load)).toEqual(["stream", "stream"]);
+    });
+
+    it("decodes a whole-file loop when the host asks for declared streaming only", async () => {
+        const { manager, channel } = await readyManagerFor(SoundType.Bgm, { audioStreaming: "declared" });
+
+        await manager.playSoundToken(Sound.bgm({ src: "theme.mp3", loop: true }));
+        await manager.playSoundToken(Sound.bgm({ src: "rain.ogg", loop: true, streaming: true }));
+
+        expect(channel.played.map(options => options.load)).toEqual(["full", "stream"]);
+    });
+
+    it("decodes a source that is already in memory", async () => {
+        const { manager, channel } = await readyManagerFor(SoundType.Bgm);
+
+        // There is nothing to stream from a data: URL, and an element would only add latency.
+        await manager.playSoundToken(Sound.bgm({ src: "data:audio/wav;base64,AAAA", loop: true }));
+
+        expect(channel.played[0]?.load).toBe("full");
+    });
 });
 
 /**
  * The in and out points an author marks on a clip.
  *
- * They only exist for the audio backend, which turns `startTime` + `endTime` + `loop` into the Web
- * Audio node's own loop region - so every assertion here is about what reaches `channel.play`.
+ * They only exist for the audio backend, which turns `startTime` + `endTime` + `loopStart` + `loop`
+ * into the Web Audio node's own loop region - so every assertion here is about what reaches
+ * `channel.play`.
  */
 describe("AudioManager clip regions", () => {
     beforeEach(() => {
         soundMock.instances.length = 0;
     });
 
-    /** A manager whose audio context has already unlocked, plus the channel a given type plays on. */
-    async function readyManager(type: SoundType) {
-        const manager = new AudioManager(createGameState());
-        manager.initialize();
-        const sound = soundMock.instances[0];
-        sound.readyResolvers.forEach(resolve => resolve());
-        await settle();
-        return { manager, channel: sound.channels.get(type) as unknown as ChannelMock };
-    }
+    const readyManager = readyManagerFor;
 
     it("plays an in/out point pair as a loop region", async () => {
         const { manager, channel } = await readyManager(SoundType.Bgm);
 
         await manager.playSoundToken(Sound.bgm({ src: "theme.mp3", loop: true, seek: 2, endTime: 30 }));
 
-        // `endTime` must NOT reach the backend here. It turns into a timer that stops the token after
-        // one pass whether or not the clip loops, so handing it over is exactly what stopped the loop
-        // region from ever repeating. The region goes onto the node instead.
-        expect(channel.played[0]).toMatchObject({ startTime: 2, loop: true });
-        expect(channel.played[0] && "endTime" in channel.played[0]).toBe(false);
-        expect(channel.node).toMatchObject({ loop: true, loopStart: 2, loopEnd: 30 });
+        // The region goes over as it stands. The backend reads an out point as where a looping clip
+        // repeats *from* rather than where it stops, so nothing has to reach around it any more -
+        // this used to be written onto the Web Audio node by hand because the old backend armed a
+        // stop timer off `endTime` whether or not the clip looped.
+        expect(channel.played[0]).toMatchObject({ startTime: 2, endTime: 30, loop: true });
     });
 
     it("repeats from a loop in point of its own when one is given", async () => {
@@ -715,19 +894,7 @@ describe("AudioManager clip regions", () => {
         }));
 
         // The intro plays once from the top; every repeat after that returns to 12s, not to 0s.
-        expect(channel.played[0]?.startTime).toBe(0);
-        expect(channel.node).toMatchObject({ loop: true, loopStart: 12, loopEnd: 90 });
-    });
-
-    it("ignores a loop in point that falls outside the region", async () => {
-        const { manager, channel } = await readyManager(SoundType.Bgm);
-
-        await manager.playSoundToken(Sound.bgm({
-            src: "theme.mp3", loop: true, seek: 2, loopStart: 120, endTime: 30,
-        }));
-
-        // A repeat that starts at or after the out point is a zero-length loop - silence forever.
-        expect(channel.node).toMatchObject({ loopStart: 2, loopEnd: 30 });
+        expect(channel.played[0]).toMatchObject({ startTime: 0, loopStart: 12, endTime: 90 });
     });
 
     it("hands a one-shot's out point straight to the backend", async () => {
@@ -738,7 +905,7 @@ describe("AudioManager clip regions", () => {
         // Without `loop` the backend's stop-at-duration timer *is* the out point, and there is no
         // loop region to write.
         expect(channel.played[0]).toMatchObject({ startTime: 1, endTime: 4, loop: false });
-        expect(channel.node.loop).toBe(false);
+        expect(channel.played[0] && "loopStart" in channel.played[0]).toBe(false);
     });
 
     it("drops an out point that is not after the in point", async () => {
@@ -791,8 +958,7 @@ describe("AudioManager clip regions", () => {
 
         // Restoring straight at 12 would make every later repeat return to 12 instead of the in
         // point, silently shrinking the author's loop for the rest of the session.
-        expect(channel.played[0]?.startTime).toBe(2);
-        expect(channel.node).toMatchObject({ loop: true, loopStart: 2, loopEnd: 30 });
+        expect(channel.played[0]).toMatchObject({ startTime: 2, endTime: 30, loop: true });
         expect(channel.token.seek).toHaveBeenCalledWith(12);
     });
 

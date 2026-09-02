@@ -156,6 +156,7 @@ export class Game {
         maxActionHistory: 100,
         maxSceneCallDepth: 8,
         audioBuses: [],
+        audioStreaming: "loops",
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 
