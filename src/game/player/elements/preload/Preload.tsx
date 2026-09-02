@@ -41,7 +41,7 @@ export function Preload(
     /**
      * preload logic 2.0
      *
-     * Fetch the images and store them as base64 in the stack.
+     * Fetch the images into the cache as object urls, decoding the ones the scene is about to show.
      *
      * Split into three tiers. The first-frame tier is the scene's opening background - the one
      * image the frame about to paint cannot do without. The critical tier is everything else the
@@ -55,6 +55,11 @@ export function Preload(
      * decoded - seconds of latency on a large story, all of it spent on assets the player was not
      * about to see - and the split that fixed that left the whole registered scene on the gate,
      * which on a real project is still most of the library.
+     *
+     * What the cache keeps is decided at the start of the pass, not at its end (see
+     * {@link ImageCacheManager.retain}), and how much of it stays decoded is the cache's budget to
+     * decide (see {@link GameConfig.decodedImageBudgetBytes}): the tiers only say what to fetch and
+     * what to ask retention for.
      */
     useEffect(() => {
         if (typeof fetch === "undefined") {
@@ -84,6 +89,18 @@ export function Preload(
 
         const timeStart = performance.now();
         const plan = planScenePreload(lastScene);
+        // What this scene keeps is settled now, not once its look-ahead pool has landed: the opening
+        // background is pinned against the budgets, and everything outside the plan is let go - at
+        // once if nothing on stage shows it, and the moment the scene that was showing it unmounts
+        // otherwise. Deciding it at the end of the pass meant a left scene's artwork outlived it by
+        // a whole pass, and for ever when the pass was superseded before it got there.
+        cacheManager.pin(plan.firstFrame).retain(plan.all);
+        const describeCache = () => {
+            const stats = cacheManager.getStats();
+            const mb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
+            return `loaded ${stats.entries} images in ${(performance.now() - timeStart).toFixed(0)}ms`
+                + ` (${mb(stats.blobBytes)} MB fetched, ${mb(stats.decodedBytes)} MB decoded, ${stats.pinned} pinned)`;
+        };
         // Neither of the first two tiers is paced: `preloadDelay` exists to keep speculative
         // look-ahead work from saturating the network, not to throttle assets the player is either
         // waiting on or one click away from.
@@ -100,7 +117,10 @@ export function Preload(
 
         const enqueue = (pool: TaskPool, urls: string[], tier: string, retainDecoded: boolean) => {
             urls.forEach((src, index) => {
-                if (cacheManager.has(src) || cacheManager.isPreloading(src)) {
+                // Warm enough for this tier: fetched, and decoded if the tier holds its bitmaps. A url
+                // another pass is still fetching is queued regardless - its token follows that fetch,
+                // and a first frame has to wait for it either way.
+                if (cacheManager.has(src) && (!retainDecoded || cacheManager.isDecoded(src))) {
                     state.logger.debug(LogTag, `Image already loaded (${tier} ${index + 1}/${urls.length})`, src);
                     return;
                 }
@@ -144,27 +164,19 @@ export function Preload(
         const gateOnFirstFrame = game.config.preloadGate !== "scene";
 
         void firstFramePool.start().then(async () => {
-            state.logger.info(
-                LogTag,
-                "Image preload (first frame)",
-                `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`,
-            );
+            state.logger.info(LogTag, "Image preload (first frame)", describeCache());
             if (gateOnFirstFrame) {
                 openGate();
             }
 
-            // A superseded pass must neither keep fetching for a scene that is gone nor run its
-            // eviction: `filter()` keeps only this pass's src list, so a stale one would drop the
-            // images the current scene just cached.
+            // A superseded pass must not keep fetching for a scene that is gone. What the cache
+            // keeps was settled when the pass started, so there is nothing here for a stale pass to
+            // skip.
             if (cancelled) {
                 return;
             }
             await criticalPool.start();
-            state.logger.info(
-                LogTag,
-                "Image preload (first scene)",
-                `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`,
-            );
+            state.logger.info(LogTag, "Image preload (first scene)", describeCache());
             if (!gateOnFirstFrame) {
                 openGate();
             }
@@ -175,12 +187,7 @@ export function Preload(
             if (cancelled) {
                 return;
             }
-            state.logger.info(
-                LogTag,
-                "Image preload (look-ahead)",
-                `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`,
-            );
-            cacheManager.filter(plan.all);
+            state.logger.info(LogTag, "Image preload (look-ahead)", describeCache());
         });
 
         if (!game.config.waitForPreload) {
@@ -277,9 +284,11 @@ export function Preload(
 
         logGroup.end();
 
+        // Settled before the fetch rather than after it, for the same reason as the scene pass: what
+        // the prediction window has moved past is let go now, or when the stage stops showing it.
+        cacheManager.retain(preloadSrc);
         taskPool.start().then(() => {
             state.logger.info(LogTag, "Image preload (quick reload)", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
-            cacheManager.filter(preloadSrc);
         });
     }, [currentAction, story]);
 

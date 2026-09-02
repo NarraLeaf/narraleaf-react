@@ -78,7 +78,7 @@ export default function Player(
     const currentHandlingResult = React.useRef<CalledActionResult | Awaitable<CalledActionResult> | null>(null);
     const nextMultiLock = React.useRef<MultiLock | null>(null);
 
-    const { preloaded } = usePreloaded();
+    const { preloaded, cacheManager } = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
     const preloadedReadyHandlerExecuted = React.useRef(false);
     const [preloadComplete, setPreloadComplete] = useState(false);
@@ -202,6 +202,15 @@ export default function Player(
     useEffect(() => {
         state.audioManager.initialize();
     }, []);
+
+    // The image cache belongs to the provider and outlives this player; the state is what a host
+    // reaches it through (`GameState.getImageCache`), for as long as the player is mounted.
+    useEffect(() => {
+        state.setImageCache(cacheManager);
+        return () => {
+            state.setImageCache(null);
+        };
+    }, [cacheManager]);
 
     useEffect(() => {
         game.getLiveGame().setGameState(state);

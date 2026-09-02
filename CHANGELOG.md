@@ -1,5 +1,94 @@
 # Changelog
 
+## [0.45.0]
+
+### _Features_
+
+- **The image cache has a memory budget.** `GameConfig.imageCacheBudgetBytes` caps the fetched bytes
+  it holds and `GameConfig.decodedImageBudgetBytes` caps the decoded bitmaps it keeps warm. Past
+  either, the least recently used entries that nothing is showing are released, and fetched or
+  decoded again when a scene next wants them.
+
+  ```ts
+  new Game({
+      imageCacheBudgetBytes: 256 * 1024 * 1024,     // the default
+      decodedImageBudgetBytes: 128 * 1024 * 1024,   // the default
+  });
+
+  // ...or opt out, which is what every earlier version did
+  new Game({imageCacheBudgetBytes: Infinity, decodedImageBudgetBytes: Infinity});
+  ```
+
+  The cache had no limit of any kind before this, and what it held was decided by the preload pass
+  after the one that filled it: a scene's registered set - every pose of every character it shows,
+  every background it cuts to - stayed fetched and decoded until the *next* scene's look-ahead pool
+  had finished, and stayed for ever if that pass was superseded before it got there. Measured on a
+  241 MB image library, that was 1154 MB of renderer working set at the title screen, and a long
+  session on an 8 GB laptop ended in an out-of-memory renderer.
+
+  **On the defaults.** The decoded pool is the one that grew without bound, because a bitmap costs
+  width × height × 4 bytes whatever its file compressed to: a 1080p background is 8.3 MB decoded
+  from a 2 MB JPEG, a 2000-pixel sprite about 10 MB, and a scene registering a hundred images asks
+  for the better part of a gigabyte. 128 MB is fifteen backgrounds or a dozen large sprites -
+  several times over what a scene has on screen at once, which is a background and two or three
+  characters - so the frame being revealed and the ones about to follow it stay decoded while a
+  chapter's worth of alternative poses does not. The fetched pool is the cheaper half and is sized
+  to hold a whole scene's registered set without releasing anything the scene is about to want
+  again: the scene measured above registers 205 MB of image files, so 256 MB keeps them for as long
+  as the player is in it, while capping a session that visits fifty scenes at that rather than at
+  the size of the library. Together they put a ceiling of 384 MB on image residency, which leaves an
+  8 GB laptop room for everything else the renderer has to hold. A game that knows its own library
+  is welcome to raise either.
+
+  **Nothing on screen is ever released.** The current scene's opening background is pinned for as
+  long as it is the current scene, and every image a mounted `<img>` is showing - both halves of a
+  transition in flight, a scene parked behind a scene call, an avatar - is pinned for as long as it
+  is showing. A budget too small for the frame on screen degrades to fetching on demand, never to a
+  broken frame. Letting a bitmap go costs a decode the next time the image is revealed, which is
+  tens of milliseconds for a 1080p JPEG and around 100 ms for a 15 MB background, and it is paid
+  before the transition that reveals it rather than during it.
+
+- **`ImageCacheManager.getStats()` reports what the cache is holding, against what it is allowed to
+  hold.** Reachable from the live game, so a host or a profiler can watch a long session's image
+  residency without instrumenting anything:
+
+  ```ts
+  game.getLiveGame().getGameState()?.getImageCache()?.getStats();
+  // {
+  //   entries: 34, blobBytes: 214_958_080,
+  //   decodedEntries: 12, decodedBytes: 99_532_800,
+  //   pinned: 4,
+  //   budget: {blobBytes: 268_435_456, decodedBytes: 134_217_728},
+  // }
+  ```
+
+  `GameState.getImageCache()` hands back the cache the mounted player is using, or `null` while no
+  player is mounted. `ImageCacheManager` and `ImageCacheStats` are exported types now. The
+  `Image preload` log lines report the same numbers, so a game running with `logger.info` on shows
+  its residency at every scene change without a console session.
+
+### _Fixes_
+
+- **A scene's images are released when the scene is left, not a preload pass later.** What the cache
+  keeps is settled when a scene's preload pass *starts*, so the artwork of the scene just left goes
+  at once - or, for whatever is still on screen through the transition into the new scene, the
+  moment its last `<img>` unmounts. A pass superseded by another scene change used to skip the
+  eviction altogether and leave everything it had fetched in memory for the rest of the session;
+  there is nothing left there for a superseded pass to skip. Every eviction path revokes the object
+  URL it minted, which is what actually hands the bytes back.
+
+- **`preload()` settles for an image that is already cached.** The token it handed back for a source
+  already in the cache, or already being fetched by another pass, never fired at all - a caller that
+  waited on it waited for ever. It now settles once the caller's own request is met, which for a
+  first frame whose bitmap was fetched as speculative look-ahead (and so retains nothing) means
+  decoding it rather than reporting a warm cache and revealing on an undecoded image.
+
+- **"Image not preloaded" no longer fires for an image the cache has released.** The warning exists
+  to point out an image action nothing could predict, which is worth fixing with
+  `scene.preloadImage()`; an image the preloader did fetch and a budget later let go of is the cache
+  working as designed, and telling the author to register it would be telling them to fix something
+  that is not broken.
+
 ## [0.44.0]
 
 ### _Breaking_

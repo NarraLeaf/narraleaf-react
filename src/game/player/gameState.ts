@@ -29,6 +29,7 @@ import {Vfx, VfxStateRaw} from "@core/elements/vfx";
 import {Timeline, Timelines} from "@player/Tasks";
 import {Notification, NotificationManager} from "@player/lib/notification";
 import {StageTransitionManager} from "@player/elements/scene/stageTransition";
+import type {ImageCacheManager} from "@player/lib/ImageCacheManager";
 import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
 import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
 import { Displayable } from "../nlcore/elements/displayable/displayable";
@@ -273,6 +274,8 @@ export class GameState {
      * @internal
      */
     public readonly stageTransition: StageTransitionManager;
+    /**@internal */
+    private imageCache: ImageCacheManager | null = null;
     public pageRouter: null = null;
     private stageClickBuffer: { timestamp: number } | null = null;
     private readonly advanceSuspensions: Set<symbol> = new Set();
@@ -395,6 +398,24 @@ export class GameState {
 
     public getPreloadingScene(): Scene | null {
         return this.preloadingScene;
+    }
+
+    /**
+     * The image cache the mounted player is using, or `null` while no player is mounted.
+     *
+     * What it holds against {@link GameConfig.imageCacheBudgetBytes} and
+     * {@link GameConfig.decodedImageBudgetBytes} is readable at any time, which is what a profiler
+     * or a host checking a long session's memory wants:
+     * `game.getLiveGame().getGameState()?.getImageCache()?.getStats()`.
+     */
+    public getImageCache(): ImageCacheManager | null {
+        return this.imageCache;
+    }
+
+    /**@internal */
+    public setImageCache(cache: ImageCacheManager | null): this {
+        this.imageCache = cache;
+        return this;
     }
 
     public addElement(element: PlayerStateElement): this {

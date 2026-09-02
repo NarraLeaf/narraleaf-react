@@ -220,6 +220,49 @@ export type GameConfig = {
      */
     maxPreloadActions: number;
     /**
+     * How many bytes of fetched image data the preload cache may hold at once.
+     *
+     * Every image the cache fetches stays in memory as a blob until the cache lets it go, and a
+     * scene's registered set plus a hop of look-ahead is most of a chapter's artwork. Past this
+     * budget the least recently used images that nothing on stage is showing are released; a
+     * released image is fetched again the next time a scene wants it.
+     *
+     * The current scene's opening background and every image a mounted `<img>` is showing are
+     * never released whatever the budget says, so a budget too small for the frame on screen
+     * degrades to fetching on demand, never to a broken frame. `Infinity` removes the limit.
+     *
+     * The default is meant to hold a whole scene's registered set on a large project without
+     * releasing anything it is about to want again - a chapter's worth of artwork measured at
+     * around 200 MB of files - while capping a session that visits fifty scenes at that rather
+     * than at the size of the library. Raise it for a game whose scenes are heavier than that.
+     *
+     * @default 256 * 1024 * 1024
+     */
+    imageCacheBudgetBytes: number;
+    /**
+     * How many bytes of decoded bitmaps the preload cache may keep decoded, at width × height × 4
+     * bytes each.
+     *
+     * A decoded bitmap is what lets an image paint the frame it is revealed on without an
+     * asynchronous decode first, and it is the expensive half of an image: a 1080p background
+     * decodes to about 8 MB whatever its file size, a 2000-pixel sprite to about 10 MB. The cache
+     * keeps the current scene's registered images decoded up to this budget, least recently used
+     * first to go past it; an image it let go of is decoded again on demand, which costs tens of
+     * milliseconds for a 1080p JPEG and is paid before the transition that reveals it starts.
+     *
+     * The current scene's opening background and every image on stage are exempt. `Infinity`
+     * removes the limit; `0` keeps nothing decoded beyond those.
+     *
+     * The default is fifteen 1080p backgrounds or a dozen large sprites - several times what a
+     * scene has on screen at once, which is a background and two or three characters - so the
+     * frame being revealed and the ones about to follow it stay warm while a chapter's worth of
+     * alternative poses does not. This is the pool that grew without limit before there was a
+     * budget, because a bitmap's size has nothing to do with how well its file compressed.
+     *
+     * @default 128 * 1024 * 1024
+     */
+    decodedImageBudgetBytes: number;
+    /**
      * The audio bus tree, declared by the host at boot.
      *
      * A bus is a gain node every sound routed to it passes through, and buses nest: a clip on

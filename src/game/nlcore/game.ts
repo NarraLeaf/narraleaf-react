@@ -125,6 +125,8 @@ export class Game {
         preloadAllImages: true,
         forceClearCache: false,
         maxPreloadActions: 10,
+        imageCacheBudgetBytes: 256 * 1024 * 1024,
+        decodedImageBudgetBytes: 128 * 1024 * 1024,
         cursor: null,
         cursorHeight: 30,
         cursorWidth: 30,

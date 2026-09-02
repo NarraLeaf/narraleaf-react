@@ -1039,12 +1039,14 @@ export function moveElementInArray<T>(arr: T[], element: T, newIndex: number): T
  *
  * The caller owns the URL and MUST call {@link URL.revokeObjectURL} when it stops using it -
  * an object URL pins its blob for the lifetime of the document otherwise. {@link ImageCacheManager}
- * is the only caller and revokes on every path that drops an entry.
+ * is the only caller and revokes on every path that drops an entry. The blob's size comes back
+ * with the url because that is what the caller is holding for as long as it keeps the url, and
+ * the cache keeps a budget of it.
  */
-export async function getImageObjectUrl(src: string, options?: RequestInit): Promise<string> {
+export async function getImageObjectUrl(src: string, options?: RequestInit): Promise<{url: string; bytes: number}> {
     const response = await fetch(src, options);
     const blob = await response.blob();
-    return URL.createObjectURL(blob);
+    return {url: URL.createObjectURL(blob), bytes: blob.size};
 }
 
 export class TaskPool {

@@ -1,6 +1,7 @@
 import React, {useEffect, useRef, forwardRef} from "react";
 import {useRatio} from "@player/provider/ratio";
 import {useGame} from "@core/common/player";
+import {useHoldImageSrc} from "@player/lib/useHoldImageSrc";
 
 const AspectScaleImage = forwardRef<HTMLImageElement, {
     onSizeChanged?: (width: number, height: number) => void;
@@ -40,6 +41,10 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
 
     // Forward the ref to the img element
     React.useImperativeHandle(ref, () => imgRef.current!, []);
+
+    // Whatever url this element ends up showing - through the `src` prop or written by a
+    // transition - is on stage, and the cache must not take it back until the element lets go.
+    useHoldImageSrc(imgRef);
 
     // Add loading methods to the img element
     useEffect(() => {

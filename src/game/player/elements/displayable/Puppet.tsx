@@ -192,14 +192,36 @@ export default function Puppet({state, puppet}: Readonly<{
         }
     }, [size]);
 
+    /* Every cached url this puppet has taken, held against eviction until the element leaves the
+       stage. A backend keeps the urls it was given - a texture page is loaded once and drawn for
+       as long as the model is on screen - and unlike an `<img>` it has no way of telling the cache
+       what it is still using. Without this the cache could revoke a texture's object url out from
+       under a live model the first time a memory budget went looking for room. */
+    const heldUrls = useRef<Set<string>>(new Set());
+    useEffect(() => {
+        const held = heldUrls.current;
+        return () => {
+            held.forEach(url => cacheManager.release(url));
+            held.clear();
+        };
+    }, []);
+
     /* The same resolution images get: anything warmed by `scene.preloadImage()` is served from the
-       preload cache (which stores a re-encoding under a data URL, reachable only through `get`),
-       and anything else is handed back untouched for the backend to fetch itself. */
+       preload cache (which stores an object URL, reachable only through `get`), and anything else
+       is handed back untouched for the backend to fetch itself. */
     function resolveSrc(src: string): string {
         if (Utils.isDataURI(src)) {
             return src;
         }
-        return cacheManager.get(src) || src;
+        const cached = cacheManager.get(src);
+        if (!cached) {
+            return src;
+        }
+        if (!heldUrls.current.has(cached)) {
+            heldUrls.current.add(cached);
+            cacheManager.hold(cached);
+        }
+        return cached;
     }
 
     return (

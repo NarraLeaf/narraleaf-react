@@ -162,8 +162,12 @@ function ImageComponent(
         : null;
 
     function resolveCachedSrc(src: string): string {
+        // `wasCached` and not `has`: an image the cache fetched and a memory budget has since let go
+        // of is the cache working as designed, and warning about it would tell the author to fix
+        // something that is not broken. What is worth a warning is an image the preloader never
+        // heard of at all, which is an action nothing could predict.
         if (!Utils.isInlineSrc(src)
-            && (!cacheManager.has(src) && !cacheManager.isPreloading(src))
+            && (!cacheManager.wasCached(src) && !cacheManager.isPreloading(src))
             && !ignored.current.includes(src)
         ) {
             state.game.getLiveGame().getGameState()?.logger.warn("Image",
