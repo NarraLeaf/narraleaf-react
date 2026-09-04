@@ -43,8 +43,10 @@ export function Preload(
     const settled = useRef<Set<string>>(new Set());
 
     const lastScene: Scene | null = state.getLastScene() || state.getPreloadingScene();
-    const actionId: string | null = game.getLiveGame().getCurrentActionId();
     const story = game.getLiveGame().story;
+    /** What the advance pass reads when the play head moves, which is not a render. */
+    const sceneRef = useRef<Scene | null>(lastScene);
+    sceneRef.current = lastScene;
 
     /**
      * The host's strategy, or the built-in one - decided once per game rather than per render, so a
@@ -125,20 +127,29 @@ export function Preload(
      * The story advanced. Ask again, but never hold the screen for the answer: by this point the
      * game is running, and a strategy that plans row by row is refining a warm set rather than
      * deciding whether anything can be shown at all.
+     *
+     * Driven by the engine's own play-head event rather than by a render. The play head is not
+     * React state, so a component that read it during render would only see it move when something
+     * else happened to re-render this subtree - which is most actions, and not all of them. A
+     * strategy that plans by row has to be asked for every row or its window silently stops
+     * following the reader.
      */
     useEffect(() => {
         if (!story) {
             return;
         }
         const cancelled = {value: false};
-        void runMoment(
-            {kind: "advance", actionId, scene: lastScene, story},
-            {gates: false, cancelled},
-        );
+        const token = game.getLiveGame().onCurrentActionChange(({actionId}) => {
+            void runMoment(
+                {kind: "advance", actionId, scene: sceneRef.current, story},
+                {gates: false, cancelled},
+            );
+        });
         return () => {
             cancelled.value = true;
+            token.cancel();
         };
-    }, [actionId, story, strategy]);
+    }, [story, strategy, game]);
 
     return null;
 
