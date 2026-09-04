@@ -170,11 +170,17 @@ function ImageComponent(
             && (!cacheManager.wasCached(src) && !cacheManager.isPreloading(src))
             && !ignored.current.includes(src)
         ) {
-            state.game.getLiveGame().getGameState()?.logger.warn("Image",
-                `Image not preloaded: "${src}". `
-                + "\nThis may be caused by complicated image action behavior that cannot be predicted. "
-                + "\nTo fix this issue, you can manually register the image using scene.preloadImage(YourImageSrc). "
-            );
+            // The host hears about it first when it wants to: it planned the warm set, so it is the
+            // only thing that can say which row shows this and why nothing warmed it. The warning
+            // below is the answer for a game with no strategy of its own, and it names the remedy
+            // such a game actually has.
+            if (!cacheManager.reportMissing(src)) {
+                state.game.getLiveGame().getGameState()?.logger.warn("Image",
+                    `Image not preloaded: "${src}". `
+                    + "\nThis may be caused by complicated image action behavior that cannot be predicted. "
+                    + "\nTo fix this issue, you can manually register the image using scene.preloadImage(YourImageSrc). "
+                );
+            }
             ignored.current.push(src);
         }
         return cacheManager.get(src) || src;

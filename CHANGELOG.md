@@ -1,5 +1,99 @@
 # Changelog
 
+## [0.46.0]
+
+### _Features_
+
+- **The preloader is a seam, not a policy.** `GameConfig.preload` takes a `PreloadStrategy`: an
+  object the player asks what should be warm at each moment in the story, instead of guessing.
+
+  ```ts
+  new Game({
+      preload: {
+          plan(moment) {
+              if (moment.kind !== "scene") return null;
+              return {
+                  entries: [
+                      {type: "image", src: openingBackground, band: "gate"},
+                      ...spritesThisSceneShows.map(src => ({type: "image", src, band: "soon"} as const)),
+                      ...nextChapter.map(src => ({type: "image", src, band: "idle"} as const)),
+                  ],
+                  keep: everythingAbove,
+                  pin: [openingBackground],
+              };
+          },
+      },
+  });
+  ```
+
+  A plan names resources in one of three bands. `gate` holds the first painted frame - that is the
+  loading screen's whole meaning; `soon` starts at once and blocks nothing; `idle` is speculative,
+  paced by `preloadDelay`, and abandoned when the moment is superseded. `keep` is everything the
+  cache may hold for this moment, and `pin` is what no budget may release. A plan replaces the
+  previous one rather than adding to it, so a scene the story has left keeps nothing.
+
+  Nothing changes for a game that supplies no strategy. It gets the built-in one, exported as
+  `createDefaultPreloadStrategy`, which is the walk and the tiers exactly as they were and is
+  steered by exactly the same `preloadAllImages` / `preloadGate` / `maxPreloadActions` /
+  `preloadDelay` / `preloadConcurrency` fields as before. Those fields have not moved and have not
+  changed meaning; they now describe that strategy rather than the player.
+
+  **Why.** The player answered three questions on its own, and all three answers are wrong for a
+  host that knows more than a static walk can see. *What will be needed* it guessed by walking the
+  action tree of the scene about to paint and of every scene reachable from it - which on a real
+  project is most of the library, so painting one background fetched and decoded a chapter's
+  artwork. *When* followed from that walk, one pass per scene. *How* was fixed: fetch, mint an
+  object url, decode off-screen, hold the bitmap. A tool that compiled the story knows which row
+  shows which asset and in which order; it should not have to talk the player out of a guess.
+
+- **A strategy can supply the transport too, through `PreloadStrategy.acquire`.** Return the url an
+  element should be pointed at, what holding it costs, and how to hand it back:
+
+  ```ts
+  preload: {
+      plan,
+      async acquire(resource) {
+          // Already on local disk behind our own protocol: let the browser fetch and cache it once.
+          return {url: resource.src, bytes: 0};
+      },
+  }
+  ```
+
+  Without one the player fetches the resource and mints an object url, which is what it has always
+  done. That is the right answer over a network and the wrong one for a host whose assets are
+  already local: an object url pins its blob for the lifetime of the document, so the renderer ends
+  up holding a second copy of every image it has warmed. Measured on a 241 MB library, that copy was
+  410 MB of blobs at the title screen.
+
+- **`PreloadStrategy.onMissing` hands over the unpredicted-image report.** The player's own answer
+  was a console warning asking the author to call `scene.preloadImage` by hand, which is only useful
+  to someone writing the story in TypeScript. A host that planned the warm set can say which row
+  shows the image instead. The warning stays for games with no strategy of their own.
+
+- **`PreloadEntry.decode` decides whether an image is rasterised ahead of time.** A decode is what
+  lets an image paint on the frame it is revealed on rather than a frame or two later, and it is the
+  expensive half of warming one: measured over the same library, fetching every image took 473 ms
+  and fetching *and* decoding them took 2,140 ms. It defaults to true on `gate` and `soon` and false
+  on `idle`.
+
+- **`PreloadPlan` carries video.** An entry with `type: "video"` is warmed through the strategy's
+  `acquire` when there is one, and by reading the bytes once otherwise. This is a seam and not a
+  promise: there is no video cache in the player to fill, so what it buys depends on what the
+  transport caches. `Video.preload()`, which mounts a hidden element and lets the browser buffer
+  into it, is still the guaranteed way and is still a story action rather than a plan entry.
+
+### _Changes_
+
+- **The speculative look-ahead tier no longer decodes.** It used to decode every image of every
+  reachable scene and drop the bitmap immediately - the expensive half of warming an image, paid for
+  a result nothing read. Fetching is unchanged, so the images are still in the cache when the scene
+  that wants them arrives; they are decoded then, or earlier by whatever band the next plan puts
+  them in. The prediction window that `preloadAllImages: false` uses is unaffected: it names what
+  the next few actions will show, and that is exactly what a decode is worth paying for.
+
+- `ImageCacheManager` gained `useAcquisition`, `useMissingReporter` and `reportMissing`, and
+  `preload()` takes a `decode` option beside `retainDecoded`. Existing calls behave as they did.
+
 ## [0.45.0]
 
 ### _Features_

@@ -1,6 +1,7 @@
 import type { Game } from "@lib/game/nlcore/game";
 import {getImageObjectUrl} from "@lib/util/data";
 import type {GameState} from "@player/gameState";
+import type {PreloadStrategy} from "@core/preload/types";
 
 type ImageCacheTask = {
     promise: Promise<void>;
@@ -53,6 +54,11 @@ type ImageCacheEntry = {
     decodedBytes: number;
     /** Set by {@link ImageCacheManager.retain} on an entry the current scene has no use for. */
     stale: boolean;
+    /**
+     * What the host has to be told when this entry goes, for a url it supplied rather than one the
+     * cache minted. Null for everything the cache fetched itself, which it revokes instead.
+     */
+    release: (() => void) | null;
 };
 
 /**
@@ -144,11 +150,58 @@ export class ImageCacheManager {
     private blobBytes = 0;
     private decodedBytes = 0;
 
+    /**
+     * How the cache gets bytes for a source, when the host would rather it did not fetch them.
+     *
+     * Installed by the preloader from `GameConfig.preload`. Unset, the cache fetches the url and
+     * mints an object url for it, which is what it has always done - and which costs the renderer a
+     * second copy of every image on a host whose assets are already on local disk.
+     */
+    private acquisition: PreloadStrategy["acquire"] | null = null;
+    /** Where a source nothing warmed is reported, when the host wants to hear about it. */
+    private missingReporter: PreloadStrategy["onMissing"] | null = null;
+    /** Sources already reported missing, so one unpredicted image is one report and not one a frame. */
+    private reportedMissing: Set<string> = new Set();
+
     constructor(private readonly game: Game) {
         this.game.addSideEffect(() => {
             this.abortAll();
             this.clear();
         });
+    }
+
+    /**
+     * Install the host's way of obtaining bytes, or clear it.
+     *
+     * Set once, from the preloader, before anything is warmed. Entries already in the cache keep
+     * whatever url they were built with; the cache never re-acquires something it holds.
+     */
+    public useAcquisition(acquire: PreloadStrategy["acquire"] | null): this {
+        this.acquisition = acquire ?? null;
+        return this;
+    }
+
+    /** Install the host's ear for sources nothing warmed, or clear it. */
+    public useMissingReporter(onMissing: PreloadStrategy["onMissing"] | null): this {
+        this.missingReporter = onMissing ?? null;
+        return this;
+    }
+
+    /**
+     * Say that the stage is showing `src` and no plan named it. Answers whether the host took it.
+     *
+     * The player's own answer to this was a console warning telling the author to register the
+     * image by hand, which is only useful to someone who writes the story in TypeScript. A host that
+     * planned from a compiled story can name the row instead, so it gets first refusal and the
+     * warning stays for the games that have no host to ask.
+     */
+    public reportMissing(src: string): boolean {
+        if (!this.missingReporter || this.reportedMissing.has(src)) {
+            return !!this.missingReporter;
+        }
+        this.reportedMissing.add(src);
+        this.missingReporter({type: "image", src});
+        return true;
     }
 
     public has(name: string): boolean {
@@ -234,9 +287,14 @@ export class ImageCacheManager {
      * {@link GameConfig.decodedImageBudgetBytes}, until this source leaves the cache. Use it for the
      * assets that are about to be revealed; leave it off for speculative look-ahead preloading,
      * whose bitmaps would otherwise pile up in memory.
+     * @param options.decode run the off-screen decode at all. Defaults to true. Off, the bytes are
+     * obtained and nothing else: measured over a real library, that is the difference between 473
+     * and 2,140 milliseconds, and it is the right trade for anything the plan does not expect to be
+     * revealed soon. `retainDecoded` implies a decode and overrides this.
      */
-    public preload(gameState: GameState, url: string, options?: { retainDecoded?: boolean }): PreloadedToken {
+    public preload(gameState: GameState, url: string, options?: { retainDecoded?: boolean; decode?: boolean }): PreloadedToken {
         const retainDecoded = options?.retainDecoded === true;
+        const decode = retainDecoded || options?.decode !== false;
         const existing = this.entries.get(url);
         if (existing && (!retainDecoded || existing.decoded)) {
             this.touch(existing);
@@ -262,7 +320,7 @@ export class ImageCacheManager {
 
         const controller = new AbortController();
         return this.runTask(gameState, url, controller, () =>
-            this.fetchAndDecode(url, srcUrl, controller.signal, requestInit, retainDecoded));
+            this.acquireAndDecode(url, srcUrl, controller.signal, requestInit, retainDecoded, decode));
     }
 
     public abortAll(): void {
@@ -384,7 +442,7 @@ export class ImageCacheManager {
         this.entries.set(entry.name, entry);
     }
 
-    private insert(name: string, url: string, bytes: number): ImageCacheEntry {
+    private insert(name: string, url: string, bytes: number, release: (() => void) | null = null): ImageCacheEntry {
         const existing = this.entries.get(name);
         if (existing) {
             if (existing.url === url) {
@@ -394,7 +452,7 @@ export class ImageCacheManager {
             // A replaced url is handed back - and its bitmap belongs to it, not to the new url.
             this.drop(existing);
         }
-        const entry: ImageCacheEntry = {name, url, bytes, decoded: null, decodedBytes: 0, stale: false};
+        const entry: ImageCacheEntry = {name, url, bytes, decoded: null, decodedBytes: 0, stale: false, release};
         this.entries.set(name, entry);
         this.byUrl.set(url, entry);
         this.seen.add(name);
@@ -412,9 +470,7 @@ export class ImageCacheManager {
      */
     private drop(entry: ImageCacheEntry): void {
         this.dropDecoded(entry);
-        if (entry.url.startsWith("blob:")) {
-            URL.revokeObjectURL(entry.url);
-        }
+        this.handBack(entry.url, entry.release);
         this.blobBytes -= entry.bytes;
         this.entries.delete(entry.name);
         if (this.byUrl.get(entry.url) === entry) {
@@ -471,37 +527,83 @@ export class ImageCacheManager {
         }
     }
 
-    private async fetchAndDecode(
+    /**
+     * Get the bytes for one source and, unless told not to, decode them off-screen.
+     *
+     * The acquisition step is the host's when one is installed: it may hand back the url unchanged
+     * and own the memory itself, which is what a host serving local files should do. Otherwise the
+     * cache fetches and mints an object url, and is the thing that has to revoke it.
+     */
+    private async acquireAndDecode(
         name: string,
         srcUrl: string,
         signal: AbortSignal,
         requestInit: RequestInit,
         retainDecoded: boolean,
+        decode: boolean,
     ): Promise<void> {
-        const {url, bytes} = await ImageCacheManager.getImage(srcUrl, signal, requestInit);
-        if (!url) {
+        const acquired = await this.acquire(name, srcUrl, signal, requestInit);
+        if (!acquired) {
             return;
         }
-        this.insert(name, url, bytes);
+        const {url, bytes, release} = acquired;
+        this.insert(name, url, bytes, release);
         // The budget may have taken the entry straight back; then there is nothing to warm.
         if (this.entries.get(name)?.url !== url) {
+            return;
+        }
+        if (!decode) {
             return;
         }
         // Decode ahead of time (against the exact URL that will be assigned to
         // `<img src>`) so revealing the image later doesn't decode on its first
         // visible frame.
         const decodedImage = await ImageCacheManager.decodeImage(url);
-        // The cache may have been cleared or refilled while the decode was in flight. The URL
-        // this pass minted is then owned by nobody, and nothing else will ever revoke it.
+        // The cache may have been cleared or refilled while the decode was in flight. A url this
+        // pass minted is then owned by nobody, and nothing else will ever hand it back.
         const entry = this.entries.get(name);
         if (!entry || entry.url !== url) {
-            URL.revokeObjectURL(url);
+            this.handBack(url, release);
             return;
         }
         // Only keep the element when asked to: holding it is what stops the decoded
         // bitmap from being evicted before the reveal, and also what makes it cost memory.
         if (decodedImage && retainDecoded) {
             this.retainDecoded(entry, decodedImage);
+        }
+    }
+
+    /** The bytes for one source, from the host when it has an opinion and by fetching otherwise. */
+    private async acquire(
+        name: string,
+        srcUrl: string,
+        signal: AbortSignal,
+        requestInit: RequestInit,
+    ): Promise<{url: string; bytes: number; release: (() => void) | null} | null> {
+        if (this.acquisition) {
+            const acquired = await this.acquisition({type: "image", src: name}, signal);
+            if (!acquired || !acquired.url) {
+                return null;
+            }
+            return {url: acquired.url, bytes: acquired.bytes ?? 0, release: acquired.release ?? null};
+        }
+        const {url, bytes} = await ImageCacheManager.getImage(srcUrl, signal, requestInit);
+        return url ? {url, bytes, release: null} : null;
+    }
+
+    /**
+     * Give a url back to whoever owns it: the host that supplied it, or the browser that minted it.
+     *
+     * One place, because the two are indistinguishable to every caller and getting it wrong leaks a
+     * whole image - an object url pins its blob for the lifetime of the document.
+     */
+    private handBack(url: string, release: (() => void) | null): void {
+        if (release) {
+            release();
+            return;
+        }
+        if (url.startsWith("blob:")) {
+            URL.revokeObjectURL(url);
         }
     }
 

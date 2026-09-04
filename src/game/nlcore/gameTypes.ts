@@ -11,6 +11,7 @@ import type { GameElementHistory } from "./action/gameHistory";
 import { MenuComponent, NotificationComponent, NvlDialogComponent, SayComponent } from "./common/player";
 import { LiveGameEventToken } from "./types";
 import type { AudioBusDeclaration } from "./game/audioBus";
+import type { PreloadStrategy } from "./preload/types";
 
 /**
  * Current save format version.
@@ -171,9 +172,29 @@ export type GameConfig = {
      */
     ratioUpdateInterval: number;
     /**
+     * Who decides what the player warms, when, and where the bytes come from.
+     *
+     * Unset, the player uses its built-in strategy, which is the behaviour it has always had: walk
+     * the action tree of the scene about to paint and of the scenes reachable from it, split the
+     * result into a first frame, the scene's registered set and a look-ahead, and fetch each one
+     * into an object url with an off-screen decode. Every `preload*` field below steers that
+     * strategy and nothing else.
+     *
+     * Set it and the player stops guessing. It asks this object what should be warm at each moment
+     * in the story and does exactly that, and if the object also supplies
+     * {@link PreloadStrategy.acquire} it stops fetching too - which is what lets a host whose assets
+     * are already on local disk hand back the url it was given and keep no second copy in memory.
+     * The cache, its budgets and the pins are still the player's; the plan is not.
+     *
+     * See {@link PreloadStrategy}.
+     */
+    preload?: PreloadStrategy;
+    /**
      * The game will preload the image with this delay between each preload task
      *
-     * A single preload task may contain {@link GameConfig.preloadConcurrency} images
+     * A single preload task may contain {@link GameConfig.preloadConcurrency} images.
+     * Read by the built-in strategy's speculative band only; a game with its own
+     * {@link GameConfig.preload} paces that band with the same field.
      * @default 100
      */
     preloadDelay: number;

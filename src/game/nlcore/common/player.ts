@@ -7,6 +7,7 @@ import {usePathname, useParams, useQueryParams} from "@player/lib/PageRouter/rou
 export * from "@player/type";
 export * from "@player/libElements";
 export type {ImageCacheManager, ImageCacheStats} from "@player/lib/ImageCacheManager";
+export {createDefaultPreloadStrategy} from "@player/elements/preload/defaultStrategy";
 export {
     GameProviders,
     Player,
