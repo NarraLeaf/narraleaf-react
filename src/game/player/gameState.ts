@@ -20,6 +20,7 @@ import {LiveGame} from "@core/game/liveGame";
 import {Word} from "@core/elements/character/word";
 import {Chosen, ExposedKeys, ExposedState, ExposedStateType} from "@player/type";
 import {AudioManager, AudioManagerDataRaw} from "@player/lib/AudioManager";
+import {yieldToBrowser} from "@player/lib/yieldToBrowser";
 import {Layer} from "@core/elements/layer";
 import {GameStateGuard, GuardWarningType} from "@player/guard";
 import {LiveGameEventToken} from "@core/types";
@@ -1410,24 +1411,73 @@ export class GameState {
         return state;
     }
 
+    /**
+     * Wait for a component to expose its state, then hand it over - **never in the caller's own
+     * task**, and always the state that is on screen when the hand-over happens.
+     *
+     * The waiting branch used to call back straight out of `mountState`, which runs inside the
+     * component's mount effect, and that is what made starting a scene one unbroken synchronous
+     * chain: the action flushes the stage, React commits, the new displayable mounts, this fires,
+     * the action resolves, `next()` runs the following action, which flushes the stage again - one
+     * commit per element, all of it without ever returning to the event loop.
+     *
+     * React counts those: a commit that leaves synchronous work pending on the same root bumps
+     * `nestedUpdateCount`, and at fifty it **throws** `Maximum update depth exceeded` - in
+     * production as well as in development. So a scene was only ever allowed about twenty-five
+     * displayables before the whole player died at its error boundary, with the game silently
+     * never starting. Measured 2026-09-04: a scene of 23 images ran, one of 26 did not.
+     *
+     * Two things follow from handing over a turn later, and both are load-bearing:
+     *
+     * - The turn is taken through {@link yieldToBrowser} rather than a timer. A scene of 44 images
+     *   took **45 seconds** to start through `setTimeout(0)` when its window was not the foreground
+     *   one, because a background window's timers are throttled to about one a second; the boot
+     *   preload gave up first.
+     * - The state is **re-read at hand-over** instead of being taken from the event. React mounts an
+     *   effect, tears it down and mounts it again under `StrictMode`, so what announced itself one
+     *   turn ago can already be the throwaway mount's state, and calling `initDisplayable` on that
+     *   one leaves the action waiting for ever. A hand-over that finds nothing mounted stays
+     *   subscribed and waits for the mount that follows.
+     */
     public getExposedStateAsync<T extends ExposedStateType>(key: ExposedKeys[T], onExpose: (state: ExposedState[T]) => void): LiveGameEventToken {
-        const state = this.getExposedState(key);
-        if (state) {
-            const cancel = this.schedule(() => {
-                onExpose(state);
-            }, 0);
-            return {
-                cancel,
-            };
-        } else {
-            const token = this.events.on(GameState.EventTypes["event.state.onExpose"], (k, s) => {
-                if (k === key) {
-                    onExpose(s as ExposedState[T]);
-                    token.cancel();
-                }
-            });
-            return token;
+        let cancelPending: (() => void) | null = null;
+        let delivered = false;
+        let token: LiveGameEventToken | null = null;
+
+        const handOver = (): void => {
+            cancelPending = null;
+            if (delivered) {
+                return;
+            }
+            const current = this.getExposedState(key);
+            if (!current) {
+                return;
+            }
+            delivered = true;
+            token?.cancel();
+            onExpose(current);
+        };
+        const scheduleHandOver = (): void => {
+            cancelPending?.();
+            cancelPending = yieldToBrowser(handOver);
+        };
+
+        if (this.getExposedState(key)) {
+            scheduleHandOver();
         }
+        // Subscribed even when the state is already there: the hand-over is a turn away, and a
+        // remount in between would leave the scheduled one with nothing to give.
+        token = this.events.on(GameState.EventTypes["event.state.onExpose"], (k) => {
+            if (k === key && !delivered) {
+                scheduleHandOver();
+            }
+        });
+        return {
+            cancel: () => {
+                token?.cancel();
+                cancelPending?.();
+            },
+        };
     }
 
     /**
