@@ -93,6 +93,31 @@
 
 - `ImageCacheManager` gained `useAcquisition`, `useMissingReporter` and `reportMissing`, and
   `preload()` takes a `decode` option beside `retainDecoded`. Existing calls behave as they did.
+## [0.45.1]
+
+### _Fixes_
+
+- **A scene with more than about twenty-five displayables could not be played at all.** Starting one
+  ended in React's `Maximum update depth exceeded` at the player's error boundary - in a shipped
+  game as well as in development - and the game silently never began. Measured on a real project: a
+  scene of 23 images ran, one of 26 did not, and six of that project's ten scenes were over the line.
+
+  The cause was in `GameState.getExposedStateAsync`, whose two branches did not agree. The branch
+  that waits for a component called back straight out of `mountState`, which runs inside the
+  component's mount effect, so starting a scene was one unbroken synchronous chain: the action
+  flushes the stage, React commits, the new displayable mounts, the waiting action resolves, the next
+  action runs and flushes the stage again - one commit per element, without ever returning to the
+  event loop. React counts commits that leave synchronous work pending on the same root and throws at
+  fifty of them.
+
+  Both branches now hand over one turn of the event loop later, through a `MessageChannel` message
+  rather than a timer: a background window's timers are throttled to about one a second, which turned
+  a 44-image scene into a 45-second start. The state is also re-read at hand-over rather than taken
+  from the event, so the `StrictMode` mount/unmount/mount cycle hands the action the mount that is
+  really on screen instead of the throwaway one.
+
+  Callers see no API change. The already-mounted branch has always deferred, so anything waiting on
+  this was already async-safe.
 
 ## [0.45.0]
 
