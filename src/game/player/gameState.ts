@@ -31,6 +31,8 @@ import {Timeline, Timelines} from "@player/Tasks";
 import {Notification, NotificationManager} from "@player/lib/notification";
 import {StageTransitionManager} from "@player/elements/scene/stageTransition";
 import type {ImageCacheManager} from "@player/lib/ImageCacheManager";
+import {VideoWarmQueue} from "@player/lib/VideoWarmQueue";
+import type {PreloadResource} from "@core/preload/types";
 import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
 import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
 import { Displayable } from "../nlcore/elements/displayable/displayable";
@@ -257,6 +259,14 @@ export class GameState {
     preloadingScene: Scene | null = null;
     flushDep: number = 0;
     rollLock: Lock = new Lock();
+    /**
+     * Clips held on the stage, hidden, because a plan said they are coming - never part of a save.
+     * See {@link VideoWarmQueue}.
+     */
+    private readonly videoWarmQueue: VideoWarmQueue;
+    private videoMissingReporter: ((resource: PreloadResource) => void) | null = null;
+    /** Sources already reported as unwarmed, so one clip in a loop does not report every pass. */
+    private readonly reportedUnwarmedVideos: Set<string> = new Set();
     public readonly notificationMgr: NotificationManager;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
@@ -297,6 +307,16 @@ export class GameState {
         this.actionHistory = new ActionHistoryManager(game.config.maxActionHistory, this.game.getLiveGame());
         this.gameHistory = new GameHistoryManager(this.actionHistory);
         this.stageTransition = new StageTransitionManager(this);
+        this.videoWarmQueue = new VideoWarmQueue({
+            isDeclared: (video) => this.state.videos.includes(video),
+            onChange: () => this.stage.update(),
+        });
+        // A video component mounts its exposed state on `canplay`, and on `error` for a source that
+        // will not load. Either answers the only question the queue is waiting on - whether it may
+        // start the next clip - so it listens to every state mount and ignores what is not its own.
+        this.events.on(GameState.EventTypes["event.state.onExpose"], (key) => {
+            this.videoWarmQueue.noteReady(key);
+        });
         this.events.on(GameState.EventTypes["event:state.player.skip"], () => {
             if (this.game.config.allowSkipSceneTransition) {
                 this.stageTransition.skip();
@@ -310,6 +330,10 @@ export class GameState {
 
     public addVideo(video: Video): this {
         this.state.videos.push(video);
+        // Whatever the warm queue was holding it for, the story now holds it for a better reason.
+        // The element does not move: it is the same object, so the same DOM node and the same
+        // buffer carry on, and the queue is only told to stop counting it.
+        this.videoWarmQueue.forget(video);
         return this;
     }
 
@@ -323,12 +347,81 @@ export class GameState {
         return this;
     }
 
+    /**
+     * Whether the STORY has put this clip on the stage - a declaration row, a show, a play.
+     *
+     * Deliberately not "is it in the document": a clip the warm queue is holding is mounted and
+     * buffering but nothing has shown it, and the two answers are wanted in different places. What
+     * a save records, what an undo takes back and what a second declaration skips are all this one;
+     * whether an action may talk to the element is {@link GameState.isVideoOnStage}.
+     */
     public isVideoAdded(video: Video): boolean {
         return this.state.videos.includes(video);
     }
 
+    /** Whether the clip is in the document at all, warmed or shown - so whether it has a state to talk to. */
+    public isVideoOnStage(video: Video): boolean {
+        return this.state.videos.includes(video) || this.videoWarmQueue.getAdmitted().includes(video);
+    }
+
+    /**
+     * Every clip the stage renders: the story's own, then whatever the warm queue is holding.
+     *
+     * The two lists are kept apart rather than merged on insert because only the first is state.
+     * A save is a list of what the story put on the stage; a warmed clip is a performance detail of
+     * this run of it, and writing it into a save would make a story edit able to invalidate a save
+     * that has nothing to do with the change (`fromData` throws on a video id it cannot find).
+     */
     public getVideos(): Video[] {
-        return this.state.videos;
+        const warm = this.videoWarmQueue.getAdmitted();
+        if (!warm.length) {
+            return this.state.videos;
+        }
+        return [...this.state.videos, ...warm.filter(video => !this.state.videos.includes(video))];
+    }
+
+    /**
+     * Hold exactly these clips buffering ahead of the story, in this order of preference.
+     *
+     * What a {@link PreloadPlan.video} asks for. The queue starts them one at a time and waits for
+     * each to become playable before starting the next, so how many are really being fetched at
+     * once follows the connection rather than the plan; see {@link VideoWarmQueue}.
+     */
+    public retainWarmVideos(videos: readonly Video[]): this {
+        this.videoWarmQueue.retain(videos);
+        return this;
+    }
+
+    /**
+     * Where to report a clip the story played that no plan named, or null for nowhere.
+     *
+     * The image half of this lives on the cache manager, which is the thing that would have fetched
+     * the image; a video is never fetched by the player, so the report has to come from the action
+     * that starts it.
+     */
+    public useVideoMissingReporter(reporter: ((resource: PreloadResource) => void) | null): this {
+        this.videoMissingReporter = reporter;
+        return this;
+    }
+
+    /**
+     * Note that a clip is about to be shown or played with nothing having warmed it.
+     *
+     * Once per source, and only when no plan named it and nothing has it on the stage: a clip the
+     * author declared a few rows earlier is warm by authorship, and reporting that would be
+     * reporting the feature working.
+     */
+    public reportUnwarmedVideo(video: Video): this {
+        const src = video.config.src;
+        if (!this.videoMissingReporter || !src || this.reportedUnwarmedVideos.has(src)) {
+            return this;
+        }
+        if (this.videoWarmQueue.isPlanned(video) || this.isVideoOnStage(video)) {
+            return this;
+        }
+        this.reportedUnwarmedVideos.add(src);
+        this.videoMissingReporter({type: "video", src});
+        return this;
     }
 
     public addVfx(vfx: Vfx): this {
@@ -1265,6 +1358,8 @@ export class GameState {
         this.state.elements = [];
         this.state.srcManagers = [];
         this.state.videos = [];
+        this.videoWarmQueue.clear();
+        this.reportedUnwarmedVideos.clear();
         this.state.vfx = [];
         this.nvlState = {
             active: false,

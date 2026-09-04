@@ -1,5 +1,70 @@
 # Changelog
 
+## [0.47.0]
+
+### _Features_
+
+- **A plan can say which clips are coming, and the player buffers them ahead of the story.**
+  `PreloadPlan.video` names `Video` elements, in the order they are wanted:
+
+  ```ts
+  preload: {
+      plan(moment) {
+          return {
+              entries: imagesThisMomentWants,
+              // Nearest first. The player decides how many of these are really being fetched.
+              video: [theClipTheNextRowPlays, theOneAfterThat],
+          };
+      },
+  }
+  ```
+
+  Warming a video is not warming an image, and the difference is why this names elements rather
+  than urls. An image is bytes and a decode, both of which the player can hold in a cache under a
+  budget. A video is an element that is in the document: the browser buffers into that element, the
+  buffer belongs to it, and the element that buffered has to be the element that plays or nothing
+  was bought. So the player mounts the clip hidden - the same thing `Video.preload()` does from a
+  story - and the plan's job is only to say which ones and in what order.
+
+  **How many buffer at once is the player's decision, and there is no setting for it.** The clips
+  are admitted one at a time: the next starts when the current one reports it can play, so the
+  concurrency follows the connection instead of a number somebody had to guess, and a clip that
+  never becomes playable stops holding the queue up after five seconds. At most three are held
+  ahead of the story. A clip the story has declared for itself is left alone - it is on the stage on
+  the author's own instruction, it is not subject to that ceiling, and the plan cannot release it.
+
+  Nothing gates on this band. A clip can take arbitrarily long to buffer, and a loading screen that
+  waited for one would be a download bar wearing a story's clothes. Omitting the field leaves the
+  warm set alone, exactly as omitting `keep` leaves the cache alone; an empty array releases it.
+
+  The built-in strategy does not name any clips, so a game without a strategy of its own behaves
+  exactly as before: `Video.preload()` is still the way to warm one, and it is unchanged. A static
+  walk of the action tree can say which clips a scene mentions but not which comes first, and
+  buffering them in an arbitrary order is not better than buffering none.
+
+- **`PreloadStrategy.onMissing` now also reports a clip that played with nothing warming it.** The
+  resource it hands over carries `type: "video"`, and a host that compiled the story can turn that
+  into the row that plays it. Nothing reports a clip the story declared or the plan named - that is
+  the feature working.
+
+### _Changes_
+
+- **`PreloadPlan.entries` is images only.** An entry could name a video in 0.46.0, and warming one
+  meant reading the bytes once and dropping them in the hope that whatever served them kept a copy.
+  That hope does not survive contact with the hosts that matter: a game serving assets through its
+  own protocol has no cache to fill, so the entry reported warming that had never happened.
+  `PreloadPlan.video` is the answer that works, and `PreloadEntry["type"]` is now `"image"`, so a
+  plan that still names a clip there fails to compile rather than doing nothing.
+
+- **The stage keys its videos by element rather than by position.** The list can now gain and lose
+  entries in the middle, and an index key would have handed a mounted `<video>` - and the buffer the
+  browser had filled for it - to a different clip.
+
+- `GameState` gained `isVideoOnStage`, `retainWarmVideos`, `useVideoMissingReporter` and
+  `reportUnwarmedVideo`. `isVideoAdded` is unchanged and still answers "did the story add it", which
+  is what a save records and what a second declaration skips; actions that need to talk to a
+  mounted element ask the new one, so a warmed clip can be played without being declared first.
+
 ## [0.46.0]
 
 ### _Features_

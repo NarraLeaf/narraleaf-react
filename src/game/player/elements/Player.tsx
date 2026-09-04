@@ -440,8 +440,12 @@ export default function Player(
                                         ))}
                                     </div>
                                     <StageTransitionOverlayHost state={state} />
-                                    {state.getVideos().map((video, index) => (
-                                        <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
+                                    {/* Keyed by the element and not by its position: this list gains and
+                                        loses entries in the middle now that the preloader holds clips in
+                                        it, and an index key would hand a mounted <video> - and the buffer
+                                        the browser filled for it - to a different clip. */}
+                                    {state.getVideos().map((video) => (
+                                        <div className={"w-full h-full absolute"} key={"video-" + video.getId()} data-element-type={"video"}>
                                             <Video gameState={state} video={video} />
                                         </div>
                                     ))}

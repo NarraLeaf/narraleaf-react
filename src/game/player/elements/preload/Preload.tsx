@@ -10,7 +10,6 @@ import type {
     PreloadBand,
     PreloadEntry,
     PreloadPlan,
-    PreloadResource,
     PreloadStrategy,
 } from "@core/preload/types";
 import { createDefaultPreloadStrategy } from "./defaultStrategy";
@@ -77,9 +76,14 @@ export function Preload(
     useEffect(() => {
         cacheManager.useAcquisition(strategy.acquire ? strategy.acquire.bind(strategy) : null);
         cacheManager.useMissingReporter(strategy.onMissing ? strategy.onMissing.bind(strategy) : null);
+        // The video half of the same report. It cannot go through the cache, which never sees a
+        // clip: what plays one is an element the story mounts, so the action that mounts it is the
+        // only place that knows a clip started with nothing having warmed it.
+        state.useVideoMissingReporter(strategy.onMissing ? strategy.onMissing.bind(strategy) : null);
         return () => {
             cacheManager.useAcquisition(null);
             cacheManager.useMissingReporter(null);
+            state.useVideoMissingReporter(null);
         };
     }, [strategy, cacheManager]);
 
@@ -208,6 +212,13 @@ export function Preload(
             // user gesture, so nothing may block on it.
             state.audioManager.retainOnly([...plan.audio]);
         }
+        if (plan.video) {
+            // Also never waited for, and for a blunter reason: a clip can take as long to buffer as
+            // it likes. Mounting it hidden is the warming - there is no cache to put a video in -
+            // and the player admits them one at a time, so this hands over the whole ordered wish
+            // list rather than a number of them.
+            state.retainWarmVideos([...plan.video]);
+        }
 
         await warm(plan, options, openGate);
     }
@@ -275,9 +286,6 @@ export function Preload(
             return false;
         }
         settled.current.add(key);
-        if (entry.type === "video") {
-            return enqueueVideo(pool, entry);
-        }
         const retainDecoded = entry.decode ?? entry.band !== "idle";
         // Warm enough for this band: the bytes are held, and the bitmap too when the band keeps
         // one. A url another pass is still fetching is queued regardless - its token follows that
@@ -297,42 +305,6 @@ export function Preload(
                     resolve();
                 });
         }));
-        return true;
-    }
-
-    /**
-     * Warm a video, which is a different thing from warming an image and worth saying plainly.
-     *
-     * There is no video cache to fill: an element plays from the network or from whatever the
-     * transport caches, and the player holds no decoded frames. So all this can do is ask the host
-     * for the clip - which is the whole point when the host is the one that knows how - and, with
-     * no host to ask, read the bytes once so that a transport with a cache has them. What it cannot
-     * do is promise that they were kept; `Video.preload()`, which mounts a hidden element and lets
-     * the browser buffer into it, remains the guaranteed way and is a story action rather than a
-     * plan entry.
-     */
-    function enqueueVideo(pool: TaskPool, entry: PreloadEntry): boolean {
-        const acquire = strategy.acquire;
-        if (!acquire && typeof fetch === "undefined") {
-            return false;
-        }
-        const resource: PreloadResource = {type: "video", src: entry.src};
-        pool.addTask(async () => {
-            const controller = new AbortController();
-            try {
-                if (acquire) {
-                    await acquire.call(strategy, resource, controller.signal);
-                } else {
-                    const response = await fetch(entry.src, {signal: controller.signal});
-                    // Read to the end and drop it: what is being warmed is the transport's cache,
-                    // not a buffer of ours, and a body left unread warms nothing.
-                    await response.arrayBuffer();
-                }
-                state.logger.debug(LogTag, `Warmed video (${entry.band})`, entry.src);
-            } catch (reason) {
-                state.logger.weakError(LogTag, `Failed to warm video (${entry.band})`, entry.src, reason);
-            }
-        });
         return true;
     }
 }

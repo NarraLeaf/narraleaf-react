@@ -41,6 +41,8 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
 
             return Awaitable.resolve(super.executeAction(gameState, injection) as CalledActionResult);
         } else if (action.is<VideoAction<"video:play">>(VideoAction, "video:play")) {
+            // A clip can be played without ever being shown, so the report is asked for here too.
+            gameState.reportUnwarmedVideo(video);
             return this.changeStateAsync(gameState, (state) => state.play(), injection);
         } else if (action.is<VideoAction<"video:pause">>(VideoAction, "video:pause")) {
             return this.changeState(gameState, (state) => state.pause(), injection);
@@ -50,6 +52,8 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
             return this.changeState(gameState, (state) => state.seek(action.contentNode.getContent()[0]), injection);
         } else if (action.is<VideoAction<"video:show">>(VideoAction, "video:show")) {
             const originalVisible = video.state.display;
+            // Asked before the element goes on, because after it the answer is always "warm".
+            gameState.reportUnwarmedVideo(video);
             if (!gameState.isVideoAdded(video)) {
                 gameState.addVideo(video);
                 gameState.stage.update();
@@ -86,7 +90,10 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
         handler: (state: ExposedState[ExposedStateType.video]) => void | Promise<void>,
         injection: ActionExecutionInjection
     ): Awaitable<CalledActionResult> {
-        if (!gameState.isVideoAdded(this.callee)) {
+        // On the stage, not "the story added it": a clip the preloader warmed is mounted and has
+        // a state to talk to, and refusing to talk to it would let warming a clip break a row
+        // that worked without it.
+        if (!gameState.isVideoOnStage(this.callee)) {
             throw new RuntimeGameError("Video is being used before it is added to the game\nUse video.show() to add the video to the game");
         }
 

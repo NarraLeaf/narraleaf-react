@@ -1,6 +1,7 @@
 import type {Scene} from "@core/elements/scene";
 import type {Sound} from "@core/elements/sound";
 import type {Story} from "@core/elements/story";
+import type {Video} from "@core/elements/video";
 
 /**
  * The preload seam: what the player warms, when it warms it, and where the bytes come from.
@@ -30,7 +31,16 @@ import type {Story} from "@core/elements/story";
  * exactly as they were, driven by the same `preload*` fields of `GameConfig`.
  */
 
-/** What kind of thing a plan entry names. Audio is not one of these - see {@link PreloadPlan.audio}. */
+/**
+ * What kind of thing a preload resource names.
+ *
+ * Only images are named this way in a plan's {@link PreloadPlan.entries}: they are the resources
+ * the player fetches, caches and decodes, so a url is the whole of what it needs to know. Audio and
+ * video are named by element instead ({@link PreloadPlan.audio}, {@link PreloadPlan.video}),
+ * because what warming them means is a property of the element and not of the url. `video` survives
+ * here for {@link PreloadStrategy.onMissing} and {@link PreloadStrategy.acquire}, which speak about
+ * a resource rather than about a plan.
+ */
 export type PreloadResourceType = "image" | "video";
 
 /** One thing a plan can ask for, named by the url the stage will show. */
@@ -58,7 +68,17 @@ export type PreloadResource = {
  */
 export type PreloadBand = "gate" | "soon" | "idle";
 
-export type PreloadEntry = PreloadResource & {
+export type PreloadEntry = {
+    /**
+     * Always an image.
+     *
+     * Video used to be nameable here, and warming it meant reading the bytes once and dropping
+     * them, in the hope that whatever served them kept a copy. That hope is unfounded on the hosts
+     * that matter - a game serving assets through its own protocol has no cache to warm - so it
+     * reported warming that had not happened. {@link PreloadPlan.video} is the answer that works.
+     */
+    type: "image";
+    src: string;
     band: PreloadBand;
     /**
      * Whether to decode the image off-screen before anything shows it, and hold the bitmap.
@@ -94,6 +114,25 @@ export type PreloadPlan = {
      * so a loading screen that waited for a clip could wait for ever.
      */
     readonly audio?: readonly Sound[];
+    /**
+     * Clips this moment wants buffering, nearest first, and only these.
+     *
+     * Named by element for the same reason audio is, only more so: warming a video means putting
+     * its element in the document and letting the browser buffer into it, and the element that
+     * buffered has to be the one that plays or nothing was gained. There is no video cache in the
+     * player, and there is no url-shaped way to fill one.
+     *
+     * The order is a statement of what is coming first. The player admits the clips one at a time
+     * and starts the next when the current one reports it can play, so how many are really being
+     * fetched at once follows the connection rather than the length of this list - which is why
+     * there is no setting for it and no number for a host to choose. A clip the story has already
+     * declared is left alone: it is on the stage on the author's own instruction.
+     *
+     * Never gated on. A clip can take arbitrarily long to buffer, and a loading screen that waited
+     * for one would be a download bar wearing a story's clothes. Omit the field to leave the warm
+     * set as it is; an empty array releases it.
+     */
+    readonly video?: readonly Video[];
     /**
      * Every url the image cache may keep, which is normally the plan's own entries.
      *
