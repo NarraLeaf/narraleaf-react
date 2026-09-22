@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.47.1]
+
+### _Fixes_
+
+- **The player's stylesheet no longer restyles the page it is loaded into.** The library injects a
+  stylesheet for the player's own elements. Tailwind compiles it, and Tailwind takes every word in
+  the source that reads like a class name for one - `static` from the keyword, `flex` from
+  `display: "flex"`, `border` and `transition` from comments - so the sheet carried rules for dozens
+  of names the player never uses. It went in last, outside any cascade layer, so on an equal
+  specificity those rules beat the page's own. A page built with Tailwind had its utilities quietly
+  undone: `border` put back the width an earlier `border-l-2` had set and turned `border-dashed`
+  solid, `hidden` beat `lg:inline`, `transform` cancelled `-rotate-90`, `underline` beat
+  `line-through`, `outline` beat `outline-2`, and `transition` set every duration to `0s`. Inside
+  the player the page lost too: a `pointer-events-none` of its own came back as `auto`, and
+  `select-text` as `none`.
+
+  Every rule of the sheet now matches only the player root and what is inside it, the whole sheet
+  sits in a cascade layer named `narraleaf-react`, and its `<style>`, marked `data-narraleaf-react`,
+  is the first element of `<head>`. A layered rule loses to every unlayered one, and the first
+  layer declared loses to every layer declared after it, so whatever the page says about an element
+  wins, inside the player as well; the sheet only supplies what the page leaves unsaid. The player's
+  own elements carry none of the page's classes and render as they did. `@property` registrations
+  stay outside the layer: they are global wherever they are written, and a page that registers the
+  same property after the sheet keeps its own.
+
+  A page that used one of those accidental utilities on its own elements outside the player,
+  without shipping a rule for it, loses it. The sheet was never a utility library for the page.
+
 ## [0.47.0]
 
 ### _Features_

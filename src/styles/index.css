@@ -1,3 +1,9 @@
+/*
+ * The build does not ship this sheet as written: esbuild.config.js scopes every rule to the player
+ * root and its subtree and puts the whole sheet in the `narraleaf-react` cascade layer before it is
+ * injected (project/injectedCss.js). So a rule here styles the player's own elements only, and
+ * loses to any rule the host page has for the same element - write it as a default, not an override.
+ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
