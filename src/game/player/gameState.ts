@@ -1675,12 +1675,13 @@ export class GameState {
             // this skip stops a pointless listener being armed, while the refusal there catches the
             // listeners armed BEFORE this load, which the remount below fires all over again.
             //
-            // A track the audio record restores is skipped too. `fromData` below has it playing
-            // from where the save left it by the time the scene mounts, and starting the scene's
-            // music is a cross-fade *to* that same clip - which stops it and plays it again from
-            // the top. Every load threw the saved position away that way, and cut the restored
-            // clip while its `play()` was still pending, which the browser reports as an
-            // `AbortError`. What is left for the scene to start is music the record does not have.
+            // A track the audio record restores is skipped too: `fromData` below puts it back where
+            // the save left it, so there is nothing for the scene to start. This skip only covers
+            // the listeners armed here, which is not enough on its own - a host applies a save as
+            // `newGame().deserialize(saved)`, and the entry scene's own listener was armed before
+            // this method ran. `SceneAction.initBackgroundMusic` refuses a clip a load has playing
+            // whoever armed the listener, and that is what makes the ordering irrelevant; this one
+            // saves arming a listener that would be refused, and speaks for the paused clips too.
             if (!ele.suspended) {
                 this.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
                     const music = scene.state.backgroundMusic;

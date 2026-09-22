@@ -110,6 +110,20 @@ export class AudioManager {
      * whether the reference was really taken, which a release has to wait for.
      */
     private retained: Map<string, Promise<boolean>> = new Map();
+    /**
+     * What the most recent load put on the wire, keyed by the clip it put there.
+     *
+     * Written the moment {@link AudioManager.fromData} is handed a record - before any of the
+     * fetching and decoding it starts - because the question it answers is asked by callers that
+     * run a turn or two later and must not depend on having lost a race with the restore.
+     *
+     * An entry stands until something else takes the clip over: every other transport that starts
+     * or ends a clip drops it, so the answer can only be "yes" while the load really is the reason
+     * that clip is where it is. The value is whether the record wanted the clip *running* - a
+     * stopped or paused one is restored just as faithfully, but it is not something a scene start
+     * would be taking away.
+     */
+    private restoredByLoad: Map<SoundElement, boolean> = new Map();
     private globalVolume: number = 1;
     private sound!: NarraSound; // will be initialized in initialize()
     private ready: Promise<void> = Promise.resolve();
@@ -309,6 +323,8 @@ export class AudioManager {
     public play(sound: SoundElement, options: SoundPlayOptions = AudioManager.defaultFade(sound)): Awaitable<void> {
         const awaitable = new Awaitable<void>();
 
+        this.restoredByLoad.delete(sound);
+
         this.ready.then(async () => {
             // Stop existing sound if playing
             if (this.state.has(sound)) {
@@ -371,6 +387,8 @@ export class AudioManager {
         sound: SoundElement,
         options: FadeOptions = AudioManager.defaultFade(sound),
     ): Promise<SoundToken> {
+        this.restoredByLoad.delete(sound);
+
         await this.ready;
 
         // Stop existing sound if playing
@@ -413,6 +431,8 @@ export class AudioManager {
 
     public stop(sound: SoundElement, duration: number = 0): Awaitable<void> {
         const awaitable = new Awaitable<void>();
+
+        this.restoredByLoad.delete(sound);
 
         if (!this.state.has(sound)) {
             awaitable.resolve();
@@ -740,6 +760,8 @@ export class AudioManager {
     }
 
     public fromData(data: AudioManagerDataRaw, elementMap: Map<string, LogicAction.GameElement>): this {
+        // Only the newest load owns anything: a second load replaces the first one's clips outright.
+        this.restoredByLoad.clear();
         data.groups?.forEach(([id, volume]) => {
             this.setBusVolume(id, volume);
         });
@@ -765,6 +787,12 @@ export class AudioManager {
     }
 
     public soundFromData(sound: SoundElement, data: AudioDataRaw): void {
+        // Claimed here rather than alongside the token below, because everything below is a turn
+        // away and the claim has to be readable from the moment the load asked for it. See
+        // {@link AudioManager.isRunningFromLoad}. `paused` is resolved the same way the restore
+        // itself resolves it further down.
+        this.restoredByLoad.set(sound, data.isPlaying && !(data.paused ?? sound.state.paused ?? false));
+
         // Stop existing sound if any
         if (this.state.has(sound)) {
             const existingState = this.state.get(sound)!;
@@ -814,6 +842,28 @@ export class AudioManager {
 
     public isManaged(sound: SoundElement): boolean {
         return this.state.has(sound);
+    }
+
+    /**
+     * Whether the most recent load is the reason `sound` is on the wire, and left it running.
+     *
+     * The question a scene has to ask before it starts its own background music: the clip the save
+     * restored *is* that music already, playing at the position the player saved, and starting it
+     * again is a cross-fade of the track into itself - which stops it and plays it from the top.
+     * That throws the saved position away, and the stop lands while the restored element's `play()`
+     * is still pending, which the browser reports as an `AbortError`.
+     *
+     * Answered from the record rather than from the live token on purpose. A restore takes several
+     * turns to fetch and start a clip, and a scene mounting can get here first; reading
+     * `isPlaying()` would then say "nothing is playing" and the scene would start the very clip the
+     * load is in the middle of putting back. The record is written synchronously, so this is true
+     * from the instant the load is asked for.
+     *
+     * A record that says the clip is stopped or paused is not "running": the save wants silence
+     * there, and a scene that would have started music still does.
+     */
+    public isRunningFromLoad(sound: SoundElement): boolean {
+        return this.restoredByLoad.get(sound) === true;
     }
 
     /**
@@ -934,6 +984,7 @@ export class AudioManager {
             state.token.stop();
         });
         this.state.clear();
+        this.restoredByLoad.clear();
         // Nothing is playing and no scene has opened yet, so nothing is owed a warm clip. The next
         // scene's preload takes back whatever it needs.
         this.retainOnly([]);

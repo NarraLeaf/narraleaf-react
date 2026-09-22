@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### _Fixes_
+
+- **Loading a save really does keep the scene's music where the player left it.** 0.47.1 stopped the
+  load's own scene listeners from starting a track its audio record had just restored, and that was
+  not enough: every host applies a save as `game.newGame().deserialize(saved)`, and `newGame()`
+  mounts the entry scene first. The listener that starts that scene's background music is therefore
+  armed *before* the load runs at all, and comes back once the load has restored the audio - so the
+  restored clip was paused, rewound and played again from the top, with
+  `Failed to start HTMLAudioElement playback. AbortError` on the console, exactly as before.
+
+  `AudioManager` now records which clips the most recent load put on the wire, from the moment it is
+  handed the record, and gives that record back through `isRunningFromLoad`. A scene start refuses a
+  clip a load has playing whoever armed the listener and in whatever order, so the ordering can no
+  longer matter. Any other transport on the clip - playing it, stopping it, a later load - drops the
+  record, so a scene re-entered after the save's track has gone still starts its own music. A track
+  the save recorded as stopped or paused is unchanged, as is a scene with no load behind it.
+
 ## [0.47.1]
 
 ### _Fixes_

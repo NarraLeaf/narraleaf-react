@@ -54,12 +54,20 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
      * Waits until the previous BGM has completely faded out (if any) before
      * resolving, ensuring seamless audio transition when jumping between scenes.
      *
-     * A **suspended** scene starts nothing. This is the one place every path that starts a scene's
+     * A **suspended** scene starts nothing, and neither does a scene whose music a load has
+     * already put back and left playing. This is the one place every path that starts a scene's
      * music passes through, and it has to be the guard, because the call that reaches it is not
      * always the one that asked: `getExposedStateAsync` waits on a component that is not mounted
      * yet, and a stage remount - which is what loading a save performs - fires those waiting
      * callbacks all over again. A caller parked behind a scene call therefore came back from a save
      * with its music playing over the scene it had called.
+     *
+     * The same reason makes the second refusal necessary rather than something the load could sort
+     * out for itself. Every host applies a save as `newGame().deserialize(saved)`, and `newGame()`
+     * mounts the entry scene *first*: the callback that starts its music is armed before the load
+     * has run at all, and comes back once the load has finished restoring the audio. Whatever the
+     * load arms or declines to arm, that one is already in flight - so the refusal has to be here,
+     * where the order the callbacks were armed in cannot matter.
      */
     static async initBackgroundMusic(
         scene: Scene,
@@ -69,13 +77,21 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         if (state?.isSceneSuspended(scene)) {
             return;
         }
-        if (!scene.state.backgroundMusic) {
+        const music = scene.state.backgroundMusic;
+        if (!music) {
+            return;
+        }
+        // Started by a load and still playing means it is this scene's music already, at the
+        // position the save recorded. Starting it again is a cross-fade of the clip into itself:
+        // it stops it, throws that position away and plays it from the top - and the stop lands on
+        // a `play()` the browser has not resolved yet, which it reports as an `AbortError`.
+        if (state?.audioManager.isRunningFromLoad(music)) {
             return;
         }
         // `setBackgroundMusic` already handles fade-out of the previous track and
         // fade-in of the new track. We simply await it so that the caller can
         // chain subsequent actions after the transition finishes.
-        await exposed.setBackgroundMusic(scene.state.backgroundMusic, scene.config.backgroundMusicFade);
+        await exposed.setBackgroundMusic(music, scene.config.backgroundMusicFade);
     }
 
     static createSceneSnapshot(scene: Scene, state: GameState): SceneSnapshot {

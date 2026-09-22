@@ -312,6 +312,49 @@ async function loadInto(h: Harness, saved: SavedGame): Promise<void> {
     }
 }
 
+/**
+ * Roll the stack the way `Player`'s `next` does: in one turn, until it parks on something.
+ *
+ * Not `drive` - that awaits each step, and awaiting is the whole difference. The action this stops
+ * at is the entry scene's init, which parks on its own component; it is what arms the listener that
+ * starts that scene's background music.
+ */
+function rollSynchronously(h: Harness, steps: number = 20): void {
+    for (let i = 0; i < steps; i++) {
+        const result = h.liveGame.next();
+        if (result === null || Awaitable.isAwaitable<CalledActionResult>(result)) {
+            return;
+        }
+        h.state.handle(result as CalledActionResult);
+    }
+    throw new Error("rollSynchronously: the stack never parked");
+}
+
+/**
+ * The same load, applied the way a host really applies one - and the way `loadInto` above does not.
+ *
+ * Every shipped host (Studio's Dev Mode and the game shell alike) runs
+ * `game.newGame().deserialize(saved)`, in one turn. `newGame` pushes the entry scene and calls
+ * `stage.next()`, which `Player` answers **synchronously**: the entry scene's `scene:init` runs
+ * there and then, and arms a listener that will start that scene's background music as soon as the
+ * scene component hands its state over. `getExposedStateAsync` hands over a turn later, so the
+ * `deserialize` in the same expression gets in first - and the listener, armed before the load
+ * existed, comes back afterwards to a scene whose music the load has already restored.
+ *
+ * {@link rollSynchronously} is that `stage.next()`; the harness's own `stage.next` is a no-op
+ * because the tests above drive the stack themselves, one awaited step at a time.
+ */
+async function loadAsHostDoes(h: Harness, saved: SavedGame): Promise<void> {
+    h.liveGame.newGame();
+    rollSynchronously(h);
+    clock.now = 0;
+    h.liveGame.deserialize(JSON.parse(JSON.stringify(saved)) as SavedGame);
+    h.state.events.emit(GameState.EventTypes["event:state.onRender"]);
+    for (let i = 0; i < 20; i++) {
+        await tick();
+    }
+}
+
 beforeEach(() => {
     clock.now = 0;
     timeline.length = 0;
@@ -382,6 +425,35 @@ describe("a scene handed its music at runtime", () => {
         expect(second.main.state.backgroundMusic).toBe(second.track);
     });
 
+    /**
+     * The one above passes without the entry scene ever having been started, which is not how a
+     * save is ever applied: `newGame()` starts it first, and the listener that starts its music is
+     * therefore armed *before* the load runs. Nothing the load itself decides can reach that
+     * listener - it is already in flight - so the refusal has to be in the scene start, which is
+     * where the two meet. Without it the restored clip is paused, rewound and played again from
+     * the top, and the stop cuts a `play()` the browser has not resolved yet.
+     */
+    it("comes back where the save left it when the host starts a new game first", async () => {
+        const first = runtimeMusicStory();
+        const h1 = await harness(first.log, first.main, [first.main]);
+        h1.liveGame.newGame();
+        await driveUntil(h1, "A2");
+        // Where the measured failure was taken from: a good way into a long track.
+        clock.now = 49.49;
+        const saved = JSON.parse(JSON.stringify(h1.liveGame.serialize())) as SavedGame;
+
+        const second = runtimeMusicStory();
+        const h2 = await harness(second.log, second.main, [second.main]);
+        timeline.length = 0;
+        await loadAsHostDoes(h2, saved);
+
+        // One start, at the saved position: no halt, and no second start from zero.
+        expect(timeline).toEqual(["start:/track.mp3@49.49"]);
+        expect(tokenOf(h2, second.track).isPlaying()).toBe(true);
+        expect(h2.state.audioManager.getPosition(second.track)).toBeCloseTo(49.49, 2);
+        expect(second.main.state.backgroundMusic).toBe(second.track);
+    });
+
     it("is still started by the scene when the record does not carry it", async () => {
         const first = runtimeMusicStory();
         const h1 = await harness(first.log, first.main, [first.main]);
@@ -398,6 +470,36 @@ describe("a scene handed its music at runtime", () => {
 
         expect(timeline).toEqual(["start:/track.mp3@0.00"]);
         expect(tokenOf(h2, second.track).isPlaying()).toBe(true);
+    });
+
+    /**
+     * The same, through the host's own sequence. A record with nothing in it leaves the scene to
+     * start its own music, and the refusal above must not reach it.
+     *
+     * Only where the track ends up is asserted, not how many times the graph was told to start it:
+     * with nothing restored, both the listener the load armed and the one `newGame` armed start the
+     * clip, and the second restarts it from the top. That is the same two listeners this file is
+     * about, but it costs nothing here - the position they both start from is zero - and narrowing
+     * it is not what the refusal is for.
+     */
+    it("is still started by the scene when the host starts a new game first", async () => {
+        const first = runtimeMusicStory();
+        const h1 = await harness(first.log, first.main, [first.main]);
+        h1.liveGame.newGame();
+        await driveUntil(h1, "A2");
+        const saved = JSON.parse(JSON.stringify(h1.liveGame.serialize())) as SavedGame;
+        saved.game.stage.audio.sounds = [];
+
+        const second = runtimeMusicStory();
+        const h2 = await harness(second.log, second.main, [second.main]);
+        timeline.length = 0;
+        await loadAsHostDoes(h2, saved);
+
+        expect(timeline.filter(entry => entry.startsWith("start:")))
+            .toContain("start:/track.mp3@0.00");
+        expect(tokenOf(h2, second.track).isPlaying()).toBe(true);
+        expect(h2.state.audioManager.getPosition(second.track)).toBeCloseTo(0, 2);
+        expect(second.main.state.backgroundMusic).toBe(second.track);
     });
 });
 
