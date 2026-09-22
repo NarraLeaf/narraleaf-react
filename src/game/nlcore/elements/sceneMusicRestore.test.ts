@@ -356,6 +356,49 @@ describe("a scene handed its music at runtime", () => {
         expect(h2.state.audioManager.isManaged(second.track)).toBe(true);
         expect(second.main.state.backgroundMusic).toBe(second.track);
     });
+
+    /**
+     * The audio record puts the track back where the save left it, and the scene mounting after
+     * the load used to start its own music on top of that: a cross-fade to the same clip, which
+     * stops it and plays it again from the top. So every load restarted the music, and the stop
+     * landed while the restored element's `play()` was still pending - the browser's `AbortError`.
+     */
+    it("comes back where the save left it, started once", async () => {
+        const first = runtimeMusicStory();
+        const h1 = await harness(first.log, first.main, [first.main]);
+        h1.liveGame.newGame();
+        await driveUntil(h1, "A2");
+        // Twelve and a half seconds into the track when the player saves.
+        clock.now = 12.5;
+        const saved = JSON.parse(JSON.stringify(h1.liveGame.serialize())) as SavedGame;
+
+        const second = runtimeMusicStory();
+        const h2 = await harness(second.log, second.main, [second.main]);
+        timeline.length = 0;
+        await loadInto(h2, saved);
+
+        expect(timeline).toEqual(["start:/track.mp3@12.50"]);
+        expect(tokenOf(h2, second.track).isPlaying()).toBe(true);
+        expect(second.main.state.backgroundMusic).toBe(second.track);
+    });
+
+    it("is still started by the scene when the record does not carry it", async () => {
+        const first = runtimeMusicStory();
+        const h1 = await harness(first.log, first.main, [first.main]);
+        h1.liveGame.newGame();
+        await driveUntil(h1, "A2");
+        const saved = JSON.parse(JSON.stringify(h1.liveGame.serialize())) as SavedGame;
+        // A record with nothing in it: the scene's pointer is all the save says about the music.
+        saved.game.stage.audio.sounds = [];
+
+        const second = runtimeMusicStory();
+        const h2 = await harness(second.log, second.main, [second.main]);
+        timeline.length = 0;
+        await loadInto(h2, saved);
+
+        expect(timeline).toEqual(["start:/track.mp3@0.00"]);
+        expect(tokenOf(h2, second.track).isPlaying()).toBe(true);
+    });
 });
 
 /* ------------------------------------------------------------------------------------------- *

@@ -1641,6 +1641,9 @@ export class GameState {
         }
 
         const {scenes, audio, videos} = data;
+        // The clips the save's audio record brings back itself, at the position and in the
+        // transport state it recorded. See the scene loop below for why a scene leaves these alone.
+        const restoredSounds = new Set(audio.sounds.map(([soundId]) => soundId));
         scenes.forEach(({sceneId, elements, suspended}) => {
             this.logger.debug("Loading scene: " + sceneId);
 
@@ -1671,8 +1674,19 @@ export class GameState {
             // `initBackgroundMusic` refuses a suspended scene as well, and that is not redundant:
             // this skip stops a pointless listener being armed, while the refusal there catches the
             // listeners armed BEFORE this load, which the remount below fires all over again.
+            //
+            // A track the audio record restores is skipped too. `fromData` below has it playing
+            // from where the save left it by the time the scene mounts, and starting the scene's
+            // music is a cross-fade *to* that same clip - which stops it and plays it again from
+            // the top. Every load threw the saved position away that way, and cut the restored
+            // clip while its `play()` was still pending, which the browser reports as an
+            // `AbortError`. What is left for the scene to start is music the record does not have.
             if (!ele.suspended) {
                 this.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
+                    const music = scene.state.backgroundMusic;
+                    if (music && restoredSounds.has(music.getId())) {
+                        return;
+                    }
                     SceneAction.initBackgroundMusic(scene, exposed, this);
                 });
             }
