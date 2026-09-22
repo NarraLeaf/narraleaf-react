@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.47.2]
 
 ### _Fixes_
 
