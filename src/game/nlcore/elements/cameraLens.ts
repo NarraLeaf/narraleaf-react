@@ -80,6 +80,13 @@ export function shutterBottomStyle(props: Partial<TransformDefinitions.CameraLen
  * The mask is rebuilt from `vignetteInner` / `vignetteOuter` on every frame rather than being
  * written once, so a story that moves the falloff mid-shot gets a mask that follows it.
  *
+ * This is a companion of every camera transform, so each value here is also a keyframe `motion`
+ * is handed, and it reads the value it animates *from* off the computed style. The position is
+ * therefore written the way the browser computes it: `center` computes to `50% 50%`, and `motion`
+ * cannot animate from a pair of percentages to a keyword, so it warned on every camera move before
+ * jumping to the same place. There is no `WebkitMaskMode` either - no engine implements
+ * `-webkit-mask-mode`, so it only ever reached `motion`, which read it as `0`.
+ *
  * @internal
  */
 export function vignetteStyle(props: Partial<TransformDefinitions.CameraLensProps>): CSSProps {
@@ -93,11 +100,10 @@ export function vignetteStyle(props: Partial<TransformDefinitions.CameraLensProp
         WebkitMaskImage: maskImage,
         maskSize: "100% 100%",
         WebkitMaskSize: "100% 100%",
-        maskPosition: "center",
-        WebkitMaskPosition: "center",
+        maskPosition: "50% 50%",
+        WebkitMaskPosition: "50% 50%",
         maskRepeat: "no-repeat",
         WebkitMaskRepeat: "no-repeat",
         maskMode: "alpha",
-        WebkitMaskMode: "alpha",
     } as CSSProps;
 }

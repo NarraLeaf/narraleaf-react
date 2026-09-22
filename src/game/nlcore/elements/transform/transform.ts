@@ -426,7 +426,14 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         } satisfies DOMKeyframesDefinition;
     }
 
-    /**@internal */
+    /**
+     * The CSS for the visual-effect props, prefixed where a browser still needs the prefix.
+     *
+     * `maskMode` goes out unprefixed only: no engine implements `-webkit-mask-mode`, so the
+     * prefixed copy never reached a stylesheet. It did reach `motion`, which found nothing to
+     * animate from, read it as `0`, and warned that `0` cannot become `alpha`.
+     * @internal
+     */
     static constructVisualEffectStyle<T extends TransformDefinitions.Types>(props: Partial<T>): CSSProps {
         const visualProps = props as Partial<TransformDefinitions.VisualEffectTransformProps>;
 
@@ -440,7 +447,6 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             maskRepeat: visualProps.maskRepeat,
             WebkitMaskRepeat: visualProps.maskRepeat,
             maskMode: visualProps.maskMode,
-            WebkitMaskMode: visualProps.maskMode,
             clipPath: visualProps.clipPath,
             filter: visualProps.filter,
             backdropFilter: visualProps.backdropFilter,

@@ -135,7 +135,9 @@ export function vignette(scene: Scene, options: VignetteOptions = {}): ReturnTyp
                 opacity: 0,
                 maskImage,
                 maskSize: "100% 100%",
-                maskPosition: "center",
+                // `center`, in the form the browser computes it: `motion` animates this segment
+                // from the computed value and cannot get from percentages to a keyword.
+                maskPosition: "50% 50%",
                 maskRepeat: "no-repeat",
                 maskMode: "alpha",
             }, {duration: 0}],

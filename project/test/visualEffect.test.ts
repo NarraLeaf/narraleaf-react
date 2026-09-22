@@ -89,13 +89,15 @@ describe("visual effect transform", () => {
             maskRepeat: "no-repeat",
             WebkitMaskRepeat: "no-repeat",
             maskMode: "alpha",
-            WebkitMaskMode: "alpha",
             clipPath: "circle(50% at 50% 50%)",
             filter: "blur(2px)",
             backdropFilter: "blur(4px)",
             WebkitBackdropFilter: "blur(4px)",
             mixBlendMode: "screen",
         });
+        // No engine implements `-webkit-mask-mode`; the prefixed copy only ever reached `motion`,
+        // which read it as `0` and warned on every transform that carried a mask mode.
+        expect(style).not.toHaveProperty("WebkitMaskMode");
     });
 
     it("keeps visual effect fields in transform state serialization", () => {
@@ -176,7 +178,6 @@ describe("visual effect transform", () => {
             maskRepeat: "repeat",
             WebkitMaskRepeat: "repeat",
             maskMode: "match-source",
-            WebkitMaskMode: "match-source",
             clipPath: "none",
             filter: "none",
             mixBlendMode: "normal",

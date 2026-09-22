@@ -104,6 +104,34 @@ describe("vignette geometry", () => {
     it("takes a colour", () => {
         expect(vignetteStyle({vignette: 1, vignetteColor: "#1a0b2e"}).backgroundColor).toBe("#1a0b2e");
     });
+
+    /**
+     * The plate is a companion of every camera transform, so these values are keyframes, and
+     * `motion` animates each one from the plate's computed style. A browser computes `center` to
+     * `50% 50%`, and `motion` will not animate from percentages to a keyword: every camera move
+     * warned about the position, then jumped to where the plate already was. `-webkit-mask-mode`
+     * does not exist in any engine, so `motion` found nothing to start from, took `0`, and warned
+     * that `0` could not become `alpha`. Neither ever changed a pixel.
+     */
+    it("hands a camera move nothing motion cannot animate from the computed style", () => {
+        const {sequences} = new Transform({zoom: 1.12}, {duration: 2600, ease: "easeOut"})
+            .constructAnimation({
+                gameState: {
+                    getStory: () => ({getInversionConfig: () => ({invertX: false, invertY: false})}),
+                    game: {config: {width: 1920, height: 1080}},
+                } as never,
+                transformState: new Camera().transformState,
+                current: {} as Element,
+                companions: [{el: {} as Element, project: vignetteStyle}],
+            });
+        const plate = sequences[1][1] as Record<string, unknown>;
+
+        expect(plate.maskPosition).toBe("50% 50%");
+        expect(plate.WebkitMaskPosition).toBe("50% 50%");
+        expect(plate).not.toHaveProperty("WebkitMaskMode");
+        // Unchanged: the mode the mask is drawn with.
+        expect(plate.maskMode).toBe("alpha");
+    });
 });
 
 describe("the camera owns the lens defaults", () => {
