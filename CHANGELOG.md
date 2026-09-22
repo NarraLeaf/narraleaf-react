@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.47.1]
+
+### _Fixes_
+
+- **Loading a save no longer restarts the scene's music from the top.** The save's audio record
+  brings the track back where the player left it, and the scene then started its own background
+  music on mounting - a cross-fade to that same clip, which stops it and plays it again from the
+  beginning. Every load and every "continue" lost the music's position that way, and the stop landed
+  while the restored element's `play()` was still pending, which is the
+  `Failed to start HTMLAudioElement playback. AbortError` a browser console showed on each one.
+  A scene now leaves alone any track the record restores, and still starts music the record does
+  not carry. A track paused behind a scene call was already left alone and is unchanged.
+
+- **A timeline whose action resolves before the animation it waits for is no longer called
+  cancelled.** Transform and transition actions resolve one step ahead of their animation, and a
+  line resolves ahead of a voice that outlives it. For that step the timeline has a resolved
+  awaitable and a child still running, and it read the resolved awaitable's retired skip controller
+  as an abort: it settled as cancelled, ran its cancel listeners, and then refused the `resolved` the
+  child brought, logging `Trying to resolve a settled timeline: cancelled -> resolved` once for every
+  transform and transition in a story. It now waits for the child and resolves.
+
+  Aborting a timeline - which a new game, a load and an undo do to everything still running - also
+  stopped logging `cancelled -> cancelled`: aborting an awaitable with a skip controller already
+  settles its timeline, and the abort then tried to cancel it a second time. Children that settle
+  after their parent was aborted no longer report either; that is the abort running its course.
+
+- **Camera moves no longer warn about the vignette's mask.** The lens plate rides along with every
+  camera transform, so each of its styles is a keyframe that `motion` animates from the computed
+  style. `maskPosition: "center"` computes to `50% 50%`, which `motion` cannot animate to a keyword,
+  and `WebkitMaskMode` is a property no engine implements, which `motion` read as `0`. Both warned on
+  every camera move and changed nothing on screen. The plate now writes the position as `50% 50%`,
+  and `WebkitMaskMode` is no longer written anywhere - including by a transform or `mask()` that sets
+  `maskMode`, which is still written unprefixed. The deprecated `vignette()` screen effect writes its
+  position the same way.
+
 ## [0.47.0]
 
 ### _Features_
