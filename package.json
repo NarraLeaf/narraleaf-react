@@ -101,6 +101,14 @@
     "narraleaf",
     "nvl"
   ],
+  "homepage": "https://www.narraleaf.com/docs/narraleaf-react",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NarraLeaf/narraleaf-react.git"
+  },
+  "bugs": {
+    "url": "https://github.com/NarraLeaf/narraleaf-react/issues"
+  },
   "author": "helloyork@icloud.com",
   "license": "MPL-2.0",
   "dependencies": {
