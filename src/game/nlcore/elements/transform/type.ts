@@ -25,7 +25,7 @@ export namespace TransformDefinitions {
         delay: number;
         at: TransformDefinitions.SequenceAtDefinition;
     } & {
-        /**@deprecated */
+        /**@deprecated Has no effect: nothing reads it. */
         sync?: boolean;
     };
     /**
