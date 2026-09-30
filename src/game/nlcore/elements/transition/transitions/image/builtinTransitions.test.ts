@@ -1,15 +1,16 @@
 import {describe, expect, it} from "vitest";
 import {
     BlurDissolve,
+    Darkness,
     Dissolve,
+    Exposure,
     FadeIn,
     Mask,
     Push,
     Reveal,
+    RuleReveal,
     ThroughColor,
 } from "narraleaf-react";
-// Not exported from the barrel: internal, drives `image.darken(x, duration)`.
-import {Darkness} from "@core/elements/transition/transitions/image/darkness";
 
 // The resolver entries produced by asPrev/asTarget are wrapped as
 // `{ resolver, key }`; a bare resolver (the through-colour overlay layer) is a
@@ -48,9 +49,9 @@ function prepared<T>(inst: T): T {
 // reset for it to `stackStyle`; if this list changes without that, the residue is back.
 describe("what a transition can leave on a layered stack", () => {
     const SETTLED_POSE_MUST_RESET = [
-        "filter",        // BlurDissolve, Darkness
+        "filter",        // BlurDissolve, Darkness, Exposure
         "maskImage",     // Reveal
-        "opacity",       // Dissolve, BlurDissolve, ThroughColor, Darkness, FadeIn
+        "opacity",       // Dissolve, BlurDissolve, ThroughColor, Darkness, Exposure, FadeIn
         "translate",     // Push, FadeIn
         "WebkitMaskImage",
         // Inert on their own: they only take effect alongside a mask image, which is reset above.
@@ -71,21 +72,30 @@ describe("what a transition can leave on a layered stack", () => {
         new Push({duration: 400}),
         new BlurDissolve({duration: 400}),
         new Darkness({from: 0, to: 0.5, duration: 400}),
+        new Darkness({from: 1, to: 0, duration: 400, holdMs: 200}),
+        new Exposure({duration: 400}),
+        new Exposure({duration: 400, hold: 0.4}),
+        new Exposure({duration: 400, holdMs: 200}),
         new Reveal({duration: 400, pattern: Mask.wipe({direction: 135})}),
         new Reveal({duration: 400, pattern: Mask.clock()}),
         new Reveal({duration: 400, pattern: Mask.fan()}),
         new Reveal({duration: 400, pattern: Mask.barnDoor()}),
         new Reveal({duration: 400, pattern: Mask.dots({stagger: 0.5})}),
         new Reveal({duration: 400, pattern: Mask.blinds({feather: 4})}),
+        new Reveal({duration: 400, pattern: Mask.blinds({slats: 6, stagger: 0.6})}),
         new Reveal({duration: 400, pattern: Mask.iris({shape: "ellipse"})}),
         new ThroughColor({duration: 400}),
+        new ThroughColor({duration: 400, holdMs: 200}),
         new ThroughColor({duration: 400, pattern: Mask.wipe()}),
+        new ThroughColor({duration: 400, pattern: Mask.wipe(), holdMs: 200}),
         new ThroughColor({duration: 400, pattern: Mask.iris(), inverted: true}),
         new ThroughColor({duration: 400, pattern: Mask.blinds()}),
         new ThroughColor({duration: 400, pattern: Mask.clock()}),
         new ThroughColor({duration: 400, pattern: Mask.fan(), uncover: "continue"}),
         new ThroughColor({duration: 400, pattern: Mask.barnDoor(), uncover: "continue"}),
         new ThroughColor({duration: 400, pattern: Mask.dots({stagger: 0.5})}),
+        new RuleReveal({duration: 400, rule: "/rules/spiral.png"}),
+        new RuleReveal({duration: 400, rule: "/rules/spiral.png", feather: 0.4, inverted: true}),
     ].map(layered);
 
     it("writes nothing to a stack that the settled pose does not reset", () => {
@@ -112,7 +122,7 @@ describe("what a transition can leave on a layered stack", () => {
             const style = callWith(target, 1, 0, 0).style;
             if ("opacity" in style) expect(style.opacity, inst.constructor.name).toBe(1);
             if ("translate" in style) {
-                // Identity, whatever unit it is spelled in (Push travels in vw/vh, FadeIn in px).
+                // Identity, whatever unit it is spelled in (Push travels in %, FadeIn in px).
                 const axes = String(style.translate).split(" ").map(parseFloat);
                 expect(axes, inst.constructor.name).toEqual([0, 0]);
             }
@@ -130,16 +140,162 @@ describe("built-in image transitions", () => {
         expect(call(task.resolve[1], 1).style).toMatchObject({opacity: 1, filter: "blur(0px)"});
     });
 
-    it("Push: uses the independent `translate` property, no offset at rest", () => {
-        const task = prepared(new Push({duration: 400, direction: "left"})).createTask() as any;
-        expect(task.resolve).toHaveLength(2);
-        expect(call(task.resolve[0], 0).style.transform).toBeUndefined();
-        expect(call(task.resolve[0], 0).style.translate).toBe("0vw 0px");
-        expect(call(task.resolve[0], 1).style.translate).toBe("-100vw 0px");
-        expect(call(task.resolve[1], 0).style.translate).toBe("100vw 0px");
-        expect(call(task.resolve[1], 1).style.translate).toBe("0vw 0px");
-        expect(call(prepared(new Push({duration: 400, direction: "bottom"})).createTask().resolve[1] as ResolverEntry, 0).style.translate)
-            .toBe("0px -100vh");
+    describe("Push", () => {
+        // resolve[0] = asPrev (the outgoing image, exit phase);
+        // resolve[1] = asTarget (the incoming image, enter phase).
+        //
+        // Every travel is a percentage of the layer's *own* size, never a viewport unit. The driven
+        // element is the letterboxed transition stack wrapper (`inset: 0` in Image.tsx `stackStyle`),
+        // so a `vw`/`vh` travel is measured against the window and overshoots the stage whenever the
+        // window aspect differs from the design aspect, exposing the backdrop mid-slide. `%` is the
+        // identity at rest and lands exactly one stage width/height away at full travel.
+        const cases = [
+            {direction: "left", prevRest: "0% 0px", prevOff: "-100% 0px", targetOff: "100% 0px", targetRest: "0% 0px"},
+            {direction: "right", prevRest: "0% 0px", prevOff: "100% 0px", targetOff: "-100% 0px", targetRest: "0% 0px"},
+            {direction: "top", prevRest: "0px 0%", prevOff: "0px -100%", targetOff: "0px 100%", targetRest: "0px 0%"},
+            {direction: "bottom", prevRest: "0px 0%", prevOff: "0px 100%", targetOff: "0px -100%", targetRest: "0px 0%"},
+        ] as const;
+
+        for (const c of cases) {
+            it(`${c.direction}: slides both images a full % of the stage, identity at rest`, () => {
+                const task = prepared(new Push({duration: 400, direction: c.direction})).createTask() as any;
+                expect(task.resolve).toHaveLength(2);
+                const [prev, target] = task.resolve as ResolverEntry[];
+                // Uses the independent `translate` property, never `transform` (which would clobber
+                // the wrapper's base positioning).
+                expect(call(prev, 0).style.transform).toBeUndefined();
+                // Exit: at rest (t=0) → off toward `direction` (t=1).
+                expect(call(prev, 0).style.translate).toBe(c.prevRest);
+                expect(call(prev, 1).style.translate).toBe(c.prevOff);
+                // Enter: off the opposite edge (t=0) → at rest (t=1).
+                expect(call(target, 0).style.translate).toBe(c.targetOff);
+                expect(call(target, 1).style.translate).toBe(c.targetRest);
+                // The unit is percentages, never viewport units — the whole point of the fix.
+                expect(call(prev, 1).style.translate).not.toMatch(/vw|vh/);
+                expect(call(target, 0).style.translate).not.toMatch(/vw|vh/);
+            });
+        }
+    });
+
+    describe("Darkness", () => {
+        // Exported from the public barrel (imported above from "narraleaf-react"): the transition
+        // behind `image.darken(amount, duration)`. Smoke-tests construction + the driven channel;
+        // its behaviour is otherwise unchanged by the export.
+        it("one linear 0→1 channel, the brightness read off it", () => {
+            // The channel is progress rather than darkness, and linear rather than eased, so that
+            // `holdMs` can be measured in time. The easing lives inside the resolver.
+            const task = prepared(new Darkness({from: 0.2, to: 0.8, duration: 500})).createTask() as any;
+            expect(task.animations).toHaveLength(1);
+            expect(task.animations[0]).toMatchObject({start: 0, end: 1, duration: 500, ease: "linear"});
+            expect(task.resolve).toHaveLength(2);
+            const [target] = task.resolve as ResolverEntry[];
+            expect(call(target, 0).style.filter).toBe("brightness(0.8)"); // darkness 0.2
+            expect(call(target, 1).style.filter).toBe("brightness(0.19999999999999996)"); // darkness 0.8
+        });
+
+        it("holdMs keeps the frame at `from` for that long, then ramps over what is left", () => {
+            // 1000ms run, 400ms of it held: black until 40% of the wall clock, then a 600ms lift.
+            const [target] = prepared(new Darkness({from: 1, to: 0, duration: 1000, holdMs: 400}))
+                .createTask().resolve as ResolverEntry[];
+            expect(call(target, 0).style.filter).toBe("brightness(0)");
+            expect(call(target, 0.4).style.filter).toBe("brightness(0)"); // still fully black
+            // Halfway through the remaining 600ms, on the default easeInOut: half lifted.
+            expect(call(target, 0.7).style.filter).toBe("brightness(0.5)");
+            expect(call(target, 1).style.filter).toBe("brightness(1)");
+        });
+
+        it("a hold longer than the run leaves the frame at `from` throughout", () => {
+            const [target] = prepared(new Darkness({from: 1, to: 0, duration: 500, holdMs: 900}))
+                .createTask().resolve as ResolverEntry[];
+            expect(call(target, 0).style.filter).toBe("brightness(0)");
+            expect(call(target, 1).style.filter).toBe("brightness(0)");
+        });
+
+        it("darkens the incoming image via a brightness() filter, dropping the outgoing one", () => {
+            // resolve[0] is the target (darkened in place); resolve[1] is the prev (removed at once).
+            const [target, prev] = prepared(new Darkness({from: 0, to: 1, duration: 500})).createTask().resolve as ResolverEntry[];
+            expect(call(target, 0).style.filter).toBe("brightness(1)"); // darkness 0 → untouched
+            expect(call(target, 1).style.filter).toBe("brightness(0)"); // darkness 1 → fully black
+            expect(call(prev, 0).style.opacity).toBe(0);
+        });
+
+        it("copy() returns an equivalent independent instance", () => {
+            const original = new Darkness({from: 0.1, to: 0.6, duration: 300, holdMs: 90, easing: "easeOut"});
+            const clone = original.copy();
+            expect(clone).not.toBe(original);
+            expect(clone).toBeInstanceOf(Darkness);
+            const filterAt = (inst: Darkness, d: number) =>
+                call(prepared(inst).createTask().resolve[0] as ResolverEntry, d).style.filter;
+            expect(filterAt(clone, 0.5)).toBe(filterAt(original, 0.5));
+        });
+    });
+
+    describe("Exposure", () => {
+        // The photographic counterpart to a white ThroughColor: the frame is driven up in stops
+        // until every channel clips, rather than mixed toward white at one rate. What the filter
+        // chain says is therefore the whole behaviour, so it is asserted verbatim.
+        it("one 0→1 channel driving the two halves", () => {
+            const task = prepared(new Exposure({duration: 400})).createTask() as any;
+            expect(task.animations).toHaveLength(1);
+            expect(task.animations[0]).toMatchObject({start: 0, end: 1, duration: 400});
+            expect(task.resolve).toHaveLength(2);
+        });
+
+        it("leaves a resting frame untouched at both ends", () => {
+            // Not cosmetic: a filter left on a settled scene root gives it a compositing layer of
+            // its own, and tearing that down snaps the whole stage by a fraction of a pixel.
+            const [prev, target] = prepared(new Exposure({duration: 400})).createTask().resolve as ResolverEntry[];
+            expect(call(prev, 0).style).toMatchObject({opacity: 1, filter: "none"});
+            expect(call(target, 1).style).toMatchObject({opacity: 1, filter: "none"});
+        });
+
+        it("burns to the full gain by the midpoint, lift ramped in with it", () => {
+            const [prev] = prepared(new Exposure({duration: 400, ev: 2, lift: 0.4})).createTask().resolve as ResolverEntry[];
+            // Half burnt: half the lift, half the stops.
+            expect(call(prev, 0.25).style.filter).toBe("invert(1) brightness(0.8) invert(1) brightness(2)");
+            // Fully burnt: the whole lift, 2^2 of gain.
+            expect(call(prev, 0.5).style.filter).toBe("invert(1) brightness(0.6) invert(1) brightness(4)");
+        });
+
+        it("swaps the images at the midpoint, both halves blown out across the seam", () => {
+            const [prev, target] = prepared(new Exposure({duration: 400, ev: 2, lift: 0.4})).createTask().resolve as ResolverEntry[];
+            expect(call(prev, 0.49).style.opacity).toBe(1);
+            expect(call(target, 0.49).style.opacity).toBe(0);
+            expect(call(prev, 0.51).style.opacity).toBe(0);
+            expect(call(target, 0.51).style.opacity).toBe(1);
+            // The handover is invisible only because both sides are at the same full burn.
+            expect(call(prev, 0.49).style.filter).toBe(call(target, 0.51).style.filter);
+        });
+
+        it("hold widens the blown-out window rather than slowing the burn", () => {
+            const [prev, target] = prepared(new Exposure({duration: 400, ev: 2, lift: 0, hold: 0.5})).createTask().resolve as ResolverEntry[];
+            const full = "invert(1) brightness(1) invert(1) brightness(4)";
+            expect(call(prev, 0.125).style.filter).toBe("invert(1) brightness(1) invert(1) brightness(2)");
+            expect(call(prev, 0.25).style.filter).toBe(full); // burnt early…
+            expect(call(target, 0.75).style.filter).toBe(full); // …and held until here
+            expect(call(target, 1).style.filter).toBe("none");
+        });
+
+        it("holdMs is wall-clock time, and wins over the hold fraction", () => {
+            // 400ms run, 200ms held: blown out by 25% of the run, still blown out at 75%.
+            const [prev, target] = prepared(new Exposure({duration: 400, ev: 2, lift: 0, holdMs: 200, hold: 0.9}))
+                .createTask().resolve as ResolverEntry[];
+            const full = "invert(1) brightness(1) invert(1) brightness(4)";
+            expect(call(prev, 0.25).style.filter).toBe(full);
+            expect(call(target, 0.75).style.filter).toBe(full);
+            // The 0.9 fraction would have blown out by 5%; holdMs is what is read.
+            expect(call(prev, 0.05).style.filter).not.toBe(full);
+        });
+
+        it("copy() returns an equivalent independent instance", () => {
+            const original = new Exposure({duration: 300, ev: 3.5, lift: 0.08, holdMs: 60, easing: "easeIn"});
+            const clone = original.copy();
+            expect(clone).not.toBe(original);
+            expect(clone).toBeInstanceOf(Exposure);
+            const filterAt = (inst: Exposure, d: number) =>
+                call(prepared(inst).createTask().resolve[0] as ResolverEntry, d).style.filter;
+            expect(filterAt(clone, 0.3)).toBe(filterAt(original, 0.3));
+        });
     });
 
     describe("Dissolve", () => {
@@ -273,6 +429,67 @@ describe("built-in image transitions", () => {
                 .toContain("repeating-linear-gradient(30deg");
         });
 
+        it("blinds: an unstaggered blind is still one tiled gradient, whatever the slat count", () => {
+            expect(Mask.blinds({slats: 24, stagger: 0}).mask(0.5).split(", linear-gradient")).toHaveLength(1);
+            expect(Mask.blinds({slats: 24}).mask(0.5)).toContain("repeating-linear-gradient");
+        });
+
+        it("blinds: a staggered blind is one layer per slat, each on its own stripe", () => {
+            const blinds = Mask.blinds({slats: 4, stagger: 1});
+            // stagger 1 runs the slats strictly one after the next, so half the run
+            // is exactly the first two stripes - and the last one still ends at t=1.
+            expect(blinds.mask(0.5)).toBe([
+                "linear-gradient(to bottom, transparent 0%, #000 0%, #000 25%, transparent 25%)",
+                "linear-gradient(to bottom, transparent 25%, #000 25%, #000 50%, transparent 50%)",
+                "linear-gradient(to bottom, transparent 50%, #000 50%, #000 50%, transparent 50%)",
+                "linear-gradient(to bottom, transparent 75%, #000 75%, #000 75%, transparent 75%)",
+            ].join(", "));
+        });
+
+        it("blinds: staggered ends are clear and covered all the same, in both orientations", () => {
+            const blinds = Mask.blinds({slats: 6, feather: 4, stagger: 0.7});
+            // t=0: every stripe is a zero-width band. t=1: every stripe is full.
+            for (const inverted of [false, true]) {
+                for (const layer of blinds.mask(0, inverted).split("), ")) {
+                    const stops = layer.match(/[\d.]+%/g)!.map(parseFloat);
+                    expect(stops[0]).toBe(stops[stops.length - 1]);
+                }
+                const covered = blinds.mask(1, inverted).split("), ").map((layer, i) => {
+                    const stops = layer.match(/[\d.]+%/g)!.map(parseFloat);
+                    return [stops[1], stops[2], i];
+                });
+                expect(covered).toEqual([
+                    [0, 100 / 6, 0], [100 / 6, 100 / 3, 1], [100 / 3, 50, 2],
+                    [50, 100 / 3 * 2, 3], [100 / 3 * 2, 100 / 6 * 5, 4], [100 / 6 * 5, 100, 5],
+                ].map(([a, b, i]) => [Number(a.toFixed(3)), Number(b.toFixed(3)), i]));
+            }
+        });
+
+        it("blinds: the delay runs along the axis, and back the other way when negative", () => {
+            const width = (mask: string) => mask.split("), ").map(layer => {
+                const stops = layer.match(/[\d.]+%/g)!.map(parseFloat);
+                return Number((stops[2] - stops[1]).toFixed(3));
+            });
+            const forward = width(Mask.blinds({slats: 4, stagger: 0.5}).mask(0.5));
+            expect(forward[0]).toBeGreaterThan(forward[3]);
+            expect(width(Mask.blinds({slats: 4, stagger: -0.5}).mask(0.5))).toEqual([...forward].reverse());
+        });
+
+        it("blinds: inverted clears the slats in the order they covered, at the same coverage", () => {
+            const blinds = Mask.blinds({slats: 4, stagger: 1});
+            const covered = (mask: string) => mask.split("), ").map(layer => {
+                const stops = layer.match(/[\d.]+%/g)!.map(parseFloat);
+                return Number((stops[2] - stops[1]).toFixed(3));
+            });
+            // Same total coverage as the natural orientation ...
+            const natural = covered(blinds.mask(0.5));
+            const flipped = covered(blinds.mask(0.5, true));
+            expect(flipped.reduce((a, b) => a + b, 0)).toBeCloseTo(natural.reduce((a, b) => a + b, 0));
+            // ... but held by the stripes the natural orientation had not reached yet, so
+            // an uncover that keeps going clears the first slat first.
+            expect(flipped).toEqual([...natural].reverse());
+        });
+
         it("iris: reveals centre-out, and rim-in when inverted", () => {
             const iris = Mask.iris({feather: 12});
             expect(iris.mask(0.5)).toBe("radial-gradient(circle at 50% 50%, #000 63%, transparent 75%)");
@@ -349,6 +566,18 @@ describe("built-in image transitions", () => {
             expect(call(overlay, 1).style.opacity).toBe(0);
         });
 
+        it("covers a pixel past the frame, so no hairline of the picture survives the hold", () => {
+            // The stage scales by a non-integer factor, so the frame's outermost row of pixels is
+            // drawn part-covered. An overlay sized exactly to the frame stops at the whole pixel
+            // inside that row and leaves it showing - a hairline of the picture along the top or
+            // the bottom edge of a frame that is meant to be solid colour. The centring transform
+            // is what splits the extra width evenly either side.
+            const style = call(prepared(new ThroughColor({duration: 600})).createTask().resolve[2] as ResolverEntry, 0.5).style;
+            expect(style.width).toBe("calc(100% + 2px)");
+            expect(style.height).toBe("calc(100% + 2px)");
+            expect(style.transform).toBe("translate(-50%, -50%)");
+        });
+
         it("swaps the prev/target images under the colour at the midpoint", () => {
             const task = prepared(new ThroughColor({duration: 600, color: "#000000", hold: 0.4})).createTask() as any;
             expect(call(task.resolve[0], 0.2).style.opacity).toBe(1);
@@ -386,6 +615,60 @@ describe("built-in image transitions", () => {
             const overlayAt = (inst: ThroughColor, t: number) => call(inst.createTask().resolve[2] as ResolverEntry, t).style;
             expect(overlayAt(clone, 0.5)).toEqual(overlayAt(original, 0.5));
             expect(overlayAt(clone, 0.825)).toEqual(overlayAt(original, 0.825));
+        });
+    });
+
+    describe("ThroughColor hold", () => {
+        const overlayAt = (inst: ThroughColor, t: number) =>
+            call(prepared(inst).createTask().resolve[2] as ResolverEntry, t).style;
+
+        // The defect this replaced: the hold was a band of *eased* progress, and the animation
+        // channel carried the easing, so the driver crossed the band at its fastest. Under the
+        // default easeInOut a nominal 30% hold played as 17.8% of the wall clock and a 50% one as
+        // 30.8% - an author could not ask for a number of seconds in the colour and get them.
+        it("runs the channel linearly, so a point of progress is a point of the wall clock", () => {
+            const task = prepared(new ThroughColor({duration: 4000, holdMs: 2000})).createTask() as any;
+            expect(task.animations[0]).toMatchObject({start: 0, end: 1, duration: 4000, ease: "linear"});
+        });
+
+        it("holdMs is time: a 2s hold on a 4s run covers from 25% to 75% of it", () => {
+            const inst = new ThroughColor({duration: 4000, color: "#000000", holdMs: 2000});
+            expect(overlayAt(inst, 0.2499).opacity).toBeLessThan(1);
+            expect(overlayAt(inst, 0.25).opacity).toBe(1);
+            expect(overlayAt(inst, 0.5).opacity).toBe(1);
+            expect(overlayAt(inst, 0.75).opacity).toBe(1);
+            expect(overlayAt(inst, 0.7501).opacity).toBeLessThan(1);
+        });
+
+        it("eases each moving half rather than the run, so the cover still eases in and out", () => {
+            // Midway through the 1s cover half of a 4s / 2s-hold run: easeInOut(0.5) = 0.5.
+            expect(overlayAt(new ThroughColor({duration: 4000, holdMs: 2000}), 0.125).opacity).toBe(0.5);
+            // linear says the same at the midpoint but not at a quarter through it.
+            expect(overlayAt(new ThroughColor({duration: 4000, holdMs: 2000, easing: "linear"}), 0.0625).opacity)
+                .toBe(0.25);
+            expect(overlayAt(new ThroughColor({duration: 4000, holdMs: 2000}), 0.0625).opacity)
+                .toBeLessThan(0.25);
+        });
+
+        it("holdMs wins over the deprecated fraction, and the fraction still works alone", () => {
+            expect(overlayAt(new ThroughColor({duration: 1000, holdMs: 0, hold: 0.9}), 0.5).opacity).toBe(1);
+            expect(overlayAt(new ThroughColor({duration: 1000, holdMs: 0, hold: 0.9}), 0.05).opacity)
+                .toBeLessThan(1);
+            // hold 0.5 alone: covered from 25% of (eased) progress, exactly as before.
+            expect(overlayAt(new ThroughColor({duration: 1000, hold: 0.5}), 0.25).opacity).toBe(1);
+        });
+
+        it("holds for the whole run when the hold outlasts it - a cut to the colour and back", () => {
+            const inst = new ThroughColor({duration: 500, holdMs: 900});
+            expect(overlayAt(inst, 0).opacity).toBe(1);
+            expect(overlayAt(inst, 0.5).opacity).toBe(1);
+            expect(overlayAt(inst, 1).opacity).toBe(1);
+        });
+
+        it("defaults to the 0.3 share when neither spelling is given", () => {
+            // Unchanged default: covered from 35% of progress in.
+            expect(overlayAt(new ThroughColor({duration: 1000}), 0.35).opacity).toBe(1);
+            expect(overlayAt(new ThroughColor({duration: 1000}), 0.3).opacity).toBeLessThan(1);
         });
     });
 

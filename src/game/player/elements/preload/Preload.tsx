@@ -1,14 +1,33 @@
-import {useEffect, useRef} from "react";
+import {useEffect, useMemo, useRef} from "react";
 import {GameState} from "@player/gameState";
-import {ActiveSrc, SrcManager} from "@core/action/srcManager";
 import {usePreloaded} from "@player/provider/preloaded";
 import {Preloaded} from "@player/lib/Preloaded";
 import {TaskPool} from "@lib/util/data";
 import {useGame} from "@player/provider/game-state";
 import { Scene } from "@lib/game/nlcore/elements/scene";
 import { useFlush } from "../../lib/flush";
-import { LogicAction } from "@lib/game/nlcore/action/logicAction";
+import type {
+    PreloadBand,
+    PreloadEntry,
+    PreloadPlan,
+    PreloadStrategy,
+} from "@core/preload/types";
+import { createDefaultPreloadStrategy } from "./defaultStrategy";
 
+const LogTag = "Preload";
+
+/**
+ * The preloader: it asks a {@link PreloadStrategy} what should be warm, and warms it.
+ *
+ * This component used to hold the policy as well - two mutually exclusive passes chosen by a config
+ * flag, three hard-coded tiers in one of them, a fixed fetch-and-decode pipeline under both. All of
+ * that now lives behind {@link PreloadStrategy}, and a game that supplies none gets
+ * {@link createDefaultPreloadStrategy}, which is the same behaviour expressed through the same seam.
+ *
+ * What is left here is the part that has to be the player's: running the plan's bands at the right
+ * speeds, holding the loading gate open until the band that blocks it has landed, and telling the
+ * cache what to keep. The pools, the budgets, the pins and the events are unchanged.
+ */
 /**@internal */
 export function Preload(
     {
@@ -18,13 +37,24 @@ export function Preload(
     }>) {
     const {preloaded, cacheManager} = usePreloaded();
     const game = useGame();
-    const cachedSrc = useRef<Set<ActiveSrc>>(new Set());
     const [flush] = useFlush();
+    /** Bands whose entries this mount has already warmed, so a re-ask does not re-enqueue them. */
+    const settled = useRef<Set<string>>(new Set());
 
-    const LogTag = "Preload";
     const lastScene: Scene | null = state.getLastScene() || state.getPreloadingScene();
-    const currentAction: LogicAction.Actions | null = game.getLiveGame().stackModel?.getTopSync()?.node?.action || null;
     const story = game.getLiveGame().story;
+    /** What the advance pass reads when the play head moves, which is not a render. */
+    const sceneRef = useRef<Scene | null>(lastScene);
+    sceneRef.current = lastScene;
+
+    /**
+     * The host's strategy, or the built-in one - decided once per game rather than per render, so a
+     * strategy may keep state (the built-in one keeps the prediction window's scene-scoped set).
+     */
+    const strategy: PreloadStrategy = useMemo(
+        () => game.config.preload ?? createDefaultPreloadStrategy(game),
+        [game],
+    );
 
     function onPreloaderUnmount() {
         state.logger.debug(LogTag, "Preload unmounted");
@@ -38,27 +68,33 @@ export function Preload(
     }, []);
 
     /**
-     * preload logic 2.0
+     * Hand the cache the host's transport, and the host its missing-resource reports.
      *
-     * Fetch the images and store them as base64 in the stack
+     * Both before anything is warmed, and both cleared on unmount: a cache that outlived a player
+     * would otherwise keep calling into a strategy that belongs to a game that is gone.
      */
     useEffect(() => {
-        if (typeof fetch === "undefined") {
-            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
-            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
-            state.logger.warn(LogTag, "Fetch is not supported in this environment, skipping preload");
-            return onPreloaderUnmount;
-        }
-        if (!game.config.preloadAllImages) {
-            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
-            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
-            state.logger.debug(LogTag, "Preload all images is disabled, skipping preload");
-            return onPreloaderUnmount;
-        }
-        if (game.config.forceClearCache) {
-            cacheManager.clear();
-            state.logger.weakWarn(LogTag, "Cache cleared");
-        }
+        cacheManager.useAcquisition(strategy.acquire ? strategy.acquire.bind(strategy) : null);
+        cacheManager.useMissingReporter(strategy.onMissing ? strategy.onMissing.bind(strategy) : null);
+        // The video half of the same report. It cannot go through the cache, which never sees a
+        // clip: what plays one is an element the story mounts, so the action that mounts it is the
+        // only place that knows a clip started with nothing having warmed it.
+        state.useVideoMissingReporter(strategy.onMissing ? strategy.onMissing.bind(strategy) : null);
+        return () => {
+            cacheManager.useAcquisition(null);
+            cacheManager.useMissingReporter(null);
+            state.useVideoMissingReporter(null);
+        };
+    }, [strategy, cacheManager]);
+
+    /**
+     * A scene is about to paint. Ask, then warm.
+     *
+     * The gate - `event:preloaded.complete`, which is the first painted frame - is held for the
+     * plan's `gate` band and nothing else. A plan with an empty one opens it immediately, which is
+     * how a strategy says "do not hold the screen for me".
+     */
+    useEffect(() => {
         if (!story || !lastScene) {
             if (!story) {
                 state.logger.weakWarn(LogTag, "Story not found, skipping preload");
@@ -67,156 +103,208 @@ export function Preload(
             }
             return onPreloaderUnmount;
         }
-
-        const timeStart = performance.now();
-        const sceneSrc = SrcManager.catSrc([
-            ...(lastScene.srcManager?.src || []),
-            ...(lastScene.srcManager?.getFutureSrc() || []),
-        ]);
-        const taskPool = new TaskPool(
-            game.config.preloadConcurrency,
-            game.config.preloadDelay,
-        );
-        const loadedSrc: string[] = [];
-        const logGroup = state.logger.group(LogTag, true);
-        const preloadingSrc: string[] = [];
-
-        state.logger.debug(LogTag, "preloading:", sceneSrc, lastScene);
-
-        for (const image of sceneSrc.image) {
-            const src = SrcManager.getSrc(image);
-            if (!src) {
-                continue;
-            }
-            loadedSrc.push(src);
-
-            if (cacheManager.has(src) || cacheManager.isPreloading(src) || preloadingSrc.includes(src)) {
-                state.logger.debug(LogTag, `Image already loaded (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
-                preloadingSrc.push(src);
-                continue;
-            }
-            preloadingSrc.push(src);
-            taskPool.addTask(() => new Promise(resolve => {
-                cacheManager.preload(state, src)
-                    .onFinished(() => {
-                        state.logger.debug(LogTag, `Image loaded (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
-                        resolve();
-                    })
-                    .onErrored(() => {
-                        state.logger.weakError(LogTag, `Failed to preload image (${sceneSrc.image.indexOf(image) + 1}/${sceneSrc.image.length})`, src);
-                        resolve();
-                    });
-            }));
+        // Nothing to fetch with and nobody else to ask: on a server render there is no warming to
+        // do and no frame to hold, so the gate opens and the pass never starts.
+        if (typeof fetch === "undefined" && !strategy.acquire) {
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
+            preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
+            state.logger.warn(LogTag, "Fetch is not supported in this environment, skipping preload");
+            return onPreloaderUnmount;
         }
+        if (game.config.forceClearCache) {
+            cacheManager.clear();
+            state.logger.weakWarn(LogTag, "Cache cleared");
+        }
+        settled.current.clear();
 
-        logGroup.end();
+        const cancelled = {value: false};
+        void runMoment({kind: "scene", scene: lastScene, story}, {gates: true, cancelled});
 
-        taskPool.start().then(() => {
-            state.logger.info(LogTag, "Image preload", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
+        preloaded.events.emit(Preloaded.EventTypes["event:preloaded.mount"]);
+        return () => {
+            cancelled.value = true;
+            onPreloaderUnmount();
+        };
+    }, [lastScene, story, strategy]);
 
+    /**
+     * The story advanced. Ask again, but never hold the screen for the answer: by this point the
+     * game is running, and a strategy that plans row by row is refining a warm set rather than
+     * deciding whether anything can be shown at all.
+     *
+     * Driven by the engine's own play-head event rather than by a render. The play head is not
+     * React state, so a component that read it during render would only see it move when something
+     * else happened to re-render this subtree - which is most actions, and not all of them. A
+     * strategy that plans by row has to be asked for every row or its window silently stops
+     * following the reader.
+     */
+    useEffect(() => {
+        if (!story) {
+            return;
+        }
+        const cancelled = {value: false};
+        const token = game.getLiveGame().onCurrentActionChange(({actionId}) => {
+            void runMoment(
+                {kind: "advance", actionId, scene: sceneRef.current, story},
+                {gates: false, cancelled},
+            );
+        });
+        return () => {
+            cancelled.value = true;
+            token.cancel();
+        };
+    }, [story, strategy, game]);
+
+    return null;
+
+    /** Ask the strategy about one moment and carry out whatever it answers. */
+    async function runMoment(
+        moment: Parameters<PreloadStrategy["plan"]>[0],
+        options: {gates: boolean; cancelled: {value: boolean}},
+    ): Promise<void> {
+        const openGate = () => {
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.complete"]);
             if (game.config.waitForPreload) {
                 preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
             }
-            cacheManager.filter(loadedSrc);
-        });
-
-        if (!game.config.waitForPreload) {
+        };
+        // A game that does not wait is told the moment the pass is under way, whatever it finds.
+        if (options.gates && !game.config.waitForPreload) {
             preloaded.events.emit(Preloaded.EventTypes["event:preloaded.ready"]);
         }
-        preloaded.events.emit(Preloaded.EventTypes["event:preloaded.mount"]);
 
-        return onPreloaderUnmount;
-    }, [lastScene, story]);
+        let plan: PreloadPlan | null;
+        try {
+            plan = await strategy.plan(moment);
+        } catch (reason) {
+            state.logger.weakError(LogTag, "Preload strategy failed to plan; nothing warmed", reason);
+            if (options.gates) {
+                openGate();
+            }
+            return;
+        }
+        if (options.cancelled.value) {
+            return;
+        }
+        if (!plan) {
+            // No plan is a complete answer: it means "leave what is warm alone". It must still open
+            // the gate, or a game whose strategy declines the opening scene never paints.
+            if (options.gates) {
+                openGate();
+            }
+            return;
+        }
+
+        // What this moment keeps is settled now, not once its idle pool has landed: the frame about
+        // to paint is pinned against the budgets, and everything outside the plan is let go - at
+        // once if nothing on stage shows it, and the moment the scene that was showing it unmounts
+        // otherwise. Deciding it at the end of the pass meant a left scene's artwork outlived it by
+        // a whole pass, and for ever when the pass was superseded before it got there.
+        if (plan.pin) {
+            cacheManager.pin(plan.pin);
+        }
+        if (plan.keep) {
+            cacheManager.retain(plan.keep);
+        }
+        if (plan.audio) {
+            // Started now and never waited for. A scene whose music is still being fetched when it
+            // opens stutters into its own first line, but the audio context may be locked behind a
+            // user gesture, so nothing may block on it.
+            state.audioManager.retainOnly([...plan.audio]);
+        }
+        if (plan.video) {
+            // Also never waited for, and for a blunter reason: a clip can take as long to buffer as
+            // it likes. Mounting it hidden is the warming - there is no cache to put a video in -
+            // and the player admits them one at a time, so this hands over the whole ordered wish
+            // list rather than a number of them.
+            state.retainWarmVideos([...plan.video]);
+        }
+
+        await warm(plan, options, openGate);
+    }
 
     /**
-     * Remove cached src when scenes changed
-     */
-    useEffect(() => {
-        cachedSrc.current.clear();
-    }, [lastScene]);
-
-    /**
-     * predict preload logic
+     * Run a plan's three bands.
      *
-     * Get future src and preload them
+     * Neither of the first two is paced: `preloadDelay` exists to keep speculative work from
+     * saturating the network, not to throttle assets the player is either waiting on or one click
+     * away from.
      */
-    useEffect(() => {
-        if (typeof fetch === "undefined") {
-            return;
-        }
-        if (game.config.preloadAllImages) {
-            return;
-        }
-        if (!story) {
-            state.logger.weakWarn(LogTag, "Story not found, skipping preload");
-            return;
-        }
-
+    async function warm(
+        plan: PreloadPlan,
+        options: {gates: boolean; cancelled: {value: boolean}},
+        openGate: () => void,
+    ): Promise<void> {
         const timeStart = performance.now();
-        const allSrc: ActiveSrc[] = game
-            .getLiveGame()
-            .getAllPredictableActions(story, currentAction, game.config.maxPreloadActions)
-            .map(s => SrcManager.getPreloadableSrc(story, s))
-            .filter<ActiveSrc>(function (src): src is ActiveSrc {
-                return src !== null;
-            });
-        const sceneBasedSrc =
-            allSrc.filter(function (src): src is ActiveSrc<"scene"> {
-                return src?.activeType === "scene";
-            });
-        sceneBasedSrc.forEach(src => {
-            if (cachedSrc.current.has(src)) {
-                return;
+        const pools: Record<PreloadBand, TaskPool> = {
+            gate: new TaskPool(game.config.preloadConcurrency, 0),
+            soon: new TaskPool(game.config.preloadConcurrency, 0),
+            idle: new TaskPool(game.config.preloadConcurrency, game.config.preloadDelay),
+        };
+        const logGroup = state.logger.group(LogTag, true);
+        state.logger.debug(LogTag, "preloading:", plan);
+
+        let queued = 0;
+        for (const entry of plan.entries) {
+            if (enqueue(pools[entry.band], entry)) {
+                queued += 1;
             }
-            cachedSrc.current.add(src);
-        });
-
-        const actionSrc = SrcManager.catSrc([
-            ...cachedSrc.current,
-            ...allSrc,
-        ]);
-
-        const taskPool = new TaskPool(
-            game.config.preloadConcurrency,
-            game.config.preloadDelay,
-        );
-        const preloadSrc: string[] = [];
-        const logGroup = state.logger.group(LogTag);
-
-        state.logger.debug(LogTag, "preloading:", actionSrc);
-
-        for (const image of actionSrc.image) {
-            const src = SrcManager.getSrc(image);
-            if (!src) {
-                continue;
-            }
-            preloadSrc.push(src);
-
-            if (cacheManager.has(src) || cacheManager.isPreloading(src)) {
-                state.logger.debug(LogTag, `Image already loaded (${actionSrc.image.indexOf(image) + 1}/${actionSrc.image.length})`, src);
-                continue;
-            }
-            taskPool.addTask(() => new Promise(resolve => {
-                cacheManager.preload(state, src)
-                    .onFinished(() => {
-                        state.logger.debug(LogTag, `Image loaded (${actionSrc.image.indexOf(image) + 1}/${actionSrc.image.length})`, src);
-                        resolve();
-                    })
-                    .onErrored(() => {
-                        state.logger.weakError(LogTag, `Failed to preload image (${actionSrc.image.indexOf(image) + 1}/${actionSrc.image.length})`, src);
-                        resolve();
-                    });
-            }));
         }
-
         logGroup.end();
 
-        taskPool.start().then(() => {
-            state.logger.info(LogTag, "Image preload (quick reload)", `loaded ${cacheManager.size()} images in ${performance.now() - timeStart}ms`);
-            cacheManager.filter(preloadSrc);
-        });
-    }, [currentAction, story]);
+        const describe = () => {
+            const stats = cacheManager.getStats();
+            const mb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
+            return `${queued} queued in ${(performance.now() - timeStart).toFixed(0)}ms`
+                + ` (${mb(stats.blobBytes)} MB fetched, ${mb(stats.decodedBytes)} MB decoded, ${stats.pinned} pinned)`;
+        };
 
-    return null;
+        await pools.gate.start();
+        if (options.gates) {
+            state.logger.info(LogTag, "Preload (gate)", describe());
+            openGate();
+        }
+        // A superseded pass must not keep fetching for a moment that is gone. What the cache keeps
+        // was settled when the pass started, so there is nothing here for a stale pass to undo.
+        if (options.cancelled.value) {
+            return;
+        }
+        await pools.soon.start();
+        if (options.cancelled.value) {
+            return;
+        }
+        await pools.idle.start();
+        if (!options.cancelled.value) {
+            state.logger.info(LogTag, "Preload (settled)", describe());
+        }
+    }
+
+    /** Queue one entry, unless it is already warm enough for what its band asks. Reports whether it queued. */
+    function enqueue(pool: TaskPool, entry: PreloadEntry): boolean {
+        const key = `${entry.band}:${entry.src}`;
+        if (settled.current.has(key)) {
+            return false;
+        }
+        settled.current.add(key);
+        const retainDecoded = entry.decode ?? entry.band !== "idle";
+        // Warm enough for this band: the bytes are held, and the bitmap too when the band keeps
+        // one. A url another pass is still fetching is queued regardless - its token follows that
+        // fetch, and a gated frame has to wait for it either way.
+        if (cacheManager.has(entry.src) && (!retainDecoded || cacheManager.isDecoded(entry.src))) {
+            state.logger.debug(LogTag, `Already warm (${entry.band})`, entry.src);
+            return false;
+        }
+        pool.addTask(() => new Promise<void>(resolve => {
+            cacheManager.preload(state, entry.src, {retainDecoded, decode: retainDecoded})
+                .onFinished(() => {
+                    state.logger.debug(LogTag, `Warmed (${entry.band})`, entry.src);
+                    resolve();
+                })
+                .onErrored(() => {
+                    state.logger.weakError(LogTag, `Failed to warm (${entry.band})`, entry.src);
+                    resolve();
+                });
+        }));
+        return true;
+    }
 }

@@ -12,14 +12,10 @@ import { DynamicWord, DynamicWordResult } from "@core/elements/character/sentenc
 import { LambdaHandler } from "@core/elements/type";
 import { Namespace, Storable } from "@core/elements/persistent/storable";
 
-/**@internal */
 export type PersistentContent = {
     [K in string]: StorableType;
 };
-/**@internal */
-type ChainedPersistent<T extends PersistentContent> = Proxied<Persistent<T>, Chained<LogicAction.Actions>>;
-/**@internal */
-type DynamicPersistentData = {
+export type DynamicPersistentData = {
     [K in string]: StorableType;
 };
 
@@ -59,9 +55,9 @@ export class Persistent<T extends PersistentContent>
      * @param value - The value to set
      * @returns A chainable persistent action
      */
-    public set<K extends StringKeyOf<T>>(key: K, value: T[K]): ChainedPersistent<T>;
-    public set<K extends StringKeyOf<T>>(key: K, handler: (value: T[K]) => T[K]): ChainedPersistent<T>;
-    public set<K extends StringKeyOf<T>>(key: K, $arg1: T[K] | ((value: T[K]) => T[K])): ChainedPersistent<T> {
+    public set<K extends StringKeyOf<T>>(key: K, value: T[K]): Proxied<Persistent<T>, Chained<LogicAction.Actions>>;
+    public set<K extends StringKeyOf<T>>(key: K, handler: (value: T[K]) => T[K]): Proxied<Persistent<T>, Chained<LogicAction.Actions>>;
+    public set<K extends StringKeyOf<T>>(key: K, $arg1: T[K] | ((value: T[K]) => T[K])): Proxied<Persistent<T>, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             PersistentActionTypes.set,
             [key, $arg1]
@@ -74,7 +70,7 @@ export class Persistent<T extends PersistentContent>
      * @param value - The value to assign
      * @returns A chainable persistent action
      */
-    public assign(value: Partial<T> | ((value: T) => Partial<T>)): ChainedPersistent<T> {
+    public assign(value: Partial<T> | ((value: T) => Partial<T>)): Proxied<Persistent<T>, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             PersistentActionTypes.assign,
             [value]

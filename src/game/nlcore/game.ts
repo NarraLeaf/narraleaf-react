@@ -6,7 +6,9 @@ import { Preference } from "@core/game/preference";
 import { GameState } from "@player/gameState";
 import { GuardWarningType } from "@player/guard";
 import { DefaultElements } from "../player/elements/elements";
+import { AudioBusMixer, createPreferenceBusAliases } from "./game/audioBus";
 import { Plugins, IGamePluginRegistry } from "./game/plugin/plugin";
+import { PuppetBackend, PuppetBackendRegistry } from "./game/puppet/puppetBackend";
 import { LayoutRouter } from "../player/lib/PageRouter/router";
 import { KeyMap } from "./game/keyMap";
 import { KeyBindingType } from "./game/types";
@@ -68,6 +70,7 @@ export class Game {
         showDialog: true,
         gameSpeed: 1,
         cps: 10,
+        textRevealDuration: 0,
         voiceVolume: 1,
         voiceFadeDuration: 0,
         voiceEndMode: "stop",
@@ -86,6 +89,7 @@ export class Game {
             showDialog: "showDialog",
             gameSpeed: "gameSpeed",
             cps: "cps",
+            textRevealDuration: "textRevealDuration",
             voiceVolume: "voiceVolume",
             voiceFadeDuration: "voiceFadeDuration",
             voiceEndMode: "voiceEndMode",
@@ -117,9 +121,12 @@ export class Game {
         preloadDelay: 100,
         preloadConcurrency: 5,
         waitForPreload: true,
+        preloadGate: "firstFrame",
         preloadAllImages: true,
         forceClearCache: false,
         maxPreloadActions: 10,
+        imageCacheBudgetBytes: 256 * 1024 * 1024,
+        decodedImageBudgetBytes: 128 * 1024 * 1024,
         cursor: null,
         cursorHeight: 30,
         cursorWidth: 30,
@@ -132,7 +139,7 @@ export class Game {
         allowSkipImageTransform: true,
         allowSkipImageTransition: true,
         allowSkipBackgroundTransform: true,
-        allowSkipBackgroundTransition: false,
+        allowSkipSceneTransition: true,
         allowSkipTextTransform: true,
         allowSkipTextTransition: true,
         allowSkipLayersTransform: true,
@@ -145,9 +152,13 @@ export class Game {
         dialog: DefaultElements.say,
         nvlDialog: DefaultElements.nvlDialog,
         onError: (error: Error) => { console.error(error); },
+        disableTextScaling: false,
         stage: null,
         maxStackModelLoop: 1000,
         maxActionHistory: 100,
+        maxSceneCallDepth: 8,
+        audioBuses: [],
+        audioStreaming: "loops",
     };
     static GameSettingsNamespace = GameSettingsNamespace;
 
@@ -165,6 +176,41 @@ export class Game {
      */
     public preference: Preference<GamePreference> = new Preference<GamePreference>(Game.DefaultPreference);
     /**
+     * The audio bus mixer: the tree declared in {@link GameConfig.audioBuses}, and what the player
+     * has done to it.
+     *
+     * Every bus carries **two** numbers. The declaration holds the author's mix — where a bus sits
+     * relative to the others in the game as shipped. This mixer holds the player's control, which
+     * starts at 1 and means "leave the author's mix alone". The product is what reaches the gain
+     * node, so neither half can silently erase the other and the layering is total: declared →
+     * persisted player override → live change.
+     *
+     * It is on `Game` rather than on the audio manager because a bus volume is a player setting,
+     * not game state — it exists before the audio context unlocks, it survives the player
+     * unmounting, and a host restores it from its own storage whenever it likes. Setting a volume
+     * at any point after `new Game(...)` is safe; if the channels do not exist yet the value is
+     * applied the moment they do.
+     *
+     * `bgmVolume`, `soundVolume` and `voiceVolume` **are** the player's half of the three seeded
+     * buses — not numbers copied onto them. `game.audioBuses.getVolume("voice")` and
+     * `game.preference.getPreference("voiceVolume")` read the same storage and cannot disagree,
+     * and writing either drives the audio graph immediately, mounted or not. Both surfaces stay
+     * supported; use whichever suits, and use this one for buses the host declared.
+     * (`globalVolume` is the master output, not a bus, and is unchanged.)
+     *
+     * @example
+     * ```ts
+     * // persist the player's half only - the author's mix comes back with the game
+     * localStorage.setItem("mixer", JSON.stringify(game.audioBuses.getVolumes()));
+     * // restore, any time after `new Game(...)` - no ordering requirement, seeded or not
+     * game.audioBuses.setVolumes(JSON.parse(localStorage.getItem("mixer") ?? "{}"));
+     * ```
+     */
+    public readonly audioBuses: AudioBusMixer = new AudioBusMixer(
+        () => this.config.audioBuses ?? [],
+        createPreferenceBusAliases(this.preference as never),
+    );
+    /**
      * Game key bindings
      */
     public keyMap: KeyMap = new KeyMap({
@@ -181,6 +227,7 @@ export class Game {
     public plugins: Plugins;
     public router: LayoutRouter;
     private readonly lifecycleEvents = new EventDispatcher<GameLifecycleEvents>();
+    private readonly puppetBackends = new PuppetBackendRegistry();
     private preloadCompleteContext: GameLifecycleEventContext | null = null;
     private firstSceneReadyContext: GameLifecycleEventContext | null = null;
 
@@ -204,6 +251,12 @@ export class Game {
         }
 
         this.config = deepMerge<GameConfig>(this.config, merged);
+        // A re-declared tree has to be re-resolved, but only a tree that has not been realized into
+        // channels yet can actually change: tearing a live channel down stops every sound under it.
+        // Hosts that configure before mounting - which is the normal order - get what they declared.
+        if (Object.prototype.hasOwnProperty.call(merged, "audioBuses")) {
+            this.audioBuses.invalidate();
+        }
         this.getLiveGame().getGameState()?.events.emit(GameState.EventTypes["event:state.player.requestFlush"]);
 
         return this;
@@ -243,6 +296,62 @@ export class Game {
             this.plugins.use(plugin).register(plugin);
         }
         return this;
+    }
+
+    /**
+     * Register a backend that draws {@link import("@core/elements/displayable/puppet").Puppet}
+     * elements.
+     *
+     * The engine ships no renderer and understands none: a puppet is a box it positions, layers,
+     * transforms and saves, and the backend registered here draws whatever belongs inside that box.
+     * Register before the game mounts — a puppet whose backend is missing keeps its place on the
+     * stage and draws nothing, warning once.
+     *
+     * Registering under a name already taken replaces the previous backend.
+     *
+     * This lives on `Game` rather than in the config on purpose: the config is deep-merged and can
+     * be frozen, and a backend is a live object with methods, not serialisable data. A plugin can
+     * call this from its own `register(game)`.
+     *
+     * @example
+     * ```ts
+     * game.registerPuppetBackend({
+     *     name: "my-renderer",
+     *     mount(container, ctx) {
+     *         const model = MyRenderer.create(container, ctx.resolveSrc(ctx.src), ctx.size);
+     *         return {
+     *             ready: () => model.loaded,
+     *             apply: (state) => model.setPose(state),
+     *             command: (name, payload) => model.run(name, payload),
+     *             resize: (size) => model.resize(size.width, size.height),
+     *             dispose: () => model.destroy(),
+     *         };
+     *     },
+     * });
+     * ```
+     */
+    public registerPuppetBackend(backend: PuppetBackend): this {
+        this.puppetBackends.register(backend);
+        return this;
+    }
+
+    /**
+     * The backend registered under the given name, or null.
+     */
+    public getPuppetBackend(name: string): PuppetBackend | null {
+        return this.puppetBackends.get(name);
+    }
+
+    /**
+     * The names of every registered puppet backend, in registration order.
+     */
+    public listPuppetBackends(): string[] {
+        return this.puppetBackends.list();
+    }
+
+    /**@internal */
+    public getPuppetBackendRegistry(): PuppetBackendRegistry {
+        return this.puppetBackends;
     }
 
     /**
@@ -354,6 +463,7 @@ export class Game {
      * **Note**: This action is irreversible.
      */
     public dispose() {
+        this.audioBuses.dispose();
         this.plugins.unregisterAll();
         this.liveGame?.dispose();
         this.sideEffect.forEach(sideEffect => sideEffect());

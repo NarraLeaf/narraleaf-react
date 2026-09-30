@@ -21,6 +21,13 @@ import { NvlContainer } from "@player/elements/nvl/NvlContainer";
 import { DefaultNvlContainer } from "@player/elements/nvl/DefaultNvlContainer";
 import { NvlDialogList, DefaultNvlDialogItem } from "@player/elements/nvl/NvlDialogList";
 import { NvlProvider, useNvl, useNvlDialogs, useIsNvlMode, useIsNvlVisible } from "@player/elements/nvl/NvlContext";
+import {
+    getWordRenderer,
+    registerWordRenderer,
+    unregisterWordRenderer,
+} from "@player/elements/say/wordRenderer";
+import { useDialogOverlay } from "@player/elements/say/dialogOverlay";
+import { useSuspendAdvance } from "@player/lib/useSuspendAdvance";
 
 export type { DialogAvatarContext } from "@player/elements/say/Avatar";
 export type {
@@ -33,6 +40,19 @@ export type {
     TextsPreviewProps,
     TextsProps,
 } from "@player/elements/say/Sentence";
+/**
+ * The vocabulary of the vertical-text props on `TextAppearanceProps`.
+ *
+ * Exported because a value has to be named somewhere other than the JSX attribute: an application
+ * that keeps its typography in a settings object, or hands the mode down through its own props,
+ * had no way to type either without restating the unions.
+ */
+export type {
+    TateChuYoko,
+    TextGlyphOrientation,
+    TextWritingMode,
+} from "@player/lib/verticalText";
+export type { DialogOverlay, DialogOverlayRect } from "@player/elements/say/dialogOverlay";
 export type { NametagProps } from "@player/elements/say/Nametag";
 export type { ItemProps } from "@player/elements/menu/UIMenu/Item";
 export type { ChoiceEvaluated } from "@player/elements/menu/type";
@@ -52,6 +72,11 @@ export {
     Avatar,
     useAvatar,
     useDialog,
+    useDialogOverlay,
+    useSuspendAdvance,
+    registerWordRenderer,
+    unregisterWordRenderer,
+    getWordRenderer,
     useVoiceState,
     Page,
     Layout,

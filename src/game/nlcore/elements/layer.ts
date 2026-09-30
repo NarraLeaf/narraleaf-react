@@ -3,7 +3,7 @@ import {Config, ConfigConstructor, MergeConfig} from "@lib/util/config";
 import {TransformState} from "@core/elements/transform/transform";
 import {EmptyObject} from "./transition/type";
 import {TransformDefinitions} from "@core/elements/transform/type";
-import {Displayable} from "@core/elements/displayable/displayable";
+import {Displayable, DisplayableLoopRaw} from "@core/elements/displayable/displayable";
 import {EventfulDisplayable} from "@player/elements/displayable/type";
 import {LayerAction} from "@core/action/actions/layerAction";
 import {
@@ -18,6 +18,7 @@ import {Image} from "@core/elements/displayable/image";
 import {Text} from "@core/elements/displayable/text";
 import {Scene} from "@core/elements/scene";
 import { Serializer } from "@lib/util/data";
+import { RuntimeGameError } from "@core/common/Utils";
 import { Chained, Proxied } from "../action/chain";
 
 export interface ILayerUserConfig extends TransformDefinitions.ImageTransformProps {
@@ -38,25 +39,37 @@ type LayerConfig = {
 type LayerState = {
     zIndex: number;
 };
-/**@internal */
-type LayerDataRaw = {
+export type LayerDataRaw = {
     state: Record<string, any>;
     transformState: Record<string, any>;
+    loop?: DisplayableLoopRaw | null;
 };
 
 export class Layer
     extends Displayable<LayerDataRaw, Layer, TransformDefinitions.ImageTransformProps>
     implements EventfulDisplayable {
 
+    /**@internal */
+    private static _defaultUserConfig: ConfigConstructor<ILayerUserConfig, EmptyObject> | null = null;
+
     /**
+     * Built on first use rather than while this module is evaluating.
+     *
+     * The spread reads `TransformState` out of another module and `scene.ts` imports this one, an
+     * edge that puts this initialiser inside the `transform/transform` cycle — where `TransformState`
+     * is still `undefined` and the throw names neither module. Reading the defaults on demand settles
+     * it rather than depending on where in the cycle this module lands.
+     *
      * @internal
      * {@link ILayerUserConfig}
      */
-    static DefaultUserConfig = new ConfigConstructor<ILayerUserConfig, EmptyObject>({
-        zIndex: 0,
-        ...TransformState.DefaultTransformState.getDefaultConfig(),
-        opacity: 1,
-    });
+    static get DefaultUserConfig(): ConfigConstructor<ILayerUserConfig, EmptyObject> {
+        return (Layer._defaultUserConfig ??= new ConfigConstructor<ILayerUserConfig, EmptyObject>({
+            zIndex: 0,
+            ...TransformState.DefaultTransformState.getDefaultConfig(),
+            opacity: 1,
+        }));
+    }
 
     /**
      * @internal
@@ -82,7 +95,7 @@ export class Layer
     /**@internal */
     public state: LayerState;
     /**@internal */
-    public transformState: TransformState<TransformDefinitions.ImageTransformProps>;
+    public readonly transformState: TransformState<TransformDefinitions.ImageTransformProps>;
     /**@internal */
     private userConfig: Config<ILayerUserConfig>;
 
@@ -139,19 +152,52 @@ export class Layer
         ));
     }
 
+    /**
+     * Not available on a layer: depth between layers is the z-index.
+     *
+     * `bringToFront` moves an element to the end of the list its layer draws, and a layer is not
+     * in any such list — it *is* one. Accepting the call would mean accepting a story that reads as
+     * if it raised the layer and plays as if the line were not there, which is the failure the
+     * throw exists to prevent. Use {@link Layer.setZIndex} instead.
+     *
+     * @throws RuntimeGameError - always
+     */
+    public override bringToFront(): never {
+        throw new RuntimeGameError(
+            `A layer cannot be brought to front. Layers are ordered by z-index, not by the order they were added in — use Layer.setZIndex to raise one. (layer: ${this.config.name})`
+        );
+    }
+
+    /**
+     * Return the layer to the z-index and pose its constructor config describes.
+     *
+     * A layer is mutable at runtime (`transform`, `setZIndex`), and unlike the story camera it
+     * belongs to the scene that declared it — so leaving that scene, starting a new game or loading
+     * a save must not carry a layer that was slid aside or faded out into whatever comes next.
+     * @internal
+     */
+    override reset(): this {
+        super.reset();
+        this.state = this.getInitialState();
+        this.transformState.resetTo(this.getInitialTransformState().get());
+        return this;
+    }
+
     /**@internal */
     public toData(): LayerDataRaw | null {
         return {
             state: Layer.StateSerializer.serialize(this.state),
             transformState: this.transformState.serialize(),
+            loop: this._serializeLoop(),
         };
     }
 
     /**@internal */
     public fromData(data: LayerDataRaw): this {
         this.state = Layer.StateSerializer.deserialize(data.state);
-        this.transformState =
-            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState);
+        this.transformState.resetTo(
+            TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState).get());
+        this._deserializeLoop(data.loop);
         return this;
     }
 

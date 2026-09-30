@@ -78,7 +78,7 @@ export default function Player(
     const currentHandlingResult = React.useRef<CalledActionResult | Awaitable<CalledActionResult> | null>(null);
     const nextMultiLock = React.useRef<MultiLock | null>(null);
 
-    const { preloaded } = usePreloaded();
+    const { preloaded, cacheManager } = usePreloaded();
     const [preloadedReady, setPreloadedReady] = useState(false);
     const preloadedReadyHandlerExecuted = React.useRef(false);
     const [preloadComplete, setPreloadComplete] = useState(false);
@@ -203,10 +203,28 @@ export default function Player(
         state.audioManager.initialize();
     }, []);
 
+    // The image cache belongs to the provider and outlives this player; the state is what a host
+    // reaches it through (`GameState.getImageCache`), for as long as the player is mounted.
+    useEffect(() => {
+        state.setImageCache(cacheManager);
+        return () => {
+            state.setImageCache(null);
+        };
+    }, [cacheManager]);
+
     useEffect(() => {
         game.getLiveGame().setGameState(state);
         if (story && !game.getLiveGame().isPlaying()) {
             game.getLiveGame().loadStory(story);
+        }
+        // Warm the entry scene the moment the story is known, without entering it. Hosts that show
+        // a main menu (or any UI) before calling `newGame()` used to give the preloader nothing to
+        // work with — it needs a scene, and there is none until the game is entered — so the whole
+        // fetch/encode/decode pass landed between "start" and the first frame. Registering the
+        // entry scene as the preloading scene moves that work behind whatever the player is already
+        // looking at. `loadStory` above has already built the scene's src manager.
+        if (story?.entryScene && !state.getPreloadingScene() && !state.getLastScene()) {
+            state.preloadScene(story.entryScene);
         }
         state.playerCurrent = containerRef.current;
         state.mainContentNode = mainContentRef.current;
@@ -409,11 +427,25 @@ export default function Player(
                                 <KeyEventAnnouncer state={state} />
                                 <StageClickAnnouncer state={state} />
                                 <StageCameraBoundary state={state}>
-                                    {state.getSceneElements().map((elements) => (
-                                        <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
-                                    ))}
-                                    {state.getVideos().map((video, index) => (
-                                        <div className={"w-full h-full absolute"} key={"video-" + index} data-element-type={"video"}>
+                                    {/* `isolation: isolate` is what keeps a stage transition's stacking order to
+                                        itself. The transition raises the incoming scene above the outgoing one with
+                                        a z-index, and without a stacking context of their own those z-indexes
+                                        compete with the videos and vfx below — which sit at `auto` and `0` — so a
+                                        vignette or a blink running across a jump would be covered by the incoming
+                                        scene for the whole length of it. Isolated, the scenes order among
+                                        themselves and the group as a whole keeps its document-order place. */}
+                                    <div className={"w-full h-full absolute"} style={{isolation: "isolate"}} data-element-type={"scene-group"}>
+                                        {state.getSceneElements().map((elements) => (
+                                            <StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />
+                                        ))}
+                                    </div>
+                                    <StageTransitionOverlayHost state={state} />
+                                    {/* Keyed by the element and not by its position: this list gains and
+                                        loses entries in the middle now that the preloader holds clips in
+                                        it, and an index key would hand a mounted <video> - and the buffer
+                                        the browser filled for it - to a different clip. */}
+                                    {state.getVideos().map((video) => (
+                                        <div className={"w-full h-full absolute"} key={"video-" + video.getId()} data-element-type={"video"}>
                                             <Video gameState={state} video={video} />
                                         </div>
                                     ))}
@@ -422,7 +454,16 @@ export default function Player(
                                             className={"w-full h-full absolute"}
                                             key={"vfx-" + vfx.getId()}
                                             data-element-type={"vfx"}
-                                            style={{zIndex: vfx.config.zIndex}}
+                                            // The blend belongs HERE and not on the <video> inside. A
+                                            // positioned element with a numeric z-index is a stacking
+                                            // context, so a `mix-blend-mode` applied within this div
+                                            // blends against this div's own (empty) backdrop and never
+                                            // reaches the stage — `screen` then renders as `normal`,
+                                            // which for a glow-on-black clip is an opaque black
+                                            // rectangle over the whole scene. Applied to the wrapper,
+                                            // the group blends against what is painted beneath it
+                                            // inside the stage's isolated context, which is the scene.
+                                            style={{zIndex: vfx.config.zIndex, mixBlendMode: vfx.config.blendMode}}
                                         >
                                             <Vfx gameState={state} vfx={vfx} />
                                         </div>
@@ -475,6 +516,39 @@ function StageCameraBoundary({ state, children }: Readonly<{
         <StageCamera state={state} camera={camera}>
             {children}
         </StageCamera>
+    );
+}
+
+/**
+ * The node a stage transition creates its overlay elements inside — today only
+ * {@link ThroughColor}'s colour plate.
+ *
+ * Rendered once, empty, directly above the scenes: the driver appends and removes its children
+ * imperatively, so a transition never has to wait for a React commit to get an element it needs
+ * on the very frame it starts.
+ *
+ * Outside the isolated scene group, and above the videos and vfx rather than below them. The
+ * scenes take no part in each other's business and stay in their own stacking context; a colour
+ * plate is the opposite — a full-screen hold whose whole job is to obscure the stage while the
+ * scenes swap behind it, so it covers everything the camera holds.
+ */
+function StageTransitionOverlayHost({ state }: Readonly<{ state: GameState }>) {
+    const hostRef = React.useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        state.stageTransition.registerOverlayHost(hostRef.current);
+
+        return () => {
+            state.stageTransition.registerOverlayHost(null);
+        };
+    }, []);
+
+    return (
+        <div
+            className={"w-full h-full absolute pointer-events-none"}
+            ref={hostRef}
+            data-element-type={"stage-transition-overlay-host"}
+        />
     );
 }
 

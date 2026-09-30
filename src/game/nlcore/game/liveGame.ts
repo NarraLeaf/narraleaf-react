@@ -10,6 +10,7 @@ import { Sentence } from "@core/elements/character/sentence";
 import { Namespace, Storable } from "@core/elements/persistent/storable";
 import { StorableType } from "@core/elements/persistent/type";
 import { Scene } from "@core/elements/scene";
+import { Displayable } from "@core/elements/displayable/displayable";
 import { ElementStateRaw, Story } from "@core/elements/story";
 import { Game } from "@core/game";
 import { Sound } from "@core/elements/sound";
@@ -24,8 +25,7 @@ import { ActionExecutionInjection, ExecutedActionResult } from "../action/action
 import { GameHistory } from "../action/gameHistory";
 import { StackModel, StackModelRawData, StackSnapshot } from "../action/stackModel";
 
-/**@internal */
-type LiveGameEvent = {
+export type LiveGameEvent = {
     "event:character.prompt": [{
         /**
          * The character who says the sentence
@@ -77,6 +77,13 @@ export class LiveGame {
         "event:menu.choose": "event:menu.choose",
         "event:action.current": "event:action.current",
     } as const;
+    /**
+     * How many saves apart the debug-only dirty-mark audit runs. Small enough that a mistake is
+     * found within a scene or two of play, large enough that the full walk it does is not on the
+     * per-line path.
+     * @internal
+     */
+    static ElementAuditInterval = 50;
 
     public game: Game;
     public events: EventDispatcher<LiveGameEvent> = new EventDispatcher();
@@ -91,6 +98,11 @@ export class LiveGame {
     stackModel: StackModel | null = null;
     /**@internal */
     asyncStackModels: Set<StackModel> = new Set();
+    /**
+     * Saves remaining before the next dirty-mark audit; see {@link LiveGame.auditElementDirtyMarks}.
+     * @internal
+     */
+    private elementAuditCountdown: number = 0;
     /**@internal */
     lastDialog: {
         sentence: string;
@@ -198,6 +210,7 @@ export class LiveGame {
         const store = this._storable.toData();
         const stage = gameState.toData();
         const elementStates: RawData<ElementStateRaw>[] = story.getAllElementStates();
+        this.auditElementDirtyMarks(story);
         const stackModel: StackModelRawData = this.stackModel.serialize();
         const asyncStackModels: StackModelRawData[] = Array.from(this.asyncStackModels).map(stack => stack.serialize());
 
@@ -209,6 +222,46 @@ export class LiveGame {
             asyncStackModels,
             services: story.serializeServices(),
         };
+    }
+
+    /**
+     * Periodically check, in debug builds, that nothing has written to an element without marking it
+     * dirty.
+     *
+     * A save only carries the elements the dirty flag points at, and the flag is set from a single
+     * place - the action dispatch in {@link LiveGame.executeAction}. Anything that writes element
+     * state from outside that path (a host reaching in through `DevTools`, a future code path that
+     * bypasses the dispatch) would leave the element unmarked and quietly out of the save, with no
+     * error and a state that looks plausible on load.
+     *
+     * So every {@link LiveGame.ElementAuditInterval} saves, debug builds do the full walk the flag
+     * exists to avoid and compare every element against its authored state. Anything found drifted
+     * but unmarked is reported *and* marked, so the mistake costs one snapshot rather than the rest
+     * of the playthrough. Release builds never run it.
+     * @internal
+     */
+    private auditElementDirtyMarks(story: Story): void {
+        if (!this.game.config.app.debug) {
+            return;
+        }
+        if (this.elementAuditCountdown-- > 0) {
+            return;
+        }
+        this.elementAuditCountdown = LiveGame.ElementAuditInterval;
+
+        const unmarked = story.findUnmarkedElements();
+        if (!unmarked.length) {
+            return;
+        }
+
+        unmarked.forEach(element => element.markDirty());
+        this.gameState?.logger.warn(
+            "LiveGame.auditElementDirtyMarks",
+            `${unmarked.length} element(s) had state that no longer matches the script but were never `
+            + "marked dirty, so the save just written left them out. They have been marked, so the next "
+            + "save will carry them - but something is writing element state outside the action "
+            + `dispatch: ${unmarked.map(element => element.getId()).join(", ")}`
+        );
     }
 
     /**
@@ -279,6 +332,14 @@ export class LiveGame {
         this.initNamespaces();
         this._storable.load(store);
 
+        // Everything goes back to the state the script wrote before the save is applied. A save
+        // carries only the elements that differ from that state (see `Story.getAllElementStates`),
+        // so an element the save does not name is not "leave it as it is" - it is "as the author
+        // wrote it", and without this pass it would keep whatever the session running right now had
+        // put in it. It also matters for saves that predate an element: they name fewer elements
+        // than the story now has, and the ones they cannot speak for still have to be restored.
+        elementMaps.forEach(element => element.reset());
+
         // restore elements
         elementStates.forEach(({ id, data }) => {
             gameState.logger.debug("restore element", id);
@@ -287,8 +348,27 @@ export class LiveGame {
             if (!element) {
                 throw new Error("Element not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
             }
-            element.reset();
-            element.fromData(data as any);
+            // A scene is the one element whose state points at another element - its background
+            // music - so it is the one that needs the table to put itself back together.
+            if (element instanceof Scene) {
+                element.fromData(data as any, elementMaps);
+            } else {
+                element.fromData(data as any);
+            }
+            // Restored state is by definition not the authored state, so the next save has to carry
+            // this element even if no action touches it again.
+            element.markDirty();
+        });
+
+        // A looping transform is stored as the id of the action that started it, because a Transform
+        // itself cannot be serialized - its easing may be a function. The transform is authored data
+        // hanging off that action, so the story still holds it; this is where the ids become objects
+        // again, using the same map the stack model is restored from just below. An element whose
+        // anchor no longer resolves quietly loses its loop and keeps its pose.
+        elementMaps.forEach(element => {
+            if (element instanceof Displayable) {
+                element._rebindLoop(actionMaps);
+            }
         });
 
         // restore game state
@@ -322,14 +402,14 @@ export class LiveGame {
     }
 
     /**
-     * Get the history of the game
-     * 
-     * The history is a list of element actions that have been executed  
-     * For example, when a character says something, the history will record the sentence and voice
-     * 
-     * You can use the id to undo the action by using `liveGame.undo(id)`
-     * 
-     * This method is an utility method for creating a backlog
+     * The backlog: every line read up to and including the one the game is on.
+     *
+     * After stepping back, the lines beyond the play head are not here — they are a future the
+     * player can step into again with {@link redo}, and a backlog listing them would be showing what
+     * has not happened yet. {@link getFuture} returns those.
+     *
+     * Each entry carries a `token`, which is how {@link restoreToHistory} names a line. A token
+     * keeps naming its line across saves and rewinds.
      */
     public getHistory(): GameHistory[] {
         this.assertGameState();
@@ -337,92 +417,246 @@ export class LiveGame {
     }
 
     /**
-     * Undo the action
-     * 
-     * - If the id is provided, it will undo the action **by id**  
-     * - If the id is not provided, it will undo **the last action**
+     * The lines ahead of the play head: read once, stepped back past, and reachable again.
+     *
+     * Empty during ordinary play, and empty right after loading a save — a save written in the past
+     * carries no future, because saving after stepping back saves that moment and not the lines that
+     * had been read beyond it.
      */
-    public undo(id?: string) {
+    public getFuture(): GameHistory[] {
         this.assertGameState();
-        if (!this.gameState.actionHistory.ableToUndo(this.gameState.gameHistory)) {
-            this.gameState.logger.warn("LiveGame.undo", "No action to undo");
-            return;
-        }
+        return this.gameState.gameHistory.getFuture();
+    }
 
-        const lock = this.gameLock.register().lock();
+    /** Whether there is a line before this one to step back to. */
+    public canUndo(): boolean {
+        this.assertGameState();
+        return this.gameState.gameHistory.canUndo();
+    }
 
-        this.stackModel.abortStackTop();
-
-        const actionHistory = id
-            ? this.gameState.actionHistory.undoUntil(id)
-            : this.gameState.actionHistory.undo(this.gameState.gameHistory);
-
-        if (actionHistory) {
-            const [actionMaps] = this.constructMaps();
-            const { rootStackSnapshot, stackModel } = actionHistory;
-
-            if (actionHistory.action.type === CharacterActionTypes.say && this.gameState.isNvlMode()) {
-                this.gameState.suppressNextNvlTyping();
-            }
-
-            this.stackModel.deserialize(rootStackSnapshot, actionMaps);
-            if (stackModel === this.stackModel) {
-                this.stackModel.push(StackModel.fromAction(actionHistory.action as LogicAction.Actions));
-            }
-
-            this.gameLock.off(lock.unlock());
-
-            this.gameState.logger.info("LiveGame.undo", "Undo until", id, "action", actionHistory);
-    
-            this.gameState.stage.forceUpdate();
-            this.gameState.stage.next();
-            this.gameState.schedule(() => {
-                if (this.gameState) this.gameState.forceAnimation();
-            }, 0);
-        } else {
-            this.gameState.logger.warn("LiveGame.undo", "No action found");
-            this.gameLock.off(lock.unlock());
-        }
+    /** Whether a line stepped back past is waiting ahead. */
+    public canRedo(): boolean {
+        this.assertGameState();
+        return this.gameState.gameHistory.canRedo();
     }
 
     /**
-     * Restore the game to a past backlog line.
+     * Step back one line.
      *
-     * Unlike {@link undo}, this works **after loading a save**: it does not rely on the
-     * (non-serializable) undo stack. Every backlog entry carries a self-contained state snapshot,
-     * so restoring re-applies that snapshot and trims the backlog back to that line.
+     * Backward and forward are one mechanism: each line recorded a self-contained snapshot of the
+     * game when it was reached, and moving in either direction restores the snapshot of the line
+     * being moved to. That is what lets this work after loading a save, which the undo stack of
+     * live closures it replaced could not — those closures cannot be written to a file, so before
+     * this, loading a save left the player with a backlog they could not step back into.
      *
-     * @param token - the backlog entry token (as returned by {@link getHistory})
-     * @returns `true` if the line was restored, `false` if the token is unknown or the entry has
-     *          no restore snapshot.
+     * The line stepped back from is not discarded; see {@link redo}.
+     *
+     * @returns `true` if the game moved, `false` if this is already the first line or that line
+     *          carries no snapshot.
+     */
+    public undo(): boolean {
+        this.assertGameState();
+
+        const history = this.gameState.gameHistory;
+        if (!history.canUndo()) {
+            this.gameState.logger.warn("LiveGame.undo", "No line to step back to");
+            return false;
+        }
+        return this.restoreToIndex(history.getCursor() - 1, "LiveGame.undo");
+    }
+
+    /**
+     * Step forward one line, into a line stepped back past.
+     *
+     * Only reaches lines the player has already read: this replays the recorded future rather than
+     * running the story on. Reading forward normally after stepping back keeps that future while the
+     * story retraces the same lines, and drops it the moment the story goes somewhere else — a
+     * different branch of a choice has a different future, and the old one no longer follows.
+     *
+     * @returns `true` if the game moved, `false` if there is nothing ahead or it carries no
+     *          snapshot.
+     */
+    public redo(): boolean {
+        this.assertGameState();
+
+        const history = this.gameState.gameHistory;
+        if (!history.canRedo()) {
+            this.gameState.logger.warn("LiveGame.redo", "No line to step forward to");
+            return false;
+        }
+        return this.restoreToIndex(history.getCursor() + 1, "LiveGame.redo");
+    }
+
+    /**
+     * Move the game to a recorded line, named by its token.
+     *
+     * The same mechanism as {@link undo} and {@link redo}, and it reaches in either direction: a
+     * token from {@link getHistory} steps back, one from {@link getFuture} steps forward.
+     *
+     * @param token - the token of the line to move to
+     * @returns `true` if the line was restored, `false` if the token is unknown or the line carries
+     *          no snapshot.
      */
     public restoreToHistory(token: string): boolean {
         this.assertGameState();
 
-        const entry = this.gameState.gameHistory.getByToken(token);
-        if (!entry) {
+        const index = this.gameState.gameHistory.indexOfToken(token);
+        if (index < 0) {
             this.gameState.logger.warn("LiveGame.restoreToHistory", "No history entry for token", token);
             return false;
         }
-        if (!entry.snapshot) {
-            this.gameState.logger.warn("LiveGame.restoreToHistory", "History entry has no restore snapshot", token);
+        return this.restoreToIndex(index, "LiveGame.restoreToHistory");
+    }
+
+    /**
+     * Put the game into the state one recorded line describes, and move the play head to it.
+     *
+     * The timeline itself is untouched — the whole of it, future included, is handed back to
+     * `deserialize` and the play head is then placed on the target. That is what makes stepping back
+     * reversible: nothing is thrown away by moving.
+     * @internal
+     */
+    private restoreToIndex(index: number, caller: string): boolean {
+        this.assertGameState();
+
+        const history = this.gameState.gameHistory;
+        const entry = history.getAt(index);
+        if (!entry) {
+            this.gameState.logger.warn(caller, "No history entry at", index);
             return false;
         }
 
-        // Trim the backlog to this line, then restore the entry's core snapshot. We reuse
-        // deserialize() wholesale by synthesizing a SavedGame whose core is the entry snapshot and
-        // whose history is the trimmed prefix, so the resume path stays identical to loading a save.
-        const prefix = this.gameState.gameHistory.serializeUntil(token);
+        // Stepping back to a line this session actually played is done in place, by running the undo
+        // each action registered as it ran. Restoring a snapshot would reach the same state, but it
+        // goes through the whole load path — which resets the audio manager and remounts the stage,
+        // so the music would restart and every running timeline would be cut on a step the player
+        // experiences as going back one line. The snapshot is the fallback for the lines that stack
+        // no longer holds: everything after a save has been loaded, and everything older than its
+        // cap.
+        if (index < history.getCursor() && this.gameState.actionHistory.has(entry.token)) {
+            // The play head moves first. Unwinding re-runs the line it lands on, and that run
+            // records itself straight away — with the head still at the line being left, that record
+            // reads as a new line arriving and the future is dropped on the spot.
+            const previous = history.getCursor();
+            history.setCursor(index);
+
+            if (this.undoInPlace(entry, caller)) {
+                this.auditRestoredLine(entry, caller);
+                return true;
+            }
+            history.setCursor(previous);
+        }
+
+        if (!entry.snapshot) {
+            this.gameState.logger.warn(caller, "History entry has no restore snapshot", entry.token);
+            return false;
+        }
+
+        const token = entry.token;
+        // `deserialize` is reused wholesale: a synthesized save whose core is this line's snapshot
+        // and whose history is the entire timeline, so resuming here is the same path as loading a
+        // save. It rebuilds the timeline and leaves the play head at the end, so the head is placed
+        // afterwards - by token, because an entry whose action the story no longer has is dropped on
+        // the way through and would shift every index after it.
         const synthetic: SavedGame = {
             name: this.currentSavedGame?.name ?? "",
             meta: this.currentSavedGame?.meta ?? this.getNewSavedGame().meta,
             game: {
                 ...entry.snapshot,
-                history: prefix,
+                history: history.serializeAll(),
             },
         };
         this.deserialize(synthetic);
+        this.gameState.gameHistory.setCursor(this.gameState.gameHistory.indexOfToken(token));
+
+        // A line arrived at by moving the play head is a line the player has already read, so in NVL
+        // mode it should appear rather than type itself out again. The undo this replaced did the
+        // same for the same reason.
+        if (entry.action.type === CharacterActionTypes.say && this.gameState.isNvlMode()) {
+            this.gameState.suppressNextNvlTyping();
+        }
         return true;
+    }
+
+    /**
+     * Step the game back to a line by unwinding the undo each action registered as it ran, leaving
+     * everything the stage is doing alone.
+     *
+     * A backlog entry's token is the id of the action-history entry pushed for the same line, so a
+     * line is reachable this way exactly when that stack still holds it. Unwinding through it leaves
+     * the game where that line was about to run — which is the state the line's snapshot describes,
+     * reached without rebuilding anything.
+     *
+     * @returns `false` when the stack cannot reach that line, so the caller falls back to the
+     *          snapshot.
+     * @internal
+     */
+    private undoInPlace(entry: GameHistory, caller: string): boolean {
+        this.assertGameState();
+
+        const actionHistory = this.gameState.actionHistory;
+        if (!actionHistory.has(entry.token)) {
+            return false;
+        }
+
+        const lock = this.gameLock.register().lock();
+        this.stackModel.abortStackTop();
+
+        const undone = actionHistory.undoUntil(entry.token);
+        if (!undone) {
+            this.gameLock.off(lock.unlock());
+            return false;
+        }
+
+        const [actionMaps] = this.constructMaps();
+        const { rootStackSnapshot, stackModel } = undone;
+
+        if (undone.action.type === CharacterActionTypes.say && this.gameState.isNvlMode()) {
+            this.gameState.suppressNextNvlTyping();
+        }
+
+        this.stackModel.deserialize(rootStackSnapshot, actionMaps);
+        if (stackModel === this.stackModel) {
+            this.stackModel.push(StackModel.fromAction(undone.action as LogicAction.Actions));
+        }
+
+        this.gameLock.off(lock.unlock());
+        this.gameState.logger.debug(caller, "Stepped back in place to", entry.token);
+
+        this.gameState.stage.forceUpdate();
+        this.gameState.stage.next();
+        this.gameState.schedule(() => {
+            if (this.gameState) this.gameState.forceAnimation();
+        }, 0);
+        return true;
+    }
+
+    /**
+     * Check, in debug builds, that stepping back in place left the game where that line's snapshot
+     * says it should be.
+     *
+     * There are two ways to reach a line now and they have to agree, or the same call would mean
+     * different things depending on how far back the player went and whether they had loaded a save.
+     * Unwinding relies on every action having registered an undo that truly reverses it; a snapshot
+     * relies on nothing. So the snapshot is the reference, and this reports where the two part
+     * company rather than leaving it to be discovered as a wrong-looking stage.
+     * @internal
+     */
+    private auditRestoredLine(entry: GameHistory, caller: string): void {
+        if (!this.game.config.app.debug || !entry.snapshot) {
+            return;
+        }
+
+        const expected = JSON.stringify([...entry.snapshot.elementStates].sort((a, b) => a.id.localeCompare(b.id)));
+        const actual = JSON.stringify([...this.serializeGameState().elementStates].sort((a, b) => a.id.localeCompare(b.id)));
+        if (expected !== actual) {
+            this.gameState?.logger.warn(
+                caller,
+                "Stepping back in place did not reproduce the state this line's snapshot describes, so an "
+                + "action's undo does not fully reverse it. Restoring the snapshot would have been correct; "
+                + `this path was not.\nexpected: ${expected}\nactual: ${actual}`
+            );
+        }
     }
 
     /**@internal */
@@ -455,6 +689,14 @@ export class LiveGame {
 
     /**
      * Play a sound immediately and return the SoundToken.
+     *
+     * The clip starts at the volume its {@link Sound} was configured with — `Sound.voice({src, volume:
+     * 0.4})` starts at 0.4, not at full volume. There is no fade: the token's volume is already
+     * settled when this resolves and no ramp is left running, so a `setVolume` or a fade driven on
+     * the returned token afterwards wins outright.
+     *
+     * A source given as a string or `URL` becomes a default `Sound`, which is full volume — pass a
+     * `Sound` to say otherwise.
      */
     public playSound(sound: Sound | string | URL): Promise<SoundToken> {
         this.assertGameState();
@@ -473,13 +715,31 @@ export class LiveGame {
     }
 
     /**
+     * How long a single suspended step is given to settle before the fast-forward gives up on it
+     * and returns `{ reason: "stalled" }`. Overridable per call via `options.stepTimeout`.
+     * @internal
+     */
+    private static readonly FastForwardStepTimeout = 10_000;
+    /**
+     * How often the skip request is re-broadcast while waiting for a suspended step to settle.
+     * Roughly one animation frame: the components that honour a skip only exist once the renderer
+     * has committed the line, so the request has to outlive a render.
+     * @internal
+     */
+    private static readonly FastForwardSkipInterval = 16;
+
+    /**
      * Fast-forward playback to the next menu (or the end of the story).
      *
      * Every line in between is executed for real, so the backlog and its restore snapshots
      * accumulate exactly as in normal play — only faster and silent. Audio is muted for the
-     * duration, in-flight transitions are settled immediately, and timed pauses (`Control.sleep`,
-     * auto-forward) resolve at once. It stops as soon as a menu is waiting for a choice, so the
-     * choice itself is always left to the player.
+     * duration, and timed pauses (`Control.sleep`, auto-forward) resolve at once. It stops as soon
+     * as a menu is waiting for a choice, so the choice itself is always left to the player.
+     *
+     * Skipping a line is a *request* to the renderer, not a synchronous state change: it is
+     * re-issued until the line settles. A line that never responds (an unskippable in-flight
+     * media/transition step) ends the run with `"stalled"` rather than hanging — this method always
+     * settles.
      *
      * Because history accumulates the whole way, {@link getHistory} and
      * {@link restoreToHistory} cover the fast-forwarded span just like normal play.
@@ -498,9 +758,13 @@ export class LiveGame {
      *                         unreachable / already-passed id from a successful jump.
      * @param options.maxSteps - safety bound on the number of advance steps (defaults to the
      *                           `maxStackModelLoop` config).
+     * @param options.stepTimeout - how long (ms) a single line is given to settle before the run
+     *                              reports `"stalled"`. Defaults to 10000. Raise it if the story
+     *                              fast-forwards through long unskippable media.
      * @returns why it stopped: `"action"` (reached `until.actionId`), `"menu"`, `"end"` (the stack
-     *          drained), or `"maxSteps"`. When an `actionId` target was requested, `reachedTarget`
-     *          is also set (`true` only for reason `"action"`).
+     *          drained), `"maxSteps"`, or `"stalled"` (a line refused to settle). When an
+     *          `actionId` target was requested, `reachedTarget` is also set (`true` only for reason
+     *          `"action"`).
      *
      * Note: only the root execution stack is scanned for the target — an id buried inside an
      * in-flight parallel (`Control.all`/`any`) or async branch is not a stop point.
@@ -508,7 +772,8 @@ export class LiveGame {
     public async fastForward(options: {
         until?: "menu" | "end" | { actionId: string };
         maxSteps?: number;
-    } = {}): Promise<{ reason: "menu" | "end" | "maxSteps" | "action"; reachedTarget?: boolean }> {
+        stepTimeout?: number;
+    } = {}): Promise<{ reason: "menu" | "end" | "maxSteps" | "action" | "stalled"; reachedTarget?: boolean }> {
         this.assertGameState();
         const gameState = this.gameState;
         const until = options.until ?? "menu";
@@ -517,6 +782,7 @@ export class LiveGame {
         // action-id jump (the target is unreachable until the player decides).
         const stopAtMenu = until === "menu" || targetId !== null;
         const maxSteps = options.maxSteps ?? gameState.game.config.maxStackModelLoop;
+        const stepTimeout = options.stepTimeout ?? LiveGame.FastForwardStepTimeout;
         // reachedTarget is only meaningful for an action-id jump; omit it otherwise so the
         // existing `{ reason }` shape is preserved for "menu"/"end" callers.
         const missedTarget = targetId !== null ? { reachedTarget: false } : {};
@@ -547,9 +813,10 @@ export class LiveGame {
                     // Suspended on a say / waitForClick: force-skip it and wait for the step to
                     // settle before the next skip, so the line's history entry and its snapshot
                     // are captured against a stable stack rather than a mid-mutation one.
-                    const settled = new Promise<void>(resolve => awaitable.onSettled(() => resolve()));
-                    gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
-                    await settled;
+                    const settled = await LiveGame.settleSuspendedStep(gameState, awaitable, stepTimeout);
+                    if (!settled) {
+                        return { reason: "stalled", ...missedTarget };
+                    }
                 } else {
                     // Not suspended (a run of synchronous actions, or a just-settled step not yet
                     // re-driven): pump the drain and yield a microtask.
@@ -562,6 +829,73 @@ export class LiveGame {
             gameState.setFastForwarding(false);
             gameState.audioManager.setGlobalVolume(previousVolume);
         }
+    }
+
+    /**
+     * Drive one suspended step (a say, a `waitForClick`, an in-flight transition) to its settle.
+     *
+     * `event:state.player.skip` is a fire-and-forget broadcast, and the things that honour it —
+     * the mounted dialog, the mounted displayable — only exist once the renderer has *committed*
+     * the line. The fast-forward loop resumes on a microtask, well before that commit, so a single
+     * emit for a line the renderer has not painted yet reaches no listener at all and is dropped:
+     * nothing settles the step, and the loop parks on it forever. Re-issuing the request on a
+     * frame-ish interval makes the skip survive the render it has to outlive, and the deadline
+     * guarantees this returns even for a step that genuinely cannot be skipped.
+     *
+     * @returns `true` if the step settled, `false` if it outlived `timeout`.
+     * @internal
+     */
+    private static settleSuspendedStep(
+        gameState: GameState,
+        awaitable: Pick<Awaitable<CalledActionResult>, "onSettled">,
+        timeout: number,
+    ): Promise<boolean> {
+        return new Promise<boolean>(resolve => {
+            let done = false;
+            let timer: ReturnType<typeof setTimeout> | null = null;
+            // The stand-in awaitables used by the seam tests return nothing from onSettled, so the
+            // token is optional all the way down.
+            let token: { cancel?: () => void } | void = undefined;
+
+            const finish = (settled: boolean) => {
+                if (done) {
+                    return;
+                }
+                done = true;
+                if (timer !== null) {
+                    clearTimeout(timer);
+                    timer = null;
+                }
+                token?.cancel?.();
+                resolve(settled);
+            };
+
+            // An already-settled awaitable calls back synchronously — hence `token` being declared
+            // (and left undefined) before this line rather than after.
+            token = awaitable.onSettled(() => finish(true));
+            if (done) {
+                token?.cancel?.();
+                return;
+            }
+
+            const deadline = Date.now() + timeout;
+            const pump = () => {
+                if (done) {
+                    return;
+                }
+                gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
+                if (done) {
+                    // Settled synchronously: the common case, and it costs no extra frame.
+                    return;
+                }
+                if (Date.now() >= deadline) {
+                    finish(false);
+                    return;
+                }
+                timer = setTimeout(pump, LiveGame.FastForwardSkipInterval);
+            };
+            pump();
+        });
     }
 
     private assertScreenshot(): asserts this is { gameState: GameState & { playerCurrent: HTMLDivElement } } {
@@ -803,6 +1137,15 @@ export class LiveGame {
         story.forEachChild(story, story.entryScene?.getSceneRoot() || [], action => {
             actionMaps.set(action.getId(), action);
             elementMaps.set(action.callee.getId(), action.callee);
+            // A scene's background music reaches a save - `AudioManager` records every clip it is
+            // playing - without ever being an action's callee, so a table built from callees alone
+            // cannot answer for it and the music does not come back. See `Scene.getOwnedSounds`.
+            for (const sound of Scene.getOwnedSounds(action)) {
+                const soundId = sound.getId();
+                if (soundId) {
+                    elementMaps.set(soundId, sound);
+                }
+            }
         }, { allowFutureScene: true });
 
         this.mapCache = [actionMaps, elementMaps];
@@ -971,6 +1314,17 @@ export class LiveGame {
                 actionType: action.type,
             });
         }
+
+        // The one place every action the engine runs passes through, and therefore the one place
+        // that can mark an element as worth serialising without each handler having to remember to.
+        // It marks on dispatch rather than on a write, so it over-marks - an action that only reads
+        // marks its element too - and that is the safe direction: what decides whether an element
+        // reaches a save is the comparison against its authored state, so an unnecessary mark costs
+        // one comparison, while a missing one would drop state silently.
+        // Optional: every action the engine builds has a callee, but this is the per-action hot path
+        // of a shipped engine and a missing mark degrades into a warning from the audit below,
+        // whereas a throw here would take the game down.
+        action.callee?.markDirty();
 
         const nextAction = action.executeAction(state, injection);
         if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(nextAction)) {

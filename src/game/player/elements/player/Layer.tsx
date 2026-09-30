@@ -18,6 +18,8 @@ export function Layer(
         initDisplayable,
         applyTransition,
         applyTransform,
+        applyLoop,
+        stopLoop,
         updateStyleSync,
         deps,
     } = useDisplayable<any, HTMLDivElement>({
@@ -38,6 +40,8 @@ export function Layer(
         initDisplayable,
         applyTransition,
         applyTransform,
+        applyLoop,
+        stopLoop,
         updateStyleSync,
     }, [...deps]);
 

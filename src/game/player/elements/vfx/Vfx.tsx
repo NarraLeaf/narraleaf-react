@@ -175,10 +175,13 @@ export default function Vfx(
                     try {
                         await waitReady();
                         if (!ref.current) return;
+                        // Restated on every show rather than only when overridden, so an override
+                        // belongs to the showing that asked for it instead of leaking into the next.
+                        el.playbackRate = options?.rate ?? vfx.config.playbackRate;
                         if (!vfx.state.paused) {
                             playSafe();
                         }
-                        await fade(vfx.config.opacity, options, op);
+                        await fade(options?.opacity ?? vfx.config.opacity, options, op);
                     } finally {
                         inFlightOps.delete(op);
                     }
@@ -309,7 +312,9 @@ export default function Vfx(
                 width: "100%",
                 height: "100%",
                 objectFit: vfx.config.fit,
-                mixBlendMode: vfx.config.blendMode,
+                // `mixBlendMode` is deliberately NOT declared here: this element sits inside the
+                // wrapper's stacking context, so a blend mode set on it would have nothing but that
+                // wrapper's empty backdrop to blend with. The wrapper carries it instead.
                 pointerEvents: "none",
                 // opacity/transition are deliberately NOT declared here: the fade engine
                 // drives them imperatively, and a React-managed style prop would clobber

@@ -48,6 +48,40 @@ export type OverwriteDefinition = {
 };
 type OverwriteHandler<T> = (value: Partial<TransformDefinitions.Types>) => T;
 
+/**
+ * An element that is animated *alongside* the transform's own element, from the same transform
+ * state, in the same `motion` sequence.
+ *
+ * The transform pipeline drives exactly one element, and its style is built by
+ * {@link Transform.constructStyle} — a literal, so a prop it does not know about goes nowhere. A
+ * companion is the escape hatch for props whose picture belongs to a *different* element than the
+ * one being transformed: the camera's lens overlay, which must not inherit the camera's transform,
+ * is the case this exists for.
+ *
+ * `project` turns the accumulated state of a segment into that element's style for that segment.
+ */
+export type TransformCompanion = {
+    el: Element;
+    project: (props: Partial<TransformDefinitions.Types>) => CSSProps;
+};
+
+/**
+ * A running looping transform. The only thing a caller can do with one is end it — see
+ * {@link Transform.startLoop}.
+ */
+export type TransformLoopHandle = {
+    stop: () => void;
+};
+
+/**
+ * The same thing before the elements are known — what a React host holds, resolved to
+ * {@link TransformCompanion} at the moment the animation is built.
+ */
+export type TransformCompanionRef = {
+    ref: React.RefObject<HTMLElement | null>;
+    project: (props: Partial<TransformDefinitions.Types>) => CSSProps;
+};
+
 /**@internal */
 export class TransformState<T extends TransformDefinitions.Types> {
     static DefaultTransformState = new ConfigConstructor<TransformDefinitions.ImageTransformProps>({
@@ -193,6 +227,30 @@ export class TransformState<T extends TransformDefinitions.Types> {
 
     public forceOverwrite(state: Partial<T>): this {
         this.state = state;
+        return this;
+    }
+
+    /**
+     * Put this state back to `state` **without changing the object's identity**, and release
+     * whatever a half-finished animation left behind.
+     *
+     * This is what an element's `reset()` / `fromData()` lifecycle hooks use, and the identity is the
+     * whole point of it. A React host binds a displayable once - `useDisplayable({state:
+     * element.transformState})` - and from then on the captured object is BOTH what the exposed
+     * `applyTransform` animates and what the settled-style repaint reads. An element that answered
+     * those hooks by assigning a fresh object would split itself in two: the animation would write
+     * the orphan while the repaint read the replacement, and every value the story set afterwards
+     * would be painted once and then wiped.
+     *
+     * The lock and the freeze are dropped for the same reason they are dropped rather than carried:
+     * they belong to an animation of the playthrough that just ended. Keeping a lock across a new
+     * game would make the next `Transform.animate` throw "Transform state is already locked" on an
+     * element that is, as far as the story is concerned, brand new.
+     */
+    public resetTo(state: Partial<T>): this {
+        this.state = state;
+        this.locked = null;
+        this.frozen = false;
         return this;
     }
 }
@@ -368,7 +426,14 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
         } satisfies DOMKeyframesDefinition;
     }
 
-    /**@internal */
+    /**
+     * The CSS for the visual-effect props, prefixed where a browser still needs the prefix.
+     *
+     * `maskMode` goes out unprefixed only: no engine implements `-webkit-mask-mode`, so the
+     * prefixed copy never reached a stylesheet. It did reach `motion`, which found nothing to
+     * animate from, read it as `0`, and warned that `0` cannot become `alpha`.
+     * @internal
+     */
     static constructVisualEffectStyle<T extends TransformDefinitions.Types>(props: Partial<T>): CSSProps {
         const visualProps = props as Partial<TransformDefinitions.VisualEffectTransformProps>;
 
@@ -382,7 +447,6 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             maskRepeat: visualProps.maskRepeat,
             WebkitMaskRepeat: visualProps.maskRepeat,
             maskMode: visualProps.maskMode,
-            WebkitMaskMode: visualProps.maskMode,
             clipPath: visualProps.clipPath,
             filter: visualProps.filter,
             backdropFilter: visualProps.backdropFilter,
@@ -435,10 +499,12 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             gameState,
             ref,
             overwrites,
+            companionRefs,
         }: {
             gameState: GameState,
             ref: React.RefObject<HTMLDivElement | null>,
             overwrites?: OverwriteDefinition,
+            companionRefs?: TransformCompanionRef[],
         },
     ): Awaitable<void> {
         if (!ref.current) {
@@ -455,9 +521,29 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             transformState,
             overwrites,
             current: ref.current,
+            // A companion whose element is not mounted is dropped rather than being an error: the
+            // host may legitimately render fewer overlays than it declares, and the settled style
+            // written on mount covers that element either way.
+            companions: companionRefs
+                ?.filter((companion): companion is TransformCompanionRef & { ref: { current: HTMLElement } } =>
+                    !!companion.ref.current)
+                .map(({ref: companionRef, project}) => ({el: companionRef.current, project})),
         });
         if (!sequences.length) {
             gameState.logger.warn("Transform", "No sequences to animate.");
+        }
+        // A transform applied this way is something the line waits for, so it has to end. An
+        // endless one used to be writable — `transform.repeat(Infinity)` typechecks and `motion`
+        // honours it — and it wedged the game: the animation never completed, so the action never
+        // resolved, the stack never advanced, and the state stayed locked for every later transform
+        // on that element. None of that reported anything.
+        if (options.repeat !== undefined && !Number.isFinite(options.repeat)) {
+            throw new RuntimeScriptError(
+                "A transform applied with `transform()` (or `show`, `hide`, `pos`, ...) has to end, "
+                + "but this one repeats forever.\n"
+                + "Use `element.loop(transform)` for a motion that runs until it is stopped - the line "
+                + "does not wait for it, and `element.stopLoop()` ends it."
+            );
         }
 
         let completed = false;
@@ -507,6 +593,95 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     }
 
     /**
+     * Start this transform as an endless loop on {@link ref}, and hand back the only way to stop it.
+     *
+     * Deliberately **not** an {@link Awaitable}. Everything else in the transform pipeline hands
+     * back something the caller waits for, and a loop has nothing to wait for — so it returns a
+     * handle instead, and the action that starts one resolves on the spot. That is what keeps a
+     * loop out of the timeline tree and out of the stack model entirely: it is a property of the
+     * element, not a step of the story.
+     *
+     * The element's {@link TransformState} is **not** written, neither at the start nor ever. It
+     * keeps the pose the element had before the loop, which is what the save records and what the
+     * element eases back to when the loop stops — the alternative would freeze whatever half-way
+     * pose the oscillation happened to be in when the player saved.
+     * @internal
+     */
+    public startLoop(
+        transformState: TransformState<T>,
+        {
+            gameState,
+            ref,
+            overwrites,
+            companionRefs,
+        }: {
+            gameState: GameState,
+            ref: React.RefObject<HTMLDivElement | null>,
+            overwrites?: OverwriteDefinition,
+            companionRefs?: TransformCompanionRef[],
+        },
+        loopOptions?: TransformDefinitions.LoopOptions,
+    ): TransformLoopHandle {
+        if (!ref.current) {
+            throw new Error("No ref found when looping.");
+        }
+        this.commit();
+
+        const { sequences, options } = this.constructAnimation({
+            gameState,
+            transformState,
+            overwrites,
+            current: ref.current,
+            companions: companionRefs
+                ?.filter((companion): companion is TransformCompanionRef & { ref: { current: HTMLElement } } =>
+                    !!companion.ref.current)
+                .map(({ ref: companionRef, project }) => ({ el: companionRef.current, project })),
+        });
+        if (!sequences.length) {
+            gameState.logger.warn("Transform", "No sequences to loop.");
+        }
+
+        // **A loop states where it starts, always.** A sequence whose first segment names only a
+        // destination leaves `motion` to read the element's CURRENT style as the start - once per
+        // repeat, for ever - and that read is the whole defect: the wrapper's style is also written
+        // by the settled-style heal and by `motion`'s own projection on every render, so any render
+        // that lands mid-loop feeds a foreign value back in as the next repeat's origin. A finite
+        // animation survives that because it settles before the error compounds; an endless one
+        // diverges, and a restore (which re-renders the whole stage) makes it diverge visibly -
+        // measured on a real sprite as `scaleY` running to -580 within a second.
+        //
+        // Prepending the pre-loop pose at zero duration closes it: both endpoints are stated, so
+        // every repeat interpolates between the same two known values no matter what else touched
+        // the element in between.
+        const origin: DOMSegmentWithTransition = [
+            ref.current,
+            onlyValidFields(transformState.toFramesDefinition(gameState, overwrites)),
+            { duration: 0 },
+        ];
+
+        const token = animate([origin, ...sequences], {
+            ...options,
+            repeat: Infinity,
+            repeatType: loopOptions?.repeatType ?? options.repeatType ?? "loop",
+            repeatDelay: loopOptions?.repeatDelay !== undefined
+                ? this.toSeconds(loopOptions.repeatDelay, undefined)
+                : options.repeatDelay,
+        });
+        token.play();
+
+        gameState.logger.debug("Transform", "Loop started.", { sequences, options }, this);
+
+        return {
+            stop: () => {
+                // `stop`, not `cancel`: the element stays where the loop left it, and whatever runs
+                // next tweens on from there. `cancel` would snap it back to the pre-loop pose first,
+                // which reads as a jolt in the middle of the move that interrupted the loop.
+                token.stop();
+            },
+        };
+    }
+
+    /**
      * Create a new transform that repeats {@link n} x current repeat count times.
      * @example
      * ```ts
@@ -549,11 +724,13 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             transformState,
             overwrites = {},
             current,
+            companions,
         }: {
             gameState: GameState;
             transformState: TransformState<any>;
             overwrites?: OverwriteDefinition;
             current: Element;
+            companions?: TransformCompanion[];
         }
     ): {
         finalState: TransformState<any>;
@@ -562,16 +739,41 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
     } {
         const state = transformState.clone();
         const lock = state.lock();
-        const sequences = this.sequences.map(({ props, options }) => {
-            const segDefinition = state.assign(lock, props).toFramesDefinition(
+        const sequences = this.sequences.flatMap(({ props, options }) => {
+            const nextState = state.assign(lock, props);
+            const segDefinition = nextState.toFramesDefinition(
                 gameState,
                 overwrites
             );
-            return [
+            const segOptions = this.getOptions(options);
+            const segment = [
                 current,
                 segDefinition,
-                this.getOptions(options),
+                segOptions,
             ] satisfies DOMSegmentWithTransition;
+
+            if (!companions || !companions.length) {
+                // Nothing appended, so the array is exactly what `.map` used to produce. Every
+                // displayable other than the camera takes this path, and a test pins it.
+                return [segment];
+            }
+
+            // `at: "<"` starts a segment where the *previous* one started, so each companion
+            // segment lines up with the main segment it was derived from — for the whole sequence,
+            // not just the first step, because `motion` tracks the previous segment's start time as
+            // it walks the list. One `motion` sequence rather than one `animate()` per element is
+            // load-bearing: the sequence's playback control settles every element it contains, so
+            // an interrupted or skipped transform lands the overlay on the same frame as the
+            // camera instead of leaving it mid-close.
+            const projectedState = nextState.get();
+            return [
+                segment,
+                ...companions.map(({el, project}) => [
+                    el,
+                    onlyValidFields(project(projectedState)) as DOMKeyframesDefinition,
+                    {...segOptions, at: "<"},
+                ] satisfies DOMSegmentWithTransition),
+            ];
         }) satisfies DOMSegmentWithTransition[];
         return {
             finalState: state.unlock(lock).freeze(),
@@ -582,10 +784,11 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
 
     /**@internal */
     public getSequenceOptions(): SequenceOptions {
-        const { repeat, repeatDelay } = this.config;
+        const { repeat, repeatDelay, repeatType } = this.config;
         return {
             repeat,
             repeatDelay: this.toSeconds(repeatDelay, undefined),
+            repeatType,
         };
     }
 
@@ -736,6 +939,28 @@ export class Transform<T extends TransformDefinitions.Types = TransformDefinitio
             this.pushChange({
                 key: key as StringKeyOf<TransformDefinitions.Types>,
                 props: effect[key] as any,
+            });
+        }
+        return this;
+    }
+
+    /**
+     * Set camera lens fields in the current staging sequence.
+     *
+     * Only a {@link Camera} draws these; on any other displayable they are carried in the state and
+     * never painted.
+     * @example
+     * ```ts
+     * Transform.create<TransformDefinitions.CameraTransformProps>()
+     *     .lens({shutter: 1}).commit({duration: 180, ease: "easeInOut"})
+     *     .lens({shutter: 0}).commit({duration: 220, ease: "easeInOut"});
+     * ```
+     */
+    public lens(lens: TransformDefinitions.CameraLensProps): this {
+        for (const key of Object.keys(lens) as (keyof TransformDefinitions.CameraLensProps)[]) {
+            this.pushChange({
+                key: key as StringKeyOf<TransformDefinitions.Types>,
+                props: lens[key] as any,
             });
         }
         return this;

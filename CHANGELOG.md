@@ -1,5 +1,2964 @@
 # Changelog
 
+## [1.0.0]
+
+1.0.0 is 0.47.2 with the fixes below. Nothing a game does behaves differently and nothing was
+removed: the APIs marked deprecated still work as they did.
+
+### _Fixes_
+
+- **A save file can no longer write onto `Object.prototype`.** A persistent value with a `Date` or
+  an `undefined` somewhere inside it is saved with the positions of those, and loading reads the
+  positions back out of the save to revive what sits there. A position was followed through
+  whatever key it named, so in a save the host did not write itself - a downloaded or hand-edited
+  one - a position through `__proto__` wrote an invalid `Date` or `undefined` onto
+  `Object.prototype`, which every object on the page inherits; `toString` alone was enough to
+  break the page. This was there from 0.20.0, when values began to nest. A position is now
+  followed only through keys the saved value itself carries, and what it revives is written as a
+  key of that value. Every save the engine writes loads exactly as it did.
+
+- **A list of statements can mix narration and actions under TypeScript.** A plain string in a
+  scene's actions, a menu choice, a condition branch or a control block is a line of narration,
+  and the README's first example writes the two side by side:
+
+  ```ts
+  scene.action([
+      johnSmith`Hello, world!`,
+      "By the way, the documentation is on the website.",
+      Menu.prompt("Start the journey").choose("Yes", [johnSmith`Great!`]),
+  ]);
+  ```
+
+  The player always read such a list one entry at a time, but `ActionStatements` said a list was
+  all actions or all strings, so that example failed to compile with `No overload matches this
+  call`. Each entry may now be either. Every list the old type accepted is still accepted.
+
+- **The published declarations no longer need Node's types.** `GameState`'s `setTimeout`,
+  `setInterval`, `clearTimeout` and `clearInterval` were typed with `NodeJS.Timeout`, so a browser
+  project that type-checks its dependencies (`skipLibCheck: false`) without `@types/node` failed
+  with `Cannot find namespace 'NodeJS'`. They now use `ReturnType<typeof setTimeout>` and
+  `ReturnType<typeof setInterval>`, which are a `number` in a browser project and still
+  `NodeJS.Timeout` wherever Node's types are loaded, so code that names the old type keeps
+  compiling. The release check that type-checks the shipped declarations loaded Node's types
+  itself, which is how this got through; it now loads no ambient types at all.
+
+- **The package's npm page links to the repository, the issue tracker and the documentation.**
+
+## [0.47.2]
+
+### _Fixes_
+
+- **Loading a save really does keep the scene's music where the player left it.** 0.47.1 stopped the
+  load's own scene listeners from starting a track its audio record had just restored, and that was
+  not enough: every host applies a save as `game.newGame().deserialize(saved)`, and `newGame()`
+  mounts the entry scene first. The listener that starts that scene's background music is therefore
+  armed *before* the load runs at all, and comes back once the load has restored the audio - so the
+  restored clip was paused, rewound and played again from the top, with
+  `Failed to start HTMLAudioElement playback. AbortError` on the console, exactly as before.
+
+  `AudioManager` now records which clips the most recent load put on the wire, from the moment it is
+  handed the record, and gives that record back through `isRunningFromLoad`. A scene start refuses a
+  clip a load has playing whoever armed the listener and in whatever order, so the ordering can no
+  longer matter. Any other transport on the clip - playing it, stopping it, a later load - drops the
+  record, so a scene re-entered after the save's track has gone still starts its own music. A track
+  the save recorded as stopped or paused is unchanged, as is a scene with no load behind it.
+
+## [0.47.1]
+
+### _Fixes_
+
+- **Loading a save no longer restarts the scene's music from the top.** The save's audio record
+  brings the track back where the player left it, and the scene then started its own background
+  music on mounting - a cross-fade to that same clip, which stops it and plays it again from the
+  beginning. Every load and every "continue" lost the music's position that way, and the stop landed
+  while the restored element's `play()` was still pending, which is the
+  `Failed to start HTMLAudioElement playback. AbortError` a browser console showed on each one.
+  A scene now leaves alone any track the record restores, and still starts music the record does
+  not carry. A track paused behind a scene call was already left alone and is unchanged.
+
+- **A timeline whose action resolves before the animation it waits for is no longer called
+  cancelled.** Transform and transition actions resolve one step ahead of their animation, and a
+  line resolves ahead of a voice that outlives it. For that step the timeline has a resolved
+  awaitable and a child still running, and it read the resolved awaitable's retired skip controller
+  as an abort: it settled as cancelled, ran its cancel listeners, and then refused the `resolved` the
+  child brought, logging `Trying to resolve a settled timeline: cancelled -> resolved` once for every
+  transform and transition in a story. It now waits for the child and resolves.
+
+  Aborting a timeline - which a new game, a load and an undo do to everything still running - also
+  stopped logging `cancelled -> cancelled`: aborting an awaitable with a skip controller already
+  settles its timeline, and the abort then tried to cancel it a second time. Children that settle
+  after their parent was aborted no longer report either; that is the abort running its course.
+
+- **Camera moves no longer warn about the vignette's mask.** The lens plate rides along with every
+  camera transform, so each of its styles is a keyframe that `motion` animates from the computed
+  style. `maskPosition: "center"` computes to `50% 50%`, which `motion` cannot animate to a keyword,
+  and `WebkitMaskMode` is a property no engine implements, which `motion` read as `0`. Both warned on
+  every camera move and changed nothing on screen. The plate now writes the position as `50% 50%`,
+  and `WebkitMaskMode` is no longer written anywhere - including by a transform or `mask()` that sets
+  `maskMode`, which is still written unprefixed. The deprecated `vignette()` screen effect writes its
+  position the same way.
+- **The player's stylesheet no longer restyles the page it is loaded into.** The library injects a
+  stylesheet for the player's own elements. Tailwind compiles it, and Tailwind takes every word in
+  the source that reads like a class name for one - `static` from the keyword, `flex` from
+  `display: "flex"`, `border` and `transition` from comments - so the sheet carried rules for dozens
+  of names the player never uses. It went in last, outside any cascade layer, so on an equal
+  specificity those rules beat the page's own. A page built with Tailwind had its utilities quietly
+  undone: `border` put back the width an earlier `border-l-2` had set and turned `border-dashed`
+  solid, `hidden` beat `lg:inline`, `transform` cancelled `-rotate-90`, `underline` beat
+  `line-through`, `outline` beat `outline-2`, and `transition` set every duration to `0s`. Inside
+  the player the page lost too: a `pointer-events-none` of its own came back as `auto`, and
+  `select-text` as `none`.
+
+  Every rule of the sheet now matches only the player root and what is inside it, the whole sheet
+  sits in a cascade layer named `narraleaf-react`, and its `<style>`, marked `data-narraleaf-react`,
+  is the first element of `<head>`. A layered rule loses to every unlayered one, and the first
+  layer declared loses to every layer declared after it, so whatever the page says about an element
+  wins, inside the player as well; the sheet only supplies what the page leaves unsaid. The player's
+  own elements carry none of the page's classes and render as they did. `@property` registrations
+  stay outside the layer: they are global wherever they are written, and a page that registers the
+  same property after the sheet keeps its own.
+
+  A page that used one of those accidental utilities on its own elements outside the player,
+  without shipping a rule for it, loses it. The sheet was never a utility library for the page.
+
+## [0.47.0]
+
+### _Features_
+
+- **A plan can say which clips are coming, and the player buffers them ahead of the story.**
+  `PreloadPlan.video` names `Video` elements, in the order they are wanted:
+
+  ```ts
+  preload: {
+      plan(moment) {
+          return {
+              entries: imagesThisMomentWants,
+              // Nearest first. The player decides how many of these are really being fetched.
+              video: [theClipTheNextRowPlays, theOneAfterThat],
+          };
+      },
+  }
+  ```
+
+  Warming a video is not warming an image, and the difference is why this names elements rather
+  than urls. An image is bytes and a decode, both of which the player can hold in a cache under a
+  budget. A video is an element that is in the document: the browser buffers into that element, the
+  buffer belongs to it, and the element that buffered has to be the element that plays or nothing
+  was bought. So the player mounts the clip hidden - the same thing `Video.preload()` does from a
+  story - and the plan's job is only to say which ones and in what order.
+
+  **How many buffer at once is the player's decision, and there is no setting for it.** The clips
+  are admitted one at a time: the next starts when the current one reports it can play, so the
+  concurrency follows the connection instead of a number somebody had to guess, and a clip that
+  never becomes playable stops holding the queue up after five seconds. At most three are held
+  ahead of the story. A clip the story has declared for itself is left alone - it is on the stage on
+  the author's own instruction, it is not subject to that ceiling, and the plan cannot release it.
+
+  Nothing gates on this band. A clip can take arbitrarily long to buffer, and a loading screen that
+  waited for one would be a download bar wearing a story's clothes. Omitting the field leaves the
+  warm set alone, exactly as omitting `keep` leaves the cache alone; an empty array releases it.
+
+  The built-in strategy does not name any clips, so a game without a strategy of its own behaves
+  exactly as before: `Video.preload()` is still the way to warm one, and it is unchanged. A static
+  walk of the action tree can say which clips a scene mentions but not which comes first, and
+  buffering them in an arbitrary order is not better than buffering none.
+
+- **`PreloadStrategy.onMissing` now also reports a clip that played with nothing warming it.** The
+  resource it hands over carries `type: "video"`, and a host that compiled the story can turn that
+  into the row that plays it. Nothing reports a clip the story declared or the plan named - that is
+  the feature working.
+
+### _Changes_
+
+- **`PreloadPlan.entries` is images only.** An entry could name a video in 0.46.0, and warming one
+  meant reading the bytes once and dropping them in the hope that whatever served them kept a copy.
+  That hope does not survive contact with the hosts that matter: a game serving assets through its
+  own protocol has no cache to fill, so the entry reported warming that had never happened.
+  `PreloadPlan.video` is the answer that works, and `PreloadEntry["type"]` is now `"image"`, so a
+  plan that still names a clip there fails to compile rather than doing nothing.
+
+- **The stage keys its videos by element rather than by position.** The list can now gain and lose
+  entries in the middle, and an index key would have handed a mounted `<video>` - and the buffer the
+  browser had filled for it - to a different clip.
+
+- `GameState` gained `isVideoOnStage`, `retainWarmVideos`, `useVideoMissingReporter` and
+  `reportUnwarmedVideo`. `isVideoAdded` is unchanged and still answers "did the story add it", which
+  is what a save records and what a second declaration skips; actions that need to talk to a
+  mounted element ask the new one, so a warmed clip can be played without being declared first.
+
+## [0.46.0]
+
+### _Features_
+
+- **The preloader is a seam, not a policy.** `GameConfig.preload` takes a `PreloadStrategy`: an
+  object the player asks what should be warm at each moment in the story, instead of guessing.
+
+  ```ts
+  new Game({
+      preload: {
+          plan(moment) {
+              if (moment.kind !== "scene") return null;
+              return {
+                  entries: [
+                      {type: "image", src: openingBackground, band: "gate"},
+                      ...spritesThisSceneShows.map(src => ({type: "image", src, band: "soon"} as const)),
+                      ...nextChapter.map(src => ({type: "image", src, band: "idle"} as const)),
+                  ],
+                  keep: everythingAbove,
+                  pin: [openingBackground],
+              };
+          },
+      },
+  });
+  ```
+
+  A plan names resources in one of three bands. `gate` holds the first painted frame - that is the
+  loading screen's whole meaning; `soon` starts at once and blocks nothing; `idle` is speculative,
+  paced by `preloadDelay`, and abandoned when the moment is superseded. `keep` is everything the
+  cache may hold for this moment, and `pin` is what no budget may release. A plan replaces the
+  previous one rather than adding to it, so a scene the story has left keeps nothing.
+
+  Nothing changes for a game that supplies no strategy. It gets the built-in one, exported as
+  `createDefaultPreloadStrategy`, which is the walk and the tiers exactly as they were and is
+  steered by exactly the same `preloadAllImages` / `preloadGate` / `maxPreloadActions` /
+  `preloadDelay` / `preloadConcurrency` fields as before. Those fields have not moved and have not
+  changed meaning; they now describe that strategy rather than the player.
+
+  **Why.** The player answered three questions on its own, and all three answers are wrong for a
+  host that knows more than a static walk can see. *What will be needed* it guessed by walking the
+  action tree of the scene about to paint and of every scene reachable from it - which on a real
+  project is most of the library, so painting one background fetched and decoded a chapter's
+  artwork. *When* followed from that walk, one pass per scene. *How* was fixed: fetch, mint an
+  object url, decode off-screen, hold the bitmap. A tool that compiled the story knows which row
+  shows which asset and in which order; it should not have to talk the player out of a guess.
+
+- **A strategy can supply the transport too, through `PreloadStrategy.acquire`.** Return the url an
+  element should be pointed at, what holding it costs, and how to hand it back:
+
+  ```ts
+  preload: {
+      plan,
+      async acquire(resource) {
+          // Already on local disk behind our own protocol: let the browser fetch and cache it once.
+          return {url: resource.src, bytes: 0};
+      },
+  }
+  ```
+
+  Without one the player fetches the resource and mints an object url, which is what it has always
+  done. That is the right answer over a network and the wrong one for a host whose assets are
+  already local: an object url pins its blob for the lifetime of the document, so the renderer ends
+  up holding a second copy of every image it has warmed. Measured on a 241 MB library, that copy was
+  410 MB of blobs at the title screen.
+
+- **`PreloadStrategy.onMissing` hands over the unpredicted-image report.** The player's own answer
+  was a console warning asking the author to call `scene.preloadImage` by hand, which is only useful
+  to someone writing the story in TypeScript. A host that planned the warm set can say which row
+  shows the image instead. The warning stays for games with no strategy of their own.
+
+- **`PreloadEntry.decode` decides whether an image is rasterised ahead of time.** A decode is what
+  lets an image paint on the frame it is revealed on rather than a frame or two later, and it is the
+  expensive half of warming one: measured over the same library, fetching every image took 473 ms
+  and fetching *and* decoding them took 2,140 ms. It defaults to true on `gate` and `soon` and false
+  on `idle`.
+
+- **`PreloadPlan` carries video.** An entry with `type: "video"` is warmed through the strategy's
+  `acquire` when there is one, and by reading the bytes once otherwise. This is a seam and not a
+  promise: there is no video cache in the player to fill, so what it buys depends on what the
+  transport caches. `Video.preload()`, which mounts a hidden element and lets the browser buffer
+  into it, is still the guaranteed way and is still a story action rather than a plan entry.
+
+### _Changes_
+
+- **The speculative look-ahead tier no longer decodes.** It used to decode every image of every
+  reachable scene and drop the bitmap immediately - the expensive half of warming an image, paid for
+  a result nothing read. Fetching is unchanged, so the images are still in the cache when the scene
+  that wants them arrives; they are decoded then, or earlier by whatever band the next plan puts
+  them in. The prediction window that `preloadAllImages: false` uses is unaffected: it names what
+  the next few actions will show, and that is exactly what a decode is worth paying for.
+
+- `ImageCacheManager` gained `useAcquisition`, `useMissingReporter` and `reportMissing`, and
+  `preload()` takes a `decode` option beside `retainDecoded`. Existing calls behave as they did.
+## [0.45.1]
+
+### _Fixes_
+
+- **A scene with more than about twenty-five displayables could not be played at all.** Starting one
+  ended in React's `Maximum update depth exceeded` at the player's error boundary - in a shipped
+  game as well as in development - and the game silently never began. Measured on a real project: a
+  scene of 23 images ran, one of 26 did not, and six of that project's ten scenes were over the line.
+
+  The cause was in `GameState.getExposedStateAsync`, whose two branches did not agree. The branch
+  that waits for a component called back straight out of `mountState`, which runs inside the
+  component's mount effect, so starting a scene was one unbroken synchronous chain: the action
+  flushes the stage, React commits, the new displayable mounts, the waiting action resolves, the next
+  action runs and flushes the stage again - one commit per element, without ever returning to the
+  event loop. React counts commits that leave synchronous work pending on the same root and throws at
+  fifty of them.
+
+  Both branches now hand over one turn of the event loop later, through a `MessageChannel` message
+  rather than a timer: a background window's timers are throttled to about one a second, which turned
+  a 44-image scene into a 45-second start. The state is also re-read at hand-over rather than taken
+  from the event, so the `StrictMode` mount/unmount/mount cycle hands the action the mount that is
+  really on screen instead of the throwaway one.
+
+  Callers see no API change. The already-mounted branch has always deferred, so anything waiting on
+  this was already async-safe.
+
+## [0.45.0]
+
+### _Features_
+
+- **The image cache has a memory budget.** `GameConfig.imageCacheBudgetBytes` caps the fetched bytes
+  it holds and `GameConfig.decodedImageBudgetBytes` caps the decoded bitmaps it keeps warm. Past
+  either, the least recently used entries that nothing is showing are released, and fetched or
+  decoded again when a scene next wants them.
+
+  ```ts
+  new Game({
+      imageCacheBudgetBytes: 256 * 1024 * 1024,     // the default
+      decodedImageBudgetBytes: 128 * 1024 * 1024,   // the default
+  });
+
+  // ...or opt out, which is what every earlier version did
+  new Game({imageCacheBudgetBytes: Infinity, decodedImageBudgetBytes: Infinity});
+  ```
+
+  The cache had no limit of any kind before this, and what it held was decided by the preload pass
+  after the one that filled it: a scene's registered set - every pose of every character it shows,
+  every background it cuts to - stayed fetched and decoded until the *next* scene's look-ahead pool
+  had finished, and stayed for ever if that pass was superseded before it got there. Measured on a
+  241 MB image library, that was 1154 MB of renderer working set at the title screen, and a long
+  session on an 8 GB laptop ended in an out-of-memory renderer.
+
+  **On the defaults.** The decoded pool is the one that grew without bound, because a bitmap costs
+  width × height × 4 bytes whatever its file compressed to: a 1080p background is 8.3 MB decoded
+  from a 2 MB JPEG, a 2000-pixel sprite about 10 MB, and a scene registering a hundred images asks
+  for the better part of a gigabyte. 128 MB is fifteen backgrounds or a dozen large sprites -
+  several times over what a scene has on screen at once, which is a background and two or three
+  characters - so the frame being revealed and the ones about to follow it stay decoded while a
+  chapter's worth of alternative poses does not. The fetched pool is the cheaper half and is sized
+  to hold a whole scene's registered set without releasing anything the scene is about to want
+  again: the scene measured above registers 205 MB of image files, so 256 MB keeps them for as long
+  as the player is in it, while capping a session that visits fifty scenes at that rather than at
+  the size of the library. Together they put a ceiling of 384 MB on image residency, which leaves an
+  8 GB laptop room for everything else the renderer has to hold. A game that knows its own library
+  is welcome to raise either.
+
+  **Nothing on screen is ever released.** The current scene's opening background is pinned for as
+  long as it is the current scene, and every image a mounted `<img>` is showing - both halves of a
+  transition in flight, a scene parked behind a scene call, an avatar - is pinned for as long as it
+  is showing. A budget too small for the frame on screen degrades to fetching on demand, never to a
+  broken frame. Letting a bitmap go costs a decode the next time the image is revealed, which is
+  tens of milliseconds for a 1080p JPEG and around 100 ms for a 15 MB background, and it is paid
+  before the transition that reveals it rather than during it.
+
+- **`ImageCacheManager.getStats()` reports what the cache is holding, against what it is allowed to
+  hold.** Reachable from the live game, so a host or a profiler can watch a long session's image
+  residency without instrumenting anything:
+
+  ```ts
+  game.getLiveGame().getGameState()?.getImageCache()?.getStats();
+  // {
+  //   entries: 34, blobBytes: 214_958_080,
+  //   decodedEntries: 12, decodedBytes: 99_532_800,
+  //   pinned: 4,
+  //   budget: {blobBytes: 268_435_456, decodedBytes: 134_217_728},
+  // }
+  ```
+
+  `GameState.getImageCache()` hands back the cache the mounted player is using, or `null` while no
+  player is mounted. `ImageCacheManager` and `ImageCacheStats` are exported types now. The
+  `Image preload` log lines report the same numbers, so a game running with `logger.info` on shows
+  its residency at every scene change without a console session.
+
+- **Background music is streamed rather than decoded.** A clip that loops the whole file — `loop`
+  with no `endTime` — plays through an `<audio>` element, which starts as soon as the first bytes
+  arrive and never holds a decoded buffer. `Sound.streaming` still forces streaming for any one clip,
+  and `GameConfig.audioStreaming` decides the rest:
+
+  ```ts
+  new Game({audioStreaming: "declared"});  // only clips whose `streaming` is set are streamed
+  ```
+
+  `"loops"` is the default and is the rule above. Choose `"declared"` for a game that would rather
+  spend the memory: an element repeats the file rather than the samples, so on some browsers and
+  formats a loop point can be heard. A loop that marks an out point is asking for a sample-accurate
+  loop *region*, which only a decoded buffer has, and keeps decoding whichever this says; so does a
+  `data:` or `blob:` source, which is already in memory.
+
+  Everything a token can do it can still do when it is streamed: fades, mute, volume, rate, seek,
+  pause and resume, `waitForEnd`, the bus it plays on, and coming back from a save at the position it
+  was saved at.
+
+- **`AudioManager.getCacheStats()` reports what audio is resident** — decoded clips, clips in flight,
+  and the bytes of PCM the decoded ones occupy — so a game can watch the number that used to grow for
+  the length of a session.
+
+  ```ts
+  const {entries, decodedBytes} = gameState.audioManager.getCacheStats();
+  ```
+
+- **`AudioManager.retainOnly(sounds)`** takes the sounds a scene wants kept warm and gives back every
+  reference the manager holds outside that set. `AudioManager.preload(sound)` is what takes one, so a
+  clip warmed by hand is held until the next scene change releases it, and warming a clip that will be
+  streamed does nothing — an element fetches as it plays, so there is no decoded buffer to have ready.
+
+### _Fixes_
+
+- **A scene's images are released when the scene is left, not a preload pass later.** What the cache
+  keeps is settled when a scene's preload pass *starts*, so the artwork of the scene just left goes
+  at once - or, for whatever is still on screen through the transition into the new scene, the
+  moment its last `<img>` unmounts. A pass superseded by another scene change used to skip the
+  eviction altogether and leave everything it had fetched in memory for the rest of the session;
+  there is nothing left there for a superseded pass to skip. Every eviction path revokes the object
+  URL it minted, which is what actually hands the bytes back.
+
+- **`preload()` settles for an image that is already cached.** The token it handed back for a source
+  already in the cache, or already being fetched by another pass, never fired at all - a caller that
+  waited on it waited for ever. It now settles once the caller's own request is met, which for a
+  first frame whose bitmap was fetched as speculative look-ahead (and so retains nothing) means
+  decoding it rather than reporting a warm cache and revealing on an undecoded image.
+
+- **"Image not preloaded" no longer fires for an image the cache has released.** The warning exists
+  to point out an image action nothing could predict, which is worth fixing with
+  `scene.preloadImage()`; an image the preloader did fetch and a budget later let go of is the cache
+  working as designed, and telling the author to register it would be telling them to fix something
+  that is not broken.
+
+- **Audio no longer stays in memory for the whole session.** Every clip a game played was decoded
+  once and then held decoded until the page went away, whether or not anything was still playing it.
+  Decoded audio is float32 PCM, so what it costs has nothing to do with the size of the file it came
+  from: a five-minute 44.1 kHz stereo track is about 106 MB decoded, and a game with twenty such
+  tracks reached two gigabytes of audio by simply having been played for long enough.
+
+  A clip is now released when the token playing it stops or ends. What stays decoded is what a token
+  is playing, plus the sounds the open scene asked to keep warm — the same rule the image cache
+  already followed, and the reason `Preload` now hands the audio manager the scene's clips as a set
+  rather than one at a time. Leaving a scene gives its clips back; clips shared with the scene being
+  entered are not released and decoded again. A clip nothing holds lingers for a few seconds before
+  it goes, so an effect fired repeatedly is not re-fetched per keystroke.
+
+  Requires `@narraleaf/sound@^0.2.0`, which is where the release actually happens.
+
+- **A looping clip's out point reaches the audio backend directly.** `AudioManager` used to withhold
+  `endTime` from a looping clip and write `loop`/`loopStart`/`loopEnd` onto the Web Audio node by
+  hand, because the backend armed a stop-at-duration timer whether or not the clip looped and pinned
+  the repeat's in point to the playback offset. Both are fixed upstream, so the region goes over as
+  the author wrote it and the engine no longer reaches into the backend's internals. No authored
+  behaviour changes.
+
+## [0.44.0]
+
+### _Breaking_
+
+- **`textRevealDuration` is a preference now, not game config.** It arrived in 0.43.0 as
+  `GameConfig.textRevealDuration`, which was the wrong half of the API: how softly text arrives is
+  the player's to set, beside the typing speed it is measured against. As a preference it can be
+  offered on a settings screen, it is kept with the rest of what the player chose, and it is
+  readable and writable at runtime through the same store as `cps` and `gameSpeed`.
+
+  ```ts
+  // 0.43.x
+  new Game({textRevealDuration: 120});
+
+  // 0.44.0 - the author's value is the starting point, and the player owns it after that
+  const game = new Game({});
+  game.preference.setPreference("textRevealDuration", 120);
+  ```
+
+  Nothing else about the effect changes. `0` is still the default and still means text is typed
+  at full strength, and a game that never sets it is unaffected. A `textRevealDuration` left in a
+  `new Game({...})` call is now an unknown config key and does nothing, so move it.
+
+
+## [0.43.1]
+
+### _Fixes_
+
+- **A skipped line no longer fades in behind itself.** Pressing on through a line being typed
+  lands the whole rest of it in one go, and every character of it appeared at that moment - which
+  is what starts a fade, so the last few characters of a line the player had just asked to see
+  immediately went on arriving after it. Short fades hid it; at `textRevealDuration: 400` the tail
+  of the line visibly came in behind the rest of it.
+
+  Text that lands in a run is now drawn at full strength, including the characters that were
+  part-way through a fade when the skip landed. Only text the typewriter is actually putting down
+  one character at a time fades, which is what the effect was always described as doing; the
+  typing itself is unchanged.
+
+
+## [0.43.0]
+
+### _Feature_
+
+- **Dialogue text can fade in as it is typed.** `GameConfig.textRevealDuration` gives a newly typed
+  character a moment to come up from nothing instead of appearing at full strength, so the newest
+  few characters of a line are always part-way in and the line has a soft edge rather than a hard
+  one:
+
+  ```ts
+  new Game({textRevealDuration: 120});   // milliseconds; 0 (the default) is the hard edge
+  ```
+
+  The fade is driven by the typewriter's own cadence and costs it nothing - no timers, no change to
+  the typing speed. It is bounded by that cadence too: a fade may run for at most eight character
+  intervals, so a player who raises the typing speed gets a shorter fade and one who raises it a
+  long way gets none worth seeing, which is what asking for fast text means.
+
+  It applies only to text actually being typed. A line revealed at once, one skipped to the end, one
+  drawn again from a save, and a finished NVL line re-drawn as the log grows are all settled text
+  and are drawn exactly as they were before this existed - as is every line while the setting is
+  `0`. A player whose system asks for reduced motion never sees it.
+
+  Only `opacity` is animated, and a fading character is `display: inline`, so the line breaks where
+  it always did: nothing here can take a word apart. Ruby, emphasis marks, vertical writing and
+  tate-chu-yoko are unaffected - a combined vertical run fades as the single glyph cluster it is -
+  and a word with a custom renderer fades like any other without the renderer knowing it does.
+
+
+## [0.42.4]
+
+### _Fixes_
+
+- **A fade through a colour no longer leaves a hairline of the picture along the frame.**
+  `ThroughColor` covers the frame with a synthetic colour layer sized to the images beneath it.
+  The stage scales by a non-integer factor, so those images are laid out at fractional sizes and
+  their outermost row of pixels is drawn part-covered; a colour box that matched the frame exactly
+  stopped at the whole pixel inside that row and left it showing - about a pixel of the background
+  along the top or the bottom edge of a frame that is meant to be solid colour. The layer now
+  reaches a pixel past the frame on every side. It is synthetic and has no content to distort, so
+  nothing else about the transition changes, patterned covers included.
+
+## [0.42.3]
+
+### _Feature_
+
+- **`Mask.blinds` can stagger its slats.** The slats have always widened in lockstep, because
+  the whole blind was one tiled gradient and a tile cannot know which one it is. `stagger` gives
+  each slat its own start, spaced along the axis, so the blind opens in a run rather than all at
+  once:
+
+  ```ts
+  new Reveal({duration: 1200, pattern: Mask.blinds({slats: 8, stagger: 0.6})});
+  new ThroughColor({duration: 1800, pattern: Mask.blinds({stagger: 1}), uncover: "continue"});
+  ```
+
+  `0` (the default) is the old lockstep blind, byte for byte - it still emits the single tiled
+  gradient. `1` runs the slats strictly one after the next, and the values between overlap them.
+  The spread is taken out of each slat's own run rather than added to the duration, so the last
+  slat still lands exactly on the end of the transition however wide it is spread; a negative
+  value runs the delay back the other way along the axis.
+
+  Inverting the pattern reverses the order as well, so the slat that covered first is the first
+  to clear and `uncover: "continue"` reads as the blind carrying on rather than backing out.
+
+  A staggered blind costs one gradient layer per slat, where the lockstep one is a single tiled
+  gradient whatever `slats` says - so the slat count is worth watching here in a way it was not
+  before. `slats` is now rounded to a whole number, since a fraction of a slat cannot be given a
+  layer of its own.
+
+## [0.42.2]
+
+### _Fixes_
+
+- **`0` is a position again.** An alignment or coordinate of `0` — the left edge, the bottom edge —
+  was read as "no value given" by two guards that test the component with `!value`, and the two
+  readings compound:
+
+  - `Coord2D.fromAlignPosition` turned a zero alignment into `Unknown`, which is the token that
+    means *leave the other value alone* when two positions merge. A transform moving a displayable
+    to `{xalign: 0.5, yalign: 0}` therefore kept whatever alignment it already had.
+  - `PositionUtils.calc` answered `"auto"` for it, so a displayable **created** at a zero alignment
+    got neither `top` nor `bottom`. An absolutely positioned element with both unset falls back to
+    its static position, which for a stage-wide sprite is off the stage — the sprite did not appear
+    at all.
+
+  ```ts
+  new Image({src: "portrait.png", position: {xalign: 0.5, yalign: 0}});
+  // now sits on the bottom edge, as it reads
+  ```
+
+  An absent component is still `Unknown`, and still merges as "leave it alone".
+
+- **A bare pixel coordinate resolves to a valid CSS length when no design size is known.**
+  `PositionUtils.calc` built `calc(100 + 0px)` for a numeric position with no offset, which is not a
+  length: the browser dropped the declaration and the axis went unset. It now writes the number as
+  pixels on both arms, the way the offset arm always did. Games that pass `width`/`height` in their
+  config never reached this arm.
+
+## [0.42.1]
+
+### _Fixes_
+
+- **`Story.hash()` is computed once per constructed story instead of on every call.** The answer
+  is the same every time - the graph it walks is fixed by `constructStory()` - so it is kept and
+  handed back, and a story constructed again computes a new one.
+
+  It is not an incidental call. `LiveGame.newGame()` stamps the hash into the new save's
+  metadata, which puts a walk of every action reachable from the entry scene, a concatenation of
+  what each one stringifies to, and an FNV-1a pass over the result between the player pressing
+  Start and anything at all appearing. Measured on a 17-scene, 3,900-line story: 113ms of the
+  144ms `newGame()` took. `LiveGame.serialize()` paid the same on every save.
+
+  Only the hash is kept, not the string it was taken over, which on a story that size runs to
+  megabytes.
+
+  `constructStory()` also schedules the first computation on `requestIdleCallback`, so it lands
+  in whatever gap the host leaves between building a story and starting one - normally a title
+  screen with a person looking at it. A host with no idle callback, or one that never goes idle,
+  computes it lazily as before.
+
+## [0.42.0]
+
+### _Incompatible Changes_
+
+- **`Sound.play()` no longer holds the script until the clip finishes.** It resolves once the clip
+  is playing, and a clip that is meant to hold the script says so:
+
+  ```ts
+  sound.play();                          // starts the clip, the next action runs
+  sound.play(0, {waitForEnd: true});     // the next action waits for the clip to end
+  ```
+
+  A sound effect written between two lines is not a wait the author asked for. A seven-second chime
+  placed before the first line of a scene stopped the script for seven seconds with a finished stage
+  on screen and nothing saying why, and there was no way to write the other behaviour. Looping clips
+  are unaffected: they never end, so they never waited.
+
+  `AudioManager.play` still waits by default, because the engine's own callers - a voice line, a
+  text-event effect - are tracking a clip's whole life. Only the authored action changed sides.
+
+- **`ImageCacheManager` caches object URLs instead of data URLs.** `getImageDataUrl` is gone from
+  `@lib/util/data`, replaced by `getImageObjectUrl`. The cached value handed back by
+  `cacheManager.get(src)` is now a `blob:` URL rather than a `data:` URL; anything that assumed the
+  latter (persisting it, matching on the prefix) has to be updated.
+
+  The data URL cost a base64 encode of every image, kept a string about a third larger than the file
+  alive for as long as the entry was cached, and made the browser decode that base64 back to bytes
+  before it could decode the image. Measured over a 241 MB image library, the fetch-and-decode pass
+  dropped by about a third and the retained strings went away entirely. Object URLs pin their blob
+  until revoked, so the cache now revokes on every path that drops an entry.
+
+### _Features_
+
+- **`GameConfig.preloadGate` decides how much of a scene has to be warm before the game is shown.**
+  `"firstFrame"` (the new default) waits for the scene's opening background and keeps fetching the
+  rest behind the game; `"scene"` waits for every image the scene registers anywhere in it, which is
+  what this always did.
+
+  ```ts
+  new Game({preloadGate: "scene"});      // the previous behaviour
+  ```
+
+  A scene's registered set is every pose of every character it shows and every background it cuts
+  to - on a real project, most of the library - while its first frame is one picture. `ScenePreloadPlan`
+  gained a `firstFrame` tier ahead of `critical` to match, and both are fetched unpaced.
+
+## [0.41.2]
+
+### _Fix_
+
+- **A tap of the skip key no longer walks past a `Pause` in an NVL line either.** The ADV dialog
+  learned to tell a tap from a hold in 0.41.1; NVL still forced on every emission of the skip key,
+  so a single tap of it revealed the rest of the line in one go and spent the pause the author
+  wrote without ever offering it to the player - while a click on the same line honoured it. NVL
+  now follows the same rule: an advance asks the line to complete, and only the skip mode, which is
+  the key held down, forces.
+
+  The four ways a player advances an NVL line - a click on the stage, the advance key, a host
+  calling `simulateClick`, and the skip key - each walked the same two steps by hand and it was
+  the skip key that walked them differently. They now share one path, so the next input added
+  cannot quietly differ again.
+
+## [0.41.1]
+
+### _Fix_
+
+- **A click no longer walks past the pauses in the line it lands on.** A click on the stage and the
+  skip key reached the dialog through a dispatcher of their own, and where a click on the box asked
+  the sentence to complete, that one told it to force-skip. The two differ on exactly one thing:
+  force-skipping is written to step over a `Pause`, because that is what holding the skip key is
+  for. So a line built as `["...", Pause, "..."]` lost the whole of its remainder to a single
+  click - both halves on screen at once, the pause the author wrote spent without ever being
+  offered to the player, and every pause after it in the same line gone with it. An advance now
+  means the same thing whoever asks for it, and only the skip mode forces.
+
+- **One tap of the skip key no longer stops the typewriter for the rest of the scene.** Settling a
+  line through that dispatcher reported the line as *skipped*, and a scene carries that answer to
+  the next line as "do not type" - with a menu as the only thing that ever lowered it again. So a
+  single tap of the skip key on a line that had finished revealing left every line after it
+  appearing complete the instant it arrived, for the rest of the scene, which also meant every
+  later line with a `Pause` in it was drawn past its pause as well. Reading a line and then
+  advancing is not skipping; the flag is gone, and each line types on its own account.
+
+- **The skip key tells a tap from a hold.** Its first press is now an ordinary advance - the same
+  one a click produces, honouring pauses - and only the repeats that arrive while the key is still
+  down are the skip mode, which forces as it always has. The mode is unchanged for anything that
+  asks for it directly: `LiveGame.skipDialog` and the fast-forward pump still force.
+
+## [0.41.0]
+
+### _Incompatible Changes_
+
+- **`SentenceConfig.pause` and `WordConfig.pause` have been removed.** Neither was ever read by the
+  engine. `pause` was added to the sentence config in October 2024 alongside `voice` and `voiceId`,
+  thirteen days before the `Pause` element existed; once `Pause` arrived nothing went back to wire
+  the flag up, and no release since has consulted it. Both behaviours it was described as having -
+  continuing without waiting for a click on `{ pause: false }`, and holding the line for a given
+  duration - were descriptions of a field that did nothing, so removing it changes how nothing
+  plays: a line that waited for the player still waits, and one that did not still does not. Passing
+  it is now a type error rather than a silent no-op, which is the point of the removal.
+
+  A pause *inside* a line is what `Pause` has always been - `Pause.wait(1000)` for a duration, a bare
+  `Pause` to hold until the player clicks - and a wait *between* lines is `Control.sleep(duration)`
+  or `Control.waitForClick()`. Anything written against the removed field wanted one of those.
+
+  `WordConfig.pause` was the same field one level down: never read, and never documented.
+
+## [0.40.1]
+
+### _Fix_
+
+- **A menu branch can change the background and then carry on.** `Scene.setBackground` handed back
+  a chain with the action still inside it rather than the action itself. At the top level of a
+  scene that made no difference, because the scene's own action list is flattened on the way in,
+  but a menu branch links its statements together by reading each one's node - so a branch that
+  changed the background and then said a line, or changed it twice, asked a chain for a node it
+  does not have and the story failed to build with `Cannot read properties of undefined`. A branch
+  whose very last statement was the background change worked, which is why this went unnoticed:
+  nothing after it needed linking. Wrapping the call in `Control.do` did not help either, since the
+  chain survives inside the control action and the failure moves to the walk over future actions.
+  `setBackground` now yields an action like every other chainable.
+
+- **A menu that follows another menu shows its own options.** The evaluated choices were computed
+  once per mounted menu and never recomputed. React reuses the same element when one menu is
+  immediately replaced by another, so the second menu drew the first one's options while its prompt
+  updated around them - a topic list that stayed on screen after the topic had been picked. The
+  evaluation now follows the choices it was given.
+
+## [0.40.0]
+
+### _Fix_
+
+- **Clicking the stage with the dialog box put away brings the box back instead of spending a line
+  nobody read.** Hiding the box is how a player looks at the picture behind it, and the box is the
+  thing a click on the stage acts on - so once it is away, a click has nothing on screen it could
+  have been aimed at. It advanced the story all the same: a click is announced from the player
+  element and reaches the dialog as a broadcast, and that announcement never asked whether there was
+  a box to click. The line it settled was one the player never saw, and the box came back showing the
+  line after it, so the text was gone with nothing to say it had been. A click on the stage while the
+  box is hidden now restores it and settles nothing, which is what every visual novel does with the
+  first click after a hide and the only reading of it that cannot lose text. It restores the box even
+  while something is holding the line - a suspension is taken by something drawn inside the box, so
+  with the box away the hold is invisible and would otherwise leave the player able to reach neither
+  the box nor the thing holding the line. Restoring settles nothing, so the hold is still in charge
+  the moment the box is back.
+
+- **A dialog box that has been put away is still reachable.** Hiding the box drew it with
+  `visibility: hidden`, which does not mean "do not draw this" but "this is not here": the whole
+  subtree leaves hit testing, and a host renders its own dialog into that subtree. So for as long as
+  the box was hidden nothing the host had drawn inside it could be scrolled, tapped or dismissed, and
+  nothing said why - every element was still present and still styled to receive the pointer. The
+  same element asked for `pointer-events: auto` in the same breath, which is the instruction that was
+  meant and the one that could not be followed. A hidden box is now drawn transparent instead, so it
+  is invisible and still there; it is marked `aria-hidden` explicitly, since transparency does not
+  remove it from the accessibility tree the way the old rule did as a side effect. The box claims no
+  `pointer-events` of its own in either state - whether it is reachable at all remains its layer's to
+  say, so a scene parked behind a returnable jump still keeps its empty layer transparent to the
+  pointer.
+
+## [0.39.2]
+
+### _Fix_
+
+- **A scene parked behind a returnable jump no longer swallows the clicks meant for the scene in
+  front of it.** Every scene on the stage renders a dialog layer of its own, each of those layers
+  covers the whole stage, and a caller suspended by a returnable jump keeps its layer for as long as
+  it is parked - with nothing in it, because a parked scene has nothing to say. The layers are
+  stacked in the order the stage holds the scenes, which puts the parked caller's empty layer on top
+  of the box belonging to the scene the story is actually in. It took the pointer all the same, so
+  for the whole length of a scene call nothing in the live box could be clicked: not the box's own
+  advance, not an inline word with a renderer of its own, not anything a line had drawn over itself,
+  and not a menu the called scene was showing. A click anywhere on the stage still advanced the line,
+  because that is announced from the window and reaches every dialog as a broadcast - which is why
+  this looked like the dialog ignoring the player rather than something standing in front of it. A
+  dialog layer now takes the pointer only while it has something live in it, a line still waiting or
+  a menu, and is transparent to it otherwise.
+
+- **A line that finished typing while something was drawn over it no longer spends the next click on
+  itself.** A dialog box is active while it is showing a line the player still has to answer, and
+  inactive while it is a picture of a line that is over - which is also what it is for as long as
+  another scene's box is drawn over it, or a panel is open across the stage. Whether the line is
+  ready for a click was latched by whichever box was active at the instant the text finished
+  revealing, so a line that finished while it was displaced came back with the latch down: the first
+  advance the player spent went on raising it and the line stayed where it was. The latch now follows
+  the fact - there is nothing left to reveal - rather than who happened to be watching when it
+  became true. A line that has not finished revealing is untouched, so a box that reappears over a
+  half-typed line still reveals the rest of it before a click can settle it.
+
+- **A line already on screen no longer loses the task that is the only thing able to finish it.**
+  The
+  state a dialog box keeps for its line is rebuilt whenever the line changes, and the typing task
+  that reports the text fully revealed belongs to the sentence renderer, which is keyed on the line.
+  One input to that state was not the line: whether to type at all, which is read from a flag every
+  advance in the scene writes, so it could change under a line that was already on screen. When it
+  did, the state was rebuilt and the renderer was not, leaving the new state with no task of its own
+  - the task still running reported to the state that had been thrown away. The new state therefore
+  never reached the end of its line, was never ready for a click, and every advance forwarded to a
+  task that had already finished: the line stayed fully drawn on screen and no click, key press or
+  auto-forward could settle it again, for the rest of the game. The state is now rebuilt exactly when
+  the line is. Whether a line types is decided when it starts revealing, which is what that state
+  records; a line already revealing does not change its mind.
+
+- **A script error says what went wrong, and carries the rest as fields.** `RuntimeScriptError`
+  composed everything it knew into a single string, so the sentence an author has to read arrived
+  with the offending action's id, its type and the whole of that action's construction stack
+  appended to it - which, in a host that shows the message in a panel, is eight lines of bundle
+  frames above the fold and a second copy of a stack the host already has its own place for. A host
+  could not split them either: each throw site wrote its own tail, and the two wordings in use did
+  not agree, so any split had to guess which one it was looking at and would silently do nothing
+  for the other. `message` is now the sentence alone; the action is `error.action` (its id and its
+  type), its construction stack is `error.actionStack`, and `error.composedMessage` still gives the
+  one-string form for anything that prints a failure as a line. Nothing that logs the error object
+  loses anything - `error.stack` carries the whole composition, as it did before.
+
+- **A scene leaving the stage no longer strands the line still waiting on it.** A pending line lives
+  as a clickable entry in the scene's own stage record, and the click callback in that entry is the
+  only thing that settles the action waiting on it. Taking the record away dropped the line with it:
+  nothing rendered it any more, so no click could reach it, and whatever was waiting waited for ever.
+  On the main stack that never showed, because every path that unloads a scene also clears the stack
+  it would have blocked - but a branch of `Control.all` has a stack of its own, and the group waits
+  for every branch. One line left behind by a returning scene call therefore stopped the story dead:
+  no error, no crash, every click inert. `Control.any` hid the same thing, settling on the first
+  branch to drain and never looking at the one that could not. The line is now advanced as the scene
+  goes, so the branch that queued it carries on. Menus are left alone - choosing on the player's
+  behalf would decide the story.
+
+- **Two returnable jumps taken from the same scene at once are refused.** A concurrent group runs
+  each branch on an execution stack of its own, so both branches of a `Control.all` can reach a
+  returnable jump before either of them returns. The stage cannot hold that: one `Scene` has one
+  place on it and one suspension flag, so the second call parked a scene that was already parked and
+  the first return un-parked it while the second call was still running. Nothing downstream could
+  tell those apart, and the story did not fail - it stopped. `Control.all` waits for every branch,
+  and the branch left behind could no longer finish. The second call now says so, with the two
+  scenes named, in the same place the other impossible calls are refused.
+
+- **An error thrown inside a `Control.any` branch is no longer swallowed.** Giving up the other
+  branches settles them, and settling one was enough to resolve the group - so the failure that
+  started it arrived at an already-settled group and did nothing. A script error inside a race
+  therefore vanished and the story carried on as though that branch had simply won. The failure is
+  recorded before the other branches are given up, which is the same thing `Control.all` has always
+  done with one.
+
+- **A concurrent branch that is cut mid-call gives the call back.** `Control.any` finishes the
+  moment
+  one of its branches drains, and the branches that did not get there were left exactly where they
+  stood. A branch that had taken a returnable jump is holding the only frame that could return to the
+  scene it suspended, so cutting it there parked that scene on the stage for the rest of the game -
+  still mounted, still holding its layers and its locals, and never again the scene a line of
+  dialogue attached to - with the scene it had called mounted beside it and nothing pointing at
+  either. A branch is now given up rather than dropped: every call it had open is unwound innermost
+  first, exactly as a plain jump unwinds a call stack it walks away from. A scene the branch merely
+  *entered* is not unwound, because a plain jump hands that scene to the main stack and it is the
+  story's scene from then on.
+
+- **A save taken while a `Control.all` or `Control.any` group is running can be loaded again.** A
+  group leaves a `wait` link on the stack and runs each of its branches as a stack of its own, and
+  that link is what a save carries every branch's progress under. `serialize` also wrote out the
+  action that had just run, so that a load comes back to whatever the snapshot caught in progress -
+  but that rule is only there to stand in for an `Awaitable`, which a save cannot carry, and it went
+  on firing after the action had finished and left behind something a save *can* carry. A save taken
+  mid-group therefore named the group twice: once as the link, and once as the `control:all` that
+  created it, written above the link. Loading threw `StackModel: Unexpected waiting action in stack`
+  part way through rebuilding the stack, because nothing may sit on top of a group whose branches
+  have not drained - and had anything been allowed to, that second copy would have built the group
+  again and restarted every branch from the top.
+
+  The same rule was resurrecting branches. A branch that had already drained came back holding the
+  last action it ran, so a loaded `all` waited on a branch that was finished and re-ran a line of it,
+  and a loaded `any` no longer knew it had been won.
+
+  None of this needs a scene call: it reproduces with no jump anywhere, and has been true for as long
+  as concurrent groups have existed. It surfaced now because a returnable jump can be taken from
+  inside a group, which means a player can be inside an open call when they save.
+
+  The save format is unchanged, so a save written here reads in an older release exactly as one it
+  wrote itself. A save written before this release carries the extra item, and is now read as the
+  group alone rather than refused - though a branch that release resurrected still comes back holding
+  one action, because nothing in the file says it had already finished.
+
+- **A concurrent or looping group written last in a block runs.** `Control.all`, `Control.any`,
+  `Control.repeat` and `Control.whileLoop` hand their bodies to execution stacks of their own, and
+  the result they hand back carries two things: the action chained after the group, and the branch
+  stacks to wait on. Only a result naming an action was kept, so a group with nothing written after
+  it - the last row of a scene, the last statement of a `Control.do` body, of a condition branch, of
+  a menu choice, of another group's branch - was thrown away whole, branch stacks included. Nothing
+  else holds those stacks, so the bodies never ran: no error and no warning, the block simply ended
+  and the story carried on as though the group were not there. The same group with any line at all
+  written after it ran as written, which is what made this look like a defect in loops rather than
+  one about where they are written. A result is now kept when it names branch stacks as well as when
+  it names an action, and such a group is waited on and completes as it does anywhere else.
+
+## [0.39.1]
+
+### _Fix_
+
+- **Stepping back onto a line inside a called scene keeps the caller parked.** A scene's stage entry
+  is rebuilt from its snapshot when the game steps back in place, and the snapshot did not carry
+  whether that scene was a caller suspended behind a returnable jump. Stepping back through a line of
+  dialogue restores the snapshot of every scene on the stage, so a single `LiveGame.undo()` onto a
+  line inside a called scene unparked the whole call stack: the callers stayed mounted, kept
+  painting, and the outermost of them became the scene the next line of dialogue attached to. The two
+  ways of reaching a line disagreed as a result - through a save the caller came back parked, in
+  place it did not.
+
+- **Stepping back to before a scene was entered closes its local namespace again.** Putting a scene
+  on the stage opens its scene-local namespace; the undo `scene:init` registered took the scene off
+  the stage but left the namespace open. A game stepped back to before a scene was entered - which is
+  what stepping back over a jump, or out of a returnable one, does - therefore still carried that
+  scene's locals, and a save written there was not the save the same line would have written on the
+  way through.
+
+- **A faded pause is countermanded by whatever follows it.** `AudioManager.pause` and
+  `AudioManager.resume` only act once their fade has finished, and a fade's `finished` resolves when
+  it is *cancelled* as well as when it runs out - which is what any later transport call does to it.
+  A scene call that returned while the caller's pause fade was still running therefore landed the
+  pause after the resume, with nothing left to undo it: the caller's music stayed silent for the
+  rest of the scene while `paused` said it was playing, so the next save recorded a stopped clip.
+  Every transport call now supersedes a faded one still in flight. Affects any scene with a
+  `backgroundMusicFade` calling a scene shorter than the fade.
+
+- **A scene keeps the music it was handed, across a save.** A scene's background music can come
+  from its config or from a `setBackgroundMusic` row, and only the first of those survived a load.
+  `scene.state.backgroundMusic` is a pointer to a `Sound`, and the saved record carried the sound's
+  state without saying *which* sound it was - so the load had to guess, and it guessed the clip the
+  scene was already holding. A scene that declares its music is holding exactly that clip when it is
+  freshly constructed, so it was right every time; a scene handed its track by an action is holding
+  nothing, so the record was dropped and the scene came back not knowing which clip was its own. The
+  clip itself was restored and went on playing, which is why this was inaudible.
+
+  It stopped being inaudible in 0.39.0. `scene:resume` resumes the calling scene's own track when a
+  call returns, so **save inside a called scene, load, and return** left the caller silent for the
+  rest of the scene. The defect is older than the feature that exposed it: the pointer is lost by an
+  ordinary save and load with no scene call anywhere.
+
+  The record now also carries the sound's element id, and the load resolves it against the same
+  table every other element is restored from. A save written before this release carries no id and
+  is read exactly as it was, from the scene's own instance; a save written after it carries one more
+  field on that record, which a reader that predates it ignores.
+
+## [0.39.0]
+
+### _Feature_
+
+- **A jump can come back.** `Scene.jumpTo` takes `returnable: true`, and the scene it is called from
+  is then suspended instead of unloaded: when the scene it jumped to runs out of actions, the story
+  resumes at the action after the jump.
+
+  ```ts
+  scene.action([
+      character.say("Three years earlier."),
+      scene.jumpTo(flashback, {returnable: true, transition: new Dissolve({duration: 600})}),
+      character.say("...and that is how it went."),
+  ]);
+  ```
+
+  This is `call`/`return` as every other visual-novel engine has it, but with one difference that
+  comes from NarraLeaf's scenes being real: in engines where the stage and the music are global, a
+  call is only a move of the play head and everything on screen keeps going. A NarraLeaf scene owns
+  its own layers, sprites and background music, so a suspended one has to be held rather than left
+  running. Held means:
+
+  - It stays mounted and keeps everything it has - its layers, its sprites' load state and its
+    scene-local variables are all exactly as it left them, so returning costs nothing and shows no
+    reload.
+  - It stops painting for as long as the call is open, so the called scene has the stage to itself.
+  - Its background music is **paused** and resumed where it left off. Only the scene's own music:
+    everything else a sound plays through belongs to the story rather than to one scene, and plays
+    on across a call exactly as it plays on across a plain jump.
+  - It is not the scene new dialogue and menus attach to. That is the called scene, for as long as
+    the call is open.
+
+  The default is `false`, and a jump without it does what it has always done, to the letter: the
+  calling scene is unloaded and everything after the jump is unreachable.
+
+  Three things follow from a suspended scene being a real, single scene rather than a saved
+  position, and they are worth knowing before you build on this:
+
+  - **A scene cannot be called while it is already on the call stack.** One `Scene` owns one place
+    on the stage and one set of local variables, so `A -> B -> A` cannot be given two of them. It
+    throws rather than quietly driving the first copy's stage. Recursion is therefore not a matter
+    of depth; `maxSceneCallDepth` (default 8) bounds a *chain* of distinct scenes, because every one
+    of them is on the stage at once.
+  - **A plain jump taken while a call is open gives the call up.** A jump is one-way: it clears the
+    execution stack, and the frames it clears are the only things that could have returned. Every
+    scene parked behind it is unloaded with it, rather than left on the stage with nothing able to
+    reach it.
+  - **A `Control.jump` (an in-scene label jump) taken while a call is open keeps it.** A label is
+    scene-scoped, so moving the play head inside a called scene is a move within that scene and the
+    call still returns.
+
+  Saving inside a called scene is supported, and so is stepping back across the boundary with
+  `undo`/`restoreToHistory`. Neither needed a new save format: the return address is an ordinary
+  stack item naming a real action by id, and the suspended scene is an ordinary entry in the stage's
+  scene list carrying one new flag. A save written before this release has no such flag and reads as
+  nothing suspended.
+
+### _Fix_
+
+- **A paused clip comes back from a save paused.** `AudioManager` records `paused` on each clip's
+  save record and reads it back from there. It could not be left to the sound's own state: a sound
+  reaches the element table only when something marks it dirty *and* its state differs from the
+  script's, and a scene's background music is not any action's callee, so it is routinely not in that
+  table at all. A save written while a track was paused - which is what a suspended scene's music is
+  - came back playing. `AudioManager.pause`/`resume` also mark the sound now, so a clip that does
+  reach the element table carries the flag there too.
+
+  Saves written before this release have no such field on the record and are read exactly as they
+  were, from the element's own state.
+
+- **A suspended scene starts no music, whoever asks.** `SceneAction.initBackgroundMusic` refuses a
+  scene that is suspended. The request that reaches it is not always the one that asked for it:
+  starting a scene's music waits on the scene's component being mounted, and a stage remount - which
+  is what loading a save performs - fires every waiting request again. A scene parked behind a call
+  therefore came back from a save with its music playing over the scene it had called.
+
+## [0.38.0]
+
+### _Fix_
+
+- **A loaded save no longer lists its last line twice in the backlog.** `deserialize` restores the
+  action stack sitting on the row the save was written at and then steps it, so that row runs a
+  second time and is recorded a second time. The backlog already knew this shape — it is what a
+  rewind does, and `setCursor` says so — but the load path did not, so the entry was appended
+  instead of reconciled and every loaded save opened with its last line duplicated. Loading now
+  marks the play head as resuming, exactly as a rewind does; the re-run line keeps the token it was
+  saved with, so a backlog UI holding a reference to it still resolves.
+
+- **A loaded save brings the scene's background music back.** `AudioManager` records every clip it
+  is playing into the save and looks each one up by element id on the way back in. Element ids are
+  handed out by walking action callees — and a scene's music is never a callee, because the scene is
+  the callee and the music is state hanging off it. So it went into saves under the empty id an
+  unresolved element carries, matched nothing on the way in, and was skipped: the save loaded and
+  played on in silence until the next scene change. Scene-owned tracks (the one in the scene's
+  config, and any handed to `Scene.setBackgroundMusic`) are now given ids of their own and are in
+  the table a load reads.
+
+  They are numbered in a separate `s-` series rather than folded into `e-`, because an element id is
+  a position in the walk: folding them in would have shifted every id after them and pointed saves
+  written before this release at a different element. A track that is also the callee of a sound
+  action keeps the `e-` id it already had. Saves written before this release still carry the empty
+  id for their scene music, so their music does not come back — only saves written from here on do.
+
+## [0.37.0]
+
+### _Feature_
+
+- **A word can carry emphasis marks** - the dots or circles set beside every character of a stressed
+  phrase, which is how East Asian typography does what italics do in a Latin one (傍点 / 圏点 in
+  Japanese, 着重号 in Chinese). `WordConfig.emphasis` takes the glyph, whether it is solid or hollow,
+  and which side of the text it sits on; `Word.emphasis()` is the shorthand.
+
+  ```ts
+  character.say(["それは", Word.emphasis("わたし"), "が決めることです。"]);
+  character.say(["这是", Word.emphasis("我", {position: "under"}), "的决定。"]);
+  character.say(["He said ", new Word("nothing", {emphasis: {mark: "circle", fill: "open"}}), "."]);
+  ```
+
+  The marks are typed out with the characters they belong to, so a word half revealed carries half
+  its marks. `position` is read in horizontal writing only - `over` above the line, `under` below it;
+  vertical writing sets the marks to the right of the column, which is where both conventions place
+  them.
+
+- **A word can be sized against its line instead of in absolute units.** `WordConfig.fontScale` is a
+  share of the size the line is set at - `1.25` for a quarter larger, `0.8` for a fifth smaller - so
+  the word keeps its weight against the rest of the line whatever the line is set at, including while
+  text scaling brings the line down to fit its box. `fontSize` still pins a word to an absolute size
+  and wins when both are given.
+
+  ```ts
+  character.say(["and then it was ", new Word("enormous", {fontScale: 1.6}), "."]);
+  ```
+
+## [0.36.0]
+
+### _Feature_
+
+- **A transition can hold for a length of time, and the length is the one you asked for.**
+  `ThroughColor` and `Exposure` take `holdMs`, and `Darkness` takes one too: milliseconds spent at
+  the extreme, carved out of `duration` and split evenly off the two moving halves.
+
+  ```ts
+  // one second into black, two seconds of black, one second out
+  new ThroughColor({duration: 4000, holdMs: 2000, color: "#000"})
+  // two seconds of black, then a one-second lift out of it
+  new Darkness({from: 1, to: 0, duration: 3000, holdMs: 2000})
+  ```
+
+  `Darkness`'s hold sits at `from`, which is where the image swap happens - the same thing the other
+  two call a hold, the window the swap hides in.
+
+### _Fixed_
+
+- **The hold in `ThroughColor` and `Exposure` was never the fraction of the run it claimed to be.**
+  It was a band of *eased* progress, and the animation channel carried the easing, so the driver
+  crossed the band at its fastest. Under the default easing (`easeInOut`, which is what motion's
+  keyframes generator applies when none is given) a nominal 30% hold played as **17.8%** of the wall
+  clock, 50% as 30.8% and 80% as 55.9%. A `ThroughColor` left at its defaults on a 300ms run held
+  the colour for 53 milliseconds - not long enough to see.
+
+  Both now run their channel linearly and ease each moving half themselves, so the hold is measured
+  in time. The look of a run with no hold is unchanged: easing the two halves of a symmetric run is
+  the same curve as easing the whole of it.
+
+- **`Darkness` drives a linear 0-1 progress channel** rather than animating the darkness value
+  directly, for the same reason. Its `from`/`to` and its easing behave exactly as before.
+
+### _Changed_
+
+- `ThroughColorOptions.hold` and `ExposureOptions.hold` (the 0-1 fraction of the duration) are
+  **deprecated** in favour of `holdMs`. They still work, and are read when `holdMs` is absent, so
+  nothing that set one has to change. A fraction cannot say how long the colour is held: it is a
+  share of the run, so the seconds it buys move whenever the duration does.
+
+- `Darkness` now documents what it always did: the brightness it writes lives for as long as the
+  transition runs and no longer. A run ending at a `to` above zero returns to full brightness on its
+  last frame, because what a settled element looks like is the element's own business - an image
+  renders at `Image.state.darkness`, a scene root at nothing at all. Ending dark is what a black
+  background is for; `Darkness` is a way *through* a darkness, not a way to sit in one.
+
+## [0.35.0]
+
+### _Changed_
+
+- **Text scaling now follows the line as it is typed, and is on by default.** A dialogue line is set
+  at the size it was written at and stays there for as long as it fits. Once the text reaches the end
+  of its box, every further character is measured and the size comes down by what it takes to keep
+  the whole line inside, to no less than `autoFitMinFontSize`.
+
+  0.34.0 settled the size before the first character appeared, by measuring a hidden copy of the
+  finished line. That cannot survive a line whose own words change size, so the measuring copy is
+  gone: what is measured is what is on screen.
+
+  `autoFit` now defaults to `true`, and `GameConfig.disableTextScaling` turns scaling off for the
+  whole game. A game that wants every line at exactly the size it was written at, overflowing box or
+  not, sets that one flag.
+
+  ```tsx
+  const game = new Game({ disableTextScaling: true });   // nothing on screen resizes itself
+  <Texts fontSize={24} autoFit={false} />                 // ...or just this line
+  ```
+
+## [0.34.0]
+
+### _Feature_
+
+- **A line can be set down until it fits its box** — `autoFit` on `<Texts>`. `fontSize` becomes a
+  ceiling rather than a fixed size: the line is set at it whenever the finished line fits the box,
+  and smaller when it does not, down to `autoFitMinFontSize` (12px by default). A line that still
+  overflows at the floor is left overflowing, which is what every line did before.
+
+  What has to fit is the finished line, not the line as far as it has been typed, so the search runs
+  against a hidden copy of the whole sentence laid out under the same box, the same typeface and the
+  same wrapping rules. The size is settled before the first character appears and holds for the rest
+  of the line, so nothing resizes while the player is reading.
+
+  Sizes carried by the sentence or by a single word are multiplied rather than replaced, so their
+  relative weights hold at every scale. The box is the container's parent; a parent with no height
+  of its own leaves the line at its authored size.
+
+  ```tsx
+  <Texts fontSize={24} autoFit autoFitMinFontSize={16} />
+  ```
+
+### _Fix_
+
+- **A sentence revealed without the type effect no longer breaks Latin words apart.** Instant reveal
+  built one element per character where the typewriter builds one per word, so a word was free to
+  wrap between any two of its letters, and a custom word renderer was told the word was still
+  unrevealed for every character but its last. Both paths now hand over the same whole words.
+
+## [0.33.1]
+
+### _Fix_
+
+- **Stepping back in place no longer leaves a looping element frozen.** A loop travels as the id of
+  the action that started it, because a `Transform` cannot be serialized - so restoring an element
+  brings back the anchor and leaves the transform to a pass that holds the story's action map.
+  Loading a save ran that pass. Stepping back in place did not, and the element was left declaring a
+  loop it could not run: `_getLoop()` found no transform so the motion never restarted and the
+  sprite simply stopped moving, while the anchor survived, so every later save kept carrying a loop
+  the player could not see. Loading one of those saves healed it.
+
+  It looked intermittent, and the reason is worth writing down. Only the FIRST step back after a
+  fresh start is taken in place - once anything has gone through a full restore, every later step
+  back falls through to `LiveGame.deserialize`, which was already correct. So the same action worked
+  or did not depending on what the player had done earlier in the session.
+
+  `GameState.restorePresentationSnapshot` now resolves loop anchors exactly as `LiveGame.deserialize`
+  does. Present since 0.32.0, when loops were added.
+
+## [0.33.0]
+
+### _Feature_
+
+- **An overlay can be put on the stage before it is shown** — `vfx.preload()`. The element is
+  created
+  and starts buffering at zero opacity, paused, and the story does not wait for it.
+
+  A video that is not in the document has not begun to load, let alone decode, so the first frame of
+  an overlay shown from nothing arrives whenever the decoder gets there — and `show` waits for it
+  rather than fading in an empty rectangle. Declaring the overlay early moves that wait somewhere the
+  player is not looking.
+
+  ```ts
+  scene.action([
+      rain.preload(),                    // nothing on screen; the clip starts loading
+      yuko.say`The sky has been grey all afternoon.`,
+      rain.show({ duration: 800 }),      // instant: the decoder already holds the clip
+  ]);
+  ```
+
+- **A video can be put on the stage before it is shown** — `video.preload()`, the same idea for the
+  same reason. The element renders hidden with `preload="auto"`, so being on the stage IS the
+  buffering, and a story that declares its movie a few lines before playing it does not make the
+  player wait on the first frame.
+
+- **`show` takes an opacity and a rate for that showing only** — `rain.show({ opacity: 0.35, rate:
+  2 })`.
+  The overlay's own `opacity` and `playbackRate` are properties of the material: how strong that rain
+  *is*. These are properties of the moment — the same rain faint behind a memory and full strength in
+  the storm. Every `show` restates both, so an override lasts exactly as long as the showing that
+  asked for it and a plain `show()` is back to the configured values. Like `setPlaybackRate`, neither
+  is persisted: a loaded save plays at the configured opacity and rate.
+
+### _Change_
+
+- **Hiding an overlay no longer takes it off the stage.** It fades out and stops playing, and the
+  element stays, invisible and paused. A paused video decodes nothing, so a hidden overlay still
+  costs no frame time — and keeping it means the next `show` has a decoder already holding the clip
+  instead of starting over, which is what made re-showing an overlay expensive enough to avoid. Only
+  a new game or a load clears the stage.
+
+  Two consequences worth stating. A `show` after a `hide` **resumes** where the clip was paused
+  rather than restarting from the first frame (invisible in a looping ambience clip, visible in one
+  with content). And a save now records every overlay the story has **declared**, not only the ones
+  visible when the player saved.
+
+### _Fix_
+
+- **A looping transform now survives a restore.** Stepping into a line where a loop is running -
+  `redo`, `restoreToHistory`, or loading a save - used to leave that element's wrapper style
+  diverging without bound (measured on a real sprite: `scaleY` to -580 and a `top` of 27353px within
+  seconds), and every later transform on that element diverged with it. A loop's first step is now
+  the pre-loop pose at zero duration, so both ends of every repeat are stated.
+
+  Why that closes it is worth writing down, because the guard reads like a redundancy and is not.
+  `motion` converts a positional value's units by measuring the element with `getBoundingClientRect`,
+  but only when that value resolves to exactly two keyframes. A single-segment loop was exactly that
+  shape - `motion` supplies the missing start itself - so `bottom` came back in `px`, was re-emitted
+  on every frame, and each restore fed the measured value back in as the next origin. Stating the
+  origin makes it three keyframes and the measurement never runs. **A loop's compiled sequence has to
+  stay above one segment**; `loopTransform.test.ts` pins that.
+
+- **A save that names an overlay the story no longer has now loads.** It is dropped with a warning
+  instead of throwing, unlike every other element: the difference is rain that is missing versus a
+  save the player cannot open at all, and decoration is not worth that. It also became easy to
+  arrive at, now that a save carries declared overlays — deleting a `preload` row can strand one.
+
+- **Stepping back past a transform no longer disturbs an element that was never looping.** The undo
+  a transform registers also puts the element's looping transform back, and the way back from a loop
+  is an ordinary transform - so on every transform undo, on every subject, a zero-duration transform
+  was run whether or not there had been a loop. That aborts whatever else the element had in flight
+  (a concurrent `Control.allAsync` move) and marks it dirty for the next save, both for a row with
+  nothing to restore. The restore is now a no-op when there is no binding to put back and none
+  running. New in 0.32.0, so no released behaviour depended on it.
+
+## [0.32.0]
+
+### _Feature_
+
+- **A displayable can carry a transform that repeats until something stops it** — `element.loop()`
+  and `element.stopLoop()`, on images, texts, layers, puppets and the camera. This is what a
+  breathing sprite, a floating icon, a pulsing glow or a handheld camera needs, and until now there
+  was no way to write one.
+
+  ```ts
+  const breathe = Transform.create()
+      .scaleY(1.015)
+      .commit({ duration: 1900, ease: "easeInOut" });
+
+  scene.action([
+      yuko.loop(breathe, { repeatType: "mirror" }),
+      yuko.say`It's quiet today.`,     // plays while she keeps breathing
+      yuko.stopLoop({ duration: 300 }),
+  ]);
+  ```
+
+  **The line does not wait for a loop**, and that is the only new rule. `transform()` is a step of
+  the story, so the next line waits for it; `loop()` is a property the element carries, so the story
+  moves on and the motion keeps running underneath everything that follows. `stopLoop()` *is*
+  waited for — going back has a duration, even when that duration is zero.
+
+  An element carries **one** transform at a time. Anything else applied to it — `transform()`,
+  `pos()`, `zoom()`, `show()`, `hide()` — ends the loop and takes over from wherever it had got to.
+  What does **not** end it: the player skipping or fast-forwarding, a transition changing the
+  picture, leaving and re-entering a scene, or saving and loading. A loaded save puts the loop back,
+  and undo works in both directions — undoing past a `loop()` ends it, undoing past a `stopLoop()`
+  starts it again.
+
+  The pose the element had when the loop started is what it returns to and the only thing a save
+  records; the frames in between are never written into the element's transform state, so a save
+  taken mid-breath does not freeze a half-scaled sprite.
+
+  `repeatType` (`"loop"` | `"reverse"` | `"mirror"`) and `repeatDelay` are also accepted by
+  `Transform`'s own config now, so a *finite* `transform.repeat(n)` can mirror as well.
+
+  **Saves are compatible in both directions.** A save written before this release simply has no
+  loops; a save written after it is readable by an older build, which ignores the new field.
+
+### _Fix_
+
+- **An endless transform applied with `transform()` now reports itself instead of stopping the
+  game.** `transform.repeat(Infinity)` typechecked, and `motion` honoured it, so the animation never
+  completed — which meant the action never resolved, the stack never advanced, and the element's
+  transform state stayed locked for every later transform on it. Nothing was logged. It now throws
+  a `RuntimeScriptError` naming `element.loop()`, which is the thing that was actually wanted.
+
+- **A displayable whose inputs changed while an animation ran now repaints them.** The settled-style
+  heal held back the transition groups' props — a text's font size, and the stage scale every text
+  is sized by — until no animation owned the element, but those props are written by transitions
+  only, never by a transform. The distinction did not matter while every animation ended; with
+  loops it does, because a looping text would have kept painting the scale it had before the last
+  stage resize.
+
+- **The shipped declarations now typecheck for a consumer that resolves modules the way a bundler
+  does.** Two of them did not, and both were invisible to anyone with `skipLibCheck: true` — which
+  is nearly everyone, and is why they lasted through 0.31.x.
+
+  `PlayerProps.className` was typed as `clsx.ClassValue`, reached through a default import. clsx
+  ships two declaration files: the CommonJS one declares a `clsx` namespace, the ESM one does not.
+  A `node`-resolving consumer takes the first and compiles; a `bundler`-resolving one takes the
+  second and gets `Cannot find namespace 'clsx'` — inside our own declaration file, with nothing
+  they can do about it. The type is now imported by name (`import type { ClassValue } from "clsx"`)
+  and is the same type it always was, so nothing about `className` changes for anyone using it.
+
+  `@types/howler` was a devDependency while `howler` itself is a dependency and
+  `dist/game/player/gameState.d.ts` imports it. That resolves in this repository and nowhere else,
+  so a strict consumer saw `Could not find a declaration file for module 'howler'`. It is a
+  dependency now, which is what a package whose published types reference it has to be.
+
+  `npm run check:dts` now runs once per module resolution mode rather than only under `node`,
+  because that is the difference the first of these turned on. Checking one mode checks half the
+  consumers.
+
+## [0.31.4]
+
+### _Fixed_
+
+- **A `Vfx`'s `blendMode` never reached the stage.** `new Vfx({src, blendMode: "screen"})`
+  composited
+  as `normal`, so an overlay rendered as light on black — sparks, dust, rain, snow — covered the
+  scene with an opaque black rectangle instead of adding its light to it. The mode was declared on
+  the `<video>`, which sits inside a wrapper carrying the overlay's `zIndex`; a positioned element
+  with a numeric z-index is a stacking context, so the blend had that wrapper's own empty backdrop
+  to work against and never saw the scene beneath. The mode is now declared on the wrapper itself,
+  which blends against what is painted below it inside the player's isolated stage context.
+
+  Nothing about the authoring API changes. `blendMode` accepts the same values and `normal` — the
+  default — behaves exactly as before; what changes is that every other value now does what it says.
+
+## [0.31.3]
+
+### _Change_
+
+- **A displayable's `transformState` is `readonly`.** The object was never meant to be swapped after
+  construction, and 0.31.2 fixed the two lifecycle hooks that were doing it. This makes the rule one
+  the compiler holds rather than one the next change has to remember: a mounted host binds a
+  displayable once and keeps animating and repainting the object it captured then, so replacing it
+  leaves the host driving an orphan, and neither object is invalid on its own so nothing reports the
+  split.
+
+  Contents are unaffected. `reset()` and `fromData()` still empty and refill the state through
+  `TransformState.resetTo`, and every prop setter works as before.
+
+  **Nothing outside the engine can be affected by this.** The field is `@internal` and is stripped
+  from the published type declarations, so no consumer ever had it to assign; the guard exists for
+  the next change made inside the engine, where the assignment used to typecheck and the damage was
+  invisible until a real game ran.
+
+## [0.31.2]
+
+### _Fixed_
+
+- **A camera lens effect written after a new game was drawn and then wiped.**
+  `story.camera.vignette(0.72)`
+  (and `shutter`, and the same channels set through `Camera.lens()` or a plain `Camera.transform()`)
+  reached the plates for a frame and then went back to nothing, so a story that dimmed the corners
+  measured `opacity: 0` once it settled. The two strengths were the visible half of a wider defect:
+  every displayable's `reset()` and `fromData()` lifecycle hooks **replaced** the element's
+  `TransformState` object rather than emptying it, and `LiveGame.newGame()` calls `reset()` on every
+  element while the player is already mounted. A mounted host binds a displayable once and keeps
+  both animating and repainting the object it captured, so from that point the animation wrote one
+  object while the settled repaint read another. On the wrapper element the split is invisible —
+  `motion`'s layout projection puts the wrapper's own transform back after the repaint has cleared
+  it, which is why a camera `zoom` in the same row appeared to work — but the lens plates are painted
+  only from the settled state and had nothing to restore them. Both hooks now empty the state in
+  place through the new internal `TransformState.resetTo`, which also releases a lock left over from
+  an interrupted animation; a stale lock would otherwise make the next transform on that element
+  throw. Saves, serialization and the authoring API are unchanged.
+
+## [0.31.1]
+
+### _Deprecated_
+
+- **`blink` and `vignette` from `narraleaf-react/built-in` now carry `@deprecated`.** 0.31.0 said
+  they were superseded but marked nothing, so an editor gave no hint and the note was only findable
+  by reading the release. Both still work and are still exported; the tag names
+  `Camera.shutter()` / `Camera.vignette()` as the replacement and says why — the helpers draw into a
+  scene-level layer, which sits inside the camera transform and is tied to a scene rather than to
+  the story.
+
+### _Fixed_
+
+- **Documentation for `Camera.lens()`.** The 0.31.0 notes did not say that it takes its timing as an
+  options object, `lens(props, {duration, ease})`, where `shutter()` and `vignette()` take
+  positional arguments — nor that the key inside it is `ease`, not `easing`. They also described it
+  as setting only the colour and falloff when it accepts the two strengths as well, and did not
+  mention that both strengths are clamped to `0`–`1` with a non-finite value read as `0`. No code
+  changed; the 0.31.0 entry now says all of it.
+
+## [0.31.0]
+
+### _Add_
+
+- **The camera has a lens: `shutter` and `vignette`.** Two continuous channels on `Camera`,
+  animated like a pan or a zoom and combinable with them.
+
+  ```ts
+  scene.action([
+      story.camera.shutter(1, 180, "easeInOut"),   // eyes close
+      story.camera.shutter(0, 220, "easeInOut"),   // and open — that is a blink
+      story.camera.vignette(0.72, 300),            // the corners darken
+      jS`Everything narrowed to the middle of the room.`,
+      story.camera.vignette(0, 300),
+  ]);
+  ```
+
+  `shutter` is coverage, `0` open and `1` shut: two blades close symmetrically from the top and
+  bottom of the frame and meet in the middle. Because it is a value rather than a routine, it holds
+  — `story.camera.shutter(0.12)` is a cinematic matte for as long as you leave it, and a blink is
+  just the value driven up and back at whatever pace the moment wants.
+
+  `vignette` is strength, `0` to `1`, faded in and out the same way.
+
+  **Why these belong to the camera and not to the scene.** They are things a lens does, not things
+  in the scene, so they are drawn by an overlay pinned to the viewport, *outside* the camera's
+  transform. A vignette therefore holds still while the stage zooms, pans and rotates underneath
+  it. This is also the fix for a real defect: the previous screen-effect helpers drew into a
+  scene-level layer, which sat inside the camera transform, so a vignette scaled and rotated with
+  the camera — reading as a dark shape stuck to the picture rather than as the edge of the view.
+  Their depth is unchanged: the lens covers the scenes, stage transitions, videos and vfx, and
+  still sits below the dialog box, menus and the NVL layer.
+
+  Being state rather than a routine is the other half of it. The channels are saved and restored
+  with the rest of the camera pose, they combine with `zoom`/`pan`/`darken` in one transform, they
+  settle correctly when the player skips, and `resetCamera` clears them.
+
+- **`Camera.lens()` — the colour and falloff the two channels are drawn with.**
+
+  ```ts
+  scene.action([
+      story.camera.lens({vignetteColor: "#1a0b2e", vignetteInner: "20%", vignetteOuter: "95%"}),
+      story.camera.vignette(0.9, 400),
+  ]);
+  ```
+
+  `vignetteInner` is where the darkening begins and `vignetteOuter` where it reaches full strength,
+  both as CSS lengths or percentages of the frame; `shutterColor` and `vignetteColor` are the
+  plates' colours. The defaults — `44%`, `78%`, and black — are the values the old helpers used, so
+  turning a channel up without touching these gives the picture they gave.
+
+  These take effect the next time the strength they belong to is above `0`, so set them as a cut
+  before fading the effect in rather than during it.
+
+  `lens()` also accepts `shutter` and `vignette` themselves, so a single call can set a strength and
+  the geometry it is drawn with; `shutter()` and `vignette()` are the shorthand for the strength
+  alone.
+
+  **Its timing is spelled differently from the other two, and the difference is easy to trip on.**
+  `shutter()` and `vignette()` take positional arguments, `(value, duration?, easing?)`. `lens()`
+  takes the props and then an options object, `lens(props, {duration, ease})` — an object rather
+  than positions because it sets any number of fields at once, and the key inside it is `ease`, not
+  `easing`.
+
+  ```ts
+  story.camera.vignette(0.9, 400, "easeInOut");                 // positional
+  story.camera.lens({vignette: 0.9}, {duration: 400, ease: "easeInOut"});   // equivalent
+  ```
+
+  The same fields are available on a `Transform` via `Transform.lens()`, and to `new Camera({...})`
+  as an initial pose, both typed as `TransformDefinitions.CameraLensProps`. A camera's transform
+  props are now `TransformDefinitions.CameraTransformProps` — everything an image accepts, plus
+  these.
+
+  Both strengths end up inside `0`–`1` whatever you pass, with a non-finite value read as `0`. They
+  land in a CSS `inset()` and an opacity, where an out-of-range number makes the browser drop the
+  whole declaration, so the effect would go inert rather than saturate.
+
+  Where that clamp happens depends on the call. `shutter()` and `vignette()` clamp the value as they
+  take it, so what reaches the transform state is already in range. `lens()` and a raw
+  `Camera.transform()` pass the number through and it is clamped when the plates are drawn: the
+  picture is the same, but the out-of-range value is what the state carries and what a save records.
+
+### _Change_
+
+- **`Camera.resetCamera()` now opens the shutter and lifts the vignette too.** It already returned
+  the pose and dropped the filter; it now neutralises the lens as well, which matters because a
+  closed shutter is otherwise only openable by the line that closed it. The strengths ease back
+  over the duration given, along with the pose. The colour and falloff are cut back to their
+  defaults in a final zero-duration step — after the fade rather than with it, because snapping the
+  falloff radius while the vignette is still visible would show as a jump, whereas once the
+  strength has reached `0` the geometry is inert.
+
+  ```ts
+  scene.action([
+      story.camera.shutter(1, 180),
+      story.camera.resetCamera(600),  // the eyes open again
+  ]);
+  ```
+
+- **Old saves load unchanged.** A camera state written before this release carries no lens keys;
+  they read as neutral, and nothing about the saved format changed.
+
+### _Deprecated_
+
+- **The `narraleaf-react/built-in` screen effects `blink` and `vignette` are superseded.** They
+  still work and are still exported. They were assembled out of public API — a scene-level layer
+  holding full-screen plates — and carry the two problems that entails: they are tied to a scene
+  while the camera is tied to the story, and they render inside the camera transform, so a vignette
+  scales and rotates with it. Prefer `story.camera.shutter()` and `story.camera.vignette()`.
+
+## [0.30.0]
+
+### _Add_
+
+- **`Displayable.bringToFront()` — raise one sprite over the others sharing its layer.** Three
+  characters on stage, and the one talking is the one behind: until now there was nothing to call.
+  Depth between layers has always been `Layer`'s z-index, but *within* a layer the order was fixed
+  at the moment each element was added and never moved again, so the only way to change it was to
+  hide the element and show it again — which loses its transform, restarts whatever transition it
+  was shown with, and reads as a flicker.
+
+  ```ts
+  scene.action([
+      yukoSprite.bringToFront(),
+      yuko.say`It was me, all along.`,
+  ]);
+  ```
+
+  It is available on every `Displayable` — `Image`, `Text` and `Puppet` — and it is a chainable
+  action like any other, so it takes its turn in a `scene.action` list and steps back with the rest
+  of the line on undo. Nothing about the element itself changes: same layer, same transform, same
+  src. The move is instant and has no options; there is no animation of depth to tween.
+
+  Two things worth knowing before reaching for it:
+
+  - It cannot lift an element above one on a *higher layer*. Layers are composited by z-index and
+    that comparison happens first, so an element on the background layer brought to the front of it
+    is still behind everything on the layer above. Use `Layer.setZIndex` for that.
+  - Two `Displayable` subclasses refuse it: `Layer` and `Camera`. Neither is an element inside a
+    layer, so neither has a front to be moved to — see below.
+  - The order it leaves behind is part of the saved game. A save taken afterwards restores the same
+    front-to-back order, which is also why this needed no new save field and why old saves load
+    unchanged.
+
+  There is no `sendToBack`. Repeatedly fronting the elements you want in front, in order, arranges a
+  whole group and is the only ordering primitive at present.
+
+- **`Layer.bringToFront()` and `Camera.bringToFront()` throw instead of quietly doing nothing.**
+  Both are `Displayable`s, so both inherit the method and both appear to offer it — and for both the
+  inherited behaviour would be a no-op. A layer is not an entry in any layer's list; it *is* one of
+  the lists. A camera is not in a list either; it is what the lists are viewed through, and every
+  layer of every scene moves with it as one unit, so there is nothing it could be in front of.
+
+  Each raises a `RuntimeGameError` naming what to reach for instead, and each does so while the
+  story is being built rather than mid-playback, so a script that confuses the two depth models
+  fails at once rather than playing as though the line were not there.
+
+  ```ts
+  layer.setZIndex(10);          // this is how a layer moves forward
+  layer.bringToFront();         // RuntimeGameError
+
+  story.camera.zoom(2, 800);    // this is how the camera changes what is in view
+  story.camera.bringToFront();  // RuntimeGameError
+  ```
+- **`RuleReveal` — transitions driven by a rule image.** A rule image is a greyscale picture that
+  says *when* each point of the frame changes over: dark first, bright last. Paint a spiral and the
+  scene wipes as a spiral; paint a brush stroke and it wipes as a brush stroke. This is the form
+  transition packs are authored in, and the engine now plays any of them.
+
+  ```ts
+  scene.jumpTo(next, new RuleReveal({duration: 1200, rule: "/rules/spiral.png"}));
+
+  // A crisper edge, running from the bright end of the rule instead of the dark.
+  scene.jumpTo(next, new RuleReveal({duration: 900, rule: spiral, feather: 0.03, inverted: true}));
+  ```
+
+  `feather` is the width of the soft edge as a fraction of the rule's tonal range — `0.12` by
+  default, which keeps roughly an eighth of the rule in transition at any moment. `0` is not
+  available on purpose: an infinitely hard edge aliases against whatever resolution the rule was
+  painted at, and the floor is low enough (`0.002`) to read as hard.
+
+  **Why this is its own engine rather than another `Mask` pattern.** `Reveal` takes a `MaskPattern`,
+  which is a CSS gradient — so it can play any shape that can be *described* (a wipe, an iris, a
+  clock hand, slats, dots) and no shape that cannot. A rule image is per-pixel data with no
+  description, so it needs a different mechanism underneath: the sweep is computed by an SVG filter
+  rather than a mask image. Everything above that is the same — same `duration`/`easing`, same
+  behaviour under skip and undo, and it drives a whole-scene change (`Scene.jumpTo`) and a single
+  image alike.
+
+  The rule is stretched to the element it plays on, so paint it at the stage's aspect ratio. Rules
+  are low-frequency by nature and do not need to be large: 960×540 is ample for a 1080p stage, and a
+  smaller rule is a smaller decode.
+
+## [0.29.1]
+
+### _Fix_
+
+- **Resetting the camera no longer walks the picture through colours nobody asked for.**
+  `Camera.resetCamera` returned the pose and cleared the filter in one transform, so the filter was
+  eased along with the pan and the zoom. That is fine for a `brightness()` from `darken`, and wrong
+  for anything carrying a `hue-rotate`: easing
+  `grayscale(1) sepia(1) hue-rotate(185deg) saturate(4) brightness(0.55)` toward `"none"` unwinds the
+  angle through 185 degrees of the colour wheel while `grayscale` simultaneously lets the source's
+  own hues back in, so the midpoint is not a paler grade but a different colour outright. Measured
+  frame by frame coming out of a moonlit grade, the stage went blue, then cyan, then green, then
+  olive before arriving — with skin tones green for most of it.
+
+  The reset now runs as two sequences: the filter is dropped in a zero-duration step, then the pose
+  eases over the duration given. Only the filter is lifted out — position, zoom, scale, rotation and
+  opacity all interpolate perfectly well and still move the way they did.
+
+  ```ts
+  scene.action([
+      story.camera.filter("grayscale(1) sepia(1) hue-rotate(185deg) saturate(4) brightness(0.55)"),
+      jS`Everything looked like it did that night.`,
+      story.camera.resetCamera(600),  // the grade goes at once; the framing still glides back
+  ]);
+  ```
+
+  Worth knowing while authoring: this is a property of CSS filters, not of the camera. A filter
+  interpolates cleanly only between two chains built from the same functions, so any *change* of
+  grade — one `hue-rotate` look swapped for another over a duration — has the same problem, and a
+  grade is best applied as a cut rather than a fade.
+
+## [0.29.0]
+
+### _Fix_
+
+- **A Latin word inside a CJK line is no longer cut in half.** Every horizontal dialogue box was set
+  with `word-break: break-all`, which was there to wrap CJK — and does, but it means what it says.
+  An English word in a Japanese or Chinese line was broken wherever the line ran out, with no hyphen
+  and at no particular place: `NarraLe / af-React`, `E / nglish`, `verylongun / breakableword`.
+
+  Horizontal text is now set the way vertical text always was: `word-break: normal`, which breaks
+  between CJK characters on its own and never needed help with that, and `overflow-wrap: break-word`,
+  so a run that fits nowhere — a URL, a long unspaced word in a narrow box — still breaks rather
+  than overflowing.
+
+- **Both writing modes are typeset to the strict kinsoku rules.** The prohibitions a reader would
+  name first — a line may not begin with 、 。 」 ？ ！, nor end with 「 （ — are applied by the
+  browser whatever `word-break` says, and were being honoured all along. The strict set was not: the
+  small kana and the prolonged sound mark may open a line under the default, so `った` was split
+  after `た` and the next line opened on `っ`. `line-break: strict` is now set on horizontal and
+  vertical text alike, which is what a printed book is set to. Measured over 301 container sizes, っ
+  opened a line in 20 of them set horizontally and a column in 18 set vertically, and none at all
+  afterwards. Tate-chu-yoko is unaffected: a combined `12` measures the same either way.
+
+  This has one prerequisite outside the engine: `line-break: strict` is a no-op unless the document
+  declares a language. Any `lang` will do — `en` is enough, and a shell built by NarraLeaf Studio
+  already carries one — but a host page with no `lang` on it gets the default rules.
+
+  Lines wrap in different places than they did. No story needs editing for this, but a Latin word
+  that used to be split now moves to the next line whole, so a box measured against the old wrapping
+  can come out one line taller.
+
+
+## [0.28.0]
+
+### _Add_
+
+- **`Exposure` — a transition that burns the frame out instead of covering it.** The outgoing frame
+  is driven up in stops until it clips to white, the images change hands inside that white window,
+  and the incoming frame comes back down to a normal exposure.
+
+  This is not a white plate faded over the picture. A plate moves every colour toward white at one
+  rate, so nothing arrives before anything else and no colour changes hue on the way. Exposure
+  multiplies, and each channel clips on its own: the highlights are gone almost at once, a saturated
+  colour passes through a shift as its leading channel tops out — a red goes coral, then cream — and
+  the shadows are the last thing left standing. `ThroughColor` with a white colour remains the plate
+  version; both are worth having.
+
+  ```ts
+  scene.jumpTo(nextScene, new Exposure({duration: 1200, ev: 4.6}));
+  ```
+
+  `ev` is the peak exposure in stops, so the frame is driven to a gain of `2 ** ev`. `hold` holds the
+  blown-out frame for a fraction of the duration, the way it does on `ThroughColor`.
+
+  `lift` is the one option worth reading about before changing it. Gain alone never whitens pure
+  black — multiplying zero leaves zero — so with no lift a night scene finishes its burn as a black
+  silhouette against white. The lift is the flare a real lens adds, mixed in ahead of the gain and
+  ramped in with it, which carries the shadows up too. It defaults to `0.04` and does not touch a
+  frame at rest.
+
+  Like every other built-in, this drives an `<img>` and a whole scene root alike, so it is available
+  to `setBackground`, to a character's portrait, and to `jumpTo`.
+
+  | Option | Type | Default | |
+  | --- | --- | --- | --- |
+  | `duration` | `number` | required | Duration in milliseconds. |
+  | `ev` | `number` | `4.6` | Peak exposure in stops; the frame is driven to a gain of `2 ** ev`. |
+  | `lift` | `number` | `0.04` | Shadow lift (0–1) applied ahead of the gain. |
+  | `hold` | `number` | `0` | Fraction (0–1) of the duration spent fully blown out. |
+  | `easing` | `EasingDefinition` | — | Easing applied across the whole run. |
+
+  Documented at [Exposure](https://narraleaf.com/docs/narraleaf-react/core/animation/transition/exposure).
+
+## [0.27.0]
+
+### _Add_
+
+- **`Word.custom` — a word rendered by a component of yours.** Colour and weight are all a word
+  could ever say about itself. A glossary term that opens its definition where the player tapped it,
+  a name that leads into an in-game encyclopedia, a number that reads out of a variable and glows
+  when it changes — none of that fits in a config object, and until now the only way to reach it was
+  to replace the dialog component wholesale and lose the typewriter with it.
+
+  A custom word is an ordinary text word wearing a component. It is typed out character by
+  character like any other, it reaches the backlog, the read-text record and the voice pipeline as
+  its plain text, and it is never serialised — the renderer is re-attached when the line is
+  evaluated again, so a save carries no trace of it.
+
+  ```tsx
+  function GlossaryTerm({children, revealed, data}: WordRenderProps<{entry: string}>) {
+      const [open, setOpen] = useState(false);
+      useSuspendAdvance(open);
+
+      return (
+          <span className="underline decoration-dotted"
+                onClick={() => revealed && setOpen(value => !value)}>
+              {children}
+              {open && <span className="absolute">{glossary[data.entry]}</span>}
+          </span>
+      );
+  }
+
+  character.say([
+      "今天的",
+      Word.custom("以太浓度", GlossaryTerm, {data: {entry: "aether"}}),
+      "高得反常。",
+  ]);
+  ```
+
+  The renderer is given the word's text as `children` **already laid out** — ruby, vertical writing
+  mode and tate-chu-yoko applied — so rendering `{children}` keeps all three without knowing they
+  exist. Rendering `text` instead silently drops them. Alongside it come `text` (what has been
+  revealed so far), `fullText`, `revealed`, `done` (whether the whole line has finished), the
+  resolved `style`, the word's `config`, and the `data` payload.
+
+  It renders *inside* the element the engine styles, so the style chain — engine defaults, then the
+  dialog's text props, then the sentence, then the word — already applies to it, and anything the
+  renderer sets wins by being last. `Word.custom` composes with the other factories in either
+  direction: `Word.bold(Word.custom(...))` and `Word.custom(Word.color(...), Term)` both keep
+  everything.
+
+  Clicks behave the way a player would expect without the renderer doing anything about it. While
+  the word is still being typed, clicking it advances the line as clicking anywhere else does. Once
+  revealed, the word takes its own clicks and the line does not advance behind it.
+
+  A custom word carrying a line break is drawn as one wrapper per line, since the break sits
+  between them and belongs to neither; only the last of them reports `revealed`. Keep line breaks
+  in the words around it, not inside it.
+
+  The overlay described below is a feature of the ADV dialog box. In NVL mode a custom word renders
+  and behaves the same, but `useDialogOverlay` has nowhere to draw and reports no container, so a
+  popup there has to render inline.
+
+- **`registerWordRenderer` — name a renderer that a word can ask for by id.** A word built in code
+  can hold a component. A word that arrives as data — compiled from a story file, contributed by a
+  plugin — can only hold a name, so `render` accepts a string as well and resolves it at render
+  time. An id nothing answers to renders as plain text and reports itself once, rather than taking
+  the scene down with it.
+
+  ```tsx
+  registerWordRenderer("glossary", GlossaryTerm);
+  new Word("以太浓度", {render: "glossary", data: {entry: "aether"}});
+  ```
+
+  `unregisterWordRenderer` and `getWordRenderer` are exported alongside it; registering an id again
+  replaces it, and lines already on screen pick the new component up on their next render.
+
+- **`useSuspendAdvance` — hold the line while something of yours is open.** A popup drawn over a
+  line has to stop the line advancing underneath it, or the space bar meant to dismiss the popup
+  skips to the next line instead. Pass `true` while it is open and the stage click, the advance key
+  and the skip key all stop reaching the dialog; the hold is released on `false` and on unmount, so
+  a popup that disappears cannot leave the game stuck. Several holds may be out at once and the
+  line resumes when the last is released. `GameState.suspendAdvance()` is the same thing outside
+  React, returning the release as a function.
+
+- **`useDialogOverlay` — somewhere to draw what belongs to a line but does not fit inside it.** An
+  inline popup rendered where its word sits is clipped by the text box, and one portalled to
+  `document.body` leaves the stage's scale behind and is drawn at a size that no longer matches the
+  line it explains. The overlay covers the dialog, inside that same scale, and paints above it.
+
+  ```tsx
+  const overlay = useDialogOverlay();
+  const rect = overlay.measure(anchorRef.current);
+
+  return rect && (
+      <overlay.Portal>
+          <div style={{position: "absolute", left: rect.left, top: rect.top, pointerEvents: "auto"}}>
+              {definition}
+          </div>
+      </overlay.Portal>
+  );
+  ```
+
+  `measure` reports an element's position in the overlay's own coordinates — the dialog at its
+  authored size, before the stage scales it — so the result can go straight to `left`/`top` without
+  the popup ever knowing what the stage scale is. The overlay lets clicks through everywhere its
+  children do not paint; give the popup itself `pointer-events: auto`.
+
+### _Change_
+
+- **A scene transition is played across the stage, not across the background.** `Scene.jumpTo`
+  used to hand its transition to the outgoing scene's background image and swap that image's
+  source for the incoming scene's. Only the background ever moved: sprites, text and every other
+  layer of the scene being left simply vanished at the end of it, and a `Reveal` or a `Push`
+  uncovered a background with nothing standing in front of it.
+
+  The two scenes are both on screen for the length of a jump, so the transition now drives them
+  as wholes — the outgoing scene plays the transition's outgoing half, the incoming scene its
+  incoming half. Nothing about how a transition is written changes, and the same transitions are
+  used for both kinds of swap:
+
+  ```typescript
+  scene.jumpTo(nextScene, new Reveal({duration: 800, pattern: Mask.iris()}));   // the whole stage
+  scene.setBackground("bg/night.png", new Dissolve({duration: 400}));           // the background
+  ```
+
+  Three things follow from it:
+
+  - **A transition's geometry is the stage, not the background image.** A `Push` travels the width
+    of the stage and a `Mask` is laid over the stage rectangle. With a background that fills the
+    stage — the usual case — this is what it already looked like; a background deliberately
+    smaller than the stage will now be swept along with everything else rather than being the
+    thing swept.
+  - **The dialogue box takes no part in it.** It is rendered outside the stage, and it keeps the
+    behaviour it has always had: it is simply gone once the scene ends.
+  - **Videos and vfx keep their place above the scenes for the whole jump.** They belong to no
+    scene and so take no part in a swap between two of them: a vignette or a blink left running
+    across a scene change stays visible over both halves. The one exception is a transition whose
+    own effect is a full-screen hold — `ThroughColor`'s colour plate — which covers everything the
+    camera holds, since a plate the stage paints over is not a plate.
+
+  `JumpConfig.transition` is widened from `ImageTransition` to `Transition`; every built-in
+  transition satisfies both, so existing calls are unaffected.
+
+- **`allowSkipSceneTransition` replaces `allowSkipBackgroundTransition`.** The old flag was never
+  read by anything — a background transition was skipped under `allowSkipImageTransition` like any
+  other image. The new one governs the stage transition a jump plays, and defaults to `true`,
+  which is what a jump did before. The old name is gone rather than deprecated, so a config that
+  set it stops compiling until it is renamed — which is the point, since what it set was never
+  read.
+
+## [0.26.0]
+
+### _Add_
+
+- **Stepping back and stepping forward, as one thing: `LiveGame.undo` and `LiveGame.redo`.** The
+  backlog is a timeline with a play head on it. Everything up to the head is what `getHistory()` has
+  always returned; everything past it — after stepping back — is a future the player has already
+  read, returned by the new `getFuture()`. `undo()` moves the head back
+  a line, `redo()` moves it forward, `restoreToHistory(token)` moves it to a named line in either
+  direction, and `canUndo()` / `canRedo()` say whether there is anywhere to go.
+
+  All four are one mechanism with two ways of carrying it out. Stepping back to a line this session
+  actually played unwinds it in place, running the undo each action registered as it ran: the music
+  keeps playing, running transitions are left alone, and the stage is not rebuilt. Every line also
+  records a self-contained snapshot as it is reached, and that is what a move restores when the live
+  stack cannot reach the line — after a save has been loaded, or further back than the stack's cap.
+  Both land in the same state; in debug builds the engine checks that they do and reports it if an
+  action's undo turns out not to reverse it.
+
+  ```typescript
+  const liveGame = game.getLiveGame();
+
+  liveGame.undo();                       // back a line
+  liveGame.redo();                       // forward again
+  liveGame.canRedo();                    // is there anything ahead?
+  liveGame.getFuture();                  // the lines ahead, if any
+  liveGame.restoreToHistory(token);      // straight to a line, from getHistory() or getFuture()
+  ```
+
+  Three things follow from it, and they are the point of the change:
+
+  - **Stepping back works after loading a save.** `undo` used to walk a stack of closures and
+    nothing else. Closures cannot be written to a file, so loading a save left the player with a
+    backlog they could not step back into — the button was there and did nothing. That stack is
+    still the preferred route while it can reach the line, precisely because it steps back without
+    disturbing anything; the snapshot takes over where it stops, so the boundary is no longer there.
+  - **Reading forward again keeps what is ahead.** Stepping back three lines and reading forward
+    retraces those lines rather than overwriting them, so the rest of what had been read is still
+    ahead. The future is dropped only when the story goes somewhere else — the other side of a
+    choice — because that future no longer follows from where the story is.
+  - **Saving in the past saves the past.** A save written after stepping back carries the backlog up
+    to that line and nothing beyond it. Loading it opens there with nothing to step forward into,
+    which is what saving in the past means.
+
+  `undo()` no longer takes an action id; a line is named by its token through `restoreToHistory`.
+  Both return `false` rather than throwing when there is nowhere to move. `getHistory()` no longer
+  includes lines ahead of the play head — ask `getFuture()` for those. The internal
+  `GameHistoryManager.serializeUntil` is gone, its job now done by serializing up to the play head.
+
+- **Vertical text.** `Texts` (and `TextsPreview`) take `writingMode`, `textOrientation`, and
+  `tateChuYoko`, so a dialogue box can be set the way a Japanese novel is: glyphs upright in a
+  column that reads top to bottom, the next column to the left.
+
+  ```tsx
+  <Texts writingMode="vertical-rl" tateChuYoko={2} />
+  ```
+
+  The two settings that are not just CSS on the container are about text that is not Japanese, and
+  both are handled per word as the typewriter reveals it:
+
+  - **A Latin word stays whole.** The renderer sets each word `word-break: break-all` so that CJK
+    wraps anywhere, which in a vertical column splits "Prologue" across two columns one sideways
+    glyph at a time. Vertical text uses `word-break: normal` instead, which still breaks between
+    CJK characters.
+  - **Short runs stand up.** `tateChuYoko` wraps a run of up to N Latin characters or digits in
+    `text-combine-upright: all`, so a two-digit number reads across the column instead of lying on
+    its side (縦中横). `true` uses two characters, `false` turns it off.
+
+  Both follow the conventions Japanese text layout is specified by. JLREQ 2.3.2 lists three
+  orientations for Latin inside vertical text and gives rotation as the one for English words and
+  sentences, tate-chu-yoko as the one for two-digit numbers; JIS X 4051 4.8 puts tate-chu-yoko at a
+  two-digit numeral or a two-to-three letter combination. Hence the default of two, and hence a
+  longer word rotating whole rather than being cut down to fit.
+
+  **Ruby is left to the browser in vertical text and has not been tuned for it.** A word with a
+  `ruby` reading renders beside its base characters in the right reading order, but the markup this
+  renderer emits - an `inline-block` `ruby` with a block `rt` - sets the reading looser against its
+  base than print does.
+
+  `writingMode` defaults to `horizontal-tb`, where all three settings are inert: text that does not
+  ask for a vertical box renders exactly as before, down to the same single text node per word.
+
+  The three unions - `TextWritingMode`, `TextGlyphOrientation`, `TateChuYoko` - are exported
+  alongside `TextAppearanceProps`, so an application can hold one of these values in its own
+  settings object or pass it down through its own props without restating the union.
+
+### _Change_
+
+- **A save carries the elements that differ from the script, not the whole cast (save format
+  v3).** A
+  story reaches every element of every scene it can jump to, and `elementStates` listed all of them —
+  so a project's entire cast was written into every save, and into every per-line history snapshot
+  besides. The cost grew with the size of the project rather than with what was on stage. Played in a
+  browser, an eight-scene story of 156 elements now writes 2 of them into a save and 3 into each
+  backlog snapshot, and the same save comes to 42 KB where the old serializer would have written
+  about 1 MB.
+
+  What differs at any moment is small, because leaving a scene already returns everything that scene
+  put on stage to its authored state. A save now lists only the elements whose state no longer
+  matches what the script wrote, and loading resets every element before applying the save — so an
+  element the save does not name is restored by being reset, rather than left holding whatever the
+  running session had put in it. That last part fixes a case that predates this: loading a save
+  written before an element existed used to leave that element untouched, which after a `setName`
+  meant the renamed character survived the load.
+
+  For an application that saves and loads through `LiveGame`, nothing changes but the size of the
+  file. Two things are worth knowing:
+
+  - **Older engines cannot read a v3 save correctly.** They apply the entries and skip the reset, so
+    elements the save leaves out keep whatever the session had. Saves written by 0.25.0 and earlier
+    load unchanged here.
+  - **Element state written from outside the engine's action dispatch is not seen.** An element is
+    considered for the save when an action runs against it, which covers everything a story does. A
+    host that writes element state directly — an editor moving a sprite — should call the new
+    `element.markDirty()`, or the write is skipped and loading brings back what the script wrote.
+    `DevTools.setDisplayableTransformProps` now does this for you. In debug builds
+    (`app.debug: true`) the engine periodically walks every element and warns, naming any whose state
+    has drifted with nothing marking it, and marks them so the next save carries them.
+
+### _Fix_
+
+- **Clicking the stage advances the dialogue.** A click was recognised the whole way through — the
+  stage click announcer accepted it and emitted `event:state.player.stageClick` — and then nothing
+  moved, because the ADV dialog listened only to the skip key. NVL dialogs have always listened to
+  both. So a game whose players click to read, rather than pressing a key, did not advance at all.
+  A click now does what one press of the skip key does: it completes the line being typed, and
+  advances a line that has finished. Holding the skip key still forces, and a click never does — a
+  player who clicks has asked for one line, not for the rest of the scene.
+
+- **A backlog token still names its line after a load or a rewind.** `LiveGame.restoreToHistory`
+  takes a token from `getHistory()`, and both loading a save and restoring a line rebuild the backlog
+  — which minted fresh tokens for every entry. Every token a caller was holding went stale at that
+  moment, silently: a backlog UI's buttons stopped working until it re-read the list, and restoring
+  to the same line twice failed the second time, because the token that had just worked no longer
+  existed. Tokens are now written into the save and kept when it is read back. Saves written before
+  this carry none, and their entries are given fresh tokens as before.
+
+- **`Camera.reset` is now `Camera.resetCamera`, and a new game no longer inherits the last
+  playthrough's framing.** Every element carries an internal `reset()` — the hook the engine runs
+  over the cast when a new game starts or a save loads, returning each element to the state its
+  constructor config describes. `Camera` spent that name on an authoring helper instead: the
+  chainable "return to the neutral pose" transform. So when `LiveGame.newGame()` ran its reset pass,
+  a camera got the helper, which builds a transform action nobody executes, and `transformState` was
+  never restored. A story that panned or zoomed anywhere kept that framing into the next
+  playthrough. A save written afterwards carried the pose correctly, so the symptom appeared only on
+  New Game.
+
+  The authoring helper keeps its behaviour under the new name:
+
+  ```typescript
+  scene.action([
+      story.camera.zoom(2, 800),
+      story.camera.resetCamera(600),   // was: story.camera.reset(600)
+  ]);
+  ```
+
+  **Rename any `camera.reset(...)` in your script.** Calling `reset()` on a camera now reaches the
+  lifecycle hook: it restores the configured pose at once, animates nothing, and returns the camera
+  rather than a chainable action.
+
+- **A layer no longer carries its pose out of the scene that declared it.** `Layer` is mutable at
+  runtime — `transform`, `setZIndex` — and serialises both, but it never implemented `reset()`, so
+  it inherited the empty default. A layer slid aside or faded out stayed that way for every scene
+  that followed, and survived `newGame()` as well. `Layer.reset()` now restores the configured
+  z-index and pose, and leaving a scene resets the layers that scene put on stage, not only the
+  displayables standing on them. The story camera is deliberately exempt: a story owns exactly one
+  and it frames the stage across scene changes.
+
+- **A character's name is saved.** `Character.setName` rewrites a character's name mid-scene — how a
+  story shows an unfamiliar speaker as "???" and names them at the reveal — but `Character` never
+  implemented `toData()`, and `Story.getAllElementStates` drops any element whose data is empty. So
+  no save ever recorded a name change: a player who saved after the reveal came back to "???", in
+  the dialog box and in the backlog alike. Characters now serialise their state like every other
+  element, and `reset()` hands back the authored name rather than whatever the last playthrough
+  left behind.
+
+  Saves written by earlier versions carry no character entry and still load, leaving the authored
+  name in place. Because characters now occupy save entries, and a generated element id describes a
+  position in the action tree rather than an identity, an application that restores saves should
+  name its cast through
+  [`DevTools.setElementStaticId`](https://narraleaf.com/docs/narraleaf-react/core/elements/built-in/dev-tools#setelementstaticid),
+  the way 0.25.0 describes for displayables.
+
+## [0.25.0]
+
+### _Add_
+
+- **`DevTools.setElementStaticId` — name an element yourself, and keep that name.** Elements
+  reachable from a scene's action tree are named `e-0`, `e-1`, ... by their position in a
+  breadth-first walk at story construction. A position describes where an element sat, not which
+  element it is: add a line ahead of one and its name moves to a different element. A save restoring
+  `elementStates` by that name then applies one element's state to another — a layer's pose onto a
+  background image — and reports nothing, because the name it asks for still exists.
+
+  Name the elements you build and construction keeps those names instead:
+
+  ```typescript
+  const classroom = new Image({src: "bg/classroom.png"});
+  const yuko = new Character("Yuko");
+
+  DevTools.setElementStaticId(classroom, "bg:classroom");
+  DevTools.setElementStaticId(yuko, "character:yuko");
+
+  // Construction now assigns "bg:classroom" and "character:yuko" rather than e-3 and e-4,
+  // and a save written today still resolves both after the script is edited.
+  ```
+
+  This differs from [`setElementId`](https://narraleaf.com/docs/narraleaf-react/core/elements/built-in/dev-tools#setelementid),
+  which is overwritten at construction for anything the action tree reaches. Pass `null` to drop a
+  name and fall back to the generated one.
+
+  Nothing changes for an application that names no elements: generated ids are still assigned, in
+  the same order, to everything unnamed.
+
+## [0.24.1]
+
+### _Fix_
+
+- **A scene hands out the same `Sound` for the same voice clip.** `Scene.getVoice` built a new
+  `Sound` on every call for a map entry given as a URL string, and `AudioManager` keys a playing
+  clip by the instance — so asking "is this line's voice still playing?" produced an object the
+  manager had never seen and the answer came back `null` against a clip that was audibly playing.
+  Two things depended on that answer and therefore quietly did nothing: **the 0.24.0 auto-forward
+  wait**, which only ever waited for takes given as pre-built `Sound`s (per-character buses) and
+  never for the ordinary URL case; and `useVoiceState`'s token, so a custom UI could not tell that
+  the automatic voice was still going. Replaying a line also layered a second copy over the first
+  instead of restarting it. The cache is keyed by resolved src, not by id, so switching dub language
+  still yields a different `Sound` for the same id.
+
+- **"Let it play on" no longer stacks voices.** `voiceEndMode: "none"` leaves a clip running past
+  the
+  end of its own sentence, which is the point — but nothing cut it when the *next* voiced line
+  started, so advancing through voiced dialogue layered every clip over the last and a player
+  clicking quickly could have three or four actors talking at once. A new voice now stops the one
+  still trailing. An unvoiced line still passes over a trailing clip without touching it, which is
+  the behaviour the mode exists for.
+
+## [0.24.0]
+
+### _Fix_
+
+- **Auto mode no longer talks over the cast.** `autoForwardDelay` was counted from the moment the
+  text finished typing, and typing finishing has nothing to do with the voice finishing — so on
+  every line whose clip outran the delay, auto mode advanced mid-sentence. It now waits for the
+  line's voice to end and *then* applies the delay, which is what the delay was always meant to be:
+  a pause after the line rather than a race against it. A line with no voice, or one whose clip has
+  already ended, schedules exactly as before, so an unvoiced game sees no change at all. Turning
+  auto off, advancing by hand, or leaving the dialog while a clip is still playing all drop the
+  wait, so a dialog the player has left never advances later.
+
+### _Feature_
+
+- **A backlog entry now carries the line's `voiceId`.** `GameElementHistory` for a `say` entry
+  already reported `voice`, but that is a resolved clip URL, and a host addresses audio by id — so
+  a backlog replay button could not be built from what the entry gave you. The entry now also
+  carries the `voiceId` the line was filed under:
+
+  ```ts
+  for (const entry of liveGame.getHistory()) {
+      if (entry.element.type === "say" && entry.element.voiceId) {
+          // hand the id back to whatever owns your voice table
+          replay(entry.element.voiceId);
+      }
+  }
+  ```
+
+  Optional, and `null` on a line voiced through the inline `config.voice` rather than the scene's
+  voice map. Entries recorded before this version simply do not have it, so an old save loads
+  unchanged.
+
+## [0.23.1]
+
+### _Fix_
+
+- **A player's volume no longer comes back at full after a restart, on the three seeded buses.**
+  `setupGroupVolume()` read the three volume preferences and *wrote* them into the buses at init and
+  at reset. They default to 1, so anything already there lost — a volume a host had just restored
+  most of all. Buses the author declared were never affected, because nothing copies into them, so
+  the failure was invisible except on `bgm`, `sound` and `voice`: exactly the three every existing
+  game uses. Patching the copy to run earlier or skip conditionally would have kept two stores for
+  one number, so the copy is gone.
+
+  **`bgmVolume`, `soundVolume` and `voiceVolume` no longer *drive* the seeded buses — they ARE the
+  player's half of them.** Reading either surface reads one number: `game.audioBuses.getVolume("voice")`
+  and `game.preference.getPreference("voiceVolume")` cannot disagree, and writing either one drives
+  the audio graph immediately, whether or not a player is mounted. Nothing is copied at init, so
+  there is no ordering rule: a host may restore volumes at any point after `new Game(...)`, on
+  seeded and declared buses alike. A settings UI that writes `voiceVolume` today is unaffected and
+  gets two things it did not have — its slider reflects a volume restored through the mixer or
+  loaded from a save instead of sitting at 1, and a write made while the player is unmounted is no
+  longer dropped. On a fresh install these still read `1`, meaning "no further attenuation"; the
+  author's declared mix is a separate number underneath and is never reported here.
+
+- **A voice may live anywhere under `voice`, and background music anywhere under `bgm`.** `Scene`'s
+  two checks were equality tests that threw, so a voice on a per-character bus failed story compile
+  before a sample was ever loaded. They are descendant checks now. A bus id the engine has not been
+  told about is accepted, because scenes are routinely constructed before the host constructs its
+  `Game` — a misspelled bus is caught at play time instead, where the manager warns once and routes
+  the clip to the sfx bus rather than going silent.
+
+### _Fix_
+
+- **Two `Game`s no longer share one settings object.** `Preference` kept the defaults object it was
+  handed and wrote straight into it, and `Game` hands it the module-level `Game.DefaultPreference` —
+  so every `Game` in the process shared one settings object, a second game started at the first
+  player's volume, and moving a slider permanently rewrote the framework's own defaults for the rest
+  of the process. `Preference` now copies what it is given.
+
+- **A volume slider no longer zippers.** A bus volume was written as a bare `gain.value` assignment,
+  so dragging a slider arrived as a staircase of discontinuities. Bus volume changes are now ramped
+  over ~20ms, with the exact target pinned afterwards so a long drag accumulates no drift.
+
+- **The channel budget can no longer be reached by a large cast.** The audio backend caps channels
+  at 128 including the master and throws outright at the cap; the engine now asks for a ceiling a
+  bus-per-character game cannot walk into.
+
+## [0.23.0]
+
+### _Feature_
+
+- **Audio is a mixer now, not three fixed channels.** `GameConfig.audioBuses` lets the host declare
+  a tree of buses at boot — `{id, parentId, volume}` — and the engine realizes it into the audio
+  graph, so a bus's gain cascades onto everything beneath it:
+
+  ```ts
+  new Game({
+      audioBuses: [
+          {id: "cast", parentId: "voice"},
+          {id: "alice", parentId: "cast", volume: 0.8},
+      ],
+  });
+  Sound.voice({src: "alice-01.mp3", type: "alice"});
+  ```
+
+  This is what per-character voice volume needs and what the engine could not express: a player can
+  turn one character down or off without touching the rest of the cast. `bgm`, `sound` and `voice`
+  are seeded whether or not they are declared, so a game that says nothing behaves exactly as
+  before, and every save ever written still restores — those three ids are still those three buses.
+
+- **`Sound.config.type` accepts any declared bus id.** `SoundType` is unchanged and still exported,
+  and its three values still mean what they meant; the type is now `SoundBusId`, which is
+  `SoundType | (string & {})` so the built-ins still autocomplete. `Sound.voice()`, `Sound.bgm()`
+  and `Sound.sound()` now *default* `type` rather than overwriting it, so
+  `Sound.voice({src, type: "alice"})` puts the line on `alice` instead of silently ignoring it.
+
+- **Per-bus volume, live, through `game.audioBuses`.** `setVolume(id, volume)`, `getVolume(id)`,
+  `getDeclaredVolume(id)`, `getEffectiveVolume(id)`, `setVolumes(map)`, `getVolumes()`, `list()` and
+  `onVolumeChange(listener)`. Changing a bus applies to sounds that are **already playing** — a bus
+  is a gain node the clip is routed through, so nothing is stopped, found or restarted. The mixer
+  lives on `Game`, not on the audio manager, so a host can restore its saved volumes at any point
+  after `new Game(...)`, before the audio context has unlocked or the player has mounted; values set
+  early are applied when the channels exist.
+
+  **A bus carries two numbers, and they do not overwrite each other.** `AudioBusDeclaration.volume`
+  is the *author's* mix position — where a bus sits relative to the others in the game as shipped.
+  `mixer.setVolume`/`getVolume` is the *player's* control, which starts at 1 and means "leave the
+  author's mix alone". What reaches the gain node is the product (`getEffectiveVolume`). So a game
+  declaring `{id: "sound", volume: 0.6}` plays SFX at 0.6 for a player who has touched nothing, and
+  a player who drags the SFX slider to maximum gets 0.6 back rather than a bus at full gain. Persist
+  `getVolumes()` — the player's half only; the author's mix is game content and returns with the
+  game, so re-mixing a shipped title still reaches players who already have settings saved. One gain
+  node per bus either way: two gain stages in series compute exactly what one multiplication does.
+
+  `bgmVolume`, `soundVolume` and `voiceVolume` continue to govern the three seeded buses.
+
+## [0.22.0]
+
+### _Feature_
+
+- **A looping clip can repeat from somewhere other than where it started.** `ISoundUserConfig` gains
+  `loopStart` — the point each repeat returns to, as opposed to `seek`, which stays the point the
+  *first* pass begins at:
+
+  ```ts
+  Sound.bgm({src: "theme.mp3", loop: true, seek: 0, loopStart: 12, endTime: 90});
+  ```
+
+  That is the standard shape of background music with an intro: play the opening once from the top,
+  then repeat only the body forever. Until now `seek` had to be both things at once, so the intro
+  could only be had by giving it up on every later pass. Omitting `loopStart` keeps the old
+  behaviour exactly — each repeat returns to `seek`. A value outside `[seek, endTime)` describes no
+  playable region and falls back to `seek` rather than producing a silent zero-length loop.
+
+- **A bgm-typed sound can be played with `Sound.play()`.** It used to throw `StaticScriptWarning`,
+  which failed the whole story at chain-build time rather than the one line responsible. The guard
+  was protecting nothing: `SoundType` selects which volume slider governs a clip and does not do
+  anything else anywhere in the engine, `LiveGame.playSound` has always played bgm-typed clips
+  through the very same manager path with no check, and a scene's background music is a separate
+  reference that `play()` cannot reach or disturb. Meanwhile the combination it forbade is one
+  authors legitimately want — an ambience track on the music bus, so the player's music slider
+  governs it, played from an ordinary line. It is now a `console.warn` that names the one real
+  difference: a clip played this way is not in the scene's background-music slot, so leaving the
+  scene will not stop it and nothing cross-fades it. Clips on the other two buses say nothing.
+  (`Scene`'s own check — that its configured `backgroundMusic` *is* a bgm — is unchanged.)
+
+### _Fix_
+
+- **A loop region actually loops.** `Sound.bgm({loop: true, seek, endTime})` shipped in 0.21.0 and
+  has never repeated: it played its region once and then stopped dead, which sounds like a truncated
+  asset. The audio backend turns `endTime` into a timer that stops the token after one pass, and it
+  arms that timer without ever consulting `loop` — so the very option that was supposed to make the
+  clip repeat was also what killed it. The engine now withholds `endTime` from a looping clip's play
+  options and sets the region on the Web Audio node itself, which is where the sample-accurate
+  repeat was always going to come from. A one-shot with an `endTime` is unchanged: there the
+  backend's timer *is* the out point.
+
+- **`Scene.setBackgroundMusic` cross-fades instead of leaving a gap.** It is documented as a
+  cross-fade and its `fade` argument is documented as the duration of one, but the outgoing track
+  was faded all the way out *before* the incoming one was started — so the two never overlapped, and
+  the longer the fade an author asked for, the longer the silence between two pieces of music that
+  were supposed to blend. The incoming track now starts while the outgoing one is still fading. The
+  call still settles only once the outgoing track is gone, so a scene's init sequencing is
+  unchanged, and setting the same clip again still restarts it rather than layering it over itself.
+
+- **A sound's configured volume is no longer discarded when it is played.** `LiveGame.playSound` and
+  a dialog line's voice both start a clip without saying anything about volume, and "nothing said"
+  was being read as *full volume* rather than as the clip's own — so `Sound.voice({src, volume: 0.4})`
+  played at 1 through either path, and a `volume` an author (or a host's UI) set on a sound they then
+  handed to `playSound` did nothing at all. The default target is now the sound's own volume, which
+  is the same value `Sound.play()` and `Sound.resume()` have always put in their fade options; a
+  clip replayed after `setVolume` therefore comes back at the volume it was last set to instead of
+  jumping to full. Callers that pass an explicit target are unaffected — `Scene.setBackgroundMusic`
+  and the `sound:play` action already did. `playSound` still starts with no fade and leaves no gain
+  ramp running when it resolves, so a `setVolume` or a fade driven on the returned token afterwards
+  is still the last writer and still wins.
+
+## [0.21.1]
+
+### _Fix_
+
+- **A save no longer refuses to load over one sound it cannot place.** `AudioManager.fromData` threw
+  when a saved sound's id was not in the story's element map, which failed the *entire* load. Two
+  ordinary situations reach it: a host that played a UI sound through `LiveGame.playSound` (that sound
+  belongs to the host, not the story, so it is not in the map — and it has no business resuming out of
+  a save anyway), and a save written before the story dropped a sound it used to have. Both now log a
+  warning and skip that one clip, which is the outcome a player would have chosen.
+
+## [0.21.0]
+
+### _Feature_
+
+- **A sound can name its in and out points, and loop between them.** `ISoundUserConfig.seek` has
+  always been the position playback starts at; it now has a counterpart:
+
+  ```ts
+  Sound.bgm({src: "theme.mp3", loop: true, seek: 4.2, endTime: 92.5});
+  ```
+
+  Without `loop` the clip stops at `endTime`. With it, the clip returns to `seek` — which is what
+  background music with an intro actually needs: play the intro once, then loop the body forever.
+  The repeat is the Web Audio node's own loop region, so it is sample-accurate: no gap at the seam,
+  and no drift over a session that runs for hours. This is not something a caller could assemble out
+  of the existing surface — the backend has supported loop regions all along, and the engine was
+  dropping the second half of the pair on the way to it.
+
+  A region whose end is not after its start describes nothing playable, so it is ignored rather than
+  played (an inverted pair would otherwise stop the clip the instant it started, which reads as a
+  broken asset). A streamed clip has no loop region — only a plain repeat — but the engine decodes
+  before playing, so this affects nothing today.
+
+  Restoring a save is where the anchor matters: the position stored in the save is where playback
+  resumes, but the loop still returns to the in point, not to wherever the player happened to save.
+
+- **`Sound.seek(seconds)`.** The play head was the one thing about a playing sound that could be
+  read (`getPosition`) but not written, so a music-player screen or a "skip the intro" line had no
+  way to ask for it. It is a no-op on a sound that is not playing, and it preserves the loop region,
+  so seeking inside a looping track does not quietly turn it into a one-shot. Undo restores the
+  position the head was at, which nothing else could do — the play head is not part of the
+  serialized state.
+
+### _Fix_
+
+- **A sound's configured `rate` reaches playback.** `new Sound({src, rate: 1.5})` type-checked,
+  stored the rate in state, and then played at 1× anyway: the playback rate handed to the backend was
+  the literal `1`. `setRate()` after the fact worked, which is why this survived — the only broken
+  path was the one that asks for a rate up front. Save restore had the same bug, so a game saved
+  while a sound was slowed resumed it at normal speed.
+
+- **A scene configured with non-looping background music no longer stalls on its first frame.**
+  `ISceneUserConfig.backgroundMusic` is played by the scene's own init, which awaits it — and the
+  await went through the code path that resolves when the track *finishes* rather than when it
+  starts. A looping track never finishes, so the common case worked and hid this: configure a scene
+  with a one-shot piece of music and the scene sat on its opening frame until the music ran out.
+  Playback now starts and the scene proceeds, with the fade-in under way. A track that fails to load
+  is treated as no music instead of stranding the scene forever.
+
+## [0.20.1]
+
+### _Fix_
+
+- **A `Text`'s constructor config reaches it.** `ITextUserConfig extends TextTransformProps`, so
+  this
+  has always type-checked:
+
+  ```ts
+  const title = new Text("Chapter One", {opacity: 0, scaleX: 2, rotation: 90});
+  ```
+
+  None of the three arrived. `ConfigConstructor.create` copies only the keys its own defaults declare,
+  and `Text.DefaultUserConfig` declared `alignX`, `alignY`, `className`, `fontSize`, `fontColor` and
+  `text` — no transform props at all. The values went nowhere, silently, and the text was drawn at the
+  defaults. `Image` has always spread `TransformState.DefaultTransformState.getDefaultConfig()` into
+  its own user config; `Text` now does the same, with the same `position` parser, so a position given
+  to a `Text` lands exactly as it does on an `Image`.
+
+  This is not only about the first frame. Constructor config is the state that survives `reset()`, so
+  it is what a saved game restores to and what an editor host relies on when it pre-poses a stage — a
+  `Text` built with an opacity was losing it on every load, not just at construction.
+
+- **Importing a displayable's module on its own no longer throws.** `Layer`, `Camera`, `Image`,
+  `Text`, `Puppet` and `Scene` each built a `static` config while their module was still evaluating,
+  and every one of those reads `TransformState` from another module — `Scene` went further and
+  *constructed* two `Layer`s. `scene.ts` imports all of them and `text.ts` imports `scene.ts`, so the
+  cycle could reach an initialiser before `transform/transform` had assigned its exports:
+
+  ```
+  TypeError: Cannot read properties of undefined (reading 'DefaultTransformState')
+  ```
+
+  thrown from a stack naming neither module and nothing the caller wrote. Each default is now built on
+  first use, which settles the question rather than depending on the order. Call sites are unchanged —
+  `X.DefaultUserConfig` is a getter that memoises. A published bundle always had its order fixed at
+  build time, so this was only ever reachable from source; it made a single-import test file
+  impossible to write, which is why the `Text` defect above went unnoticed for so long.
+
+## [0.20.0]
+
+### _Feature_
+
+- **`Puppet`: a displayable the engine draws none of.** Animated character runtimes — Live2D, Spine,
+  or something written in-house — are licensed and distributed on their own terms, so this library
+  cannot bundle one. And a `<canvas>` dropped over the stage by hand is not a substitute: it knows
+  nothing about where the character stands, which layer it is on, what the camera is doing, or what
+  a saved game should contain. Everything an author actually wants from a character on stage lives
+  on the engine's side of that line, and every project that has reached for an external renderer has
+  had to rebuild it.
+
+  So the engine now ships the half it can: a box. `Puppet` is a `Displayable` like any other — `pos`,
+  `zoom`, `scale`, `rotate`, `opacity`, `show`, `hide`, layers, the camera, undo and the saved game
+  all apply to it unchanged — and the inside of the box is handed to a backend you register. The
+  engine never looks in: `src`, `options`, command names and payloads are opaque values it stores,
+  forwards and serialises.
+
+  ```ts
+  import {Puppet} from "narraleaf-react";
+
+  game.registerPuppetBackend({
+      name: "my-renderer",
+      mount(container, ctx) {
+          const model = MyRenderer.create(container, ctx.resolveSrc(ctx.src), ctx.size);
+          return {
+              ready: () => model.loaded,
+              apply: (state) => model.setPose(state),   // a complete state, never a diff
+              command: (name, payload) => model.run(name, payload),
+              resize: (size) => model.resize(size.width, size.height),
+              dispose: () => model.destroy(),
+          };
+      },
+  });
+
+  const alice = new Puppet({
+      backend: "my-renderer",
+      src: "models/alice/alice.model.json",
+      size: {width: 900, height: 1200},   // defaults to the stage size
+      position: {xalign: 0.3},
+      motion: "idle",
+  });
+
+  scene.action([
+      alice.show({duration: 400}),
+      alice.pos({xalign: 0.6}, 800, "easeInOut"),
+  ]);
+  ```
+
+  **`apply` takes a complete `PuppetState`, never a delta**, and that one decision is what makes
+  loading a saved game trivial: the engine rebuilds the state from the save and applies it once,
+  instead of replaying every pose change that ever happened to the model. `PuppetState` is
+  `{motion, expression, skin, params, slots}` — the three ideas every 2D character renderer has,
+  plus free numeric and string maps for whatever is proprietary. Nothing one-shot belongs in it;
+  those go through `command()`, which doubles as the escape hatch for hit tests, lip sync and
+  everything else the state deliberately does not model. Keys written by a newer engine survive a
+  load here untouched rather than crashing it.
+
+  A backend may also implement `describe()`, reporting the motions, expressions, skins and parameters
+  a model actually has. It is optional, and it exists so an editor can fill its dropdowns from the
+  live model rather than writing a parser for a model format it has no business parsing. Nothing
+  gates it on status: an inspector opens when the author clicks it, not when a model happens to have
+  finished loading, so a backend that can only describe a loaded model awaits its own load inside
+  `describe()`.
+
+  **`ctx.resolveSibling(path)` resolves the rest of the bundle.** No real 2D character model is one
+  file — it is a manifest plus an atlas plus texture pages, or a model file plus motions plus physics
+  plus textures — and *which* siblings exist is only knowable after parsing the first one, because
+  the manifest is what names them. So a backend cannot be handed a list up front, and making the
+  author enumerate one would move model parsing to the party least able to do it. It gets the
+  arithmetic instead: the path resolves against the directory `src` sits in, `.` and `..` are folded
+  away, an already-absolute path wins, and the result goes through the same rules as `resolveSrc` —
+  so a texture the author warmed with `scene.preloadImage()` is served from the preload cache here
+  too.
+
+  ```ts
+  // src: "models/alice/alice.model.json"
+  ctx.resolveSibling("alice.atlas");            // -> "models/alice/alice.atlas"
+  ctx.resolveSibling("textures/page-0.png");    // -> "models/alice/textures/page-0.png"
+  ctx.resolveSibling("../shared/eyes.png");     // -> "models/shared/eyes.png"
+  ```
+
+  This is the *only* structure the engine will ever read out of `src`, and it does so only when
+  asked. It still does not know what `src` means: not the format, not the contents, not which files
+  it pulls in. A backend whose `src` is an opaque key rather than a location gets the path back
+  untouched and should be reading `options`, which the engine forwards just as verbatim.
+
+  **The first `apply()` lands before `ready()` is called** — not merely before it resolves. The
+  engine mounts, applies the complete initial state, and only then asks whether the model is ready.
+  That is deliberate: a backend wants the pose it is loading into *at* load time, rather than every
+  model visibly snapping from its setup pose to the author's pose a frame after it appears. Hold the
+  state and re-apply it once the model is up, or return a promise from `apply()` that waits for the
+  load — which also holds `ready()` back until the pose has landed. `command()` and `resize()` can
+  likewise arrive before `ready()` resolves, and `dispose()` can arrive at any point, loading
+  included; after it, the engine calls nothing on that instance again.
+
+  **`null` in a `PuppetState` field is the absence of a request, never "leave whatever is there".**
+  A state is applied whole, so a cleared field has to visibly clear or a load would not reproduce
+  what it recorded. `motion: null` is nothing playing — the model's setup / rest pose. `expression:
+  null` applies no expression, and means clearing the track rather than substituting a model's own
+  named "neutral". `skin: null` is the model's default skin. A slot set to `null` is cleared, which
+  is the same state as a key that was never there. `params` has no null at all: a parameter the map
+  does not mention keeps the model's own default, so clearing one means dropping the key.
+
+  **A puppet cannot change its `src`.** Changing the model means a new element: the backend's
+  instance lives exactly as long as the element is on stage, and swapping a model out from under a
+  live transform is not worth what that lifetime would cost. For the same reason `Puppet` has no
+  transitions of its own in this release — `show()` and `hide()` fade the box with opacity.
+
+  **A missing backend is a normal state, not a crash.** Anyone shipping this will eventually forget
+  to register a backend, or ship to someone who did. When nothing answers to `config.backend` the
+  element still takes its place on the stage, still transforms, still saves and restores — it simply
+  draws nothing, and the engine warns once per backend name rather than once per element.
+
+  Quiet is not the same as silent, though, so a game can ask: `puppet.getStatus()` returns the
+  `PuppetStatus` of the live instance, and `puppet.onStatusChange(listener)` reports it changing.
+  A backend fails asynchronously — the element mounts, then the model does or does not load — so the
+  subscription is the half that answers "did my renderer come up", and `"missing-backend"` and
+  `"error"` are the two answers worth acting on. What to do about them is the game's decision, not
+  the engine's: a project that ships one renderer probably wants to say so on screen, and a project
+  where the renderer is optional certainly does not.
+
+  New public surface: `Puppet` (including `getStatus` and `onStatusChange`),
+  `Game.registerPuppetBackend` / `Game.getPuppetBackend` / `Game.listPuppetBackends`, and the types
+  `PuppetBackend`, `PuppetMountContext`, `PuppetInstance`, `PuppetState`, `PuppetDescription`,
+  `PuppetSize`, `PuppetStatus`, `IPuppetUserConfig` and `PuppetConfig`.
+
+  A puppet is posed by its constructor config, by a saved game, by an editor host — and by the story,
+  which is the next entry.
+
+- **A story can pose and command a puppet.** `Puppet` gains six chainable actions, and they divide
+  along exactly the line `PuppetState` draws.
+
+  Five of them edit that state: `setMotion`, `setExpression`, `setSkin`, `setParam(id, value)` and
+  `setSlot(id, value)`. Each writes its one field — `params` and `slots` merge key by key, so nudging
+  one parameter does not silently clear the rest — and then hands the backend the **whole** state.
+  That is not overhead, it is the point: what an author leaves behind is always a complete state, so
+  a load restores it in one `apply` and an undo reverses it in one more. Nothing is ever replayed.
+
+  The sixth, `command(name, payload?, options?)`, sends a one-shot the engine neither models nor
+  interprets. It leaves nothing behind, which is what makes it the right home for a motion that plays
+  once, a hit test, or lip sync — and equally why a load does not restore it and an undo does not
+  take it back. Anything that has to survive either belongs in the state.
+
+  ```ts
+  scene.action([
+      alice.show({duration: 400}),
+
+      alice.setMotion("idle"),
+      alice.setExpression("smile"),
+      alice.setParam("ParamAngleX", 12),
+      alice.setSlot("prop", "umbrella"),
+
+      alice.command("playMotion", {id: "wave"}),                 // the story moves straight on
+      alice.command("playMotion", {id: "bow"}, {await: true}),   // ...and here it waits for it
+      alice.setExpression(null),
+  ]);
+  ```
+
+  **Nothing waits unless it is asked to.** `{await: true}` is opt-in on `command`, and the `set*`
+  methods have no equivalent at all. The engine cannot tell a motion worth a beat from a parameter
+  nudge, and an author who writes `setExpression("smile")` before a line meant the line, not a pause
+  of whatever length the renderer decides to take. Defaulting the other way would hand every backend
+  that forgets to resolve the power to park a story; this way it can only stall the one command that
+  opted in, and that command is skippable like any other timed action.
+
+  A backend that throws, rejects, or was never registered is logged rather than fatal: the state
+  change still stands and is applied in full the next time the element mounts, and a command aimed at
+  a puppet that is not on stage warns instead of failing.
+
+  New action types: `puppet:setMotion`, `puppet:setExpression`, `puppet:setSkin`, `puppet:setParam`,
+  `puppet:setSlot`, `puppet:command`; new exported type `PuppetCommandOptions`.
+
+- **`DevTools` can drive a puppet imperatively.** This is not public API — `DevTools` is the seam
+  editor hosts use, and it moves with their needs — but it is recorded here because those hosts
+  depend on it: `getPuppetStatus`, `onPuppetStatusChange`, `describePuppet`, `getPuppetState`,
+  `setPuppetState`, `runPuppetCommand` and `listPuppetBackends`. `setPuppetState` writes and applies
+  without going through an action, so nothing lands in the story's history, and it works on an
+  unmounted element too: the state is complete by construction, so it is applied in full the next
+  time that element mounts.
+
+### _Fix_
+
+- **The published declarations typecheck again.** This library is built with `stripInternal`, which
+  deletes any declaration marked `@internal` from the emitted `.d.ts`. It does not delete the
+  *references* to it. Every public signature that named an internal type went on naming it after the
+  name was gone, so the declaration files in the package referred to things they did not declare —
+  94 dangling references across 27 files, shipped in 0.19.2 and in releases before it.
+
+  It went unseen because `skipLibCheck: true` is the default posture of almost every TypeScript
+  project and it suppresses exactly this class of error. Turn it off, as a project that typechecks
+  its dependencies properly does, and the package does not check at all: `Cannot find name
+  'CameraDataRaw'` and ninety more like it, none of them in the consumer's own code and none of them
+  fixable from there.
+
+  Every type reachable from a public signature is now public, because it always was — a type a
+  method returns is part of the API whatever the comment above it claims. `ImageDataRaw`,
+  `CameraDataRaw`, `CharacterStateData`, `ConditionData`, `ControlConfig`, `LayerDataRaw`,
+  `PersistentContent`, `DynamicPersistentData`, `VideoState`, `VfxState` and `LiveGameEvent` are
+  among the names now exported. Where `@internal` was hiding a naming convenience rather than a
+  concept, the alias is inlined into the signatures that used it instead of being promoted: the
+  `Chained*` aliases become the chained types they stood for, and `PausingShortcut` becomes
+  `typeof Pause`. Nothing is renamed, no signature changes shape, and no runtime behaviour moves.
+
+  **The last three had a different cause.** `tsc-alias` rewrites this project's path aliases to
+  relative paths in the emitted output, but it leaves an alias untouched — silently — when it cannot
+  find the target under `dist/`. The alias for the package's own name pointed at a `.ts` file, which
+  is never there, so `dist/built-in.d.ts` and the screen-effect declarations shipped importing
+  `"narraleaf-react"` from inside `narraleaf-react`. They now use relative paths like every other
+  emitted file. The runtime bundles are unchanged: `built-in.js` still loads the engine from the
+  package entry rather than inlining a second copy of it.
+
+  A publish can no longer regress this. `prepublishOnly` now typechecks the emitted
+  `dist/**/*.d.ts` with `skipLibCheck: false` and stops the release if one reference dangles.
+
+- **A persistent value can hold a nested structure, and a `Date` anywhere inside it survives the
+  save.** `StorableType` allowed exactly one level: a primitive, or an object or array *of*
+  primitives. Nothing enforced that at runtime — `Namespace.isSerializable` recursed to any depth and
+  `set` stored what it was given — so an author writing
+
+  ```ts
+  const player = new Persistent("player", {
+      party: [] as {name: string; metAt: Date}[],
+  });
+  ```
+
+  got a type error, ignored it because the game worked, and then lost the data at the save. The save
+  format tagged the *whole* value `"any"` or `"date"` and had nowhere to record that the third
+  element of a list used to be a `Date`; `JSON.stringify` reduced it to a string on the way out and
+  the loader handed that string back. The value reloaded was not the value saved, and nothing said so.
+
+  `StorableType` is now recursive. Objects and arrays nest freely and only the leaves are
+  constrained — a primitive, `null`, `undefined` or a `Date` — because a save file is JSON and a
+  class instance, a `Map`, a function or a symbol has no representation in one. A `Date` at any depth
+  reloads as a `Date`, with its milliseconds.
+
+  It does this without an in-band marker. `data` in the save is plain JSON, and the two types JSON
+  loses are named *by position* in two new optional fields on `WrappedStorableData`: `dates` and
+  `undefineds`, each a list of paths like `[0, "metAt"]`. A sentinel object inside the value would
+  have been a shape an author could also store — and then their own data would decode as a date. A
+  position cannot collide with anything.
+
+  **Existing saves load unchanged.** Both lists are absent from every save written before they
+  existed, and a value carrying neither is returned exactly as the previous loader returned it. The
+  compatibility runs the other way too: a value made only of primitives, objects and arrays
+  serializes to the same bytes it always did, so a save this version writes is still a save 0.19
+  reads. The one deliberate change is that a root `Date` is written as ISO 8601 rather than
+  `Date.prototype.toString()`, which is what keeps its milliseconds; both parse, in both directions.
+  A nested `Date` in a *pre-existing* save is still the string it had already been reduced to — the
+  type was gone before this loader ever saw the file, and guessing that any ISO-shaped string used to
+  be a date would corrupt real strings.
+
+  The limits, all of them enforced when the value is written rather than when it is assigned:
+
+  - **Nesting is capped at 64 levels.** Past that the save fails with an error naming the position.
+    The encoder is recursive and an unbounded walk is a stack overflow reported from somewhere
+    unrelated; state that nests past 64 is a data-structure bug, not a save.
+  - **A value that refers back to itself is refused,** with an error naming the position. A save is a
+    tree. Cutting the back-edge would write a save that loads as a different object graph than the
+    one the author built, and they would find out much later. `Namespace.isSerializable` reports such
+    a value as `false` instead of recursing until the stack gives out, which is what it used to do.
+  - **A leaf that was never storable** — a function, a symbol, a `bigint`, a class instance — is
+    saved as `null` with a warning naming the position. It was being lost silently before; the key
+    now survives with a `null` in it, so the shape read back is the shape written.
+  - **Reference identity is not part of the value.** The same object stored at two positions saves as
+    two copies and reloads as two independent objects, the same bargain `JSON.stringify` makes.
+
+  One related change falls out of this: `Namespace.serialize()` and `toData()` now copy rather than
+  hand back the live objects, so a snapshot is a real snapshot and mutating a stored object cannot
+  reach back into one already taken.
+
+## [0.19.2]
+
+### _Fix_
+
+- **Dialog avatars are preloaded, and painted from the cache.** They were neither, and the two
+  halves compounded: an avatar was fetched the first time its character spoke, and then fetched and
+  decoded a second time when it was actually painted.
+
+  `Scene.registerSrc` walks the action graph collecting everything a scene will need, but it had no
+  branch for `CharacterAction` — so no avatar source, at any level, was ever registered. Meanwhile
+  `<Avatar>` rendered the resolved URL directly. That is not what `<Image>` does, and the difference
+  matters: the preloader stores each image as a base64 re-encoding and decodes *that*, so both the
+  bytes and the decoded bitmap live under the data URL and are reachable only through
+  `cacheManager.get()`. Rendering the original URL missed both.
+
+  The scene walk now collects every avatar it can know about ahead of time — the character's own,
+  each registered portrait's, and a sentence's per-line override:
+
+  ```ts
+  const alice = new Character("Alice")
+      .setAvatar("/avatars/alice.png")
+      .addPortrait(angrySprite, {avatar: "/avatars/angry.png"});
+
+  // Both are now warm before the scene paints, and swap without a decode.
+  alice.say("...");
+  ```
+
+  **A resolver's avatars stay invisible to the preloader**, for the same reason a layer resolver's
+  srcs are: the answer is derived from the portrait's live state, so what it may return cannot be
+  enumerated. Register those yourself:
+
+  ```ts
+  scene.preloadImage(["/avatars/happy.png", "/avatars/sad.png"]);
+  ```
+
+  `useAvatar()` is unchanged and still reports the resolved *source* URL — that is what identifies
+  an avatar to a caller, and a custom avatar component comparing it against its own asset table
+  keeps working. The cache lookup happens in `<Avatar>`, at render.
+
+## [0.19.1]
+
+### _Fix_
+
+- **A nested stack's loop counter is reachable again.** `StackFrameSnapshot.branches` carried
+  `StackFrameSnapshot[][]` — each branch reduced to its `frames`. Everything a nested stack knew
+  about *itself* was thrown away on the way out, and that included `loop`.
+
+  This mattered more than it looks, because `Control.repeat` **is** a nested stack. Its counter is
+  set on the nested `StackModel`, so `snapshot()` attached it to the object that model returned —
+  and the only route from there to `getStackSnapshot()` was through the parent frame's `branches`,
+  which kept `.frames` and dropped the rest. The result: a debug view could see that a repeat was
+  running and could see the lines inside it, but could not learn which round it was on, no matter
+  how it asked. `tag` was lost the same way for async stacks below the top level.
+
+  `branches` is now `StackSnapshot[]`, so a branch arrives whole:
+
+  ```ts
+  const {root} = liveGame.getStackSnapshot();
+  const repeat = root.frames[0].branches?.[0];
+  repeat?.loop; // {type: "count", counter: 2, limit: 3, broken: false}
+  ```
+
+  **Breaking for anyone already reading `branches`** — `branches[i][0]` becomes
+  `branches[i].frames[0]`. The type is marked experimental and read-only precisely so a shape like
+  this can be corrected rather than duplicated into a parallel field; changing it is the honest fix.
+
+## [0.19.0]
+
+### _Feature_
+
+- **The store now says when a value changes.** `Storable` had no notification of any kind:
+  `namespace.set()` was an assignment and nothing else, so a host that wanted to react to a
+  persistent value — light a badge when `gold` reaches 100, mirror a flag into an editor panel —
+  had no way to learn about it except to read the whole store on a timer and diff it itself.
+  Polling is the wrong shape for something the engine knows exactly: it is late by up to an
+  interval, it burns work on the overwhelming majority of frames where nothing moved, and it
+  cannot tell you what the value *was*.
+
+  `Storable` now reports every write:
+
+  ```ts
+  const storable = liveGame.getStorable();
+
+  // every change, anywhere
+  storable.onChange(({namespace, key, previous, next}) => {...});
+
+  // one namespace
+  storable.onChange("persistent:player", ({key, next}) => {...});
+
+  // one key
+  const token = storable.onChange("persistent:player", "gold", ({next}) => {
+      if (next === 100) achievements.unlock("rich");
+  });
+  token.cancel();
+  ```
+
+  The payload is `{namespace, key, previous, next}`, where `namespace` is the key the namespace is registered under — `"persistent:player"` for `new Persistent("player", ...)`, the same string `getNamespace()` takes. The listener runs after the new value is readable, so it can read the rest of the namespace and see a consistent state. `assign()` reports one change per key; `reset()` reports the return to each default, and reports a key written after construction as changing to `undefined`, because that is what `reset()` does to it.
+
+  Subscriptions live on the `Storable`, which is created once per `LiveGame` and never replaced, so they survive `newGame()` and loading a save even though both rebuild every namespace underneath them.
+
+- **A write that does not move the value reports nothing.** A line that re-asserts a flag it has
+  already set, or a script that runs `assign` with the values already in place, would otherwise
+  wake every listener on every pass. Equality is structural rather than by reference: a stored
+  value is by definition serializable — a primitive, a `Date`, or a plain object/array of those —
+  so comparing it costs no more than writing it to a save, and the ordinary idioms
+  (`assign({...})`, `set(k, v => ({...v, gold: v.gold}))`, a value round-tripped through a host)
+  rebuild the container even when nothing inside it moved. Dates compare by timestamp, not
+  identity.
+
+- **Loading a save reports itself once instead of replaying every key.** A save carries every key
+  of every namespace it knew about, so reporting a load as changes would turn one `deserialize()`
+  into hundreds of callbacks describing a history the player never lived through — the values did
+  not evolve, they were replaced wholesale. Bulk application instead fires **`onRestore`** exactly
+  once, naming the namespaces involved:
+
+  ```ts
+  storable.onRestore(({namespaces}) => rereadMyDerivedView());
+  ```
+
+  This covers `liveGame.deserialize()` (one event for the whole save) and rewinding a single namespace to a snapshot, which is how a scene's locals are undone (one event naming that namespace). Ordinary play, where values do evolve one write at a time, still reports per-key changes.
+
+### Upgrading
+
+- **Nothing that was valid before changes behaviour**, and no existing signature moved. `onChange`
+  / `onRestore` / `Storable.events` are new surface on a class that previously had none.
+
+- **A host that polls the store can stop.** Replace the timer with `onChange` for the values you
+  care about and `onRestore` for the reload discontinuity. Watching a value across a save load
+  takes both: `onChange` is deliberately silent during a load, so a listener that must also fire
+  when a loaded save *arrives* already at the interesting value has to re-check it on `onRestore`.
+
+## [0.18.0]
+
+### _Feature_
+
+- **One tag group can now drive several layers of a layered image.** A layered image derived its
+  tag groups from its layers one-for-one — each variants layer declared its own group, and tags
+  had to be globally unique — so a group could only ever move a single layer. That is the wrong
+  shape for the thing layered sprites exist to do: "angry" is not a mouth, it is a mouth *and* a
+  pair of brows *and* whatever else the artist split out, and expressing it meant either
+  flattening those layers back into one image or falling back to a `LayerResolver` per follower,
+  whose sources the preloader cannot see and therefore fetches mid-scene, on the frame the
+  expression changes.
+
+  A group is now identified by its tag *set* rather than by the layer that offers it, so every layer offering the same tags is driven by one group:
+
+  ```ts
+  layers: [
+      {uniform: "u_body.png", casual: "c_body.png"},
+      {uniform: null,         casual: "jacket.png"},   // only the casual outfit has a jacket
+      {happy: "brows_happy.png", angry: "brows_angry.png"},
+      {happy: "mouth_happy.png", angry: "mouth_angry.png"},
+      {happy: null,              angry: "vein.png"},
+  ],
+  defaults: ["uniform", "happy"],
+  ```
+
+  `char(["angry"])` moves all three of the lower layers and leaves the outfit alone; `defaults` names one tag per *group*, not per layer. A follower is an ordinary variants layer, so its sources are enumerable and the existing preload pass covers them — the whole set is registered up front, and switching a tag still costs no fetch.
+
+  This also removes the reason to model an outfit as a separate image. A layer that draws nothing for some tags of a group it follows (the jacket above) is how a variant-specific layer is expressed, so one stack can carry a character's whole wardrobe and a change of clothes keeps the current expression and can cross-fade like any other tag change.
+
+- **`DevTools.getLayerSrcs(image, tags?)`** returns a layered image's per-layer srcs, bottom to
+  top, with `null` for the layers that draw nothing. A layered image has no single src to read —
+  it is a stack — so an editor host rendering its own thumbnail of an on-stage element previously
+  had nothing to read at all.
+
+### Docs
+
+- `LayerResolver`'s opacity to the preloader is now stated on the type: the srcs a resolver can return are invisible to it and are fetched on first use. With followers no longer needing a resolver, this is a limitation of an escape hatch rather than of the common path.
+
+### Upgrading
+
+- **Nothing that was valid before changes behaviour.** Grouping only merges layers offering
+  *identical* tag sets, and any two such layers were rejected outright by the old uniqueness
+  check, so no working configuration is reinterpreted. What changes is that those configurations
+  now load instead of throwing.
+
+- **Offering only part of a group's tags on a follower is an error, and it is the easy mistake to
+  make.** A layer that lists `{angry: "vein.png"}` alone declares a *new* group whose only tag is
+  `angry`, which then collides with the group that already owns it. Repeat the whole set and use
+  `null` for the tags where the layer draws nothing (`{happy: null, angry: "vein.png"}`). The
+  error names the offending tag and says so.
+
+## [0.17.1]
+
+### Fixed
+
+- **`liveGame.fastForward()` no longer hangs forever, and always settles.** Skipping a line is a
+  request broadcast to the renderer (`event:state.player.skip`), and the only things that can
+  honour it — the mounted dialog, the mounted displayable — exist only once React has *committed*
+  that line. The fast-forward loop resumed on a microtask, long before that commit, so for a line
+  the renderer had not painted yet the single broadcast it sent reached no listener at all and was
+  simply dropped. Nothing then settled the step, and the returned promise settled neither way: in
+  practice the play head advanced two lines and stopped, with the caller still awaiting minutes
+  later, the game stuck on that line, and — because the `finally` that restores them never ran —
+  audio left muted and the game left permanently in fast-forward mode. This affected every host of
+  the API and was not new in 0.17; the same two-step signature was measured on 0.16.1.
+
+  The skip request is now re-issued on a frame-ish interval until the step settles, so it survives the render it has to outlive. A line that settles on the first request still costs no extra frame.
+
+- **A step that genuinely cannot be skipped now ends the run instead of parking on it.** Each
+  suspended line is given `stepTimeout` ms (default `10000`) to settle; if it does not,
+  `fastForward` returns the new reason **`"stalled"`** — `{ reason: "stalled" }`, or `{ reason:
+  "stalled", reachedTarget: false }` for an `actionId` jump — and restores volume and the
+  fast-forward flag on the way out. `fastForward` now terminates in every case, so hosts can rely
+  on the promise settling.
+
+### Upgrading
+
+- **`fastForward()`'s `reason` gained `"stalled"`.** Runtime behaviour for the existing values is
+  unchanged, but the return type is wider: an exhaustive `switch` over `reason` needs the extra
+  arm to keep compiling. Hosts that ignore the result are unaffected.
+
+- **A run can now end early on an unskippable step.** In-flight `Control.sleep`, a transition
+  declared `skipTransition: false`, and long video are not skippable, so a fast-forward that meets
+  one waits out `stepTimeout` (default `10000` ms) and returns `"stalled"` instead of continuing
+  past it. Previously the run hung there instead, so nothing that works today starts failing — but
+  a host that treats any non-`"menu"` reason as success should now distinguish `"stalled"`. Raise
+  `stepTimeout` for a story that fast-forwards through long unskippable media.
+
+## [0.17.0]
+
+### _Feature_
+
+- **The opening scene is now loaded and decoded before the game is entered.** Until now the
+  preloader had nothing to work with until `liveGame.newGame()`: it derives its work list from the
+  *mounted* scene, and no scene is mounted before then. A game that shows a main menu first
+  therefore did all of its fetching, base64-encoding and decoding between the player pressing
+  "start" and the first painted frame — on a real project, most of a second of dead time on the
+  one interaction that should feel instant. `Player` now registers `story.entryScene` as the
+  preloading scene as soon as the story is loaded, so that work happens behind whatever the player
+  is already looking at and entering the game becomes a reveal rather than a load.
+
+  Hosts that already call `gameState.preloadScene(...)` themselves are unaffected: the automatic registration only applies when there is neither a preloading scene nor a mounted scene yet.
+
+- **The preload pass runs in two tiers.** The *critical* tier is what the scene about to paint
+  registers directly: its own backgrounds and images, plus the immediate background of any scene
+  it jumps to. It runs unpaced, and it alone gates `event:preloaded.complete`. The *look-ahead*
+  tier is the full asset set of every scene reachable from here (`srcManager.getFutureSrc()`); it
+  runs after the critical tier, paced by `preloadDelay`, and nothing waits for it. Both used to be
+  a single pass, so a large story could not show its first frame until every reachable scene's
+  images had been fetched and decoded — seconds spent on assets the player was not about to see.
+  The cache-eviction pass still runs once over the union of both tiers, and no longer runs at all
+  for a superseded pass, which used to drop the images the *current* scene had just cached. Games
+  running with `preloadAllImages: false` keep their existing predict-by-action behaviour
+  unchanged.
+
+- **Preloaded images keep their decoded bitmap.** A decoded bitmap only survives while something
+  still references it, so the throwaway element the preloader decoded through let it be evicted
+  again before the reveal — and the first visible frame decoded from scratch anyway. The critical
+  tier now holds its decoded elements until the source leaves the cache. The look-ahead tier
+  deliberately does not: a full-resolution bitmap costs width × height × 4 bytes, which is worth
+  paying for the one scene about to paint and not for a whole reachable graph.
+
+- **The scene's sounds are warmed too**, through a new `preload(sound)` on the audio manager
+  (`gameState.audioManager.preload(...)`), which fetches and decodes a source into the audio cache
+  without playing it. A scene whose BGM is still being fetched when it opens stutters into its own
+  first line, and the audio cache was the only place that could be fixed. Nothing waits for this
+  and nothing should: the audio context stays locked until the browser's autoplay policy is
+  satisfied by a user gesture, so an audio warm-up can legitimately sit pending on a page nobody
+  has touched yet. It starts alongside the critical tier and lands on its own; a source that fails
+  to load simply loads on first play, as before. Only the current scene's sounds are warmed — a
+  look-ahead scene's audio is left to that scene's own pass.
+
+### Fixed
+
+- The preload task pool no longer sleeps after its final batch. `preloadDelay` paces *consecutive* batches, but the pool slept after every batch including the last, charging every preload pass an extra `preloadDelay` ms (100 ms by default) of pure idle time — and the initial pass gates the first painted frame, so that idle time was directly visible as start-up latency.
+
+### Upgrading
+
+- `onPreloadComplete`, `oncePreloadComplete`, `whenPreloadComplete()` and `event:preloaded.complete` now fire **before** the game is entered — while a menu is still on screen — rather than after `newGame()` has mounted a scene. That is the point of this release, and it is what a host should gate a loading step on. If you were instead reading them as "the game has content on screen", switch to `onFirstSceneReady` / `whenFirstSceneReady()`: those are unchanged and still require a real mounted scene.
+
+## [0.16.1]
+
+### _Feature_
+
+- The `Darkness` transition — which backs `image.darken(amount, duration)` by animating an image's brightness between two darkness levels — is now exported from `narraleaf-react` alongside the other built-in transitions. Its behaviour is unchanged; only the public export (and its `DarknessOptions` type) is new.
+
+### Fixed
+
+- `Push` now slides in percentages of the layer's own size instead of viewport units (`vw`/`vh`). The element a `Push` drives lives inside the letterboxed stage box, so a `100vw`/`100vh` travel — measured against the *window* — overshoots the stage whenever the window aspect ratio differs from the design aspect ratio, leaving both images off-stage mid-slide and exposing the backdrop behind them. Percentages are measured against that element itself, so a full slide always lands exactly one stage width/height away regardless of window shape. The offset is still applied via the independent `translate` property (identity at rest), so nothing about the API changes.
+
+- Re-mounting the NVL dialog container no longer replays a finished line's text events. The NVL list re-keys an entry on every phase / active-entry change, so a line that had already been revealed re-mounted onto the instant-reveal path with a fresh fire guard — replaying its sound effects and writing its now-stale expression back over the portrait a later line had set, once per advance. The guard now lives on the long-lived NVL entry and is shared by the typewriter and instant paths, so each line's tokens fire exactly once however often the container re-mounts. It is runtime-only and is not part of the save, so loading a game still starts a fresh reveal that fires normally. The standard (ADV) dialog was never affected — its dialog state is already memoized per action.
+
+### Docs
+
+- Three public APIs that shipped in 0.16.0 were missing from its release notes and are documented under [0.16.0] as of this release: the `TextEvent` inline dialogue token, `fastForward({until: {actionId}})`, and the experimental read-only introspection surfaces (`onCurrentActionChange` / `getCurrentActionId` / `getStackSnapshot`). Nothing about them changed in 0.16.1 — if you are already on 0.16.0, you already have them.
+
 ## [0.16.0]
 
 ### _Feature_
@@ -74,7 +3033,10 @@
   - `Reveal` is the new direct-cut engine (the A→B counterpart of `ThroughColor`); both take the same patterns, so a scene change moves between the two families with a one-word edit.
   - `ThroughColor` gained `inverted` (cover through the pattern's complementary orientation — `Mask.iris()` + `inverted: true` is the classic iris-to-black) and `uncover`: `"retreat"` (default; the pattern backs out the way it came), `"continue"` (the edge keeps travelling, so the pattern passes through the frame — a wipe exits out the far side, a clock hand completes a second lap), or a custom pattern for asymmetric cover/uncover.
 
-- **In-scene jumping** with `Control.label` and `Control.jump`. Until now the only way to redirect the story was `Scene.jumpTo`, which unloads the current scene and starts another. `Control.jump` moves the play head to a named point *inside the same scene* — nothing is unloaded or re-initialized, so backgrounds, sprites, and music stay exactly as they are.
+- **In-scene jumping** with `Control.label` and `Control.jump`. Until now the only way to redirect
+  the story was `Scene.jumpTo`, which unloads the current scene and starts another. `Control.jump`
+  moves the play head to a named point *inside the same scene* — nothing is unloaded or
+  re-initialized, so backgrounds, sprites, and music stay exactly as they are.
 
   Mark a point with `Control.label(name)` (an invisible marker that just passes through at runtime) and jump to it with `Control.jump(name)`:
 
@@ -96,6 +3058,75 @@
   Label names are scoped to the scene they are declared in, so the same name can be reused across different scenes, and a jump can only target a label in its own scene. Both are validated at story-construction time: declaring the same label name twice in one scene, or jumping to a label that does not exist, fails the build rather than surfacing mid-play. Jumps are captured by save/load and undo like any other action.
 
   `Control.jump` redirects the main story flow, so place it as the last action of a branch (e.g. a menu choice); for looping a scene, drive the loop through a menu or condition rather than jumping out of a `repeat`/`while` body. Both `label` and `jump` are available as chainable methods and as static `Control.label(...)` / `Control.jump(...)`.
+
+- **Text events** fire an effect *inside* a line, at the moment the typewriter reveals it. Until
+  now a portrait could only change between lines, so a mid-sentence expression change meant
+  splitting the sentence in two. A `TextEvent` sits in a sentence's word stream the way `Pause`
+  does — it renders nothing, and fires when the reveal reaches it:
+
+  ```ts
+  import {TextEvent} from "narraleaf-react";
+
+  scene.action([
+      alice.say([
+          "I told you ",
+          TextEvent.expression(aliceImage, ["angry"]),   // the portrait flips right here
+          "not to touch it.",
+      ]),
+      alice.say([
+          "...",
+          TextEvent.sound(sting),                        // a sting, no portrait change
+          " what was that?",
+      ]),
+  ]);
+  ```
+
+  `TextEvent.expression(image, appearance, {sound?})` switches `image` to `appearance` with no transition — the same forms `Image.char` accepts: a tag list (`["angry"]`), or a static `src`/`Color`. As with `char`, a bare string is read as a `src`, so a tag switch must be written as an array. `TextEvent.sound(sound)` is the sound-effect-only form, and `expression(..., {sound})` does both at the same point. The effect set is deliberately closed: a text event is not a general action escape hatch, and nothing it does is pushed onto the execution stack.
+
+  That restriction is what keeps the semantics predictable:
+
+  - **Skipping never drops an effect.** Skipping the typewriter — or an instant reveal that uncovers the whole sentence at once — fires every token it flies past, once each, in source order. The image ends in the appearance the *last* crossed token asked for, and every crossed sound effect plays once, so a skipped line lands in exactly the state it would have reached at typing speed.
+  - **A token fires once per reveal.** Re-visiting an already-fired token within the same reveal is a no-op: no double-played sound effect, no re-written expression.
+  - **Nothing is added to saves.** The effect rides on ordinary element state, which is already serialized, so text events need no save format of their own — and a `say` re-evaluated on load re-fires them naturally, which is what makes them replay-safe.
+
+  `TextEvent` is exported from `narraleaf-react`, along with the `TextEventAppearance`, `TextEventConfig`, and `TextEventExpression` types.
+
+- `liveGame.fastForward()` can now run to a **specific action** instead of only to the next menu or the end of the story. Pass `{until: {actionId}}` — the id the story compiler assigned to that action — and playback advances until that action surfaces as the next thing to execute, stopping *just before* it runs, so the play head is left parked on that line. This is what a "play from here" jump in an external editor is built on.
+
+  ```ts
+  const result = await game.getLiveGame().fastForward({until: {actionId: "act-42"}});
+
+  if (result.reason === "action") {
+      // parked on act-42, not yet executed
+  } else if (result.reachedTarget === false) {
+      // a menu blocked the path, the stack drained, or maxSteps was hit
+  }
+  ```
+
+  The result gains `"action"` as a stop reason and — only when an `actionId` target was requested — a `reachedTarget` flag, so an unreachable or already-passed id is distinguishable from a successful jump. A menu that blocks the path stops the run just as it does for `until: "menu"`, since the target cannot be reached until the player decides. Only the root execution stack is scanned: an id buried inside an in-flight `Control.all`/`any` or async branch is not a stop point. The `"menu"` and `"end"` forms are unchanged.
+
+- **Experimental read-only introspection** for external tooling that has to follow a running game
+  — an editor play head, a call-stack view. Nothing here mutates runtime state, and everything
+  here is explicitly experimental: the shapes are a convenience projection, not a stability
+  contract, so do not serialize them or drive game logic from them.
+
+  ```ts
+  const liveGame = game.getLiveGame();
+
+  // push: fires as each action begins executing
+  const token = liveGame.onCurrentActionChange(({actionId, actionType}) => {
+      highlightRow(actionId);   // actionType is e.g. "character:say"
+  });
+  token.cancel();
+
+  // pull: the most recently executed action, or null before the first one runs
+  liveGame.getCurrentActionId();
+
+  // the current call stack, top-first
+  const {root, async} = liveGame.getStackSnapshot();
+  ```
+
+  `onCurrentActionChange(fc)` subscribes to the new `event:action.current` event and returns a cancellable token. It fires for *every* executed action, including those inside parallel and async branches, so a subscriber that only tracks top-level lines should filter by its own id set; `getCurrentActionId()` is the pull-based companion. `getStackSnapshot()` returns the root execution stack plus any in-flight async stacks (`Control.doAsync` / `Control.allAsync`), each a `StackSnapshot` whose `frames` are ordered top-first — a concurrent frame (`Control.all`/`any`) also lists its branches, and a loop frame carries its counter. It returns empty frames before the game starts. Saves still go through `serialize()`; a snapshot is not a save format. `StackSnapshot` and `StackFrameSnapshot` are exported from `narraleaf-react`.
 
 ### _Incompatible Changes_
 

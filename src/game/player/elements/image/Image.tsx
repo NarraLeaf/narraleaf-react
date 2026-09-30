@@ -144,7 +144,6 @@ const overlayStyle: React.CSSProperties = {
     maxHeight: "none",
 };
 
-/**@internal */
 function ImageComponent(
     {
         image,
@@ -163,15 +162,25 @@ function ImageComponent(
         : null;
 
     function resolveCachedSrc(src: string): string {
-        if (!Utils.isDataURI(src)
-            && (!cacheManager.has(src) && !cacheManager.isPreloading(src))
+        // `wasCached` and not `has`: an image the cache fetched and a memory budget has since let go
+        // of is the cache working as designed, and warning about it would tell the author to fix
+        // something that is not broken. What is worth a warning is an image the preloader never
+        // heard of at all, which is an action nothing could predict.
+        if (!Utils.isInlineSrc(src)
+            && (!cacheManager.wasCached(src) && !cacheManager.isPreloading(src))
             && !ignored.current.includes(src)
         ) {
-            state.game.getLiveGame().getGameState()?.logger.warn("Image",
-                `Image not preloaded: "${src}". `
-                + "\nThis may be caused by complicated image action behavior that cannot be predicted. "
-                + "\nTo fix this issue, you can manually register the image using scene.preloadImage(YourImageSrc). "
-            );
+            // The host hears about it first when it wants to: it planned the warm set, so it is the
+            // only thing that can say which row shows this and why nothing warmed it. The warning
+            // below is the answer for a game with no strategy of its own, and it names the remedy
+            // such a game actually has.
+            if (!cacheManager.reportMissing(src)) {
+                state.game.getLiveGame().getGameState()?.logger.warn("Image",
+                    `Image not preloaded: "${src}". `
+                    + "\nThis may be caused by complicated image action behavior that cannot be predicted. "
+                    + "\nTo fix this issue, you can manually register the image using scene.preloadImage(YourImageSrc). "
+                );
+            }
             ignored.current.push(src);
         }
         return cacheManager.get(src) || src;
@@ -184,6 +193,8 @@ function ImageComponent(
         initDisplayable,
         applyTransition,
         applyTransform,
+        applyLoop,
+        stopLoop,
         updateStyleSync,
         flush,
         deps,
@@ -259,6 +270,8 @@ function ImageComponent(
         },
         initDisplayable,
         applyTransform,
+        applyLoop,
+        stopLoop,
         applyTransition,
         events,
         updateStyleSync,

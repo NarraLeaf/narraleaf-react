@@ -1,6 +1,8 @@
 import React, { useEffect } from "react";
 import { useGame } from "@player/provider/game-state";
 import { GameState } from "@player/gameState";
+import { Game } from "@core/game";
+import { resolveStageClickIntent } from "./stageClickIntent";
 
 /**
  * Check if an element is inside the PageRouter GUI layer
@@ -27,6 +29,12 @@ const GUI_ELEMENT_SELECTORS = [
     "[data-layout-path]",
     "[data-element-type=\"menu\"]",
     "[data-element-type=\"notification\"]",
+    // A custom-rendered word that has finished revealing, and anything a line has drawn over
+    // itself. Both take their own clicks: the player aiming at a glossary term meant the term, not
+    // the next line. A word still being typed carries no such marker, so clicking it skips the
+    // typing as clicking anywhere else does.
+    "[data-element-type=\"interactive-word\"]",
+    "[data-element-type=\"dialog-overlay\"]",
 ];
 
 function isInsideGuiElement(target: Element | null, allowNvlClick: boolean): boolean {
@@ -93,6 +101,27 @@ export function StageClickAnnouncer({ state }: Readonly<{
             }
 
             if (isInsideGuiElement(target, state.isNvlMode())) {
+                return;
+            }
+
+            // Everything above answers "is this click the stage's". What it means once it is - and
+            // in particular that a click with the box put away brings the box back rather than
+            // spending a line nobody saw - is decided away from the DOM, in `resolveStageClickIntent`.
+            const intent = resolveStageClickIntent({
+                onStage: true,
+                dialogShown: game.preference.getPreference(Game.Preferences.showDialog),
+                advanceSuspended: state.isAdvanceSuspended(),
+            });
+
+            if (intent === "ignore") {
+                return;
+            }
+
+            if (intent === "restoreDialog") {
+                // Read and written at click time rather than through `usePreference`, so the answer
+                // is the one that holds now: this listener is attached once and outlives any number
+                // of changes to the preference, including the ones it makes itself.
+                game.preference.setPreference(Game.Preferences.showDialog, true);
                 return;
             }
 
