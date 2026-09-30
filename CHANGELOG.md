@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.0.0]
+
+1.0.0 is 0.47.2 with the fixes below. Nothing a game does behaves differently and nothing was
+removed: the APIs marked deprecated still work as they did.
+
+### _Fixes_
+
+- **A list of statements can mix narration and actions under TypeScript.** A plain string in a
+  scene's actions, a menu choice, a condition branch or a control block is a line of narration,
+  and the README's first example writes the two side by side:
+
+  ```ts
+  scene.action([
+      johnSmith`Hello, world!`,
+      "By the way, the documentation is on the website.",
+      Menu.prompt("Start the journey").choose("Yes", [johnSmith`Great!`]),
+  ]);
+  ```
+
+  The player always read such a list one entry at a time, but `ActionStatements` said a list was
+  all actions or all strings, so that example failed to compile with `No overload matches this
+  call`. Each entry may now be either. Every list the old type accepted is still accepted.
+
+- **The published declarations no longer need Node's types.** `GameState`'s `setTimeout`,
+  `setInterval`, `clearTimeout` and `clearInterval` were typed with `NodeJS.Timeout`, so a browser
+  project that type-checks its dependencies (`skipLibCheck: false`) without `@types/node` failed
+  with `Cannot find namespace 'NodeJS'`. They now use `ReturnType<typeof setTimeout>` and
+  `ReturnType<typeof setInterval>`, which are a `number` in a browser project and still
+  `NodeJS.Timeout` wherever Node's types are loaded, so code that names the old type keeps
+  compiling. The release check that type-checks the shipped declarations loaded Node's types
+  itself, which is how this got through; it now loads no ambient types at all.
+
+- **The package's npm page links to the repository, the issue tracker and the documentation.**
+
 ## [0.47.2]
 
 ### _Fixes_
