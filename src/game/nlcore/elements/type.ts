@@ -30,7 +30,12 @@ export type SoundPlayOptions = FadeOptions & {
 };
 
 export type ChainedActions = (Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>> | LogicAction.Actions)[];
-export type ActionStatements = ChainedActions | string[];
+/**
+ * What a scene, a menu choice, a condition branch or a control block runs. Each entry is read on
+ * its own: an action or chained element runs as itself, and a plain string is a line of narration,
+ * so the two can sit side by side in one list.
+ */
+export type ActionStatements = (ChainedActions[number] | string)[];
 export type {
     TransitionAnimationType,
     TransitionTask,
