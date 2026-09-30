@@ -690,3 +690,72 @@ describe("Storable restore events", () => {
         }]);
     });
 });
+
+describe("Namespace reading a save it did not write", () => {
+    /**
+     * The positions of a nested `Date` and `undefined` are read out of the save, and a save is
+     * whatever the host was handed - a downloaded or hand-edited one included. Read through `[]`,
+     * `__proto__` is the object's prototype rather than a key of the value, so a position that
+     * walked it wrote the revived value onto `Object.prototype` for every object on the page.
+     */
+    const crafted = (entry: unknown): any => JSON.parse(JSON.stringify({ "persistent:crafted": { value: entry } }));
+    const polluted = ["narraleafPollutedDate", "narraleafPollutedUndefined", "narraleafPollutedArray"];
+
+    const load = (entry: unknown): Namespace<any> => {
+        const storable = new Storable();
+        storable.addNamespace(new Namespace<any>("persistent:crafted", {}));
+        storable.load(crafted(entry));
+        return storable.getNamespace("persistent:crafted");
+    };
+
+    it("never writes through a prototype, whatever the position says", () => {
+        try {
+            load({
+                type: "any",
+                data: { inner: {}, list: [] },
+                dates: [["__proto__", "narraleafPollutedDate"], ["inner", "__proto__", "narraleafPollutedDate"]],
+                undefineds: [["__proto__", "narraleafPollutedUndefined"], ["list", "__proto__", "narraleafPollutedArray"]],
+            });
+
+            for (const key of polluted) {
+                expect(Object.prototype.hasOwnProperty.call(Object.prototype, key)).toBe(false);
+                expect(Object.prototype.hasOwnProperty.call(Array.prototype, key)).toBe(false);
+            }
+        } finally {
+            for (const key of polluted) {
+                delete (Object.prototype as any)[key];
+                delete (Array.prototype as any)[key];
+            }
+        }
+    });
+
+    it("keeps the prototype of the value itself", () => {
+        const value = load({
+            type: "any",
+            data: { inner: {} },
+            dates: [["__proto__"], ["inner", "__proto__"]],
+        }).get("value");
+
+        expect(Object.getPrototypeOf(value)).toBe(Object.prototype);
+        expect(Object.getPrototypeOf(value.inner)).toBe(Object.prototype);
+    });
+
+    it("still revives a key of the value that happens to be called constructor", () => {
+        // Written out as text: a key the value really carries, which is not the object's own
+        // `constructor`, and an `undefined` that JSON dropped and the position has to put back.
+        const restored = new Namespace<any>("test", {});
+        restored.load(JSON.parse(`{"value": {
+            "type": "any",
+            "data": {"constructor": {"when": "2020-01-02T03:04:05.000Z"}},
+            "dates": [["constructor", "when"]],
+            "undefineds": [["gone"]]
+        }}`));
+        const value = restored.get("value");
+
+        expect(value.constructor.when).toBeInstanceOf(Date);
+        expect(value.constructor.when.toISOString()).toBe("2020-01-02T03:04:05.000Z");
+        expect(Object.getPrototypeOf(value)).toBe(Object.prototype);
+        expect(Object.prototype.hasOwnProperty.call(value, "gone")).toBe(true);
+        expect(value.gone).toBe(undefined);
+    });
+});

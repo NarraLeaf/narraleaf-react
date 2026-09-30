@@ -206,7 +206,19 @@ export function decodeStorableValue(
     return root as StorableType;
 }
 
-/**@internal */
+/**
+ * Revive the value at every position in `paths`.
+ *
+ * The positions come out of the save, and a save is whatever the host was handed - a downloaded or
+ * hand-edited one included - so a position is only followed through keys the saved value itself
+ * carries. Read through `[]`, `__proto__` is the object's prototype and `constructor` is `Object`,
+ * and following either wrote the revived value onto `Object.prototype` for every object on the
+ * page. The revived value is defined rather than assigned for the same reason: assigning to
+ * `__proto__` swaps the object's prototype instead of writing a key, while defining it writes the
+ * key. A last key the value does not carry is still written, because that is how an `undefined`
+ * JSON dropped comes back.
+ * @internal
+ */
 function reviveAt(
     root: unknown,
     paths: StorablePath[] | undefined,
@@ -215,6 +227,7 @@ function reviveAt(
     if (!Array.isArray(paths) || !paths.length) {
         return root;
     }
+    const hasOwn = (target: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(target, key);
     let result = root;
     for (const path of paths) {
         if (!Array.isArray(path)) {
@@ -226,13 +239,18 @@ function reviveAt(
         }
         let cursor: any = result;
         for (let i = 0; i < path.length - 1 && cursor !== null && typeof cursor === "object"; i++) {
-            cursor = cursor[path[i]];
+            cursor = hasOwn(cursor, path[i]) ? cursor[path[i]] : undefined;
         }
         if (cursor === null || typeof cursor !== "object") {
             continue;
         }
         const last = path[path.length - 1];
-        cursor[last] = revive(cursor[last]);
+        Object.defineProperty(cursor, last, {
+            value: revive(hasOwn(cursor, last) ? cursor[last] : undefined),
+            writable: true,
+            enumerable: true,
+            configurable: true,
+        });
     }
     return result;
 }
