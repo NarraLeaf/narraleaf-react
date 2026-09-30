@@ -47,7 +47,9 @@ for (const moduleResolution of ["node", "bundler"]) {
             esModuleInterop: true,
             resolveJsonModule: true,
             forceConsistentCasingInFileNames: true,
-            types: ["node"],
+            // No ambient types at all. A browser project has no Node types loaded, and a public
+            // signature naming `NodeJS.Timeout` shipped because this check loaded them for it.
+            types: [],
             typeRoots: ["node_modules/@types", "src/types"],
         },
         include: ["dist/**/*.d.ts"],
@@ -74,6 +76,8 @@ for (const moduleResolution of ["node", "bundler"]) {
         console.error("  - a dependency whose types live in an @types package that is only a");
         console.error("    devDependency, so it resolves here and nowhere else -- move it to");
         console.error("    dependencies.");
+        console.error("  - a Node-only global (`NodeJS.Timeout`, `Buffer`) in a public signature, which a");
+        console.error("    browser project does not declare -- use `ReturnType<typeof setTimeout>` and the like.");
         process.exitCode = 1;
     } finally {
         fs.rmSync(configPath, { force: true });

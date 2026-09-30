@@ -1410,19 +1410,19 @@ export class GameState {
         return this.game.getLiveGame().story!;
     }
 
-    public setInterval(callback: () => void, delay: number): NodeJS.Timeout {
+    public setInterval(callback: () => void, delay: number): ReturnType<typeof setInterval> {
         return setInterval(callback, delay);
     }
 
-    public clearInterval(interval: NodeJS.Timeout): void {
+    public clearInterval(interval: ReturnType<typeof setInterval>): void {
         clearInterval(interval);
     }
 
-    public setTimeout(callback: () => void, delay: number): NodeJS.Timeout {
+    public setTimeout(callback: () => void, delay: number): ReturnType<typeof setTimeout> {
         return setTimeout(callback, delay);
     }
 
-    public clearTimeout(timeout: NodeJS.Timeout): void {
+    public clearTimeout(timeout: ReturnType<typeof setTimeout>): void {
         clearTimeout(timeout);
     }
 
