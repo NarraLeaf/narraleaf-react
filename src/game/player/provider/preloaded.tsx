@@ -35,3 +35,12 @@ export function usePreloaded(): PreloadedContextType {
     return useContext(PreloadedContext) as PreloadedContextType;
 }
 
+/**
+ * The preload context if there is one. For elements that also render outside a player - an image
+ * leaf a host mounts on its own has no cache to report to, and must not need one.
+ * @internal
+ */
+export function useOptionalPreloaded(): PreloadedContextType | null {
+    return useContext(PreloadedContext);
+}
+

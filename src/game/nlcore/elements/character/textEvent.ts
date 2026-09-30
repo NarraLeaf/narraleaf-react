@@ -38,6 +38,14 @@ export type TextEventConfig = {
  *
  * First version carries a closed set: a character-expression switch and/or a sound effect.
  *
+ * **Skip / instant reveal semantics.** Skipping the typewriter — or an instant, non-type-effect
+ * reveal that uncovers the whole sentence at once — does not drop the tokens it flies past. Every
+ * crossed token fires exactly once, in source order, so the outcome is identical to letting the
+ * typewriter reach each one in turn: the image ends in the appearance the *last* crossed token
+ * specifies, and each crossed sound effect plays once. Re-visiting an already-fired token within the
+ * same reveal is a no-op — it never double-plays a sound effect nor re-writes the expression — which
+ * is what keeps a re-mount of an already-revealed line from replaying its effects.
+ *
  * @example
  * ```ts
  * // switch Alice's portrait to "angry" the moment the typewriter reaches this point

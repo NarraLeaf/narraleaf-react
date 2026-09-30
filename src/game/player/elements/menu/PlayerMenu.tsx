@@ -41,6 +41,9 @@ export default function PlayerMenu(
     }, []);
 
     const MenuConstructor = game.config.menu;
+    // Keyed on `choices`, not on the mount. React reuses this component when one menu is followed
+    // straight by another, and an empty dependency list then leaves the second menu displaying the
+    // first one's items while its prompt updates around them.
     const evaluated: ChoiceEvaluated[] =
         useMemo(
             () =>
@@ -48,7 +51,7 @@ export default function PlayerMenu(
                     ...choice,
                     words: choice.prompt.evaluate(Script.getCtx({ gameState: state }))
                 })),
-            []
+            [choices, state]
         );
 
     function choose(choice: Chosen) {

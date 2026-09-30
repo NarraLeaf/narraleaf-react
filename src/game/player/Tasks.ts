@@ -274,7 +274,12 @@ export class Timeline {
             return;
         }
         this.awaitable.abort();
-        this.setStatus("cancelled", this.emitEvents.bind(this));
+        // An awaitable with a skip controller settles as it aborts, and this timeline has already
+        // heard about that through `resolveStatus` and called itself cancelled. Only one without a
+        // controller is still pending here.
+        if (!this.isSettled()) {
+            this.setStatus("cancelled", this.emitEvents.bind(this));
+        }
 
         this.children.forEach(v => v.abort());
     }
@@ -322,12 +327,31 @@ export class Timeline {
         return this;
     }
 
+    /**
+     * Work out the status again, after the awaitable or one of the children has settled.
+     *
+     * A settled timeline keeps the status it settled with. Children still settle after it -
+     * aborting a timeline aborts its children, and each of them reports back here - and that is
+     * the abort running its course, not a second outcome.
+     *
+     * A resolved awaitable is not an aborted one, although its skip controller says it is:
+     * `Awaitable.resolve` retires the controller with `cancel()`, which leaves `isAborted()` true.
+     * Reading the controller alone called a timeline cancelled the moment its awaitable resolved
+     * while a child was still running - a transform or transition action, whose own awaitable
+     * resolves one step before the animation it waits for, or a line whose voice outlives it - and
+     * then refused the `resolved` the child brought when it finished.
+     */
     private resolveStatus() {
+        if (this.isSettled()) {
+            return;
+        }
         const failedChild = this.children.find(v => v.isFailed());
         if (this.awaitable.failed || failedChild) {
             this.setStatus("failed", this.emitEvents.bind(this));
-        } else if (this.awaitable.solved && this.children.every(v => v.isSettled())) {
-            this.setStatus("resolved", this.emitEvents.bind(this));
+        } else if (this.awaitable.solved) {
+            if (this.children.every(v => v.isSettled())) {
+                this.setStatus("resolved", this.emitEvents.bind(this));
+            }
         } else if (this.awaitable.skipController?.isAborted()) {
             this.setStatus("cancelled", this.emitEvents.bind(this));
         }

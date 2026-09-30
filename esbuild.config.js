@@ -1,10 +1,8 @@
 // esbuild.config.js
 import * as esbuild from "esbuild";
-import postcss from "postcss";
-import tailwindcss from "@tailwindcss/postcss";
-import autoprefixer from "autoprefixer";
 import fs from "fs/promises";
 import process from "process";
+import { compilePlayerCss, injectionModuleSource } from "./project/injectedCss.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 const external = [
@@ -27,20 +25,10 @@ const InlineTailwindPlugin = {
   setup(build) {
     build.onLoad({ filter: /\.css$/ }, async (args) => {
       const css = await fs.readFile(args.path, "utf8");
-      const result = await postcss([tailwindcss, autoprefixer]).process(css, {
-        from: args.path,
-      });
-
-      const jsContent = `
-        if (typeof document !== "undefined") {
-          const style = document.createElement("style");
-          style.textContent = ${JSON.stringify(result.css)};
-          document.head.appendChild(style);
-        }
-      `;
-
+      // The sheet goes into the host's page; see project/injectedCss.js for why it is scoped to
+      // the player and layered before it goes in.
       return {
-        contents: jsContent,
+        contents: injectionModuleSource(await compilePlayerCss(css, args.path)),
         loader: "js",
       };
     });

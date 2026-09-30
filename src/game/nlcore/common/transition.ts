@@ -5,8 +5,11 @@ import {ImageTransition} from "@core/elements/transition/transitions/image/image
 import {TextTransition} from "@core/elements/transition/transitions/text/textTransition";
 import {BlurDissolve} from "@core/elements/transition/transitions/image/blurDissolve";
 import {Push} from "@core/elements/transition/transitions/image/push";
+import {Darkness} from "@core/elements/transition/transitions/image/darkness";
+import {Exposure} from "@core/elements/transition/transitions/image/exposure";
 import {ThroughColor} from "@core/elements/transition/transitions/image/throughColor";
 import {Reveal} from "@core/elements/transition/transitions/image/reveal";
+import {RuleReveal} from "@core/elements/transition/transitions/image/ruleReveal";
 import {Mask} from "@core/elements/transition/transitions/image/mask";
 
 export {
@@ -17,8 +20,11 @@ export {
     FadeIn,
     BlurDissolve,
     Push,
+    Darkness,
+    Exposure,
     ThroughColor,
     Reveal,
+    RuleReveal,
     Mask,
 };
 
@@ -26,11 +32,14 @@ export type {DissolveOptions} from "@core/elements/transition/transitions/image/
 export type {FadeInOptions} from "@core/elements/transition/transitions/image/fadeIn";
 export type {BlurDissolveOptions} from "@core/elements/transition/transitions/image/blurDissolve";
 export type {PushOptions} from "@core/elements/transition/transitions/image/push";
+export type {DarknessOptions} from "@core/elements/transition/transitions/image/darkness";
+export type {ExposureOptions} from "@core/elements/transition/transitions/image/exposure";
 export type {
     ThroughColorOptions,
     ThroughColorUncover,
 } from "@core/elements/transition/transitions/image/throughColor";
 export type {RevealOptions} from "@core/elements/transition/transitions/image/reveal";
+export type {RuleRevealOptions} from "@core/elements/transition/transitions/image/ruleReveal";
 export type {
     MaskPattern,
     WipePatternOptions,

@@ -26,7 +26,6 @@ export interface IStoryConfig {
     camera?: Camera;
 }
 
-/**@internal */
 export type ElementStateRaw = Record<string, any>;
 
 export class Story extends Constructable<
@@ -59,6 +58,25 @@ export class Story extends Constructable<
     services: Map<string, Service> = new Map();
     /**@internal */
     private readonly _camera: Camera;
+    /**
+     * Element id to the JSON of what that element serialised to at the end of construction, i.e.
+     * before any action ran. See {@link Story.captureElementBaseline}.
+     * @internal
+     */
+    private elementBaseline: Map<string, string> | null = null;
+    /**
+     * The story's hash, per strictness, kept from one call to the next.
+     *
+     * {@link Story.hash} walks every action reachable from the entry scene, concatenates what
+     * each one stringifies to and hashes the result - tens of milliseconds on a full-length
+     * story, and it is asked for where it hurts most: `newGame()` stamps it into the new save's
+     * metadata, so a player pressing Start pays for it before the first frame, and every save
+     * pays for it again. Nothing can change the answer once {@link Story.constructStory} has
+     * run, so the first caller computes it and the rest read it back. Only the hash is kept,
+     * not the string it was taken over, which on a large story runs to megabytes.
+     * @internal
+     */
+    private hashCache: Map<boolean, string> = new Map();
 
     constructor(name: string, config: Partial<IStoryConfig> = {}) {
         super();
@@ -167,7 +185,13 @@ export class Story extends Constructable<
      * However, the hash is **not** calculated with the text content of the story.
      */
     public hash(strict: boolean = false): string {
-        return fnv1a64(this.stringify(strict));
+        const cached = this.hashCache.get(strict);
+        if (cached !== undefined) {
+            return cached;
+        }
+        const computed = fnv1a64(this.stringify(strict));
+        this.hashCache.set(strict, computed);
+        return computed;
     }
 
     public stringify(strict: boolean = false): string {
@@ -236,26 +260,136 @@ export class Story extends Constructable<
             throw new Error("Story must have an entry scene");
         }
 
+        // Constructing a second time can reach a different set of actions, which makes whatever
+        // the last construction hashed no longer an answer about this one.
+        this.hashCache.clear();
+
         this.constructSceneRoots(scene);
         scene.registerSrc(this);
         scene.assignActionId(this);
         scene.assignElementId(this);
 
         this.runStaticCheck(scene);
+        this.captureElementBaseline();
+        this.scheduleHashWarmUp();
         return this;
     }
 
-    /**@internal */
+    /**
+     * Take the hash while the host is doing nothing, so that whoever asks for it first does not.
+     *
+     * The first asker is normally `newGame()`, which means the player pressing Start - the one
+     * moment in a game where a walk of the whole story is least affordable. Between construction
+     * and that press there is usually a title screen and a person looking at it, which is idle
+     * time this has no better use for.
+     *
+     * Idle only, never a timer: a host that never goes idle is a host that is busy, and the lazy
+     * path in {@link Story.hash} still answers correctly there. Nothing waits on this.
+     * @internal
+     */
+    private scheduleHashWarmUp(): void {
+        const idle = (globalThis as typeof globalThis & {
+            requestIdleCallback?: (callback: () => void) => unknown;
+        }).requestIdleCallback;
+        if (typeof idle !== "function") {
+            return;
+        }
+        idle(() => {
+            try {
+                this.hash();
+            } catch {
+                // A hash taken ahead of time is an optimisation, not a step. Whatever went wrong
+                // here will go wrong again where someone is waiting for the answer, and that is
+                // where it belongs.
+            }
+        });
+    }
+
+    /**
+     * What every element serialises to before a single action has run - the state the script wrote.
+     *
+     * Captured once, at the end of construction, and compared against on every save so that an
+     * element still standing where the author put it can be left out of it. Ids are already
+     * assigned by this point (`assignElementId`, just above).
+     * @internal
+     */
+    private captureElementBaseline(): void {
+        const baseline = new Map<string, string>();
+        this.getAllChildrenElements(this, this.entryScene?.getSceneRoot() || []).forEach(element => {
+            const data = element.toData();
+            if (data) {
+                baseline.set(element.getId(), JSON.stringify(data));
+            }
+        });
+        this.elementBaseline = baseline;
+    }
+
+    /**
+     * The elements a save has to carry: those whose state no longer matches what the script wrote.
+     *
+     * A story reaches every element of every scene it can jump to, so serialising all of them puts
+     * the whole cast into every save and into every per-line history snapshot - a cost that grows
+     * with the size of the project rather than with what is on stage. Everything a scene put on
+     * stage is returned to its authored state when that scene is left, so in practice the elements
+     * that differ are the ones the current scene is using, plus the few that outlive a scene by
+     * design (the story camera, sounds still playing).
+     *
+     * Leaving an element out is not a loss of information: {@link LiveGame.deserialize} returns
+     * every element to its authored state before applying a save, so an element the save does not
+     * name is restored by being reset.
+     *
+     * The dirty flag only narrows which elements are worth serialising; whether one reaches the save
+     * is decided by comparing it against the baseline, so a flag left standing costs a comparison
+     * rather than a wrong save.
+     * @internal
+     */
     getAllElementStates(): RawData<ElementStateRaw>[] {
         const elements = this.getAllChildrenElements(this, this.entryScene?.getSceneRoot() || []);
-        return elements
-            .map(e => {
-                return {
-                    id: e.getId(),
-                    data: e.toData()
-                };
-            })
-            .filter(e => !!e.data);
+        const baseline = this.elementBaseline;
+        const states: RawData<ElementStateRaw>[] = [];
+
+        for (const element of elements) {
+            // Without a baseline (a story that was never constructed) there is nothing to compare
+            // against, so every element is carried, exactly as before this was introduced.
+            if (baseline && !element.isDirty()) {
+                continue;
+            }
+
+            const data = element.toData();
+            if (!data) {
+                continue;
+            }
+            if (baseline && JSON.stringify(data) === baseline.get(element.getId())) {
+                continue;
+            }
+            states.push({id: element.getId(), data});
+        }
+        return states;
+    }
+
+    /**
+     * Every element whose state has drifted from what the script wrote *without* being marked dirty
+     * - the one failure mode that would silently drop state from a save.
+     *
+     * This is the full walk the dirty flag exists to avoid, so it is only ever run as an audit (see
+     * {@link LiveGame.auditElementDirtyMarks}, which runs it periodically in debug builds), never on
+     * the path that writes a save.
+     * @internal
+     */
+    findUnmarkedElements(): LogicAction.GameElement[] {
+        const baseline = this.elementBaseline;
+        if (!baseline) {
+            return [];
+        }
+
+        return this.getAllChildrenElements(this, this.entryScene?.getSceneRoot() || [])
+            .filter(element => {
+                if (element.isDirty()) {
+                    return false;
+                }
+                const data = element.toData();
+                return !!data && JSON.stringify(data) !== baseline.get(element.getId());
+            });
     }
 
     /**@internal */

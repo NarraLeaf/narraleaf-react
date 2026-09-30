@@ -5,16 +5,20 @@ import {ContentNode} from "@core/action/tree/actionTree";
 import {LogicAction} from "@core/action/logicAction";
 import {EmptyObject} from "@core/elements/transition/type";
 import {SrcManager} from "@core/action/srcManager";
-import {Sound, SoundDataRaw, SoundType, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
-import {ControlActionTypes, SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
+import {Sound, SoundDataRaw, VoiceIdMap, VoiceSrcGenerator} from "@core/elements/sound";
+import {acceptsAudioBus, DefaultAudioBusIds} from "@core/game/audioBus";
+import {CharacterActionTypes, ControlActionTypes, SceneActionContentType, SceneActionTypes} from "@core/action/actionTypes";
 import {Image, ImageDataRaw} from "@core/elements/displayable/image";
 import {Control} from "@core/elements/control";
 import {Chained, Proxied} from "@core/action/chain";
 import {SceneAction} from "@core/action/actions/sceneAction";
 import {ImageAction} from "@core/action/actions/imageAction";
 import {SoundAction} from "@core/action/actions/soundAction";
+import {CharacterAction} from "@core/action/actions/characterAction";
+import {collectStaticAvatarSources} from "@core/elements/character/avatar";
 import {ControlAction} from "@core/action/actions/controlAction";
 import {Text} from "@core/elements/displayable/text";
+import {Puppet} from "@core/elements/displayable/puppet";
 import {DynamicPersistent} from "@core/elements/persistent";
 import {Config, ConfigConstructor} from "@lib/util/config";
 import {DisplayableAction} from "@core/action/actions/displayableAction";
@@ -22,6 +26,7 @@ import {ImageTransition} from "@core/elements/transition/transitions/image/image
 import {StaticScriptWarning, Utils} from "@core/common/Utils";
 import {Layer} from "@core/elements/layer";
 import { Narrator } from "./character";
+import type { Sentence } from "@core/elements/character/sentence";
 import { NVLToken } from "./nvl";
 import type { TransformDefinitions } from "@core/elements/transform/type";
 import type { NvlBlockOptions } from "@core/action/actionTypes";
@@ -69,16 +74,63 @@ export interface ISceneUserConfig {
 }
 
 export type JumpConfig = {
-    transition: ImageTransition;
+    /**
+     * Played across the whole stage while the scenes swap: the outgoing scene drives the
+     * transition's outgoing half and the incoming scene its incoming half, so sprites, text and
+     * every other layer take part rather than only the background.
+     *
+     * The dialogue box is deliberately not part of it — it is rendered outside the stage and is
+     * expected to be gone by the time a scene ends.
+     */
+    transition: Transition;
+    /**
+     * Come back here when the target scene runs out of actions, instead of leaving for good.
+     *
+     * Defaults to `false`, which is the plain jump this method has always performed: the calling
+     * scene is unloaded and everything after the jump is unreachable.
+     *
+     * With `true` the calling scene is **suspended** rather than unloaded. It keeps its stage, its
+     * sprites, its layers and its scene-local variables, its background music is paused, and it
+     * stops painting while the target scene is on screen. When the target scene runs out of
+     * actions the call returns: the target is unloaded, the calling scene paints again, its music
+     * resumes from where it was paused, and the action after the jump runs.
+     *
+     * Only the scene's own background music is suspended. Everything else a sound plays through
+     * belongs to the story rather than to one scene, and plays on across a call exactly as it
+     * plays on across a plain jump.
+     *
+     * A scene cannot be called while it is already on the call stack: one `Scene` owns one place
+     * on the stage and one set of local variables, so it cannot be in two of them at once. Calling
+     * one that is already there throws.
+     */
+    returnable: boolean;
 }
 
 type ChainableAction = Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>> | LogicAction.Actions;
 type ChainedScene = Proxied<Scene, Chained<LogicAction.Actions>>;
 
-/**@internal */
 export type SceneDataRaw = {
     state: Record<string, any>,
 }
+
+/**
+ * A scene's background music, as a save carries it.
+ *
+ * `scene.state.backgroundMusic` is a *pointer* to a `Sound`, and the only thing a save can carry a
+ * pointer as is an id. {@link SoundDataRaw} has none - it is the sound's state and nothing else -
+ * so the record could not be resolved back to the clip it came from, and the load had to guess:
+ * it poured the saved state into whatever `Sound` the scene was already holding. For a scene that
+ * declares its music in its config that guess is right, because the freshly constructed scene is
+ * holding exactly that clip. For a scene handed its track by a `setBackgroundMusic` row it holds
+ * `null`, the record was dropped, and the scene came back not knowing which clip was its own.
+ *
+ * `id` is the sound's element id, and it is optional on the way in: a save written before this
+ * field existed carries none and is read exactly as it was, from the scene's own instance.
+ * @internal
+ */
+export type SceneBackgroundMusicDataRaw = SoundDataRaw & {
+    id?: string;
+};
 
 /**@internal */
 export type SceneEventTypes = {
@@ -114,20 +166,40 @@ export class Scene extends Constructable<
         layers: [],
     });
     /**@internal */
-    static DefaultSceneConfig = new ConfigConstructor<SceneConfig, {
+    private static _defaultSceneConfig: ConfigConstructor<SceneConfig, {
         voices: VoiceIdMap | VoiceSrcGenerator | null;
-    }>({
-        name: "",
-        backgroundMusicFade: 0,
-        voices: null,
-        layers: [],
-        defaultBackgroundLayer: new Layer("[[Background Layer]]", {
-            zIndex: -1,
-        }),
-        defaultDisplayableLayer: new Layer("[[Displayable Layer]]", {
-            zIndex: 0,
-        }),
-    }, {
+    }> | null = null;
+
+    /**
+     * Built on first use rather than while this module is evaluating.
+     *
+     * This one has to be lazy for a stronger reason than the displayables' configs: it *constructs*
+     * two `Layer`s, and a `Layer` constructor reads `Layer.DefaultUserConfig`, which reads
+     * `TransformState` from another module. This module sits in a cycle with that one, so building
+     * the config at evaluation time meant reading `TransformState` before it had been assigned —
+     * `Cannot read properties of undefined (reading 'DefaultTransformState')`, thrown from a stack
+     * naming neither module. Making the displayables' own configs lazy does not help here, because
+     * the `new Layer(...)` below reaches them at exactly the same moment.
+     *
+     * @internal
+     */
+    static get DefaultSceneConfig(): ConfigConstructor<SceneConfig, {
+        voices: VoiceIdMap | VoiceSrcGenerator | null;
+    }> {
+        return (Scene._defaultSceneConfig ??= new ConfigConstructor<SceneConfig, {
+            voices: VoiceIdMap | VoiceSrcGenerator | null;
+        }>({
+            name: "",
+            backgroundMusicFade: 0,
+            voices: null,
+            layers: [],
+            defaultBackgroundLayer: new Layer("[[Background Layer]]", {
+                zIndex: -1,
+            }),
+            defaultDisplayableLayer: new Layer("[[Displayable Layer]]", {
+                zIndex: 0,
+            }),
+        }, {
         voices: (voices: VoiceIdMap | VoiceSrcGenerator | null) => {
             const isVoiceIdMap = (voices: any): voices is VoiceIdMap => {
                 return typeof voices === "object" && voices !== null;
@@ -148,18 +220,31 @@ export class Scene extends Constructable<
             if (isVoiceSrcGenerator(voices)) {
                 return voices;
             }
-            throw new StaticScriptWarning(
-                `Invalid voices config: ${voices}`
-            );
-        },
-    });
+                throw new StaticScriptWarning(
+                    `Invalid voices config: ${voices}`
+                );
+            },
+        }));
+    }
 
-    /**@internal */
+    /**
+     * A voice clip has to sit on the voice bus or the sfx bus - or **anywhere beneath either**.
+     *
+     * The descendant check is what makes per-character voice possible at all: `alice` under
+     * `voice` is a voice, and an equality test said it was not, which failed story compile before
+     * a single sample was ever loaded.
+     *
+     * A bus the engine has not been told about is accepted - see
+     * {@link import("@core/game/audioBus").acceptsAudioBus} for why that is the only workable
+     * answer at story-build time, and where a typo gets caught instead.
+     * @internal
+     */
     static validateVoice(voice: Sound) {
-        if (voice.config.type !== SoundType.Voice && voice.config.type !== SoundType.Sound) {
+        if (!acceptsAudioBus(voice.config.type, [DefaultAudioBusIds.voice, DefaultAudioBusIds.sound])) {
             throw new StaticScriptWarning(
                 `Voice must be a voice, but got ${voice.config.type}. \n`
-                + "To prevent unintended behavior and unexpected results, the sound have to be marked as voice. Please use `Sound.voice()` to create the sound."
+                + "To prevent unintended behavior and unexpected results, the sound have to be on the voice bus "
+                + "(or any bus beneath it). Please use `Sound.voice()` to create the sound."
             );
         }
     }
@@ -167,6 +252,36 @@ export class Scene extends Constructable<
     /**@internal */
     static isScene(object: any): object is Scene {
         return object instanceof Scene;
+    }
+
+    /**
+     * The sounds a scene *owns* rather than acts on: the track named in its config, and the one a
+     * `setBackgroundMusic` row hands it.
+     *
+     * Everything that enumerates a story's elements walks action callees, and a scene's music is
+     * never one - the scene is the callee and the music is state hanging off it. So it was the one
+     * kind of clip that could be playing when a save was written while carrying no id to be written
+     * under. `AudioManager` then looked that id up on the way back in, missed, and the scene's music
+     * did not resume. Both places that need these sounds ask here, so the ids a save is written with
+     * and the table it is read against cannot drift apart.
+     * @internal
+     */
+    static getOwnedSounds(action: LogicAction.Actions): Sound[] {
+        const sounds: Sound[] = [];
+        const callee = action.callee;
+        if (Scene.isScene(callee)) {
+            const configured = callee.userConfig.get().backgroundMusic;
+            if (configured) {
+                sounds.push(configured);
+            }
+        }
+        if (action instanceof SceneAction && action.type === SceneActionTypes.setBackgroundMusic) {
+            const [sound] = (action.contentNode as ContentNode<SceneActionContentType["scene:setBackgroundMusic"]>).getContent();
+            if (sound) {
+                sounds.push(sound);
+            }
+        }
+        return sounds;
     }
 
     /**@internal */
@@ -177,24 +292,47 @@ export class Scene extends Constructable<
         return targetScene;
     }
 
-    /**@internal */
-    static getStateSerializer(scene: Scene) {
+    /**
+     * The scene state a save carries, and how it is put back.
+     *
+     * `elementMap` is the table {@link import("@core/game/liveGame").LiveGame.constructMaps} builds
+     * to restore a save against - the same one every other element is looked up in. It is what turns
+     * the saved background-music id back into the `Sound` the scene was pointing at. Without one
+     * (an old save, which carries no id) the deserializer falls back to the instance the scene is
+     * already holding, which is what it always did.
+     *
+     * `backgroundImage` needs no such treatment: a scene's background is one `Image` created once in
+     * {@link Scene.getInitialState} and never swapped for another, so the instance the scene is
+     * holding is by construction the one the state belongs to.
+     * @internal
+     */
+    static getStateSerializer(scene: Scene, elementMap?: Map<string, LogicAction.GameElement>) {
         return new Serializer<SceneState, {
             backgroundImage: (bg: Image) => ImageDataRaw;
-            backgroundMusic: (sound: Sound | null) => SoundDataRaw | null;
+            backgroundMusic: (sound: Sound | null) => SceneBackgroundMusicDataRaw | null;
         }>({
             backgroundImage: (bg) => bg.toData(),
-            backgroundMusic: (sound) => sound?.toData() || null,
+            backgroundMusic: (sound) => {
+                const data = sound?.toData();
+                if (!data) {
+                    return null;
+                }
+                const id = sound!.getId();
+                return id ? {...data, id} : data;
+            },
         }, {
             backgroundImage: (bg) =>
                 scene.state.backgroundImage.fromData(bg),
-            backgroundMusic: (sound) =>
-                scene.state.backgroundMusic && sound
-                    ? scene.state.backgroundMusic.fromData(sound)
-                    : null,
+            backgroundMusic: (sound) => {
+                if (!sound) {
+                    return null;
+                }
+                const named = sound.id ? elementMap?.get(sound.id) : undefined;
+                const target = named instanceof Sound ? named : scene.state.backgroundMusic;
+                return target ? target.fromData(sound) : null;
+            },
         });
     }
-    
 
     /**@internal */
     public config: SceneConfig;
@@ -208,6 +346,8 @@ export class Scene extends Constructable<
     private actions: ActionStatements | ((scene: Scene) => ActionStatements) = [];
     /**@internal */
     private sceneRoot?: SceneAction<"scene:action">;
+    /** Resolved voice src -> the one `Sound` that plays it. See {@link Scene.getVoice}. */
+    private readonly voiceCache: Map<string, Sound> = new Map();
     /**@internal */
     private readonly localPersistent: DynamicPersistent;
     /**@internal */
@@ -286,14 +426,23 @@ export class Scene extends Constructable<
      * ```
      */
     public setBackground(background: Color | ImageSrc, transition?: ImageTransition): ChainedScene {
-        const chain = this.chain();
-        return chain.chain(Control.do([this.background.char(background, transition)]));
+        // `combineActions` rather than a bare `chain.chain(Control.do(...))`: the latter leaves the
+        // Control's own chain in the scene's action list instead of the action inside it, and a
+        // caller that walks the list by hand then reads `contentNode` off a chain that has none.
+        // A menu branch does exactly that, so a branch carrying a background change and anything
+        // after it used to fail to build.
+        return this.combineActions(new Control(), () => this.background.char(background, transition));
     }
 
     /**
-     * Jump to another scene and discard the current one.
+     * Jump to another scene, either for good or for the length of that scene.
      *
-     * After the jump the calling scene is unloaded and any actions that follow are ignored.
+     * By default the calling scene is unloaded and any actions that follow the jump are ignored.
+     * Pass `returnable: true` to suspend the calling scene instead and come back to the action
+     * after the jump once the target scene runs out of actions; see {@link JumpConfig.returnable}.
+     *
+     * A `transition` plays across the whole stage rather than across the background alone; see
+     * {@link JumpConfig.transition}.
      * @param scene - The destination scene instance.
      * @param config - Optional transition config (or transition object).
      * @chainable
@@ -303,17 +452,27 @@ export class Scene extends Constructable<
      *     scene.jumpTo(nextScene, new FadeIn({duration: 800}))
      * ]);
      * ```
+     * @example
+     * ```ts
+     * // Play the title card, then carry on with the line after the jump.
+     * scene.action([
+     *     scene.jumpTo(titleCard, {returnable: true}),
+     *     character.say("...and we were back."),
+     * ]);
+     * ```
      */
     public jumpTo(scene: Scene, config: Partial<JumpConfig> | JumpConfig["transition"] = {}): ChainableAction {
+        const jumpConfig = deepMerge<JumpConfig>({},
+            config instanceof Transition
+                ? {transition: config} satisfies Partial<JumpConfig>
+                : config
+        );
+        if (jumpConfig.returnable) {
+            return this._callScene(scene, jumpConfig.transition);
+        }
         return this.combineActions(new Control({
             allowFutureScene: false,
         }), chain => {
-            const defaultJumpConfig: Partial<JumpConfig> = {};
-            const jumpConfig = deepMerge<JumpConfig>(defaultJumpConfig,
-                config instanceof Transition
-                    ? {transition: config} satisfies Partial<JumpConfig>
-                    : config
-            );
             chain
                 .chain(new SceneAction<typeof SceneActionTypes.preUnmount>(
                     chain,
@@ -321,10 +480,34 @@ export class Scene extends Constructable<
                     new ContentNode<SceneActionContentType["scene:preUnmount"]>().setContent([])
                 ))
                 .chain(this._initScene(scene))
-                ._transitionToScene(jumpConfig.transition, scene.state.backgroundImage.state.currentSrc)
+                ._transitionToScene(jumpConfig.transition, scene)
                 .chain(this._exit());
             return chain;
         })._jumpTo(scene);
+    }
+
+    /**
+     * The returnable half of {@link jumpTo}: the same stage choreography, minus the two steps that
+     * throw the calling scene away.
+     *
+     * `scene:preUnmount` becomes `scene:preSuspend` - the same place in the order, pausing this
+     * scene's music where the other stops it - and there is no `scene:exit` at all, so the scene
+     * keeps its stage and its local variables. The two actions after the group are the call frame:
+     * `scene:callTo` parks the calling scene and puts the target scene's root on the stack with
+     * `scene:resume` underneath it, so when the target runs out the stack falls through to
+     * `scene:resume` and the story continues here.
+     * @internal
+     */
+    private _callScene(scene: Scene, transition: Transition | undefined): ChainableAction {
+        return this.combineActions(new Control({
+            allowFutureScene: false,
+        }), chain => {
+            chain
+                .chain(this._preSuspend(scene))
+                .chain(this._initScene(scene))
+                ._transitionToScene(transition, scene);
+            return chain;
+        })._callTo(scene)._resume(scene);
     }
 
     /**
@@ -468,9 +651,13 @@ export class Scene extends Constructable<
         } satisfies SceneDataRaw;
     }
 
-    /**@internal */
-    override fromData(data: SceneDataRaw): this {
-        this.state = Scene.getStateSerializer(this).deserialize(data.state);
+    /**
+     * @param elementMap - the table a save is restored against, so the background-music id in
+     * `data` can be resolved back to the `Sound` it names. See {@link Scene.getStateSerializer}.
+     * @internal
+     */
+    override fromData(data: SceneDataRaw, elementMap?: Map<string, LogicAction.GameElement>): this {
+        this.state = Scene.getStateSerializer(this, elementMap).deserialize(data.state);
         return this;
     }
 
@@ -493,7 +680,7 @@ export class Scene extends Constructable<
             return v;
         }).flat(2);
 
-        const images: Image[] = [], texts: Text[] = [];
+        const images: Image[] = [], texts: Text[] = [], puppets: Puppet[] = [];
         this.getAllChildrenElements(story, userActions, {allowFutureScene: false}).forEach(element => {
             if (Chained.isChained(element)) {
                 return;
@@ -502,6 +689,8 @@ export class Scene extends Constructable<
                 images.push(element);
             } else if (element instanceof Text) {
                 texts.push(element);
+            } else if (element instanceof Puppet) {
+                puppets.push(element);
             }
         });
 
@@ -546,6 +735,7 @@ export class Scene extends Constructable<
                 return wearableImagesMap.get(image)!._initWearable(image);
             }),
             ...texts.map(text => (text as Text)._init()),
+            ...puppets.map(puppet => (puppet as Puppet)._init()),
             ...userActions,
         ];
 
@@ -634,7 +824,7 @@ export class Scene extends Constructable<
 
         const seenActions = new Set<LogicAction.Actions>();
 
-        const seenJump = new Set<SceneAction<typeof SceneActionTypes["jumpTo"]>>();
+        const seenJump = new Set<SceneAction>();
         const queue: LogicAction.Actions[] = [this.sceneRoot];
         const futureScene = new Set<Scene>();
 
@@ -654,11 +844,18 @@ export class Scene extends Constructable<
                     });
                 }
 
-                if (action.type === SceneActionTypes.jumpTo) {
-                    const jumpTo = action as SceneAction<typeof SceneActionTypes["jumpTo"]>;
-                    const scene = Scene.getScene(story, jumpTo.contentNode.getContent()[0]);
+                // A call reaches its target the same way a jump does, so its sources are
+                // registered the same way. Naninovel's `@gosub` preloads its target for the same
+                // reason: the target of a call is entered from a scene that is still on stage, so
+                // fetching it on arrival would stall a stage the player is already looking at.
+                const leavesForScene = action.type === SceneActionTypes.jumpTo
+                    || action.type === SceneActionTypes.callTo;
+                if (leavesForScene) {
+                    const leaving = action as SceneAction<"scene:jumpTo" | "scene:callTo">;
+                    const target = leaving.contentNode.getContent()[0] as Scene | string;
+                    const scene = Scene.getScene(story, target);
                     if (!scene) {
-                        throw action._sceneNotFoundError(action.getSceneName(jumpTo.contentNode.getContent()[0]));
+                        throw action._sceneNotFoundError(action.getSceneName(target));
                     }
 
                     const background = SrcManager.getPreloadableSrc(story, action);
@@ -666,13 +863,16 @@ export class Scene extends Constructable<
                         this.srcManager.register(background);
                     }
 
-                    if (seenJump.has(jumpTo) || seen.has(scene)) {
+                    if (!seenJump.has(leaving) && !seen.has(scene)) {
+                        seenJump.add(leaving);
+                        futureScene.add(scene);
+                        seen.add(scene);
+                    } else if (action.type === SceneActionTypes.jumpTo) {
+                        // Nothing follows a jump, so a target already walked ends this branch. A
+                        // call is the other way round: the actions after it are where the story
+                        // carries on, and skipping them here would leave their sources unregistered.
                         continue;
                     }
-
-                    seenJump.add(jumpTo);
-                    futureScene.add(scene);
-                    seen.add(scene);
                 }
             } else if (action instanceof ImageAction) {
                 const src = SrcManager.getPreloadableSrc(story, action);
@@ -681,6 +881,17 @@ export class Scene extends Constructable<
                 }
             } else if (action instanceof SoundAction) {
                 this.srcManager.register(action.callee);
+            } else if (action instanceof CharacterAction) {
+                // Dialog avatars. Only the static ones can be seen from here - a resolver derives
+                // its answer from the portrait's live state, so what it may return is as invisible
+                // to this walk as a layer resolver's srcs are. Projects whose avatars are
+                // resolver-driven register them with `scene.preloadImage` themselves.
+                const sentence = action.type === CharacterActionTypes.say
+                    ? action.contentNode.getContent() as Sentence
+                    : null;
+                for (const avatar of collectStaticAvatarSources(action.callee, sentence)) {
+                    this.srcManager.register({type: "image", src: Utils.srcToURL(avatar)});
+                }
             } else if (action instanceof ControlAction) {
                 const controlAction = action as ControlAction;
                 const actions = controlAction.getFutureActions(story, {allowFutureScene: true});
@@ -735,11 +946,46 @@ export class Scene extends Constructable<
         const elements = this.getAllChildrenElements(story, this.sceneRoot || []);
 
         elements.forEach((element, i) => {
-            element.setId(`e-${i}`);
+            element.resolveId(`e-${i}`);
+        });
+
+        // Scene-owned music is nobody's callee (see {@link Scene.getOwnedSounds}), so the pass
+        // above cannot reach it - and an element with no id is an element a save cannot name.
+        //
+        // Numbered in its own `s-` series rather than continuing `e-`: an element id is a position
+        // in this walk, so folding these in would shift every id after them and point every save
+        // written before today at a different element.
+        const owned = new Set<Sound>();
+        this.getAllChildren(story, this.sceneRoot || []).forEach(action => {
+            Scene.getOwnedSounds(action).forEach(sound => owned.add(sound));
+        });
+        let index = 0;
+        owned.forEach(sound => {
+            // A track that is also acted on already took an `e-` id in the pass above. Renaming it
+            // here would strand every save written against the id it had.
+            if (!sound.getId()) {
+                sound.resolveId(`s-${index}`);
+            }
+            index++;
         });
     }
 
-    /**@internal */
+    /**
+     * The `Sound` for a voice id - the SAME `Sound` every time it resolves to the same clip.
+     *
+     * Identity is the whole point. `AudioManager` keys a playing clip by the `Sound` instance
+     * (`getToken` is a `Map.get`), so minting a new one per call made every "is this line's voice
+     * still playing?" question answer null against a clip that was audibly playing. Two things
+     * depended on that answer and so quietly did nothing: auto-forward's wait for the voice, and
+     * `useVoiceState`'s token. It also meant replaying a line layered a second copy over the first
+     * instead of restarting it.
+     *
+     * Keyed by the resolved src rather than by the id, because the take behind an id changes - that
+     * is what switching dub language is - and a cache keyed by id would keep handing back the take
+     * from the language the player just left.
+     *
+     * @internal
+     */
     getVoice(id: string | number | null): string | Sound | null {
         if (!id) {
             return null;
@@ -750,18 +996,29 @@ export class Scene extends Constructable<
             if (typeof voices === "function") {
                 const voice = voices(id);
                 if (typeof voice === "string") {
-                    return Sound.voice(voice);
+                    return this.voiceOfSrc(voice);
                 }
                 Scene.validateVoice(voice);
                 return voice;
             }
             const voice = voices[id];
             if (typeof voice === "string") {
-                return Sound.voice(voice);
+                return this.voiceOfSrc(voice);
             }
             return voice || null;
         }
         return null;
+    }
+
+    /**@internal */
+    private voiceOfSrc(src: string): Sound {
+        const cached = this.voiceCache.get(src);
+        if (cached) {
+            return cached;
+        }
+        const sound = Sound.voice(src);
+        this.voiceCache.set(src, sound);
+        return sound;
     }
 
     /**@internal */
@@ -783,6 +1040,7 @@ export class Scene extends Constructable<
 
     /**@internal */
     override reset() {
+        super.reset();
         this.state.backgroundImage.reset();
         this.state.backgroundMusic?.reset();
         this.state = this.getInitialState();
@@ -791,10 +1049,14 @@ export class Scene extends Constructable<
     /**@internal */
     private getInitialState(): SceneState {
         const userConfig = this.userConfig.get();
-        if (userConfig.backgroundMusic && userConfig.backgroundMusic.config.type !== SoundType.Bgm) {
+        // Beneath the music bus counts: `ambience` under `bgm` is music, and a bus the engine has
+        // not been told about is let through (see `acceptsAudioBus`).
+        if (userConfig.backgroundMusic
+            && !acceptsAudioBus(userConfig.backgroundMusic.config.type, [DefaultAudioBusIds.bgm])) {
             throw new StaticScriptWarning(
                 `[Scene: ${this.config.name}] Background music must be a bgm, but got ${userConfig.backgroundMusic.config.type}. \n`
-                + "To prevent unintended behavior and unexpected results, the sound have to be marked as bgm. Please use `Sound.bgm()` to create the sound."
+                + "To prevent unintended behavior and unexpected results, the sound have to be on the music bus "
+                + "(or any bus beneath it). Please use `Sound.bgm()` to create the sound."
             );
         }
 
@@ -830,6 +1092,37 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
+    private _callTo(scene: Scene): ChainedScene {
+        return this.chain(new SceneAction<"scene:callTo">(
+            this.chain(),
+            "scene:callTo",
+            new ContentNode<SceneActionContentType["scene:callTo"]>().setContent([
+                scene
+            ])
+        ));
+    }
+
+    /**@internal */
+    private _resume(scene: Scene): ChainedScene {
+        return this.chain(new SceneAction<"scene:resume">(
+            this.chain(),
+            "scene:resume",
+            new ContentNode<SceneActionContentType["scene:resume"]>().setContent([
+                scene
+            ])
+        ));
+    }
+
+    /**@internal */
+    private _preSuspend(target: Scene): SceneAction<"scene:preSuspend"> {
+        return new SceneAction(
+            this.chain(),
+            "scene:preSuspend",
+            new ContentNode<SceneActionContentType["scene:preSuspend"]>().setContent([target])
+        );
+    }
+
+    /**@internal */
     private _exit(): SceneAction<"scene:exit"> {
         return new SceneAction(
             this.chain(),
@@ -839,13 +1132,18 @@ export class Scene extends Constructable<
     }
 
     /**@internal */
-    private _transitionToScene(transition?: ImageTransition, src?: ImageSrc | Color | []): ChainedScene {
+    private _transitionToScene(transition: Transition | undefined, target: Scene): ChainedScene {
         const chain = this.chain();
-        if (transition && src) {
-            const action = this.state.backgroundImage.char(src as any, transition);
-            chain.chain((action as Proxied<LogicAction.GameElement, Chained<LogicAction.Actions>>).getActions());
+        if (!transition) {
+            return chain;
         }
-        return chain;
+
+        return chain.chain(new SceneAction<typeof SceneActionTypes["transitionToScene"]>(
+            chain,
+            SceneActionTypes["transitionToScene"],
+            new ContentNode<SceneActionContentType[typeof SceneActionTypes["transitionToScene"]]>()
+                .setContent([transition, target])
+        ));
     }
 
     /**@internal */

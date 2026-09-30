@@ -102,4 +102,29 @@ describe("TextEvent effect rides on element state, not the save (contract 4)", (
         restored._setAppearanceSync(["happy"]);
         expect(restored.state.currentSrc).toEqual(["happy", "school"]);
     });
+
+    // A save taken part-way through a sentence must restore exactly the appearance the last revealed
+    // token produced — no more, no less — and re-loading the say must walk forward consistently.
+    // `toData`/`fromData` here is the very per-element unit `LiveGame.serializeGameState()` collects
+    // through `story.getAllElementStates()` and `deserialize()` restores element-by-element, so this
+    // exercises the same save/load path a mid-sentence save hits, without a full-game harness.
+    it("a save mid-sentence restores the last-revealed appearance, and the re-loaded say advances cleanly (contract 5d)", () => {
+        const img = tagImage();
+        const first = TextEvent.expression(img, ["happy"]);
+        const second = TextEvent.expression(img, ["angry"]);
+        new Sentence(["a", first, "b", second]).evaluate({} as never);
+
+        // Typewriter revealed the first token, then paused before the second — this is the save point.
+        img._setAppearanceSync(first.config.expression!.appearance);
+        expect(img.state.currentSrc).toEqual(["happy", "school"]);
+
+        // Save → load: only the ordinary image state travels; it carries the mid-sentence appearance
+        // (the second token has NOT been reached, so "angry" is not in the save).
+        const restored = tagImage().fromData(img.toData());
+        expect(restored.state.currentSrc).toEqual(["happy", "school"]);
+
+        // Advancing the re-loaded say to the second token lands its final state.
+        restored._setAppearanceSync(second.config.expression!.appearance);
+        expect(restored.state.currentSrc).toEqual(["angry", "school"]);
+    });
 });

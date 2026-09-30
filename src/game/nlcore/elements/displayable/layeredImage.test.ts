@@ -17,6 +17,66 @@ function makeYuko() {
     });
 }
 
+/** One "mood" group driving three layers, plus an outfit group that one layer follows. */
+function makeShared() {
+    return new Image({
+        src: {
+            layers: [
+                {uniform: "u_body.png", casual: "c_body.png"},
+                // Only the casual outfit has a jacket: follows the outfit group, draws nothing otherwise.
+                {uniform: null, casual: "jacket.png"},
+                {happy: "brows_happy.png", angry: "brows_angry.png"},
+                {happy: "mouth_happy.png", angry: "mouth_angry.png"},
+                {happy: null, angry: "vein.png"},
+            ],
+            defaults: ["uniform", "happy"],
+        },
+    });
+}
+
+describe("layered image - one group, several layers", () => {
+    it("moves every layer that offers the same tag set", () => {
+        const shared = makeShared();
+        shared.state.currentSrc = shared.resolveTags(shared.state.currentSrc as string[], ["angry"]) as [];
+
+        expect(Image.getSrcURLs(shared as Image)).toEqual([
+            "u_body.png", null, "brows_angry.png", "mouth_angry.png", "vein.png",
+        ]);
+    });
+
+    it("leaves the other group alone", () => {
+        const shared = makeShared();
+        shared.state.currentSrc = shared.resolveTags(shared.state.currentSrc as string[], ["casual"]) as [];
+
+        expect(Image.getSrcURLs(shared as Image)).toEqual([
+            "c_body.png", "jacket.png", "brows_happy.png", "mouth_happy.png", null,
+        ]);
+    });
+
+    it("needs one default per group, not per layer", () => {
+        expect(() => makeShared()).not.toThrow();
+    });
+
+    it("preloads every following layer's srcs", () => {
+        expect(Image.getAllLayerSrc(makeShared() as Image).sort()).toEqual([
+            "brows_angry.png", "brows_happy.png", "c_body.png", "jacket.png",
+            "mouth_angry.png", "mouth_happy.png", "u_body.png", "vein.png",
+        ]);
+    });
+
+    it("still rejects a tag shared by two layers offering different sets", () => {
+        expect(() => new Image({
+            src: {
+                layers: [
+                    {none: null, hat: "hat.png"},
+                    {none: null, scarf: "scarf.png"},
+                ],
+                defaults: ["none"],
+            },
+        })).toThrow(/belongs to more than one group/);
+    });
+});
+
 describe("layered image - src resolution", () => {
     it("resolves defaults into one src per layer, bottom to top", () => {
         expect(Image.getSrcURLs(makeYuko() as Image)).toEqual([

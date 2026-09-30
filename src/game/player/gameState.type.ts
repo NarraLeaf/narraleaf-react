@@ -5,19 +5,16 @@ import {Word} from "@core/elements/character/word";
 import {Pausing} from "@core/elements/character/pause";
 import {TextEvent} from "@core/elements/character/textEvent";
 
-/**@internal */
 export type Clickable<T, U = undefined> = {
     action: T;
     onClick: U extends undefined ? () => void : (arg0: U) => void;
 };
-/**@internal */
 export type TextElement = {
     character: Character | null;
     sentence: Sentence;
     id: string;
     words: Word<Pausing | string | TextEvent>[];
 };
-/**@internal */
 export type MenuElement = {
     prompt: Sentence | null;
     choices: Choice[];

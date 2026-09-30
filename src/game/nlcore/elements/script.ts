@@ -20,7 +20,6 @@ export interface ScriptCtx {
 }
 
 type ScriptRun = (ctx: ScriptCtx) => ScriptCleaner | void;
-/**@internal */
 export type ScriptCleaner = () => void;
 
 export class Script extends Actionable<object> {

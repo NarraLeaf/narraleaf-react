@@ -9,10 +9,7 @@ import { Narrator } from "./character";
 import { Lambda } from "./condition";
 
 
-/**@internal */
-type ChainedControl = Proxied<Control, Chained<LogicAction.Actions>>;
-/**@internal */
-type ControlConfig = {
+export type ControlConfig = {
     allowFutureScene: boolean;
 };
 
@@ -27,7 +24,7 @@ export class Control extends Actionable {
      * Control.do([character.say("hello"), image.char("path.png")]);
      * ```
      */
-    public static do(actions: ActionStatements): ChainedControl {
+    public static do(actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().do(actions);
     }
 
@@ -40,7 +37,7 @@ export class Control extends Actionable {
      * Control.doAsync([sound.play(), image.char("path.png")]);
      * ```
      */
-    public static doAsync(actions: ActionStatements): ChainedControl {
+    public static doAsync(actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().doAsync(actions);
     }
 
@@ -58,7 +55,7 @@ export class Control extends Actionable {
      * Control.any([sound.play(), image.char("happy.png")]);
      * ```
      */
-    public static any(actions: ActionStatements): ChainedControl {
+    public static any(actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().any(actions);
     }
 
@@ -76,7 +73,7 @@ export class Control extends Actionable {
      * Control.all([sound.play(), dialog.show()]);
      * ```
      */
-    public static all(actions: ActionStatements): ChainedControl {
+    public static all(actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().all(actions);
     }
 
@@ -90,7 +87,7 @@ export class Control extends Actionable {
      * @param actions - Actions to fire simultaneously.
      * @chainable
      */
-    public static allAsync(actions: ActionStatements): ChainedControl {
+    public static allAsync(actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().allAsync(actions);
     }
 
@@ -104,7 +101,7 @@ export class Control extends Actionable {
      * Control.repeat(3, [character.say("Again!")]);
      * ```
      */
-    public static repeat(times: number, actions: ActionStatements): ChainedControl {
+    public static repeat(times: number, actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().repeat(times, actions);
     }
 
@@ -114,7 +111,7 @@ export class Control extends Actionable {
      * @param actions - Body actions to run each iteration.
      * @chainable
      */
-    public static whileLoop(condition: Lambda<boolean> | LambdaHandler<boolean>, actions: ActionStatements): ChainedControl {
+    public static whileLoop(condition: Lambda<boolean> | LambdaHandler<boolean>, actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().whileLoop(condition, actions);
     }
 
@@ -123,7 +120,7 @@ export class Control extends Actionable {
      * Can only be used inside a loop body.
      * @chainable
      */
-    public static breakLoop(): ChainedControl {
+    public static breakLoop(): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().breakLoop();
     }
 
@@ -132,7 +129,7 @@ export class Control extends Actionable {
      * @param duration - Milliseconds or awaitable controlling the pause length.
      * @chainable
      */
-    public static sleep(duration: number | Awaitable<any> | Promise<any>): ChainedControl {
+    public static sleep(duration: number | Awaitable<any> | Promise<any>): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().sleep(duration);
     }
 
@@ -145,7 +142,7 @@ export class Control extends Actionable {
      * Control.waitForClick();
      * ```
      */
-    public static waitForClick(): ChainedControl {
+    public static waitForClick(): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().waitForClick();
     }
 
@@ -165,7 +162,7 @@ export class Control extends Actionable {
      * ]);
      * ```
      */
-    public static label(name: string): ChainedControl {
+    public static label(name: string): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().label(name);
     }
 
@@ -188,7 +185,7 @@ export class Control extends Actionable {
      * ]);
      * ```
      */
-    public static jump(name: string): ChainedControl {
+    public static jump(name: string): Proxied<Control, Chained<LogicAction.Actions>> {
         return new Control().jump(name);
     }
 
@@ -200,7 +197,7 @@ export class Control extends Actionable {
      * Execute actions in order, waiting for each action to complete
      * @chainable
      */
-    public do(actions: ActionStatements): ChainedControl {
+    public do(actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return this.push(ControlAction.ActionTypes.do, actions);
     }
 
@@ -208,7 +205,7 @@ export class Control extends Actionable {
      * Execute actions in order, do not wait for this action to complete
      * @chainable
      */
-    public doAsync(actions: ActionStatements): ChainedControl {
+    public doAsync(actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return this.push(ControlAction.ActionTypes.doAsync, actions);
     }
 
@@ -216,7 +213,7 @@ export class Control extends Actionable {
      * Execute all actions at the same time, waiting for any one action to complete
      * @chainable
      */
-    public any(actions: ActionStatements): ChainedControl {
+    public any(actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return this.pushUnchained(ControlAction.ActionTypes.any, actions);
     }
 
@@ -224,7 +221,7 @@ export class Control extends Actionable {
      * Execute all actions at the same time, waiting for all actions to complete
      * @chainable
      */
-    public all(actions: ActionStatements): ChainedControl {
+    public all(actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return this.pushUnchained(ControlAction.ActionTypes.all, actions);
     }
 
@@ -232,7 +229,7 @@ export class Control extends Actionable {
      * Execute all actions at the same time, do not wait for all actions to complete
      * @chainable
      */
-    public allAsync(actions: ActionStatements): ChainedControl {
+    public allAsync(actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         return this.pushUnchained(ControlAction.ActionTypes.allAsync, actions);
     }
 
@@ -240,7 +237,7 @@ export class Control extends Actionable {
      * Execute actions multiple times
      * @chainable
      */
-    public repeat(times: number, actions: ActionStatements): ChainedControl {
+    public repeat(times: number, actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         // repeat/while feed their body to a StackModel loop, which pushes each body action onto
         // the stack independently and asserts (checkActionChain) the body is NOT chained. So keep
         // the body unchained here — unlike do/doAsync, which walk the body via child links.
@@ -251,7 +248,7 @@ export class Control extends Actionable {
      * Execute actions while condition is true
      * @chainable
      */
-    public whileLoop(condition: Lambda<boolean> | LambdaHandler<boolean>, actions: ActionStatements): ChainedControl {
+    public whileLoop(condition: Lambda<boolean> | LambdaHandler<boolean>, actions: ActionStatements): Proxied<Control, Chained<LogicAction.Actions>> {
         const lambda = Lambda.from(condition);
         return this.pushWithLambda(ControlAction.ActionTypes.while, actions, lambda);
     }
@@ -261,7 +258,7 @@ export class Control extends Actionable {
      * Can only be used inside a loop body
      * @chainable
      */
-    public breakLoop(): ChainedControl {
+    public breakLoop(): Proxied<Control, Chained<LogicAction.Actions>> {
         const action = new ControlAction(
             this.chain(),
             ControlAction.ActionTypes.break,
@@ -274,7 +271,7 @@ export class Control extends Actionable {
      * Sleep for a duration
      * @chainable
      */
-    public sleep(duration: number | Awaitable<any> | Promise<any>): ChainedControl {
+    public sleep(duration: number | Awaitable<any> | Promise<any>): Proxied<Control, Chained<LogicAction.Actions>> {
         return this.push(ControlAction.ActionTypes.sleep, [], duration);
     }
 
@@ -282,7 +279,7 @@ export class Control extends Actionable {
      * Wait for user to click the stage (excluding GUI elements)
      * @chainable
      */
-    public waitForClick(): ChainedControl {
+    public waitForClick(): Proxied<Control, Chained<LogicAction.Actions>> {
         const action = new ControlAction(
             this.chain(),
             ControlAction.ActionTypes.waitForClick,
@@ -295,7 +292,7 @@ export class Control extends Actionable {
      * Mark a named point inside the current scene that {@link Control.jump} can jump to.
      * @chainable
      */
-    public label(name: string): ChainedControl {
+    public label(name: string): Proxied<Control, Chained<LogicAction.Actions>> {
         const action = new ControlAction(
             this.chain(),
             ControlAction.ActionTypes.label,
@@ -308,7 +305,7 @@ export class Control extends Actionable {
      * Jump to a {@link Control.label} in the same scene and resume playing from there.
      * @chainable
      */
-    public jump(name: string): ChainedControl {
+    public jump(name: string): Proxied<Control, Chained<LogicAction.Actions>> {
         const action = new ControlAction(
             this.chain(),
             ControlAction.ActionTypes.jump,
@@ -322,7 +319,7 @@ export class Control extends Actionable {
         type: Values<typeof ControlAction.ActionTypes>,
         actions: ActionStatements,
         ...args: any[]
-    ): ChainedControl {
+    ): Proxied<Control, Chained<LogicAction.Actions>> {
         const flatted = this.narrativeToActions(actions);
         const action = new ControlAction(
             this.chain(),
@@ -337,7 +334,7 @@ export class Control extends Actionable {
         type: Values<typeof ControlAction.ActionTypes>,
         actions: ActionStatements,
         ...args: any[]
-    ): ChainedControl {
+    ): Proxied<Control, Chained<LogicAction.Actions>> {
         const flatted = this.narrativeToActions(actions);
         const action = new ControlAction(
             this.chain(),
@@ -352,7 +349,7 @@ export class Control extends Actionable {
         type: Values<typeof ControlAction.ActionTypes>,
         actions: ActionStatements,
         lambda: Lambda<boolean>
-    ): ChainedControl {
+    ): Proxied<Control, Chained<LogicAction.Actions>> {
         // Body is left unchained: the while-loop StackModel pushes each body action independently
         // and asserts the body is not chained (see repeat/checkActionChain).
         const flatted = this.narrativeToActions(actions);

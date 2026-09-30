@@ -10,6 +10,8 @@ import { StackModel, StackModelRawData } from "./action/stackModel";
 import type { GameElementHistory } from "./action/gameHistory";
 import { MenuComponent, NotificationComponent, NvlDialogComponent, SayComponent } from "./common/player";
 import { LiveGameEventToken } from "./types";
+import type { AudioBusDeclaration } from "./game/audioBus";
+import type { PreloadStrategy } from "./preload/types";
 
 /**
  * Current save format version.
@@ -17,8 +19,13 @@ import { LiveGameEventToken } from "./types";
  * - v1 (undefined on the save): core resume state only, no backlog history.
  * - v2: adds `game.history`, a full backlog where every entry carries a self-contained
  *   restore snapshot, so loading a save keeps the backlog and any past line can be restored.
+ * - v3: `elementStates` lists only the elements whose state differs from what the script wrote.
+ *   Restoring resets every element first, so an absent element means "as authored" rather than
+ *   "unchanged". Older engines read a v3 save without resetting, and would leave elements holding
+ *   whatever the running session put in them; newer engines read v1/v2 saves unchanged, since a
+ *   list of every element is just a list that happens to name them all.
  */
-export const SAVE_FORMAT_VERSION = 2;
+export const SAVE_FORMAT_VERSION = 3;
 
 export interface SavedGameMetaData {
     /**
@@ -75,6 +82,15 @@ export interface SerializedGameState {
  * self-contained snapshot that restores the game to exactly this line.
  */
 export interface SerializedGameHistory {
+    /**
+     * The entry's backlog token, kept so that it survives a load.
+     *
+     * A token is how a backlog UI names a line — it is what {@link LiveGame.restoreToHistory} takes.
+     * Rebuilding the backlog with fresh tokens would invalidate every token a caller was holding the
+     * moment a save is loaded or a line restored, so restoring to the same line twice would fail.
+     * Absent on saves written before this was persisted; those entries are given fresh tokens.
+     */
+    token?: string;
     /**
      * Stable action id anchor (`action.getId()`). Used to re-bind the entry to the live story on
      * load; entries whose action no longer exists (script changed) are dropped from the backlog.
@@ -156,9 +172,29 @@ export type GameConfig = {
      */
     ratioUpdateInterval: number;
     /**
+     * Who decides what the player warms, when, and where the bytes come from.
+     *
+     * Unset, the player uses its built-in strategy, which is the behaviour it has always had: walk
+     * the action tree of the scene about to paint and of the scenes reachable from it, split the
+     * result into a first frame, the scene's registered set and a look-ahead, and fetch each one
+     * into an object url with an off-screen decode. Every `preload*` field below steers that
+     * strategy and nothing else.
+     *
+     * Set it and the player stops guessing. It asks this object what should be warm at each moment
+     * in the story and does exactly that, and if the object also supplies
+     * {@link PreloadStrategy.acquire} it stops fetching too - which is what lets a host whose assets
+     * are already on local disk hand back the url it was given and keep no second copy in memory.
+     * The cache, its budgets and the pins are still the player's; the plan is not.
+     *
+     * See {@link PreloadStrategy}.
+     */
+    preload?: PreloadStrategy;
+    /**
      * The game will preload the image with this delay between each preload task
      *
-     * A single preload task may contain {@link GameConfig.preloadConcurrency} images
+     * A single preload task may contain {@link GameConfig.preloadConcurrency} images.
+     * Read by the built-in strategy's speculative band only; a game with its own
+     * {@link GameConfig.preload} paces that band with the same field.
      * @default 100
      */
     preloadDelay: number;
@@ -172,6 +208,21 @@ export type GameConfig = {
      * @default true
      */
     waitForPreload: boolean;
+    /**
+     * How much of a scene has to be warm before the game is shown.
+     *
+     * `"firstFrame"` waits for the scene's opening background and nothing else, then keeps fetching
+     * the rest behind the game. `"scene"` waits for every image the scene registers anywhere in it,
+     * which is what this always did.
+     *
+     * The two differ by an order of magnitude on a real project: a chapter's registered set is
+     * every pose of every character it shows and every background it cuts to, while its first frame
+     * is one picture. Choose `"scene"` when a game would rather open late than risk an image
+     * arriving after the frame that wanted it.
+     *
+     * @default "firstFrame"
+     */
+    preloadGate: "firstFrame" | "scene";
     /**
      * Preload all possible images in the scene
      *
@@ -189,6 +240,113 @@ export type GameConfig = {
      * @default 10
      */
     maxPreloadActions: number;
+    /**
+     * How many bytes of fetched image data the preload cache may hold at once.
+     *
+     * Every image the cache fetches stays in memory as a blob until the cache lets it go, and a
+     * scene's registered set plus a hop of look-ahead is most of a chapter's artwork. Past this
+     * budget the least recently used images that nothing on stage is showing are released; a
+     * released image is fetched again the next time a scene wants it.
+     *
+     * The current scene's opening background and every image a mounted `<img>` is showing are
+     * never released whatever the budget says, so a budget too small for the frame on screen
+     * degrades to fetching on demand, never to a broken frame. `Infinity` removes the limit.
+     *
+     * The default is meant to hold a whole scene's registered set on a large project without
+     * releasing anything it is about to want again - a chapter's worth of artwork measured at
+     * around 200 MB of files - while capping a session that visits fifty scenes at that rather
+     * than at the size of the library. Raise it for a game whose scenes are heavier than that.
+     *
+     * @default 256 * 1024 * 1024
+     */
+    imageCacheBudgetBytes: number;
+    /**
+     * How many bytes of decoded bitmaps the preload cache may keep decoded, at width × height × 4
+     * bytes each.
+     *
+     * A decoded bitmap is what lets an image paint the frame it is revealed on without an
+     * asynchronous decode first, and it is the expensive half of an image: a 1080p background
+     * decodes to about 8 MB whatever its file size, a 2000-pixel sprite to about 10 MB. The cache
+     * keeps the current scene's registered images decoded up to this budget, least recently used
+     * first to go past it; an image it let go of is decoded again on demand, which costs tens of
+     * milliseconds for a 1080p JPEG and is paid before the transition that reveals it starts.
+     *
+     * The current scene's opening background and every image on stage are exempt. `Infinity`
+     * removes the limit; `0` keeps nothing decoded beyond those.
+     *
+     * The default is fifteen 1080p backgrounds or a dozen large sprites - several times what a
+     * scene has on screen at once, which is a background and two or three characters - so the
+     * frame being revealed and the ones about to follow it stay warm while a chapter's worth of
+     * alternative poses does not. This is the pool that grew without limit before there was a
+     * budget, because a bitmap's size has nothing to do with how well its file compressed.
+     *
+     * @default 128 * 1024 * 1024
+     */
+    decodedImageBudgetBytes: number;
+    /**
+     * The audio bus tree, declared by the host at boot.
+     *
+     * A bus is a gain node every sound routed to it passes through, and buses nest: a clip on
+     * `alice` under `voice` is attenuated by `alice`, then by `voice`, then by the master volume.
+     * That is what lets a player turn one character down without touching the rest of the cast.
+     *
+     * A bus's `volume` here is **the author's mix position**, not the player's slider. The player's
+     * control is a separate number that starts at 1 and multiplies on top of this one — see
+     * {@link import("@core/game").Game.audioBuses} — so a mix declared here survives boot and
+     * survives a player who has never touched a slider.
+     *
+     * `bgm`, `sound` and `voice` are always present whether or not they appear here, so leaving
+     * this empty is exactly the behaviour every game had before buses existed. Naming one of them
+     * here moves it or changes its volume; nothing can remove it.
+     *
+     * Declaration order does not matter — a bus may name a parent declared after it. What is
+     * rejected, loudly and at boot, is an unknown parent, a duplicate id, a cycle of any length,
+     * or a chain nested deeper than
+     * {@link import("@core/game/audioBus").MaxAudioBusDepth}.
+     *
+     * **Read once, when the audio subsystem starts.** Re-parenting a live bus would mean removing
+     * a channel, which stops every sound in its subtree, so a `configure()` after the player has
+     * mounted does not re-shape the graph. Volumes, on the other hand, are live at all times —
+     * see {@link import("@core/game").Game.audioBuses}.
+     *
+     * @default []
+     * @example
+     * ```ts
+     * new Game({
+     *     audioBuses: [
+     *         {id: "ambience", parentId: "bgm", volume: 0.6},
+     *         {id: "cast", parentId: "voice"},
+     *         {id: "alice", parentId: "cast"},
+     *     ],
+     * });
+     * // Sound.voice({src: "alice-01.mp3", type: "alice"})
+     * ```
+     */
+    audioBuses: AudioBusDeclaration[];
+    /**
+     * Which clips are streamed through an `<audio>` element instead of being decoded into memory.
+     *
+     * Decoded audio is float32 PCM, so its size has nothing to do with the size of the file it came
+     * from: a five-minute 44.1 kHz stereo track occupies about 106 MB decoded however small the mp3
+     * was. Background music is the worst case of that — long, and resident for as long as the scene
+     * lasts — while a short effect wants to be decoded so that it can start on the frame it is
+     * asked to and overlap with itself.
+     *
+     * - `"loops"` — a clip is streamed when {@link import("@core/elements/sound").ISoundUserConfig.streaming} says so, **or** when
+     *   it loops the whole file (`loop` with no `endTime`). A whole-file loop is background music
+     *   by construction, and repeating a whole file is the one thing an `<audio>` element does
+     *   exactly. A loop that marks an out point is asking for a sample-accurate loop *region*,
+     *   which only a decoded buffer has, so it keeps decoding.
+     * - `"declared"` — only clips whose `streaming` is set are streamed; everything else is decoded.
+     *   Choose this when a game would rather spend the memory than let its music loop through an
+     *   element: `<audio>` repeats the file rather than the samples, and on some browsers and
+     *   formats the loop point is audible.
+     *
+     * A `data:` or `blob:` source is already in memory and is always decoded, whichever this says.
+     *
+     * @default "loops"
+     */
+    audioStreaming: "loops" | "declared";
     /**
      * Src of the cursor image, if null, the game will show the default cursor
      * @default null
@@ -229,6 +387,9 @@ export type GameConfig = {
     /**
      * The delay in milliseconds before the game automatically shows the next sentence
      *
+     * Counted from the end of the line: the text has finished typing AND the line's voice, if any,
+     * has finished playing. A voiced line therefore waits out its clip and then this delay.
+     *
      * Only works when the player preference "autoForward" is enabled
      * @default 3000
      */
@@ -256,10 +417,11 @@ export type GameConfig = {
      */
     allowSkipBackgroundTransform: boolean;
     /**
-     * If true, when you press [GameConfig.player.skipKey], the game will skip the background transition
-     * @default false
+     * If true, when you press [GameConfig.player.skipKey], the game will skip the transition
+     * played between scenes by {@link Scene.jumpTo}
+     * @default true
      */
-    allowSkipBackgroundTransition: boolean;
+    allowSkipSceneTransition: boolean;
     /**
      * If true, when you press [GameConfig.player.skipKey], the game will skip the text transform
      * @default true
@@ -354,6 +516,14 @@ export type GameConfig = {
         guard: GuardConfig;
     };
     /**
+     * Turn off text scaling for the whole game.
+     *
+     * Dialogue text is kept inside its box by being set down as it is typed. Turning this on
+     * leaves every line at the size it was written at, and a line longer than its box overflows it.
+     * @default false
+     */
+    disableTextScaling: boolean;
+    /**
      * Override the default stage
      * @default null
      */
@@ -368,6 +538,18 @@ export type GameConfig = {
      * @default 100
      */
     maxActionHistory: number;
+    /**
+     * How many scenes a chain of returnable jumps may keep suspended at once.
+     *
+     * A returnable jump keeps the scene it left mounted, so a chain of them holds every scene in
+     * the chain on the stage together with its layers and sprites. This is the ceiling on that
+     * chain; the story throws when a call would cross it.
+     *
+     * It is not a recursion guard - recursion is impossible either way, because a scene that is
+     * already on the call stack cannot be called again.
+     * @default 8
+     */
+    maxSceneCallDepth: number;
 };
 export type GameSettings = {
     volume: number;
@@ -388,6 +570,23 @@ export interface NotificationToken extends LiveGameEventToken {
     promise: Promise<void>;
 }
 export type GamePreference = {
+    /**
+     * How long a newly typed character takes to fade in, in milliseconds. `0` turns it off.
+     *
+     * Dialogue text is normally typed at full strength, one character appearing after another.
+     * With a duration here each character arrives faded and comes up over that time while the
+     * typewriter carries on, so the few newest characters of a line are always part-way in and
+     * the line has a soft edge rather than a hard one.
+     *
+     * The player's, like the typing speed it is read against: someone who finds the softness
+     * distracting turns it down, and a settings screen can offer it beside `cps`. The fade never
+     * outlasts the gap between two characters by more than a little, so raising the typing speed
+     * shortens it and raising it a long way leaves none worth seeing. It applies only to text
+     * actually being typed - a line revealed at once, skipped, or drawn again from a save is not
+     * faded in - and a player whose system asks for reduced motion never sees it.
+     * @default 0
+     */
+    textRevealDuration: number;
     /**
      * If true, the game will automatically forward to the next sentence when the player has finished the current sentence
      * @default false

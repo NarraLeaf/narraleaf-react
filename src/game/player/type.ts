@@ -3,6 +3,7 @@ import {Image} from "@core/elements/displayable/image";
 import {EventDispatcher} from "@lib/util/data";
 import {ImageEvents} from "@player/elements/image/Image";
 import {Transform} from "@core/elements/transform/transform";
+import type {TransformDefinitions} from "@core/elements/transform/type";
 import {Transition} from "@core/elements/transition/transition";
 import {Layer} from "@core/elements/layer";
 import {Camera} from "@core/elements/camera";
@@ -12,6 +13,7 @@ import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
 import {Video} from "@core/elements/video";
 import {Vfx, VfxFadeOptions} from "@core/elements/vfx";
+import {Puppet} from "@core/elements/displayable/puppet";
 import { Timeline } from "./Tasks";
 
 export * from "@player/elements/type";
@@ -27,6 +29,7 @@ export enum ExposedStateType {
     video = "narraleaf:video",
     vfx = "narraleaf:vfx",
     camera = "narraleaf:camera",
+    puppet = "narraleaf:puppet",
 }
 
 export type ExposedState = {
@@ -37,12 +40,16 @@ export type ExposedState = {
         events: EventDispatcher<ImageEvents>;
         initDisplayable: (onResolve: () => void) => Timeline;
         applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyLoop: (transform: Transform, options?: TransformDefinitions.LoopOptions) => void;
+        stopLoop: (options: TransformDefinitions.LoopStopOptions | undefined, onResolve: () => void) => Timeline;
         applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
         updateStyleSync: () => void;
     };
     [ExposedStateType.text]: {
         initDisplayable: (onResolve: () => void) => Timeline;
         applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyLoop: (transform: Transform, options?: TransformDefinitions.LoopOptions) => void;
+        stopLoop: (options: TransformDefinitions.LoopStopOptions | undefined, onResolve: () => void) => Timeline;
         applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
         updateStyleSync: () => void;
         flush: () => void;
@@ -50,14 +57,27 @@ export type ExposedState = {
     [ExposedStateType.layer]: {
         initDisplayable: (onResolve: () => void) => Timeline;
         applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyLoop: (transform: Transform, options?: TransformDefinitions.LoopOptions) => void;
+        stopLoop: (options: TransformDefinitions.LoopStopOptions | undefined, onResolve: () => void) => Timeline;
         applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
         updateStyleSync: () => void;
     };
     [ExposedStateType.camera]: {
         initDisplayable: (onResolve: () => void) => Timeline;
         applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyLoop: (transform: Transform, options?: TransformDefinitions.LoopOptions) => void;
+        stopLoop: (options: TransformDefinitions.LoopStopOptions | undefined, onResolve: () => void) => Timeline;
         applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
         updateStyleSync: () => void;
+    };
+    [ExposedStateType.puppet]: {
+        initDisplayable: (onResolve: () => void) => Timeline;
+        applyTransform: (transform: Transform, onResolve: () => void) => Timeline;
+        applyLoop: (transform: Transform, options?: TransformDefinitions.LoopOptions) => void;
+        stopLoop: (options: TransformDefinitions.LoopStopOptions | undefined, onResolve: () => void) => Timeline;
+        applyTransition: (transition: Transition<any>, onResolve: () => void) => Timeline;
+        updateStyleSync: () => void;
+        flush: () => void;
     };
     [ExposedStateType.scene]: {
         setBackgroundMusic: (music: Sound | null, fade: number) => Promise<void>;
@@ -85,6 +105,7 @@ export type ExposedKeys = {
     [ExposedStateType.text]: Text | Displayable<any, any>;
     [ExposedStateType.layer]: Layer | Displayable<any, any>;
     [ExposedStateType.camera]: Camera | Displayable<any, any>;
+    [ExposedStateType.puppet]: Puppet | Displayable<any, any>;
     [ExposedStateType.scene]: Scene;
     [ExposedStateType.video]: Video;
     [ExposedStateType.vfx]: Vfx;

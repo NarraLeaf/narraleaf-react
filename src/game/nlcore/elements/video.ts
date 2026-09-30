@@ -16,17 +16,12 @@ export type VideoConfig = {
     muted: boolean;
 };
 
-/**@internal */
-type VideoState = {
+export type VideoState = {
     display: boolean;
 };
-/**@internal */
 export type VideoStateRaw = {
     state: VideoState;
 };
-
-/**@internal */
-type ChainedVideo = Proxied<Video, Chained<LogicAction.Actions>>;
 
 export class Video extends Actionable<VideoStateRaw> {
     /**@internal */
@@ -65,10 +60,27 @@ export class Video extends Actionable<VideoStateRaw> {
     }
 
     /**
+     * Put the video element on the stage without showing it, so it can start buffering.
+     *
+     * A video that is not in the document has not begun to load. Declaring it ahead of the line
+     * that shows or plays it is what turns "the movie starts" into something immediate rather
+     * than a wait of unknown length on the player's connection.
+     *
+     * Resolves immediately, and does nothing to an element already on stage.
+     * @chainable
+     */
+    preload(): Proxied<Video, Chained<LogicAction.Actions>> {
+        return this.chain(this.createAction(
+            VideoActionTypes.preload,
+            []
+        ));
+    }
+
+    /**
      * Show the video element.
      * @chainable
      */
-    show(): ChainedVideo {
+    show(): Proxied<Video, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VideoActionTypes.show,
             []
@@ -79,7 +91,7 @@ export class Video extends Actionable<VideoStateRaw> {
      * Hide the video element.
      * @chainable
      */
-    hide(): ChainedVideo {
+    hide(): Proxied<Video, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VideoActionTypes.hide,
             []
@@ -94,7 +106,7 @@ export class Video extends Actionable<VideoStateRaw> {
      * video.play();
      * ```
      */
-    play(): ChainedVideo {
+    play(): Proxied<Video, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VideoActionTypes.play,
             []
@@ -105,7 +117,7 @@ export class Video extends Actionable<VideoStateRaw> {
      * Pause the video, keeping its current position.
      * @chainable
      */
-    pause(): ChainedVideo {
+    pause(): Proxied<Video, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VideoActionTypes.pause,
             []
@@ -118,7 +130,7 @@ export class Video extends Actionable<VideoStateRaw> {
      * Unlike {@link play}, this does not wait for the video to finish.
      * @chainable
      */
-    resume(): ChainedVideo {
+    resume(): Proxied<Video, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VideoActionTypes.resume,
             []
@@ -129,7 +141,7 @@ export class Video extends Actionable<VideoStateRaw> {
      * Stop the video: pause it and end any pending {@link play} so the story continues.
      * @chainable
      */
-    stop(): ChainedVideo {
+    stop(): Proxied<Video, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VideoActionTypes.stop,
             []
@@ -144,7 +156,7 @@ export class Video extends Actionable<VideoStateRaw> {
      * video.seek(3);
      * ```
      */
-    seek(time: number): ChainedVideo {
+    seek(time: number): Proxied<Video, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VideoActionTypes.seek,
             [time]
@@ -171,6 +183,7 @@ export class Video extends Actionable<VideoStateRaw> {
 
     /**@internal */
     reset() {
+        super.reset();
         this.state = this.getInitialState();
         return this;
     }

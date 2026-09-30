@@ -10,6 +10,7 @@ import {Storable} from "@core/elements/persistent/storable";
 import {Game} from "@core/game";
 import {Clickable, MenuElement, TextElement} from "@player/gameState.type";
 import {Sentence} from "@core/elements/character/sentence";
+import type {TextEvent} from "@core/elements/character/textEvent";
 import {SceneAction, type SceneSnapshot} from "@core/action/actions/sceneAction";
 import {Logger} from "@lib/util/logger";
 import {RuntimeGameError, RuntimeInternalError} from "@core/common/Utils";
@@ -19,6 +20,7 @@ import {LiveGame} from "@core/game/liveGame";
 import {Word} from "@core/elements/character/word";
 import {Chosen, ExposedKeys, ExposedState, ExposedStateType} from "@player/type";
 import {AudioManager, AudioManagerDataRaw} from "@player/lib/AudioManager";
+import {yieldToBrowser} from "@player/lib/yieldToBrowser";
 import {Layer} from "@core/elements/layer";
 import {GameStateGuard, GuardWarningType} from "@player/guard";
 import {LiveGameEventToken} from "@core/types";
@@ -27,6 +29,10 @@ import {Video, VideoStateRaw} from "@core/elements/video";
 import {Vfx, VfxStateRaw} from "@core/elements/vfx";
 import {Timeline, Timelines} from "@player/Tasks";
 import {Notification, NotificationManager} from "@player/lib/notification";
+import {StageTransitionManager} from "@player/elements/scene/stageTransition";
+import type {ImageCacheManager} from "@player/lib/ImageCacheManager";
+import {VideoWarmQueue} from "@player/lib/VideoWarmQueue";
+import type {PreloadResource} from "@core/preload/types";
 import {ActionHistoryManager} from "@lib/game/nlcore/action/actionHistory";
 import {GameHistoryManager} from "@lib/game/nlcore/action/gameHistory";
 import { Displayable } from "../nlcore/elements/displayable/displayable";
@@ -45,6 +51,13 @@ export type NvlDialogEntry = {
     character: Character | null;
     sentence: Sentence;
     text: string;
+    /**
+     * Runtime-only, per-line text-event fire guard. Lives on the long-lived entry (not the React
+     * dialog state, which is re-created on every re-mount) so the tokens a line reveals fire once and
+     * a re-mount replays nothing. Absent from {@link NvlDialogEntryData}, so a load starts a fresh
+     * reveal that fires again (replay safety). See {@link fireInstantRevealEvents}.
+     */
+    firedTextEvents?: Set<TextEvent>;
 };
 
 export type NvlDialogPhase = "idle" | "typing" | "awaitAdvance";
@@ -96,6 +109,13 @@ export type PlayerStateElement = {
     layers: Map<Layer, LogicAction.DisplayableElements[]>;
     texts: Clickable<TextElement>[];
     menus: Clickable<MenuElement, Chosen>[];
+    /**
+     * Set while this scene is a caller waiting for a returnable jump to come back
+     * ({@link JumpConfig.returnable}). A suspended scene keeps everything it has - its layers, its
+     * sprites, its local variables - but stops painting, stops being the scene new dialog and
+     * menus attach to, and has its background music paused.
+     */
+    suspended?: boolean;
 };
 export type NvlStateData = {
     active: boolean;
@@ -119,6 +139,11 @@ export type NvlDialogEntryData = {
 export type PlayerStateData = {
     scenes: {
         sceneId: string;
+        /**
+         * Whether this scene is a suspended caller waiting for a returnable jump to return.
+         * Absent in saves written before scene calls existed; readers must read it as `false`.
+         */
+        suspended?: boolean;
         elements: {
             /**@deprecated */
             displayable?: string[];
@@ -138,12 +163,18 @@ export type PresentationSnapshot = {
     scenes: SceneSnapshot[];
     nvlState: NvlState;
 };
-/**@internal */
 export type PlayerStateElementSnapshot = {
     scene: Scene,
     layers: Map<Layer, [LogicAction.DisplayableElements, Record<string, any>][]>;
+    /**
+     * Whether this scene was a caller parked behind a returnable jump when the snapshot was taken.
+     *
+     * A snapshot is restored by rebuilding the element, so anything the element carries and the
+     * snapshot does not is silently dropped on the way back. This one is the difference between a
+     * scene that is on the stage and one that is on the stage waiting for a call to return.
+     */
+    suspended?: boolean;
 };
-/**@internal */
 export type PlayerAction = CalledActionResult;
 
 interface StageUtils {
@@ -228,6 +259,14 @@ export class GameState {
     preloadingScene: Scene | null = null;
     flushDep: number = 0;
     rollLock: Lock = new Lock();
+    /**
+     * Clips held on the stage, hidden, because a plan said they are coming - never part of a save.
+     * See {@link VideoWarmQueue}.
+     */
+    private readonly videoWarmQueue: VideoWarmQueue;
+    private videoMissingReporter: ((resource: PreloadResource) => void) | null = null;
+    /** Sources already reported as unwarmed, so one clip in a loop does not report every pass. */
+    private readonly reportedUnwarmedVideos: Set<string> = new Set();
     public readonly notificationMgr: NotificationManager;
     public readonly events: EventDispatcher<GameStateEvents>;
     public readonly logger: Logger;
@@ -236,8 +275,21 @@ export class GameState {
     public readonly idManager: IdManager;
     public readonly actionHistory: ActionHistoryManager;
     public readonly gameHistory: GameHistoryManager;
+    /**
+     * Drives transitions that span two whole scenes.
+     *
+     * `@internal` is load-bearing here, not decorative: {@link StageTransitionManager} is itself
+     * internal, so `stripInternal` deletes its declaration — a public field referencing it would
+     * leave `gameState.d.ts` pointing at a name the emitted output never declares (`check:dts`
+     * catches exactly this).
+     * @internal
+     */
+    public readonly stageTransition: StageTransitionManager;
+    /**@internal */
+    private imageCache: ImageCacheManager | null = null;
     public pageRouter: null = null;
     private stageClickBuffer: { timestamp: number } | null = null;
+    private readonly advanceSuspensions: Set<symbol> = new Set();
     private readonly nvlAdvanceWaiters: Map<string, () => void> = new Map();
     private advDialogState: AdvDialogState | null = null;
     private _fastForwarding: boolean = false;
@@ -254,6 +306,22 @@ export class GameState {
         this.idManager = new IdManager();
         this.actionHistory = new ActionHistoryManager(game.config.maxActionHistory, this.game.getLiveGame());
         this.gameHistory = new GameHistoryManager(this.actionHistory);
+        this.stageTransition = new StageTransitionManager(this);
+        this.videoWarmQueue = new VideoWarmQueue({
+            isDeclared: (video) => this.state.videos.includes(video),
+            onChange: () => this.stage.update(),
+        });
+        // A video component mounts its exposed state on `canplay`, and on `error` for a source that
+        // will not load. Either answers the only question the queue is waiting on - whether it may
+        // start the next clip - so it listens to every state mount and ignores what is not its own.
+        this.events.on(GameState.EventTypes["event.state.onExpose"], (key) => {
+            this.videoWarmQueue.noteReady(key);
+        });
+        this.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+            if (this.game.config.allowSkipSceneTransition) {
+                this.stageTransition.skip();
+            }
+        });
     }
 
     public get deps(): number {
@@ -262,6 +330,10 @@ export class GameState {
 
     public addVideo(video: Video): this {
         this.state.videos.push(video);
+        // Whatever the warm queue was holding it for, the story now holds it for a better reason.
+        // The element does not move: it is the same object, so the same DOM node and the same
+        // buffer carry on, and the queue is only told to stop counting it.
+        this.videoWarmQueue.forget(video);
         return this;
     }
 
@@ -275,12 +347,81 @@ export class GameState {
         return this;
     }
 
+    /**
+     * Whether the STORY has put this clip on the stage - a declaration row, a show, a play.
+     *
+     * Deliberately not "is it in the document": a clip the warm queue is holding is mounted and
+     * buffering but nothing has shown it, and the two answers are wanted in different places. What
+     * a save records, what an undo takes back and what a second declaration skips are all this one;
+     * whether an action may talk to the element is {@link GameState.isVideoOnStage}.
+     */
     public isVideoAdded(video: Video): boolean {
         return this.state.videos.includes(video);
     }
 
+    /** Whether the clip is in the document at all, warmed or shown - so whether it has a state to talk to. */
+    public isVideoOnStage(video: Video): boolean {
+        return this.state.videos.includes(video) || this.videoWarmQueue.getAdmitted().includes(video);
+    }
+
+    /**
+     * Every clip the stage renders: the story's own, then whatever the warm queue is holding.
+     *
+     * The two lists are kept apart rather than merged on insert because only the first is state.
+     * A save is a list of what the story put on the stage; a warmed clip is a performance detail of
+     * this run of it, and writing it into a save would make a story edit able to invalidate a save
+     * that has nothing to do with the change (`fromData` throws on a video id it cannot find).
+     */
     public getVideos(): Video[] {
-        return this.state.videos;
+        const warm = this.videoWarmQueue.getAdmitted();
+        if (!warm.length) {
+            return this.state.videos;
+        }
+        return [...this.state.videos, ...warm.filter(video => !this.state.videos.includes(video))];
+    }
+
+    /**
+     * Hold exactly these clips buffering ahead of the story, in this order of preference.
+     *
+     * What a {@link PreloadPlan.video} asks for. The queue starts them one at a time and waits for
+     * each to become playable before starting the next, so how many are really being fetched at
+     * once follows the connection rather than the plan; see {@link VideoWarmQueue}.
+     */
+    public retainWarmVideos(videos: readonly Video[]): this {
+        this.videoWarmQueue.retain(videos);
+        return this;
+    }
+
+    /**
+     * Where to report a clip the story played that no plan named, or null for nowhere.
+     *
+     * The image half of this lives on the cache manager, which is the thing that would have fetched
+     * the image; a video is never fetched by the player, so the report has to come from the action
+     * that starts it.
+     */
+    public useVideoMissingReporter(reporter: ((resource: PreloadResource) => void) | null): this {
+        this.videoMissingReporter = reporter;
+        return this;
+    }
+
+    /**
+     * Note that a clip is about to be shown or played with nothing having warmed it.
+     *
+     * Once per source, and only when no plan named it and nothing has it on the stage: a clip the
+     * author declared a few rows earlier is warm by authorship, and reporting that would be
+     * reporting the feature working.
+     */
+    public reportUnwarmedVideo(video: Video): this {
+        const src = video.config.src;
+        if (!this.videoMissingReporter || !src || this.reportedUnwarmedVideos.has(src)) {
+            return this;
+        }
+        if (this.videoWarmQueue.isPlanned(video) || this.isVideoOnStage(video)) {
+            return this;
+        }
+        this.reportedUnwarmedVideos.add(src);
+        this.videoMissingReporter({type: "video", src});
+        return this;
     }
 
     public addVfx(vfx: Vfx): this {
@@ -353,6 +494,24 @@ export class GameState {
         return this.preloadingScene;
     }
 
+    /**
+     * The image cache the mounted player is using, or `null` while no player is mounted.
+     *
+     * What it holds against {@link GameConfig.imageCacheBudgetBytes} and
+     * {@link GameConfig.decodedImageBudgetBytes} is readable at any time, which is what a profiler
+     * or a host checking a long session's memory wants:
+     * `game.getLiveGame().getGameState()?.getImageCache()?.getStats()`.
+     */
+    public getImageCache(): ImageCacheManager | null {
+        return this.imageCache;
+    }
+
+    /**@internal */
+    public setImageCache(cache: ImageCacheManager | null): this {
+        this.imageCache = cache;
+        return this;
+    }
+
     public addElement(element: PlayerStateElement): this {
         this.state.elements.push(element);
         this.logger.debug("GameState", "Adding element", element.scene.getId());
@@ -389,6 +548,36 @@ export class GameState {
         return this;
     }
 
+    /**
+     * Advance every line still waiting for a click on `scene`, because the scene is leaving.
+     *
+     * A pending line lives as a `Clickable` in the scene's own stage entry, and the click callback
+     * in it is the only thing that settles the action waiting on it. Taking the entry away used to
+     * drop the line with it: nothing rendered the line any more, so no click could reach it, and
+     * whatever was waiting on it waited for ever.
+     *
+     * On the main stack that never showed, because every path that unloads a scene also clears the
+     * stack it would have blocked. A concurrent branch has a stack of its own and `Control.all`
+     * waits for every branch, so a single line left behind by a returning scene call stopped the
+     * story with no error and every click inert.
+     *
+     * Advanced rather than abandoned, because advancing is the only handle a pending line offers -
+     * its click callback is what settles it. The line is over either way, since it is no longer on
+     * screen; this way the branch that queued it carries on instead of stopping where it stood.
+     *
+     * Menus are deliberately not touched: choosing on the player's behalf would decide the story,
+     * which is worse than any of this.
+     */
+    public settlePendingLines(scene: Scene): this {
+        const element = this.findElementByScene(scene);
+        if (!element || !element.texts.length) {
+            return this;
+        }
+        // Copied first: the click callback splices the entry out of the array being walked.
+        [...element.texts].forEach(text => text.onClick());
+        return this;
+    }
+
     public removeScene(scene: Scene): this {
         this.removeElements(scene);
         this.logger.debug("GameState", "Removing scene", scene.getId());
@@ -400,8 +589,68 @@ export class GameState {
         return this.state.elements;
     }
 
+    /**
+     * The scene the story is currently running in.
+     *
+     * Walks from the end of the list past any **suspended** scene. A suspended scene is a caller
+     * parked mid-jump: it is still mounted and still holds its stage, but it is not where the next
+     * line of dialogue belongs. Without this skip a called scene's dialogue would attach to the
+     * scene that called it, which still renders its own dialog box.
+     *
+     * With nothing suspended - which is every story that never makes a returnable jump, and every
+     * moment of one that does not have a call open - this is byte for byte what it always was.
+     */
     public getLastScene(): Scene | null {
-        return this.state.elements[this.state.elements.length - 1]?.scene || null;
+        for (let i = this.state.elements.length - 1; i >= 0; i--) {
+            const element = this.state.elements[i];
+            if (!element.suspended) {
+                return element.scene;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Park a scene, or bring it back.
+     *
+     * The visual half is not React's to do: a scene root's paint is written imperatively by the
+     * stage transition manager (that is how a transition drives two live scene subtrees), so
+     * putting `visibility` in the component's props would have React and the transition writing the
+     * same property. The manager owns the pose either way; this tells it which one to hold.
+     * @internal
+     */
+    public setSceneSuspended(scene: Scene, suspended: boolean): this {
+        const element = this.findElementByScene(scene);
+        if (!element) {
+            this.logger.weakWarn("Scene not found when suspending", scene.getId());
+            return this;
+        }
+        element.suspended = suspended;
+        this.stageTransition.syncScenePose(scene, suspended);
+        this.logger.debug("GameState", suspended ? "Suspending scene" : "Resuming scene", scene.getId());
+        this.stage.update();
+        return this;
+    }
+
+    /**@internal */
+    public isSceneSuspended(scene: Scene): boolean {
+        return this.findElementByScene(scene)?.suspended === true;
+    }
+
+    /**
+     * Every scene parked by a returnable jump, innermost first.
+     *
+     * That is the reverse of the order they were parked in, because `addScene` unshifts - the scene
+     * that entered last is at the front of the list. Unwinding a call stack wants innermost first,
+     * so the order is the useful one rather than an accident, but it is the opposite of what the
+     * name suggests and worth reading twice.
+     *
+     * Its length is the depth of the call stack, which is what {@link GameConfig.maxSceneCallDepth}
+     * is measured against.
+     * @internal
+     */
+    public getSuspendedScenes(): Scene[] {
+        return this.state.elements.filter(element => element.suspended).map(element => element.scene);
     }
 
     public getCurrentScene(): Scene | null {
@@ -777,6 +1026,35 @@ export class GameState {
             SceneAction.restoreSceneSnapshot(sceneSnapshot, this);
         });
         this.restoreNvlSnapshot(snapshot.nvlState);
+        // A snapshot stores a loop as the id of the action that started it, because a Transform
+        // cannot be serialized. `fromData` therefore restores the anchor and leaves the transform
+        // unresolved on purpose, and resolving it needs the story's action map - which
+        // `LiveGame.deserialize` supplies in a pass of its own.
+        //
+        // This is the OTHER way an element's state is put back: stepping back in place, which is
+        // what an ordinary undo does. Without the same pass the element is left half-restored -
+        // `_getLoop()` finds no transform, so the host never restarts the motion, while
+        // `_serializeLoop()` still finds the anchor, so every later save keeps carrying a loop the
+        // player cannot see. It looked intermittent because only the first undo after a fresh start
+        // takes this path; every later one falls through to `deserialize`, which healed it.
+        this.rebindLoops();
+        return this;
+    }
+
+    /**
+     * Resolve every element's loop anchor back to the transform the story holds.
+     *
+     * Idempotent and cheap - {@link Displayable._rebindLoop} returns at once for an element with no
+     * anchor or an already-resolved one - so it is safe after any restore. Running it after all of
+     * them is what keeps a half-resolved loop from ever reaching the player.
+     */
+    private rebindLoops(): this {
+        const [actionMaps, elementMaps] = this.getLiveGame().constructMaps();
+        elementMaps.forEach(element => {
+            if (element instanceof Displayable) {
+                element._rebindLoop(actionMaps);
+            }
+        });
         return this;
     }
 
@@ -993,6 +1271,34 @@ export class GameState {
         return this;
     }
 
+    /**
+     * Hold the line where it is: while at least one suspension is out, clicking the stage and
+     * pressing the advance or skip key do nothing.
+     *
+     * Anything that opens on top of a line and wants the player's next keystroke needs this — a
+     * definition popup on an inline word, a term the player is reading. Without it a popup opens and
+     * the very next space bar advances the line behind it, which is the one thing the popup exists
+     * to prevent.
+     *
+     * Suspensions nest: the line resumes once every one of them has been released.
+     *
+     * @returns A function that releases this suspension. Safe to call more than once.
+     */
+    public suspendAdvance(): () => void {
+        const token = Symbol("advance-suspension");
+        this.advanceSuspensions.add(token);
+        return () => {
+            this.advanceSuspensions.delete(token);
+        };
+    }
+
+    /**
+     * Whether anything is currently holding the line — see {@link GameState.suspendAdvance}.
+     */
+    public isAdvanceSuspended(): boolean {
+        return this.advanceSuspensions.size > 0;
+    }
+
     public consumeStageClick(maxAgeMs: number = 200): boolean {
         if (!this.stageClickBuffer) {
             return false;
@@ -1052,6 +1358,8 @@ export class GameState {
         this.state.elements = [];
         this.state.srcManagers = [];
         this.state.videos = [];
+        this.videoWarmQueue.clear();
+        this.reportedUnwarmedVideos.clear();
         this.state.vfx = [];
         this.nvlState = {
             active: false,
@@ -1102,19 +1410,19 @@ export class GameState {
         return this.game.getLiveGame().story!;
     }
 
-    public setInterval(callback: () => void, delay: number): NodeJS.Timeout {
+    public setInterval(callback: () => void, delay: number): ReturnType<typeof setInterval> {
         return setInterval(callback, delay);
     }
 
-    public clearInterval(interval: NodeJS.Timeout): void {
+    public clearInterval(interval: ReturnType<typeof setInterval>): void {
         clearInterval(interval);
     }
 
-    public setTimeout(callback: () => void, delay: number): NodeJS.Timeout {
+    public setTimeout(callback: () => void, delay: number): ReturnType<typeof setTimeout> {
         return setTimeout(callback, delay);
     }
 
-    public clearTimeout(timeout: NodeJS.Timeout): void {
+    public clearTimeout(timeout: ReturnType<typeof setTimeout>): void {
         clearTimeout(timeout);
     }
 
@@ -1198,24 +1506,73 @@ export class GameState {
         return state;
     }
 
+    /**
+     * Wait for a component to expose its state, then hand it over - **never in the caller's own
+     * task**, and always the state that is on screen when the hand-over happens.
+     *
+     * The waiting branch used to call back straight out of `mountState`, which runs inside the
+     * component's mount effect, and that is what made starting a scene one unbroken synchronous
+     * chain: the action flushes the stage, React commits, the new displayable mounts, this fires,
+     * the action resolves, `next()` runs the following action, which flushes the stage again - one
+     * commit per element, all of it without ever returning to the event loop.
+     *
+     * React counts those: a commit that leaves synchronous work pending on the same root bumps
+     * `nestedUpdateCount`, and at fifty it **throws** `Maximum update depth exceeded` - in
+     * production as well as in development. So a scene was only ever allowed about twenty-five
+     * displayables before the whole player died at its error boundary, with the game silently
+     * never starting. Measured 2026-09-04: a scene of 23 images ran, one of 26 did not.
+     *
+     * Two things follow from handing over a turn later, and both are load-bearing:
+     *
+     * - The turn is taken through {@link yieldToBrowser} rather than a timer. A scene of 44 images
+     *   took **45 seconds** to start through `setTimeout(0)` when its window was not the foreground
+     *   one, because a background window's timers are throttled to about one a second; the boot
+     *   preload gave up first.
+     * - The state is **re-read at hand-over** instead of being taken from the event. React mounts an
+     *   effect, tears it down and mounts it again under `StrictMode`, so what announced itself one
+     *   turn ago can already be the throwaway mount's state, and calling `initDisplayable` on that
+     *   one leaves the action waiting for ever. A hand-over that finds nothing mounted stays
+     *   subscribed and waits for the mount that follows.
+     */
     public getExposedStateAsync<T extends ExposedStateType>(key: ExposedKeys[T], onExpose: (state: ExposedState[T]) => void): LiveGameEventToken {
-        const state = this.getExposedState(key);
-        if (state) {
-            const cancel = this.schedule(() => {
-                onExpose(state);
-            }, 0);
-            return {
-                cancel,
-            };
-        } else {
-            const token = this.events.on(GameState.EventTypes["event.state.onExpose"], (k, s) => {
-                if (k === key) {
-                    onExpose(s as ExposedState[T]);
-                    token.cancel();
-                }
-            });
-            return token;
+        let cancelPending: (() => void) | null = null;
+        let delivered = false;
+        let token: LiveGameEventToken | null = null;
+
+        const handOver = (): void => {
+            cancelPending = null;
+            if (delivered) {
+                return;
+            }
+            const current = this.getExposedState(key);
+            if (!current) {
+                return;
+            }
+            delivered = true;
+            token?.cancel();
+            onExpose(current);
+        };
+        const scheduleHandOver = (): void => {
+            cancelPending?.();
+            cancelPending = yieldToBrowser(handOver);
+        };
+
+        if (this.getExposedState(key)) {
+            scheduleHandOver();
         }
+        // Subscribed even when the state is already there: the hand-over is a turn away, and a
+        // remount in between would leave the scheduled one with nothing to give.
+        token = this.events.on(GameState.EventTypes["event.state.onExpose"], (k) => {
+            if (k === key && !delivered) {
+                scheduleHandOver();
+            }
+        });
+        return {
+            cancel: () => {
+                token?.cancel();
+                cancelPending?.();
+            },
+        };
     }
 
     /**
@@ -1238,6 +1595,7 @@ export class GameState {
             scenes: this.state.elements.map(e => {
                 return {
                     sceneId: e.scene.getId(),
+                    ...(e.suspended ? {suspended: true} : {}),
                     elements: {
                         layers: Object.fromEntries(
                             Array.from(e.layers.entries())
@@ -1283,7 +1641,10 @@ export class GameState {
         }
 
         const {scenes, audio, videos} = data;
-        scenes.forEach(({sceneId, elements}) => {
+        // The clips the save's audio record brings back itself, at the position and in the
+        // transport state it recorded. See the scene loop below for why a scene leaves these alone.
+        const restoredSounds = new Set(audio.sounds.map(([soundId]) => soundId));
+        scenes.forEach(({sceneId, elements, suspended}) => {
             this.logger.debug("Loading scene: " + sceneId);
 
             const scene = elementMap.get(sceneId) as Scene;
@@ -1296,13 +1657,40 @@ export class GameState {
                 layers: this.constructLayerMap(elements.layers, elementMap),
                 menus: [],
                 texts: [],
+                // A save written mid-call carries the callers it was parked behind. The pose itself
+                // is re-applied when the scene root mounts (`StageTransitionManager.registerScene`)
+                // - the remount this load performs throws away every inline style the manager had
+                // written, so nothing but the flag survives the trip.
+                suspended: suspended === true,
             };
 
             this.state.elements.push(ele);
             this.registerSrcManager(scene.srcManager);
-            this.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
-                SceneAction.initBackgroundMusic(scene, exposed);
-            });
+            // A suspended scene is skipped: its track is paused, and the audio manager restores it
+            // that way from the record a moment later. Starting it here would hand the player a save
+            // that comes back with the parked scene's music playing over the scene it called - and
+            // it would do it through a second, racing writer of the same track.
+            //
+            // `initBackgroundMusic` refuses a suspended scene as well, and that is not redundant:
+            // this skip stops a pointless listener being armed, while the refusal there catches the
+            // listeners armed BEFORE this load, which the remount below fires all over again.
+            //
+            // A track the audio record restores is skipped too: `fromData` below puts it back where
+            // the save left it, so there is nothing for the scene to start. This skip only covers
+            // the listeners armed here, which is not enough on its own - a host applies a save as
+            // `newGame().deserialize(saved)`, and the entry scene's own listener was armed before
+            // this method ran. `SceneAction.initBackgroundMusic` refuses a clip a load has playing
+            // whoever armed the listener, and that is what makes the ordering irrelevant; this one
+            // saves arming a listener that would be refused, and speaks for the paused clips too.
+            if (!ele.suspended) {
+                this.getExposedStateAsync<ExposedStateType.scene>(scene, (exposed) => {
+                    const music = scene.state.backgroundMusic;
+                    if (music && restoredSounds.has(music.getId())) {
+                        return;
+                    }
+                    SceneAction.initBackgroundMusic(scene, exposed, this);
+                });
+            }
         });
         this.audioManager.fromData(audio, elementMap);
         this.state.videos = videos.map(([id, state]) => {
@@ -1314,13 +1702,21 @@ export class GameState {
             return video;
         });
         // Saves created before 0.16.0 have no "vfx" key; tolerate its absence.
-        this.state.vfx = (data.vfx ?? []).map(([id, state]) => {
+        //
+        // An id the story no longer has is dropped with a warning rather than thrown on, unlike
+        // every other element above. An ambience overlay is decoration: the difference between
+        // loading this save and refusing it is rain that is missing, and refusing to load a save at
+        // all is far worse than that. It is also the element most likely to go missing, because a
+        // save now carries every overlay the story has DECLARED - not only the ones on screen when
+        // the player saved - so an author deleting a `preload` row can strand one.
+        this.state.vfx = (data.vfx ?? []).flatMap(([id, state]) => {
             const vfx = elementMap.get(id) as Vfx;
             if (!vfx) {
-                throw new RuntimeGameError("Vfx not found, id: " + id + "\nNarraLeaf cannot find the element with the id from the saved game");
+                this.logger.weakWarn("NarraLeaf-React: Vfx", "Vfx not found when loading a saved game, skipped. (id: " + id + ")");
+                return [];
             }
             vfx.fromData(state);
-            return vfx;
+            return [vfx];
         });
 
         if (data.nvlState) {
@@ -1370,6 +1766,7 @@ export class GameState {
     public createElementSnapshot(element: PlayerStateElement): PlayerStateElementSnapshot {
         return {
             scene: element.scene,
+            suspended: element.suspended === true,
             layers: new Map(Array.from(element.layers.entries()).map(([layer, elements]: [Layer, LogicAction.DisplayableElements[]]) => {
                 return [layer, elements.map((element: LogicAction.DisplayableElements) => {
                     return [element, element.toData()];
@@ -1406,9 +1803,26 @@ export class GameState {
         return this;
     }
 
+    /**
+     * Leaving a scene returns everything the scene put on stage to the pose its constructor config
+     * describes — the displayables on each layer, and the layers themselves, which are mutable at
+     * runtime and would otherwise carry a slide or a fade into the next scene.
+     *
+     * The story camera is the one displayable that deliberately outlives a scene (a story owns
+     * exactly one, and it frames the whole stage across scene changes), so it is skipped here.
+     * Nothing in the engine's own pipeline can put it on a layer — only images, texts and puppets
+     * emit `displayable:init`, which is what registers an element into the layer map — but a host
+     * may register any displayable by hand through `DevTools.registerDisplayable`, so the camera is
+     * excluded explicitly rather than by trusting that route to stay closed.
+     */
     private resetLayers(layers: Map<Layer, LogicAction.DisplayableElements[]>) {
-        layers.forEach((elements) => {
+        const storyCamera = this.getLiveGame().story?.camera ?? null;
+        layers.forEach((elements, layer) => {
+            layer.reset();
             elements.forEach(element => {
+                if (storyCamera && element === storyCamera) {
+                    return;
+                }
                 element.reset();
             });
         });

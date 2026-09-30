@@ -11,23 +11,30 @@ import type { Script } from "@core/elements/script";
 import type { Sentence } from "@core/elements/character/sentence";
 import type { TransformDefinitions } from "@core/elements/transform/type";
 import type { Image, TagGroupDefinition } from "@core/elements/displayable/image";
-import type { FadeOptions } from "@core/elements/type";
+import type { FadeOptions, SoundPlayOptions } from "@core/elements/type";
 import type { Transition } from "@core/elements/transition/transition";
 import type { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
 import type { Layer } from "@core/elements/layer";
 import type { VfxFadeOptions } from "@core/elements/vfx";
+import type { PuppetCommandOptions } from "@core/elements/displayable/puppet";
 
 export const DisplayableActionTypes = {
     action: "displayable:action",
     applyTransform: "displayable:applyTransform",
     applyTransition: "displayable:applyTransition",
+    applyLoop: "displayable:applyLoop",
+    stopLoop: "displayable:stopLoop",
     init: "displayable:init",
+    bringToFront: "displayable:bringToFront",
 } as const;
 export type DisplayableActionContentType<TransitionType extends Transition = Transition> = {
     [K in typeof DisplayableActionTypes[keyof typeof DisplayableActionTypes]]:
     K extends "displayable:applyTransform" ? [Transform] :
     K extends "displayable:applyTransition" ? [TransitionType, ((transition: TransitionType) => TransitionType)?] :
+    K extends "displayable:applyLoop" ? [Transform, TransformDefinitions.LoopOptions?] :
+    K extends "displayable:stopLoop" ? [TransformDefinitions.LoopStopOptions?] :
     K extends "displayable:init" ? [scene: Scene | null, layer: Layer | null, isElement?: boolean] :
+    K extends "displayable:bringToFront" ? [] :
     any;
 }
 /* Character */
@@ -49,6 +56,9 @@ export const SceneActionTypes = {
     init: "scene:init",
     exit: "scene:exit",
     jumpTo: "scene:jumpTo",
+    callTo: "scene:callTo",
+    preSuspend: "scene:preSuspend",
+    resume: "scene:resume",
     setBackgroundMusic: "scene:setBackgroundMusic",
     preUnmount: "scene:preUnmount",
     transitionToScene: "scene:transitionToScene",
@@ -67,9 +77,12 @@ export type SceneActionContentType = {
     K extends typeof SceneActionTypes["init"] ? [Scene] :
     K extends typeof SceneActionTypes["exit"] ? [] :
     K extends typeof SceneActionTypes["jumpTo"] ? [Scene] :
+    K extends typeof SceneActionTypes["callTo"] ? [Scene] :
+    K extends typeof SceneActionTypes["preSuspend"] ? [Scene] :
+    K extends typeof SceneActionTypes["resume"] ? [Scene] :
     K extends typeof SceneActionTypes["setBackgroundMusic"] ? [Sound | null, number?] :
     K extends typeof SceneActionTypes["preUnmount"] ? [] :
-    K extends typeof SceneActionTypes["transitionToScene"] ? [ImageTransition, Scene | undefined, ImageSrc | Color | undefined] :
+    K extends typeof SceneActionTypes["transitionToScene"] ? [Transition, Scene] :
     K extends typeof SceneActionTypes["nvlBlock"] ? [LogicAction.Actions[], NvlBlockOptions] :
     K extends typeof SceneActionTypes["nvlShow"] ? [Partial<TransformDefinitions.CommonTransformProps>?] :
     K extends typeof SceneActionTypes["nvlHide"] ? [Partial<TransformDefinitions.CommonTransformProps>?] :
@@ -139,16 +152,18 @@ export const SoundActionTypes = {
     pause: "sound:pause",
     resume: "sound:resume",
     mute: "sound:mute",
+    seek: "sound:seek",
 } as const;
 export type SoundActionContentType = {
     [K in typeof SoundActionTypes[keyof typeof SoundActionTypes]]:
-    K extends "sound:play" ? [FadeOptions] :
+    K extends "sound:play" ? [SoundPlayOptions] :
     K extends "sound:stop" ? [FadeOptions] :
     K extends "sound:setVolume" ? [volume: number, duration: number] :
     K extends "sound:setRate" ? [number] :
     K extends "sound:pause" ? [FadeOptions] :
     K extends "sound:resume" ? [FadeOptions] :
     K extends "sound:mute" ? [boolean] :
+    K extends "sound:seek" ? [time: number] :
     any;
 }
 export const ControlActionTypes = {
@@ -225,6 +240,7 @@ export type LayerActionContentType = {
 /* Video */
 export const VideoActionTypes = {
     action: "video:action",
+    preload: "video:preload",
     show: "video:show",
     hide: "video:hide",
     play: "video:play",
@@ -236,13 +252,14 @@ export const VideoActionTypes = {
 export type VideoActionContentType = {
     [K in typeof VideoActionTypes[keyof typeof VideoActionTypes]]:
     K extends "video:action" ? any :
-    K extends "video:show" | "video:hide" | "video:play" | "video:pause" | "video:stop" | "video:resume" ? [] :
+    K extends "video:preload" | "video:show" | "video:hide" | "video:play" | "video:pause" | "video:stop" | "video:resume" ? [] :
     K extends "video:seek" ? [number] :
     any;
 }
 /* Vfx */
 export const VfxActionTypes = {
     action: "vfx:action",
+    preload: "vfx:preload",
     show: "vfx:show",
     hide: "vfx:hide",
     pause: "vfx:pause",
@@ -253,7 +270,28 @@ export type VfxActionContentType = {
     [K in typeof VfxActionTypes[keyof typeof VfxActionTypes]]:
     K extends "vfx:action" ? any :
     K extends "vfx:show" | "vfx:hide" ? [VfxFadeOptions?] :
-    K extends "vfx:pause" | "vfx:resume" ? [] :
+    K extends "vfx:preload" | "vfx:pause" | "vfx:resume" ? [] :
     K extends "vfx:setRate" ? [number] :
+    any;
+}
+/* Puppet */
+export const PuppetActionTypes = {
+    action: "puppet:action",
+    setMotion: "puppet:setMotion",
+    setExpression: "puppet:setExpression",
+    setSkin: "puppet:setSkin",
+    setParam: "puppet:setParam",
+    setSlot: "puppet:setSlot",
+    command: "puppet:command",
+} as const;
+export type PuppetActionContentType = {
+    [K in typeof PuppetActionTypes[keyof typeof PuppetActionTypes]]:
+    K extends "puppet:action" ? any :
+    K extends "puppet:setMotion" ? [motion: string | null] :
+    K extends "puppet:setExpression" ? [expression: string | null] :
+    K extends "puppet:setSkin" ? [skin: string | null] :
+    K extends "puppet:setParam" ? [id: string, value: number] :
+    K extends "puppet:setSlot" ? [id: string, value: string | null] :
+    K extends "puppet:command" ? [name: string, payload: unknown, options: PuppetCommandOptions | undefined] :
     any;
 }

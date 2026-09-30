@@ -19,6 +19,7 @@ import {Layer} from "@core/elements/layer";
 import {Camera} from "@core/elements/camera";
 import {Video} from "@core/elements/video";
 import {Vfx} from "@core/elements/vfx";
+import {Puppet} from "@core/elements/displayable/puppet";
 import {NVLToken} from "../elements/nvl";
 
 export {
@@ -46,9 +47,24 @@ export {
     Camera,
     Video,
     Vfx,
+    Puppet,
 };
 
 export type {VfxConfig, VfxBlendMode, VfxFadeOptions} from "@core/elements/vfx";
+export type {
+    IPuppetUserConfig,
+    PuppetConfig,
+    PuppetCommandOptions,
+} from "@core/elements/displayable/puppet";
+export type {
+    PuppetBackend,
+    PuppetDescription,
+    PuppetInstance,
+    PuppetMountContext,
+    PuppetSize,
+    PuppetState,
+    PuppetStatus,
+} from "@core/game/puppet/puppetBackend";
 
 export type {
     LayeredDefinition,
@@ -72,3 +88,9 @@ export type {
     DialogAvatarResolution,
     DialogAvatarSource,
 } from "../elements/character/avatar";
+export type {
+    WordConfig,
+    WordEmphasis,
+    WordRenderProps,
+    WordRenderer,
+} from "../elements/character/word";

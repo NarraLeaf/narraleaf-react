@@ -5,6 +5,7 @@ import { CalledActionResult, StackModelWaiting } from "../gameTypes";
 import { LogicAction } from "./logicAction";
 import { Lambda } from "@core/elements/condition";
 import { GameState } from "@player/gameState";
+import type { ExecutedActionResult } from "./action";
 
 
 export enum StackModelItemType {
@@ -76,7 +77,13 @@ export type StackModelRawData = {
 /**
  * One frame of a read-only {@link StackModel.snapshot} — an action currently on the execution
  * stack. A frame that is a concurrent group ({@link Control.all}/{@link Control.any}) also lists
- * its branches (each a top-to-bottom frame list).
+ * its branches, each a whole {@link StackSnapshot}.
+ *
+ * `branches` used to be `StackFrameSnapshot[][]` — only each branch's `frames`. That silently threw
+ * away everything a nested stack knows about ITSELF: a `Control.repeat` runs as a nested StackModel,
+ * so its `loop` counter lived on a snapshot whose frames were kept and whose `loop` and `tag` were
+ * dropped on the way out. The counter was therefore unreachable from `getStackSnapshot()` no matter
+ * how a caller asked, which is exactly what a debug view most wants to show.
  *
  * **Experimental / read-only.** For tooling (Studio's call-stack view). The exact shape is not a
  * stable contract and may change; do not serialize it or drive game logic from it.
@@ -85,7 +92,7 @@ export type StackFrameSnapshot = {
     actionId: string | null;
     actionType: string | null;
     branchWaitType?: StackModelWaiting["type"];
-    branches?: StackFrameSnapshot[][];
+    branches?: StackSnapshot[];
 };
 
 /**
@@ -139,6 +146,17 @@ export type StackSnapshot = {
  * 5. Action returns direct child but async executes StackModel:
  *    - Serialize StackModel and execute directly on deserialize
  */
+
+/**
+ * The action type of a scene call's return address.
+ *
+ * Written out rather than imported from `actionTypes`, so that this module - which the action layer
+ * reaches into - does not import the action-type table back. Two tests pin the literal to the table
+ * it copies, and drifting it turns them red: `sceneCallReturn.test.ts` ("looks for the action type
+ * the scene chain actually emits") and `sceneCallRegression.test.ts` ("recognises a return address
+ * by the type the action table declares for it").
+ */
+const SCENE_RESUME_ACTION_TYPE = "scene:resume";
 
 /** Threshold for infinite loop detection in debug mode */
 const LOOP_DEBUG_THRESHOLD = 32767;
@@ -235,6 +253,14 @@ export class StackModel {
 
     private stack: Stack<CalledActionResult | Awaitable<CalledActionResult>>;
     private waitingAction: CalledActionResult | null = null;
+    /**
+     * True only for as long as {@link executeActions} is running {@link waitingAction}.
+     *
+     * `waitingAction` is the last action popped off the stack, and it stays set after that action
+     * has run to completion - so on its own it cannot say whether the action is still the one the
+     * model is on. {@link serialize} needs that distinction and nothing else does.
+     */
+    private executingWaitingAction: boolean = false;
 
     // Loop-related fields
     private loopConfig: StackModelLoopConfig | null = null;
@@ -444,6 +470,16 @@ export class StackModel {
                 stackModels.forEach(stack => stack.rollNext());
                 return peek;
             }
+
+            // The group is over, and under "any" that can be true with branches that never got
+            // there - one branch draining is the whole condition. Those branches are given up
+            // rather than simply left behind: a branch cut mid-call is holding the only frame that
+            // could have returned to the scene it suspended.
+            stackModels.forEach(stack => {
+                if (!stack.isEmpty()) {
+                    stack.abandon();
+                }
+            });
         }
 
         // Reset waiting action
@@ -673,7 +709,9 @@ export class StackModel {
             };
             if (item.wait?.stackModels) {
                 frame.branchWaitType = item.wait.type;
-                frame.branches = item.wait.stackModels.map(stack => stack.snapshot().frames);
+                // The whole snapshot, not just `.frames`: a branch that is a loop carries its
+                // counter on the snapshot object, and taking only the frames dropped it.
+                frame.branches = item.wait.stackModels.map(stack => stack.snapshot());
             }
             frames.push(frame);
         }
@@ -695,9 +733,18 @@ export class StackModel {
 
     executeActions(result: CalledActionResult): CalledActionResult | Awaitable<CalledActionResult> | null {
         if (!result.node?.action) return null;
-        const executed = this.liveGame.executeAction(this.liveGame.getGameStateForce(), result.node.action, {
-            stackModel: this,
-        });
+        // An action can serialize the game from inside its own execution - a `say` snapshots the
+        // state of its line for the backlog, a jump snapshots the stack it is about to leave - and
+        // those snapshots have to come back to the action, not past it. See `serialize`.
+        this.executingWaitingAction = true;
+        let executed: ExecutedActionResult;
+        try {
+            executed = this.liveGame.executeAction(this.liveGame.getGameStateForce(), result.node.action, {
+                stackModel: this,
+            });
+        } finally {
+            this.executingWaitingAction = false;
+        }
 
         const handleActionResult = (result: CalledActionResult | Awaitable<CalledActionResult, CalledActionResult> | null) => {
             if (!result) return null;
@@ -708,7 +755,13 @@ export class StackModel {
                 return result;
             }
 
-            if (result.node?.action) {
+            // A result earns its place on the stack by naming the action to run next, or by naming
+            // branch stacks still to be waited on - a `Control.all` / `any` / `repeat` / `while`
+            // carries both. `node` is the action chained *after* the group, so a group written as
+            // the last statement of a block names none, and the branch stacks are the only handle
+            // anyone holds on its bodies. Dropping such a result for having no action would throw
+            // those bodies away unrun and let the block end without them.
+            if (result.node?.action || result.wait?.stackModels.length) {
                 this.liveGame.getGameStateForce().logger.debug("next action (executed)", result);
                 this.stack.push(result);
                 return result;
@@ -785,7 +838,22 @@ export class StackModel {
         const items = this.stack.map(toData).filter(function (item): item is Exclude<StackModelItemData | null, null> {
             return item !== null;
         });
-        if (frozen && this.waitingAction) {
+        // `waitingAction` is written above the stack so that a load re-runs the action the snapshot
+        // caught in progress. It belongs there only while that action is still in progress, which
+        // is either of two things: it is executing right now (an action that serializes the game
+        // from inside itself), or the stack holds the Awaitable it returned - and `toData` cannot
+        // carry an Awaitable, so re-running the action is the only way back to it.
+        //
+        // Once the action has finished, whatever it produced is on the stack in its own right and
+        // writing the action out as well would run it a second time on load. For a `Control.all` /
+        // `Control.any` that is worse than a duplicate: the `wait` link the group left on the stack
+        // is where each branch's progress lives, so the second run would restart every branch from
+        // the top - and it never got that far, because the stack refuses to hold anything above a
+        // group whose branches have not drained, which is what made such a save unloadable.
+        const top = this.stack.peek();
+        const waitingActionStillInProgress = this.executingWaitingAction
+            || Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(top);
+        if (frozen && this.waitingAction && waitingActionStillInProgress) {
             const actionData = toData(this.waitingAction);
             if (actionData) {
                 items.push(actionData);
@@ -807,6 +875,56 @@ export class StackModel {
         }
 
         return result;
+    }
+
+    /**
+     * Give up everything this stack still holds, unwinding the scene calls it opened on the way.
+     *
+     * {@link reset} clears stacks; it does not put the stage back. A branch cut mid-call is holding
+     * a `scene:resume` - the promise to come back to the scene it suspended - and dropping that
+     * promise without keeping it leaves the caller parked on the stage with nothing able to return
+     * to it, and the called scene mounted with nothing pointing at it. Both are permanent: no later
+     * action names either scene. So the call is given up, innermost first, which is what
+     * `SceneAction.unwindCallStack` does when a plain jump walks away from a call stack.
+     *
+     * Only the call frames are unwound. A scene the branch merely *entered* - what a plain jump
+     * does - belongs to the main stack from the moment the jump re-pointed it at that scene, so it
+     * is the story's scene by then rather than the branch's, and taking it off the stage here would
+     * unload the scene the story is now in.
+     */
+    public abandon(): this {
+        const frames: LogicAction.Actions[] = [];
+        this.collectCallFrames(frames);
+        if (frames.length) {
+            const gameState = this.liveGame.getGameStateForce();
+            frames.forEach(action => action.abandon(gameState));
+        }
+        this.reset();
+        return this;
+    }
+
+    /**
+     * Every scene-call return address this stack is holding, innermost first.
+     *
+     * Nested groups are searched too: a branch can itself be running a `Control.all` whose own
+     * branch opened a call, and that call is held just as firmly.
+     */
+    private collectCallFrames(out: LogicAction.Actions[]): void {
+        const collectFrom = (item: CalledActionResult | Awaitable<CalledActionResult> | undefined) => {
+            if (!StackModel.isCalledActionResult(item)) {
+                return;
+            }
+            item.wait?.stackModels.forEach(stack => stack.collectCallFrames(out));
+            const action = item.node?.action;
+            if (action && action.type === SCENE_RESUME_ACTION_TYPE) {
+                out.push(action);
+            }
+        };
+
+        collectFrom(this.waitingAction ?? undefined);
+        for (let i = this.stack.size() - 1; i >= 0; i--) {
+            collectFrom(this.stack.get(i));
+        }
     }
 
     reset() {
@@ -836,6 +954,18 @@ export class StackModel {
         const items = data.items;
 
         for (const item of items) {
+            // Saves written before the rule in `serialize` carry the action that created a
+            // concurrent group written out above the group's own `wait` link. Nothing else can put
+            // an item there - the stack refuses to hold one, which is what made those saves
+            // unloadable - and re-running that action would restart every branch from the top. So
+            // read such a save as the group alone, which is what the run it was taken from was on.
+            if (this.topIsGroupStillRunning()) {
+                this.liveGame.getGameStateForce?.().logger?.debug(
+                    "StackModel", "Dropping an item restored above a running group", item.action
+                );
+                break;
+            }
+
             if (item.type === StackModelItemType.Action) {
                 if (!item.action) continue;
 
@@ -908,6 +1038,51 @@ export class StackModel {
 
     isEmpty(): boolean {
         return this.stack.isEmpty();
+    }
+
+    /**
+     * Whether the top of the stack is a `Control.all` / `Control.any` link whose branches have not
+     * all drained - the one state in which the stack accepts nothing on top of it, because the
+     * group has to finish before whatever queued behind it can run.
+     */
+    private topIsGroupStillRunning(): boolean {
+        const top = this.stack.peek();
+        return StackModel.isCalledActionResult(top)
+            && !!top.wait
+            && StackModel.isStackModelsAwaiting(top.wait.type, top.wait.stackModels);
+    }
+
+    /**
+     * Drop everything above the innermost scene-call return address, or the whole stack if there
+     * is none.
+     *
+     * This is what moving the play head has to do instead of clearing outright once a scene can be
+     * called. A `scene:resume` item on the stack is a promise to come back to the scene that made
+     * the call, and it sits below everything the called scene has queued - so clearing to it moves
+     * the head within the called scene and leaves the promise intact, while clearing past it would
+     * strand a suspended scene on the stage with nothing able to return to it.
+     *
+     * With no call open the stack has no such item and this is exactly {@link reset}, which is what
+     * an in-scene jump has always done.
+     */
+    public clearAboveCallFrame(): this {
+        for (let i = this.stack.size() - 1; i >= 0; i--) {
+            const item = this.stack.get(i);
+            if (StackModel.isCalledActionResult(item) && item.node?.action?.type === SCENE_RESUME_ACTION_TYPE) {
+                while (this.stack.size() > i + 1) {
+                    const dropped = this.stack.pop();
+                    if (Awaitable.isAwaitable<CalledActionResult, CalledActionResult>(dropped)) {
+                        dropped.abort();
+                    } else if (StackModel.isCalledActionResult(dropped)) {
+                        dropped.wait?.stackModels.forEach(stack => stack.reset());
+                    }
+                }
+                this.waitingAction = null;
+                return this;
+            }
+        }
+        this.reset();
+        return this;
     }
 
     push(...items: (CalledActionResult | Awaitable<CalledActionResult>)[]): this {

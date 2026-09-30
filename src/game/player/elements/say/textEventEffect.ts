@@ -1,5 +1,7 @@
 import type { GameState } from "@player/gameState";
 import type { TextEvent } from "@core/elements/character/textEvent";
+import type { Word } from "@core/elements/character/word";
+import type { Pausing } from "@core/elements/character/pause";
 import { Image } from "@core/elements/displayable/image";
 import { ExposedStateType } from "@player/type";
 
@@ -49,4 +51,33 @@ export function fireTextEventOnce(event: TextEvent, fired: Set<TextEvent>, state
     }
     fired.add(event);
     dispatchTextEvent(event, state);
+}
+
+/**
+ * Land the final state of an instantly-revealed sentence: every {@link TextEvent} token in `words`
+ * fires once, in source order — the same "final state" a typewriter skip produces (contract 3).
+ *
+ * `fired` is the persistent per-reveal guard. Pass the SAME set across re-mounts of one dialog line
+ * (e.g. an NVL entry re-keyed on a phase/active change, or the whole container re-mounting) so the
+ * re-mount replays neither the sound effects nor the — now stale — expression writes. A genuinely
+ * fresh reveal (a new line, or a `say` re-evaluated on load) passes its own empty set and fires
+ * again, preserving replay safety (contract 4). Returns the tokens that actually fired this call
+ * (empty on a guarded re-mount), for tests.
+ */
+export function fireInstantRevealEvents(
+    words: readonly Word<string | Pausing | TextEvent>[],
+    fired: Set<TextEvent>,
+    state: GameState
+): TextEvent[] {
+    const firedNow: TextEvent[] = [];
+    for (const word of words) {
+        if (word.isTextEvent()) {
+            const event = word.text;
+            if (!fired.has(event)) {
+                firedNow.push(event);
+            }
+            fireTextEventOnce(event, fired, state);
+        }
+    }
+    return firedNow;
 }

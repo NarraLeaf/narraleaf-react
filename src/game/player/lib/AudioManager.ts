@@ -1,32 +1,129 @@
-import { Sound as SoundElement, SoundType } from "@core/elements/sound";
-import { Sound as NarraSound, Channel, SoundToken, CachedAudio } from "@narraleaf/sound";
-import { FadeOptions } from "@core/elements/type";
-import { Awaitable } from "@lib/util/data";
+import { Sound as SoundElement, SoundBusId } from "@core/elements/sound";
+import { Sound as NarraSound, CacheStats, Channel, SoundToken } from "@narraleaf/sound";
+import { FadeOptions, SoundPlayOptions } from "@core/elements/type";
+import { Awaitable, EventToken } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { RuntimeGameError } from "@core/common/Utils";
 import { LogicAction } from "@core/action/logicAction";
+import { AudioBusMixer, AudioBusState, AudioBusTree, DefaultAudioBusIds } from "@core/game/audioBus";
+
+/**
+ * The in/out points of a clip, plus the point each repeat returns to.
+ *
+ * `loopStart` is only ever consulted for a looping clip; `endTime` is what makes the pair a region
+ * at all, so both of the other two are meaningless without it.
+ */
+type ClipRegion = {
+    startTime: number;
+    endTime?: number;
+    loopStart?: number;
+};
 
 type SoundState = {
     token: SoundToken;
-    cachedAudio: CachedAudio;
     originalVolume: number;
     pausePosition?: number; // position (seconds) where playback was paused
+    /**
+     * Bumped by every transport call that changes which direction a faded one is heading in. A
+     * faded pause or resume only acts once its fade has finished, and this is what tells it whether
+     * it is still the last word by then.
+     */
+    transport?: number;
 };
 
 export type AudioDataRaw = {
     isPlaying: boolean;
     position: number;
+    /**
+     * The clip is paused rather than stopped: it is off, and it is expected to be picked up again
+     * from `position`.
+     *
+     * On the record rather than left to the sound element's own state, because a sound only reaches
+     * a save through the element table when something has marked it dirty AND its state differs
+     * from what the script authored - and a scene's background music is not any action's callee, so
+     * it is routinely absent from that table. This record is written for every clip the manager is
+     * holding, so it is the one place that can speak for a paused one.
+     *
+     * Absent in saves written before scene calls existed, where it reads as the element's own state
+     * exactly as it did then.
+     */
+    paused?: boolean;
 };
 
 export type AudioManagerDataRaw = {
     sounds: [string, AudioDataRaw][];
-    groups: [SoundType, number][];
+    /**
+     * Bus volumes, keyed by bus id.
+     *
+     * The name is historical - these used to be the three fixed "groups". A save written before
+     * buses existed carries exactly `bgm`/`sound`/`voice`, which are still buses, so it restores
+     * unchanged.
+     */
+    groups: [string, number][];
 };
 
 export class AudioManager {
+    /**
+     * How much of the backend's channel budget to ask for.
+     *
+     * `@narraleaf/sound` defaults to 128 *including* the master, and throws outright when a
+     * `createChannel` would cross it. Three buses never came close; a game that gives every member
+     * of a large voiced cast its own bus can, and the failure mode is a hard throw at boot. This is
+     * a per-channel `GainNode` and nothing else, so a generous ceiling costs effectively nothing.
+     */
+    private static readonly MaxChannels = 1024;
+
+    /**
+     * Time constant of the bus-volume ramp, in seconds. ~20ms: long enough to turn a step into a
+     * slew nobody hears, short enough that a slider still feels attached to the sound.
+     */
+    private static readonly BusRampTimeConstant = 0.02;
+
+    /**
+     * When to pin the exact target after the ramp. `setTargetAtTime` approaches asymptotically and
+     * never lands, so five time constants in (within 0.7% - inaudible) the value is written
+     * outright. Without this a long drag would accumulate a drift the mixer's own bookkeeping does
+     * not have.
+     */
+    private static readonly BusRampSettle = AudioManager.BusRampTimeConstant * 5;
+
+    /**
+     * How long the backend keeps a decoded clip that nothing holds any more, in milliseconds.
+     *
+     * Zero would be the tidiest answer, but a clip nothing references is exactly the shape of a
+     * short effect fired repeatedly - an interface click, a footstep - and re-fetching and
+     * re-decoding one per keystroke is worse than holding it. A few seconds is long enough to
+     * cover a burst and short enough that nothing accumulates: what is still resident after this
+     * is only what is playing or what {@link AudioManager.preload} is holding for the scene.
+     */
+    private static readonly CacheGrace = 5000;
+
     private state: Map<SoundElement, SoundState> = new Map();
-    private channels: Map<SoundType, Channel> = new Map();
-    private channelVolumes: Map<SoundType, number> = new Map();
+    private channels: Map<string, Channel> = new Map();
+    private busTree: AudioBusTree | null = null;
+    private busSubscription: EventToken | null = null;
+    private unknownBuses: Set<string> = new Set();
+    /**
+     * Sources this manager holds a cache reference on - the current scene's, plus anything a host
+     * preloaded by hand. One reference per distinct source, given back by
+     * {@link AudioManager.retainOnly} when the scene that wanted it is left. The value resolves to
+     * whether the reference was really taken, which a release has to wait for.
+     */
+    private retained: Map<string, Promise<boolean>> = new Map();
+    /**
+     * What the most recent load put on the wire, keyed by the clip it put there.
+     *
+     * Written the moment {@link AudioManager.fromData} is handed a record - before any of the
+     * fetching and decoding it starts - because the question it answers is asked by callers that
+     * run a turn or two later and must not depend on having lost a race with the restore.
+     *
+     * An entry stands until something else takes the clip over: every other transport that starts
+     * or ends a clip drops it, so the answer can only be "yes" while the load really is the reason
+     * that clip is where it is. The value is whether the record wanted the clip *running* - a
+     * stopped or paused one is restored just as faithfully, but it is not something a scene start
+     * would be taking away.
+     */
+    private restoredByLoad: Map<SoundElement, boolean> = new Map();
     private globalVolume: number = 1;
     private sound!: NarraSound; // will be initialized in initialize()
     private ready: Promise<void> = Promise.resolve();
@@ -34,9 +131,17 @@ export class AudioManager {
     private isInitializing: boolean = false;
 
     constructor(private gameState: GameState) {
-        Object.values(SoundType).forEach(type => {
-            this.channelVolumes.set(type, 1);
-        });
+    }
+
+    /**
+     * The volume of every bus, and the tree they are wired into.
+     *
+     * It lives on `Game`, not here: a bus volume is a player setting that exists before the audio
+     * context unlocks and outlives any one player mount. This manager is the thing that makes it
+     * audible, not the thing that remembers it.
+     */
+    private get mixer(): AudioBusMixer {
+        return this.gameState.game.audioBuses;
     }
 
     /**
@@ -46,26 +151,28 @@ export class AudioManager {
     public initialize(): void {
         if (this.isReady || this.isInitializing) return; // already initialised or waiting for unlock
 
-        const sound = new NarraSound();
+        // Resolve - and therefore validate - the declared tree *synchronously*, before anything
+        // async is set up. A cycle or an unknown parent is a fault in the host's config, and it has
+        // to surface as a throw out of this call at the point the player mounts. Left inside the
+        // `onceReady` chain below it would arrive later, as an unhandled rejection, with the game
+        // apparently just having no sound.
+        this.mixer.getTree();
+
+        const sound = new NarraSound({
+            maxChannels: AudioManager.MaxChannels,
+            cacheReleaseDelay: AudioManager.CacheGrace,
+        });
         this.sound = sound;
         this.isInitializing = true;
 
-        // Wait for audio context to be ready, then create channels
+        // Wait for audio context to be ready, then build the declared bus tree
         this.ready = sound.onceReady().then(() => {
             // Apply cached global volume
             sound.setVolume(this.globalVolume);
 
-            // Create channels for each sound type
-            Object.values(SoundType).forEach(type => {
-                const volume = this.channelVolumes.get(type) ?? 1;
-                const channel = sound.getChannel(type) ?? sound.createChannel(type, { volume });
-                channel.setVolume(volume);
-                this.channels.set(type, channel);
-            });
+            this.realizeBusTree(sound);
             this.isReady = true;
             this.isInitializing = false;
-            // Apply group volumes that may have been set before initialise
-            this.setupGroupVolume();
         }).catch(error => {
             this.isInitializing = false;
             this.gameState.logger.error("AudioManager", "Failed to initialize audio subsystem", error);
@@ -73,11 +180,150 @@ export class AudioManager {
         });
     }
 
-    public play(sound: SoundElement, options: FadeOptions = {
-        end: 1,
-        duration: 0,
-    }): Awaitable<void> {
+    /**
+     * Build the host's declared bus tree into real channels, once.
+     *
+     * Walked front to back the tree hands every bus out after its parent, so a child always has a
+     * live parent channel to be created from - that is what nests the gain nodes, and cascading
+     * gain then falls out of the audio graph rather than out of any arithmetic here.
+     *
+     * Done once, at boot, and never re-shaped: `Channel.remove()` stops every token in its subtree,
+     * so re-parenting a bus while the game runs would cut the music off. Volumes stay live.
+     */
+    private realizeBusTree(sound: NarraSound): void {
+        const tree = this.mixer.getTree();
+        this.busTree = tree;
+        this.channels.clear();
+
+        tree.getNodes().forEach(node => {
+            // The author's declared mix times whatever the player has done to it - the two are
+            // separate numbers precisely so that neither this nor `setupGroupVolume` below can
+            // erase the other.
+            const volume = this.mixer.getEffectiveVolume(node.id);
+            const parent = node.parentId === null ? null : this.channels.get(node.parentId) ?? null;
+            const existing = parent ? parent.getChannel(node.id) : sound.getChannel(node.id);
+            const channel = existing ?? (parent
+                ? parent.createChannel(node.id, { volume })
+                : sound.createChannel(node.id, { volume }));
+            // No ramp at boot: nothing is playing, and a ramp would only delay the first clip
+            // reaching the volume the player left it at.
+            this.applyBusVolume(channel, volume, false);
+            this.channels.set(node.id, channel);
+        });
+
+        this.busSubscription?.cancel();
+        this.busSubscription = this.mixer.onVolumeChange((id, _volume, effectiveVolume) => {
+            this.applyBusVolume(this.channels.get(id) ?? null, effectiveVolume, true);
+        });
+    }
+
+    /**
+     * Write a bus's volume onto its gain node, ramping rather than stepping.
+     *
+     * `Channel.setVolume` assigns `gain.value` bare with no `cancelScheduledValues`, so a slider
+     * drag arrives as a staircase of discontinuities - the zipper. The backend exposes no ramping
+     * setter, only `getGainNode()`, so the ramp is driven from here.
+     *
+     * **Who owns the value.** `Channel.volume` remains authoritative bookkeeping and the
+     * `AudioParam` is authoritative for what is heard, and this method is the only writer of
+     * either, so the two can only disagree for the ~20ms a ramp is in flight. `channel.setVolume`
+     * is still called first and deliberately: it is what clamps to 0..1, what keeps
+     * `channel.getVolume()` truthful, and what `Channel.mute()`/`unmute()` re-read when they
+     * rewrite the gain themselves. Its bare write is then superseded in the same synchronous turn -
+     * `cancelScheduledValues` drops the implicit `setValueAtTime` that the assignment inserted at
+     * `currentTime`, and the ramp is scheduled from the value the parameter actually had. Nothing
+     * else in the engine touches a bus gain node, so there is no other automation to fight.
+     *
+     * Falls back to the plain assignment whenever the graph is not reachable - a backend without
+     * `getGainNode`, or a parameter without `setTargetAtTime`. Stepping is the behaviour that
+     * shipped; degrading to it is strictly no worse.
+     */
+    private applyBusVolume(channel: Channel | null | undefined, volume: number, ramp: boolean): void {
+        if (!channel) {
+            return;
+        }
+        const from = AudioManager.readGain(channel);
+        channel.setVolume(volume);
+        if (!ramp || from === null) {
+            return;
+        }
+
+        const gain = channel.getGainNode().gain;
+        const target = channel.getVolume();
+        if (typeof gain.setTargetAtTime !== "function"
+            || typeof gain.cancelScheduledValues !== "function"
+            || typeof this.sound?.getAudioContext !== "function") {
+            return;
+        }
+        const now = this.sound.getAudioContext().currentTime;
+        gain.cancelScheduledValues(now);
+        gain.setValueAtTime(from, now);
+        gain.setTargetAtTime(target, now, AudioManager.BusRampTimeConstant);
+        gain.setValueAtTime(target, now + AudioManager.BusRampSettle);
+    }
+
+    /**
+     * The value a bus's gain parameter has right now, or `null` when the graph cannot be reached.
+     */
+    private static readGain(channel: Channel): number | null {
+        if (typeof channel.getGainNode !== "function") {
+            return null;
+        }
+        const gain = channel.getGainNode()?.gain;
+        return typeof gain?.value === "number" ? gain.value : null;
+    }
+
+    /**
+     * The channel a clip plays through.
+     *
+     * A bus id nothing declared is not fatal. Refusing to play would turn one typo in one clip's
+     * `type` into silence or a thrown action mid-scene; routing it to the always-seeded sfx bus
+     * keeps the game audible and says so once, per id, in the log. This is also where a bus name
+     * that {@link import("@core/game/audioBus").acceptsAudioBus} let through at story-build time is
+     * finally caught.
+     */
+    private channelFor(sound: SoundElement): Channel | null {
+        const channel = this.channels.get(sound.config.type);
+        if (channel) {
+            return channel;
+        }
+        if (this.channels.size > 0 && !this.unknownBuses.has(sound.config.type)) {
+            this.unknownBuses.add(sound.config.type);
+            this.gameState.logger.weakWarn(
+                "AudioManager",
+                `No audio bus "${sound.config.type}" is declared; playing on "${DefaultAudioBusIds.sound}" instead.`,
+            );
+        }
+        return this.channels.get(DefaultAudioBusIds.sound) ?? null;
+    }
+
+    /**
+     * The volume a clip started with no explicit target should reach.
+     *
+     * Full volume was never a sensible default here: a `Sound` carries the volume it was configured
+     * with, so a caller that says nothing about volume is asking for *that*, not for 1. Reading
+     * `state` rather than the user config is deliberate - it is the same value {@link SoundElement.play}
+     * and {@link SoundElement.resume} put in their `FadeOptions`, so a clip replayed after
+     * {@link AudioManager.setVolume} comes back at the volume it was last set to instead of jumping
+     * back to whatever the author first wrote down.
+     */
+    private static defaultFade(sound: SoundElement): FadeOptions {
+        return { end: sound.state.volume, duration: 0 };
+    }
+
+    /**
+     * Start `sound`, and resolve when it is playing.
+     *
+     * `options.waitForEnd` moves the resolution to the end of the clip. It defaults to ON here and
+     * OFF at {@link Sound.play}, and the asymmetry is deliberate: the callers inside the engine - a
+     * voice line, a text-event effect - are tracking a clip's whole life and were written against
+     * that, while an authored sound-effect row is not asking the script to stop for the length of
+     * the file. A looping clip never ends, so it is always resolved once it is playing.
+     */
+    public play(sound: SoundElement, options: SoundPlayOptions = AudioManager.defaultFade(sound)): Awaitable<void> {
         const awaitable = new Awaitable<void>();
+
+        this.restoredByLoad.delete(sound);
 
         this.ready.then(async () => {
             // Stop existing sound if playing
@@ -87,20 +333,17 @@ export class AudioManager {
             }
 
             try {
-                const channel = this.channels.get(sound.config.type)!;
-                const cachedAudio = await this.sound.load(sound.config.src);
-                const token = await channel.play(cachedAudio, {
+                const channel = this.channelFor(sound)!;
+                const token = await channel.play(sound.config.src, {
                     volume: 0,
-                    startTime: sound.config.seek,
-                    loop: sound.config.loop,
-                    rate: 1,
+                    ...this.playOptionsOf(sound),
                 });
 
                 const isMuted = sound.state.muted ?? false;
                 token.mute(isMuted);
                 sound.state.muted = isMuted;
 
-                this.state.set(sound, { token, cachedAudio, originalVolume: options.end });
+                this.state.set(sound, { token, originalVolume: options.end });
 
                 // Apply fade in
                 if (options.duration > 0) {
@@ -113,8 +356,8 @@ export class AudioManager {
                 sound.state.volume = options.end;
                 sound.state.paused = false;
 
-                // Wait for sound to end (if not looping)
-                if (!sound.config.loop) {
+                // Wait for sound to end (if not looping, and only when the caller asked for it)
+                if (!sound.config.loop && options.waitForEnd !== false) {
                     await new Promise<void>(resolve => {
                         token.once("ended", () => resolve());
                     });
@@ -130,10 +373,22 @@ export class AudioManager {
         return awaitable;
     }
 
-    public async playSoundToken(sound: SoundElement, options: FadeOptions = {
-        end: 1,
-        duration: 0,
-    }): Promise<SoundToken> {
+    /**
+     * Start a clip and hand the token back once playback is under way.
+     *
+     * With no `duration` the target volume is written to the token *synchronously* before this
+     * returns, and nothing is left running: no gain automation is in flight when the caller gets the
+     * token. That is what makes an explicit `token.setVolume` or a fade the caller drives itself
+     * afterwards the last writer, which several hosts rely on. Defaulting `duration` to anything
+     * above 0 would break that - `token.fade` below is deliberately not awaited, so a non-zero
+     * default would leave a ramp running past the return and over whatever the caller did next.
+     */
+    public async playSoundToken(
+        sound: SoundElement,
+        options: FadeOptions = AudioManager.defaultFade(sound),
+    ): Promise<SoundToken> {
+        this.restoredByLoad.delete(sound);
+
         await this.ready;
 
         // Stop existing sound if playing
@@ -143,23 +398,20 @@ export class AudioManager {
         }
 
         try {
-            const channel = this.channels.get(sound.config.type);
+            const channel = this.channelFor(sound);
             if (!channel) {
-                throw new RuntimeGameError(`Channel not found for sound type: "${sound.config.type}"`);
+                throw new RuntimeGameError(`Channel not found for audio bus: "${sound.config.type}"`);
             }
-            const cachedAudio = await this.sound.load(sound.config.src);
-            const token = await channel.play(cachedAudio, {
+            const token = await channel.play(sound.config.src, {
                 volume: 0,
-                startTime: sound.config.seek,
-                loop: sound.config.loop,
-                rate: 1,
+                ...this.playOptionsOf(sound),
             });
 
             const isMuted = sound.state.muted ?? false;
             token.mute(isMuted);
             sound.state.muted = isMuted;
 
-            this.state.set(sound, { token, cachedAudio, originalVolume: options.end });
+            this.state.set(sound, { token, originalVolume: options.end });
 
             if (options.duration > 0) {
                 token.fade(0, options.end, options.duration);
@@ -180,12 +432,17 @@ export class AudioManager {
     public stop(sound: SoundElement, duration: number = 0): Awaitable<void> {
         const awaitable = new Awaitable<void>();
 
+        this.restoredByLoad.delete(sound);
+
         if (!this.state.has(sound)) {
             awaitable.resolve();
             return awaitable;
         }
 
         const state = this.state.get(sound)!;
+        // Stopping is the last word on a clip: a faded pause or resume still in flight is
+        // countermanded rather than allowed to land on a track that is on its way out.
+        this.arm(sound, state);
 
         if (duration === 0) {
             state.token.stop();
@@ -243,6 +500,25 @@ export class AudioManager {
         return awaitable;
     }
 
+    /**
+     * Arm a transport change that will only act once a fade has finished, and hand back the test
+     * for whether it is still wanted by then.
+     *
+     * `FadeToken.finished` resolves when the fade is **cancelled** as well as when it runs out, and
+     * every later transport call on the same token cancels it - `resume` writes a volume, which is
+     * what cancels a pause's fade-out. Without this test, a scene call that returned while the
+     * caller's pause fade was still in flight landed the pause *after* the resume, with nothing
+     * left to undo it: the caller's music stayed silent for the rest of the scene while
+     * `sound.state.paused` said it was playing, so the next save recorded a stopped clip.
+     */
+    private arm(sound: SoundElement, state: SoundState): () => boolean {
+        const generation = (state.transport ?? 0) + 1;
+        state.transport = generation;
+        // The entry identity matters as well as the counter: `play` and `soundFromData` replace the
+        // whole record, and a fade left over from the clip's previous life must not write onto it.
+        return () => this.state.get(sound) === state && state.transport === generation;
+    }
+
     public pause(sound: SoundElement, duration: number = 0): Awaitable<void> {
         const awaitable = new Awaitable<void>();
 
@@ -252,6 +528,12 @@ export class AudioManager {
         }
 
         const state = this.state.get(sound)!;
+        // `paused` is part of the sound's serialised state, and nothing here goes through the
+        // action dispatch that marks an element for the next save. A scene call pauses the calling
+        // scene's music from a scene action, so without this the save would come back with the
+        // suspended scene's track playing.
+        sound.markDirty();
+        const isCurrent = this.arm(sound, state);
 
         if (duration === 0) {
             // Record pause position before pausing so that resume can be sample-accurate
@@ -261,6 +543,10 @@ export class AudioManager {
             awaitable.resolve();
         } else {
             state.token.fade(state.token.getVolume(), 0, duration).finished.then(() => {
+                if (!isCurrent()) {
+                    awaitable.resolve();
+                    return;
+                }
                 state.pausePosition = state.token.getCurrentTime();
                 state.token.pause();
                 state.token.setVolume(state.originalVolume);
@@ -281,6 +567,8 @@ export class AudioManager {
         }
 
         const state = this.state.get(sound)!;
+        sound.markDirty();
+        const isCurrent = this.arm(sound, state);
 
         if (duration === 0) {
             // If we have an accurate pause position saved, seek first to eliminate drift
@@ -297,13 +585,133 @@ export class AudioManager {
                 state.token.seek(state.pausePosition);
             }
             state.token.resume();
+            // The clip is audible from here, so the flag is written now rather than when the
+            // fade-in lands: a save taken during the fade describes a playing clip, which is what
+            // it is. The symmetric guard to `pause`'s - a pause that arrives mid-fade cancels this
+            // one, and must not have its `paused` overwritten a moment later.
+            sound.state.paused = false;
             state.token.fade(0, state.originalVolume, duration).finished.then(() => {
+                if (!isCurrent()) {
+                    awaitable.resolve();
+                    return;
+                }
                 sound.state.paused = false;
                 awaitable.resolve();
             });
         }
 
         return awaitable;
+    }
+
+    /**
+     * Move the play head of a sound that is currently playing. A sound this manager is not holding
+     * has no play head to move, so this is a no-op rather than an error - the same shape every other
+     * transport method here takes.
+     */
+    public seek(sound: SoundElement, time: number): Awaitable<void> {
+        if (!this.state.has(sound)) {
+            return Awaitable.resolve<void>(undefined);
+        }
+        const state = this.state.get(sound)!;
+        const target = AudioManager.clampToRegion(time, AudioManager.clipRegionOf(sound));
+        state.token.seek(target);
+        // Resuming seeks to this to eliminate drift, so a stale value here would make a seek taken
+        // while paused snap straight back on resume.
+        if (state.pausePosition !== undefined) {
+            state.pausePosition = target;
+        }
+        return Awaitable.resolve<void>(undefined);
+    }
+
+    /**
+     * The in/out points of a clip.
+     *
+     * `endTime` is left off entirely when the author set none: passing `undefined` explicitly is the
+     * same thing to the backend, but omitting it keeps `{...region}` spreads from writing a key that
+     * reads as "there is a region here" to anything inspecting the object.
+     */
+    private static clipRegionOf(sound: SoundElement): ClipRegion {
+        const startTime = sound.config.seek;
+        const endTime = sound.config.endTime;
+        if (endTime === undefined || !Number.isFinite(endTime) || endTime <= startTime) {
+            return { startTime };
+        }
+        const loopStart = sound.config.loopStart;
+        if (loopStart === undefined || !Number.isFinite(loopStart)) {
+            return { startTime, endTime };
+        }
+        return { startTime, endTime, loopStart };
+    }
+
+    /**
+     * Everything the backend needs to start a clip, apart from the volume the caller is fading to.
+     *
+     * The region goes over as it stands: an out point is an out point for a one-shot and the point
+     * a looping clip repeats *from* when `loop` is set, and `loopStart` moves that repeat's in
+     * point without moving where the first pass begins. A streamed clip has no region to speak of
+     * (see {@link AudioManager.loadModeOf}) and the backend ignores both keys for one.
+     */
+    private playOptionsOf(sound: SoundElement): {
+        startTime: number;
+        endTime?: number;
+        loopStart?: number;
+        loop: boolean;
+        rate: number;
+        load: "stream" | "full";
+    } {
+        return {
+            ...AudioManager.clipRegionOf(sound),
+            loop: sound.config.loop,
+            rate: sound.state.rate,
+            load: this.loadModeOf(sound),
+        };
+    }
+
+    /**
+     * Whether a clip is decoded into memory or streamed through an `<audio>` element.
+     *
+     * Decoding is what a short clip wants: it can start on the frame it is asked to, several copies
+     * can overlap, and its loop region is sample-accurate. What it costs is memory, and the cost has
+     * nothing to do with the size of the file - decoded audio is float32 PCM, so a five-minute
+     * 44.1 kHz stereo track is about 106 MB however small the mp3 was. Background music is the worst
+     * case of exactly that: long, and playing for as long as the scene lasts.
+     *
+     * So a clip is streamed when it is background music by construction:
+     *
+     * - the author set `streaming` on it, which has always meant "force this one to stream";
+     * - or it loops the **whole file**. A whole-file loop is a track meant to play under a scene
+     *   rather than to punctuate it, and repeating a whole file is the one thing an element does
+     *   exactly. A loop with an out point is asking for a region instead, which only a decoded
+     *   buffer has, so it keeps decoding.
+     *
+     * `data:` and `blob:` sources are already in memory and are always decoded; there is nothing to
+     * stream and an element would only add latency.
+     *
+     * {@link import("@core/gameTypes").GameConfig.audioStreaming} set to `"declared"` drops the
+     * second rule, for a game that would rather spend the memory than let its music loop through an
+     * element - `<audio>` repeats the file rather than the samples, so a loop point can be heard on
+     * some browsers and formats.
+     */
+    private loadModeOf(sound: SoundElement): "stream" | "full" {
+        const { src, streaming, loop, endTime } = sound.config;
+        if (src.startsWith("data:") || src.startsWith("blob:")) {
+            return "full";
+        }
+        if (streaming) {
+            return "stream";
+        }
+        if (this.gameState.game.config.audioStreaming === "declared") {
+            return "full";
+        }
+        return loop && endTime === undefined ? "stream" : "full";
+    }
+
+    private static clampToRegion(time: number, region: ClipRegion): number {
+        const floor = Math.max(0, time);
+        if (region.endTime === undefined) {
+            return floor;
+        }
+        return floor >= region.endTime ? region.startTime : floor;
     }
 
     public setRate(sound: SoundElement, rate: number): Awaitable<void> {
@@ -344,22 +752,34 @@ export class AudioManager {
                 {
                     isPlaying: state.token.isPlaying(),
                     position: state.token.getCurrentTime(),
+                    ...(sound.state.paused ? { paused: true } : {}),
                 }
             ]),
-            groups: [...this.channelVolumes.entries()].map(([type, volume]) => [type, volume])
+            groups: this.getBuses().map(bus => [bus.id, bus.volume])
         };
     }
 
     public fromData(data: AudioManagerDataRaw, elementMap: Map<string, LogicAction.GameElement>): this {
-        data.groups?.forEach(([type, volume]) => {
-            this.setGroupVolume(type, volume);
+        // Only the newest load owns anything: a second load replaces the first one's clips outright.
+        this.restoredByLoad.clear();
+        data.groups?.forEach(([id, volume]) => {
+            this.setBusVolume(id, volume);
         });
 
         data.sounds.forEach(([soundId, soundData]) => {
             const sound = elementMap.get(soundId) as SoundElement;
             if (!sound) {
-                throw new RuntimeGameError(`Sound not found (id: "${soundId}")`
-                    + "\nNarraLeaf cannot find the element with the id from the saved game");
+                // Not fatal. A sound reaches this manager from two places: the story's action graph,
+                // whose elements are all in `elementMap`, and `LiveGame.playSound`, whose are not -
+                // a host playing a UI sound owns it, and it has no business resuming out of a save.
+                // A save whose story has since dropped a sound lands here too. Throwing made either
+                // one fail the whole load, when the correct outcome is simply that this one clip
+                // does not come back.
+                this.gameState.logger.weakWarn(
+                    "AudioManager",
+                    `Skipped restoring a sound that is not in this story (id: "${soundId}")`,
+                );
+                return;
             }
             this.soundFromData(sound, soundData);
         });
@@ -367,6 +787,12 @@ export class AudioManager {
     }
 
     public soundFromData(sound: SoundElement, data: AudioDataRaw): void {
+        // Claimed here rather than alongside the token below, because everything below is a turn
+        // away and the claim has to be readable from the moment the load asked for it. See
+        // {@link AudioManager.isRunningFromLoad}. `paused` is resolved the same way the restore
+        // itself resolves it further down.
+        this.restoredByLoad.set(sound, data.isPlaying && !(data.paused ?? sound.state.paused ?? false));
+
         // Stop existing sound if any
         if (this.state.has(sound)) {
             const existingState = this.state.get(sound)!;
@@ -375,21 +801,35 @@ export class AudioManager {
 
         this.ready.then(async () => {
             try {
-                const channel = this.channels.get(sound.config.type)!;
-                const cachedAudio = await this.sound.load(sound.config.src);
-                const token = await channel.play(cachedAudio, {
+                const channel = this.channelFor(sound)!;
+                const region = AudioManager.clipRegionOf(sound);
+                // A clip with a loop region has to start at its in point even when we are restoring
+                // a save from halfway through: the region's start is also the point each repeat
+                // returns to, so starting at `position` would move the loop for the rest of the
+                // session. Start where the region says and seek forward - the jump preserves the
+                // loop (it rebuilds the source node with loopStart/loopEnd intact).
+                const anchored = region.endTime !== undefined && sound.config.loop;
+                const token = await channel.play(sound.config.src, {
                     volume: sound.state.volume,
-                    startTime: data.position,
-                    loop: sound.config.loop,
-                    rate: 1,
+                    ...this.playOptionsOf(sound),
+                    startTime: anchored ? region.startTime : data.position,
                 });
+                if (anchored && Math.abs(data.position - region.startTime) > 0.01) {
+                    token.seek(AudioManager.clampToRegion(data.position, region));
+                }
 
-                this.state.set(sound, { token, cachedAudio, originalVolume: sound.state.volume });
+                this.state.set(sound, { token, originalVolume: sound.state.volume });
                 const isMuted = sound.state.muted ?? false;
                 token.mute(isMuted);
                 sound.state.muted = isMuted;
 
-                if (sound.state.paused) {
+                // The record wins over the element, and falls back to it for a save written before
+                // the record carried this. A paused clip is neither playing nor stopped: it holds
+                // `position` until something resumes it, which is what a scene suspended by a call
+                // is waiting to do.
+                const paused = data.paused ?? sound.state.paused ?? false;
+                sound.state.paused = paused;
+                if (paused) {
                     token.pause();
                 } else if (!data.isPlaying) {
                     token.stop();
@@ -404,11 +844,150 @@ export class AudioManager {
         return this.state.has(sound);
     }
 
+    /**
+     * Whether the most recent load is the reason `sound` is on the wire, and left it running.
+     *
+     * The question a scene has to ask before it starts its own background music: the clip the save
+     * restored *is* that music already, playing at the position the player saved, and starting it
+     * again is a cross-fade of the track into itself - which stops it and plays it from the top.
+     * That throws the saved position away, and the stop lands while the restored element's `play()`
+     * is still pending, which the browser reports as an `AbortError`.
+     *
+     * Answered from the record rather than from the live token on purpose. A restore takes several
+     * turns to fetch and start a clip, and a scene mounting can get here first; reading
+     * `isPlaying()` would then say "nothing is playing" and the scene would start the very clip the
+     * load is in the middle of putting back. The record is written synchronously, so this is true
+     * from the instant the load is asked for.
+     *
+     * A record that says the clip is stopped or paused is not "running": the save wants silence
+     * there, and a scene that would have started music still does.
+     */
+    public isRunningFromLoad(sound: SoundElement): boolean {
+        return this.restoredByLoad.get(sound) === true;
+    }
+
+    /**
+     * Fetch and decode a sound into the audio cache without playing it, so the first `play()` of
+     * this source starts on the same frame it is asked to instead of after a fetch and a decode.
+     *
+     * **Holds the clip decoded until it is released.** A decoded clip is dropped as soon as nothing
+     * plays it, which is what keeps a session's audio from growing without bound; a preload is the
+     * one thing that says "keep this one anyway". The reference is given back by
+     * {@link AudioManager.retainOnly} - what the player preloads is the scene's set, and a scene
+     * change replaces it - or by {@link AudioManager.reset}.
+     *
+     * A clip that streams rather than decodes ({@link AudioManager.loadModeOf}) has nothing to warm:
+     * an element fetches as it plays, so there is no decoded buffer to have ready and this resolves
+     * having done nothing.
+     *
+     * Deliberately **not** something to gate a loading screen on: the audio context only becomes
+     * ready once the browser's autoplay policy is satisfied by a user gesture, so this can sit
+     * pending indefinitely on a page nobody has interacted with yet. Start it and let it land —
+     * in practice the gesture that opens a menu unlocks the context long before the scene it
+     * belongs to is entered. Failures resolve quietly; the sound then loads on first play, exactly
+     * as it did before.
+     */
+    public preload(sound: SoundElement): Promise<void> {
+        const src = sound.config.src;
+        if (this.loadModeOf(sound) === "stream" || this.retained.has(src)) {
+            return Promise.resolve();
+        }
+        // Recorded before the fetch resolves, not after: two preloads of the same source in the
+        // same frame would otherwise each take a reference, and only one would be given back. What
+        // is recorded is whether the reference was taken at all, so that a release arriving while
+        // the fetch is still in flight lands after it rather than on an entry that is not there yet.
+        const held = this.ready
+            .then(() => this.sound.load(src))
+            .then(() => true)
+            .catch((error) => {
+                this.gameState.logger.weakWarn(
+                    "AudioManager",
+                    `Failed to preload sound (src: "${src}")`,
+                    error,
+                );
+                return false;
+            });
+        this.retained.set(src, held);
+        return held.then(() => void 0);
+    }
+
+    /**
+     * Preload `sounds` and give back every cache reference this manager holds that is not among
+     * them - the audio counterpart of the image cache being filtered down to the scene that is
+     * about to paint.
+     *
+     * Called with a scene's own sounds when that scene opens. Clips shared with the previous scene
+     * keep their reference rather than being released and re-decoded, so the common case of a
+     * carried-over effect costs nothing.
+     *
+     * Releasing a reference does not stop anything: a clip that is still playing is held by its
+     * token until it ends, and only then does the buffer go.
+     */
+    public retainOnly(sounds: SoundElement[]): void {
+        const wanted = new Set(sounds.map(sound => sound.config.src));
+        for (const src of [...this.retained.keys()]) {
+            if (!wanted.has(src)) {
+                this.releaseSource(src);
+            }
+        }
+        for (const sound of sounds) {
+            void this.preload(sound);
+        }
+    }
+
+    /**
+     * What the audio cache is holding: decoded clips, clips in flight, and the bytes of PCM the
+     * decoded ones occupy. Zeroes before the audio context has unlocked.
+     *
+     * Here so that a game can see its own audio residency - the number that used to grow for the
+     * length of a session and now tracks what is playing plus what the current scene declared.
+     */
+    public getCacheStats(): CacheStats {
+        if (!this.isReady) {
+            return { entries: 0, loading: 0, decodedBytes: 0 };
+        }
+        return this.sound.getCacheStats();
+    }
+
+    /**
+     * Give back the cache reference held on one source, if there is one, once it has actually been
+     * taken - a release that overtook its own load would find nothing to release and leave the
+     * reference behind for good.
+     */
+    private releaseSource(src: string): void {
+        const held = this.retained.get(src);
+        if (!held) {
+            return;
+        }
+        this.retained.delete(src);
+        void held.then(taken => {
+            if (taken && this.isReady) {
+                this.sound.release(src);
+            }
+        });
+    }
+
+    /**
+     * Start a new game: stop everything and put the mixer back on the wire.
+     *
+     * The tree itself is **not** rebuilt - the channels are the same channels, because a bus is
+     * part of the game's declared shape, not part of its state. What is re-applied is every bus's
+     * current volume, read back off the mixer rather than off `SoundType`, which is what lets a
+     * host's own buses exist here at all.
+     *
+     * Note the seeded three are then immediately overwritten from the preferences, exactly as
+     * before; a bus the host declared keeps whatever volume the player left it at, because that is
+     * a setting and not something a new game should undo.
+     */
     public reset(): void {
         this.state.forEach((state) => {
             state.token.stop();
         });
         this.state.clear();
+        this.restoredByLoad.clear();
+        // Nothing is playing and no scene has opened yet, so nothing is owed a warm clip. The next
+        // scene's preload takes back whatever it needs.
+        this.retainOnly([]);
 
         // Reset global volume to 1
         this.globalVolume = 1;
@@ -416,30 +995,58 @@ export class AudioManager {
             this.sound.setVolume(1);
         }
 
-        // Reset channel volumes to 1
-        Object.values(SoundType).forEach(type => {
-            this.channelVolumes.set(type, 1);
-            if (this.isReady) {
-                const channel = this.channels.get(type);
-                if (channel) {
-                    channel.setVolume(1);
-                }
-            }
-        });
-        this.setupGroupVolume();
+        if (this.isReady && this.busTree) {
+            this.busTree.getNodes().forEach(node => {
+                this.applyBusVolume(this.channels.get(node.id), this.mixer.getEffectiveVolume(node.id), false);
+            });
+        }
     }
 
-    public setGroupVolume(type: SoundType, volume: number): void {
-        // Always store the volume
-        this.channelVolumes.set(type, volume);
+    /**
+     * Set **the player's** volume for a bus, 0..1, live. 1 means "leave the author's mix alone".
+     *
+     * Reaches sounds that are **already playing**: a bus is a gain node every clip beneath it is
+     * routed through, so nothing has to be found, stopped or restarted for the change to be heard.
+     * Setting a bus that has not been realized yet is fine - the value is kept and applied when the
+     * audio context unlocks.
+     *
+     * Equivalent to `game.audioBuses.setVolume(...)`, which is the surface a host should prefer:
+     * it exists before the player mounts.
+     */
+    public setBusVolume(id: SoundBusId, volume: number): void {
+        this.mixer.setVolume(id, volume);
+    }
 
-        // If ready, also apply to the channel
-        if (this.isReady) {
-            const channel = this.channels.get(type);
-            if (channel) {
-                channel.setVolume(volume);
-            }
-        }
+    /**
+     * The player's volume for a bus - what was last set, else 1. Not the author's declared mix
+     * (`game.audioBuses.getDeclaredVolume`) and not what is on the gain node
+     * (`getEffectiveVolume`).
+     */
+    public getBusVolume(id: SoundBusId): number {
+        return this.mixer.getVolume(id);
+    }
+
+    /**
+     * Every bus with its parent and both of its volumes, parents first. `volume` is the half a
+     * host persists.
+     */
+    public getBuses(): AudioBusState[] {
+        return this.mixer.list();
+    }
+
+    /**
+     * @deprecated Use {@link AudioManager.setBusVolume}. Kept because the three sound types are
+     * still bus ids and hosts call this with them.
+     */
+    public setGroupVolume(type: SoundBusId, volume: number): void {
+        this.setBusVolume(type, volume);
+    }
+
+    /**
+     * @deprecated Use {@link AudioManager.getBusVolume}.
+     */
+    public getGroupVolume(type: SoundBusId): number {
+        return this.getBusVolume(type);
     }
 
     public setGlobalVolume(volume: number): void {
@@ -453,19 +1060,14 @@ export class AudioManager {
         return this.globalVolume;
     }
 
-    public getGroupVolume(type: SoundType): number {
-        return this.channelVolumes.get(type) ?? 1;
-    }
-
     public destroy(): void {
         this.reset();
+        this.retained.clear();
+        this.busSubscription?.cancel();
+        this.busSubscription = null;
+        // Drops every decoded clip whatever holds it, so the references `reset` has just handed
+        // back on the way here are not the only thing standing between the cache and the collector.
         this.sound.destroy();
     }
 
-    private setupGroupVolume(): void {
-        const {soundVolume, bgmVolume, voiceVolume} = this.gameState.game.preference.getPreferences();
-        this.setGroupVolume(SoundType.Sound, soundVolume);
-        this.setGroupVolume(SoundType.Bgm, bgmVolume);
-        this.setGroupVolume(SoundType.Voice, voiceVolume);
-    }
 }

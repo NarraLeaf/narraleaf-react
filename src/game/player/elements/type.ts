@@ -2,7 +2,7 @@ import React, { ErrorInfo } from "react";
 import { IDialogProps, SayElementProps } from "@player/elements/say/type";
 import { IUserMenuProps, MenuElementProps } from "@player/elements/menu/type";
 import { Story } from "@core/elements/story";
-import clsx from "clsx";
+import type { ClassValue } from "clsx";
 import { Game, type GameLifecycleEventContext } from "@core/game";
 import { GameState } from "@player/gameState";
 import { Storable } from "@core/elements/persistent/storable";
@@ -42,7 +42,7 @@ export interface PlayerProps {
     story?: Story;
     width?: string | number;
     height?: string | number;
-    className?: clsx.ClassValue;
+    className?: ClassValue;
     /**
      * Once the Player is initialized.
      *
