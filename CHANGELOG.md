@@ -7,6 +7,16 @@ removed: the APIs marked deprecated still work as they did.
 
 ### _Fixes_
 
+- **A save file can no longer write onto `Object.prototype`.** A persistent value with a `Date` or
+  an `undefined` somewhere inside it is saved with the positions of those, and loading reads the
+  positions back out of the save to revive what sits there. A position was followed through
+  whatever key it named, so in a save the host did not write itself - a downloaded or hand-edited
+  one - a position through `__proto__` wrote an invalid `Date` or `undefined` onto
+  `Object.prototype`, which every object on the page inherits; `toString` alone was enough to
+  break the page. This was there from 0.20.0, when values began to nest. A position is now
+  followed only through keys the saved value itself carries, and what it revives is written as a
+  key of that value. Every save the engine writes loads exactly as it did.
+
 - **A list of statements can mix narration and actions under TypeScript.** A plain string in a
   scene's actions, a menu choice, a condition branch or a control block is a line of narration,
   and the README's first example writes the two side by side:
