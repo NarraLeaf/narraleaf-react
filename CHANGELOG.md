@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.0.1]
+
+### _Fixes_
+
+- **An image no longer shifts by a fraction of a pixel when a transition ends.** Whenever the stage
+  is scaled by a factor that is not a whole number - which is almost always: any window that is not
+  an exact multiple of the game's size, on any display above 100% - the picture a transition brings
+  in was placed differently from the way it sits once the transition is over. It was centred in the
+  image's box with `top`/`left: 50%` and a `translate(-50%, -50%)`, while the picture at rest sits on
+  the box's corner and the box takes its size. The browser snaps layout positions to the pixel grid
+  and leaves translations where they are, so the two placements fell on opposite sides of a rounding:
+  for the length of the transition the picture was drawn resampled up to a pixel away from where it
+  then came to rest, and on the frame it ended the whole picture stepped and sharpened. It happened on
+  background changes, image swaps and character expression changes with a transition, with every
+  built-in transition. Measured in a 125% window, on the frame a transition ended: a dissolve between
+  two backgrounds of one size changed a tenth of the background's pixels by up to 68/255, and a fade
+  through black moved the picture by 0.6 of a pixel and changed 15% of it by up to 103/255.
+
+  The incoming picture is now drawn on the pixels it will cover at rest. A picture the size of the
+  image's box - two backgrounds of one size, a picture fading into itself, a character's expressions
+  - sits in the box exactly as a picture at rest does, with no placement of its own. A picture of
+  another size or aspect ratio is anchored on the same edges as the image's position (the top and
+  left, or the bottom and right on an inverted axis) and moved by half the size difference with a
+  translate, which is the half the image's own translate takes over once the box has that picture's
+  size; the lengths the browser snaps and the lengths it does not are then the same during the
+  transition and after it. The box also takes the new picture's size in the same frame the
+  transition ends, rather than one frame later. A layered image's stacks are placed the same way.
+  Nothing about an image at rest moved: it is laid out exactly as before.
+
+  One case comes close without being exact: an image that its own transform also scales or rotates
+  (a character drawn at a zoom), changing to a picture of a different pixel size along an inverted
+  axis. The browser drops the fraction of such an image's own position before scaling it, and no
+  placement inside the image can reproduce that, so the picture can come out a shade sharper or
+  softer as the transition ends. It does not move.
+
+- **The picture on screen no longer drops out for a frame as a transition starts.** On the first
+  frame of an image transition the outgoing picture was pointed at a placeholder and straight back at
+  its own source, which was enough for the browser to let go of the decoded picture: the next frame
+  was painted without it, showing whatever was behind the image - black, behind a background. It
+  did not happen on every transition, which made it look like a flicker rather than a fault. Nothing
+  touches the picture on screen when a transition starts now; each side's source comes from the
+  transition alone.
+
+- **The incoming picture of a darkened image is darkened while it comes in.** On an image that is not
+  layered it used to be drawn at full brightness for the length of the transition and dimmed only
+  once the transition was over.
+
 ## [1.0.0]
 
 1.0.0 is 0.47.2 with the fixes below. Nothing a game does behaves differently and nothing was
