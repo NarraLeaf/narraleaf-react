@@ -97,9 +97,6 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     const refs = useRef<DisplayableRefGroup<U>[]>(initRefs());
     const game = useGame();
     const gameState = game.getLiveGame().getGameState()!;
-    const evaluatedTransProps = typeof transitionsProps === "function"
-        ? transitionsProps(transitionTask)
-        : transitionsProps;
     const [flush] = useFlush([transformToken, transitionTask, refs]);
 
     useEffect(() => {
@@ -120,6 +117,12 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
         const {controller, task} = transitionTask;
         const applyFrame = (values: AnimationDataTypeArray<TransitionAnimationType[]>) => {
+            // Worked out again on every frame: a host's props can depend on things that only become
+            // known once the transition is under way - an image places each group against sizes its
+            // pictures report as they load.
+            const evaluatedTransProps = typeof transitionsProps === "function"
+                ? transitionsProps(transitionTask)
+                : transitionsProps;
             refs.current.forEach(([ref], i) => {
                 const currentResolve = task.resolve[i];
                 const resolver = typeof currentResolve === "function" ? currentResolve : currentResolve.resolver;
