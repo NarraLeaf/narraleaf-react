@@ -39,6 +39,7 @@ function createStateLike(exposed: Partial<ExposedVideo> = {}) {
     const state = {
         state: {videos: videosOnStage},
         addVideo: (video: Video) => void videosOnStage.push(video),
+        addVideoFor: (video: Video) => void videosOnStage.push(video),
         removeVideo: (video: Video) => {
             const index = videosOnStage.indexOf(video);
             if (index >= 0) videosOnStage.splice(index, 1);

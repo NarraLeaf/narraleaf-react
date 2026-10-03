@@ -124,7 +124,7 @@ export class VideoAction<T extends Values<typeof VideoActionTypes> = Values<type
                     // stepping back across a hide shows the clip that was there - as part of the scene
                     // it belonged to, which is not necessarily the one running when the step lands.
                     if (wasAdded && !gameState.isVideoAdded(video)) {
-                        gameState.addVideo(video, originalOwner ?? gameState.getLastScene());
+                        gameState.addVideoFor(video, originalOwner ?? gameState.getLastScene());
                         gameState.stage.update();
                     }
                 }, [originalVisible]);

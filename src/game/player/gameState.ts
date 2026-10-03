@@ -354,13 +354,18 @@ export class GameState {
         return this.flushDep;
     }
 
+    public addVideo(video: Video): this {
+        // The clip joins the stage of the scene running now - the scene a sprite shown on the same
+        // line would join.
+        return this.addVideoFor(video, this.getLastScene());
+    }
+
     /**
-     * Put a clip on the stage for the story, as part of `owner`'s stage.
-     *
-     * The owner is the scene running when the clip goes on - the scene a sprite shown on the same
-     * line would join - unless the caller is putting back a clip whose scene it already knows.
+     * {@link addVideo} for a clip whose scene the caller already knows - one being put back by a
+     * step back, which can land while a different scene is running.
+     * @internal
      */
-    public addVideo(video: Video, owner: Scene | null = this.getLastScene()): this {
+    public addVideoFor(video: Video, owner: Scene | null): this {
         this.state.videos.push(video);
         if (owner) {
             this.videoOwners.set(video, owner);
@@ -383,7 +388,10 @@ export class GameState {
         return this;
     }
 
-    /** The scene a clip the story put on the stage belongs to, or null for one it did not put there. */
+    /**
+     * The scene a clip the story put on the stage belongs to, or null for one it did not put there.
+     * @internal
+     */
     public getVideoOwner(video: Video): Scene | null {
         return this.videoOwners.get(video) ?? null;
     }
@@ -402,7 +410,10 @@ export class GameState {
         return this;
     }
 
-    /** The clips `scene` has on the stage, in stage order. */
+    /**
+     * The clips `scene` has on the stage, in stage order.
+     * @internal
+     */
     public getVideosOf(scene: Scene): Video[] {
         return this.state.videos.filter(video => this.videoOwners.get(video) === scene);
     }
@@ -1943,6 +1954,7 @@ export class GameState {
      * by the time this runs everything newer than the snapshot has already been taken back by
      * whatever put it there. What is missing then is what a scene leaving took away, and that is what
      * this restores.
+     * @internal
      */
     public restoreVideosOf(scene: Scene, videos: [Video, VideoStateRaw][] | undefined): this {
         if (!videos?.length) {
@@ -1953,7 +1965,7 @@ export class GameState {
             if (this.isVideoAdded(video)) {
                 this.videoOwners.set(video, scene);
             } else {
-                this.addVideo(video, scene);
+                this.addVideoFor(video, scene);
             }
         });
         return this;
