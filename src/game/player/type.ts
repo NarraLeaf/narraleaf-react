@@ -11,7 +11,7 @@ import {Text} from "@core/elements/displayable/text";
 import {Displayable} from "@core/elements/displayable/displayable";
 import {Scene} from "@core/elements/scene";
 import {Sound} from "@core/elements/sound";
-import {Video} from "@core/elements/video";
+import {Video, VideoFadeOptions} from "@core/elements/video";
 import {Vfx, VfxFadeOptions} from "@core/elements/vfx";
 import {Puppet} from "@core/elements/displayable/puppet";
 import { Timeline } from "./Tasks";
@@ -83,8 +83,12 @@ export type ExposedState = {
         setBackgroundMusic: (music: Sound | null, fade: number) => Promise<void>;
     };
     [ExposedStateType.video]: {
-        show: () => void;
-        hide: () => void;
+        /** Resolves once the clip is showing: at once, or when a fade in ends, is skipped or is abandoned. */
+        show: (options?: VideoFadeOptions) => Promise<void>;
+        /** Resolves once the clip is hidden: at once, or when a fade out ends, is skipped or is abandoned. */
+        hide: (options?: VideoFadeOptions) => Promise<void>;
+        /** Abandon a fade in flight and show the clip as `video.state.display` says. */
+        cancelFade: () => void;
         play: () => Promise<void>;
         pause: () => void;
         resume: () => Promise<void>;

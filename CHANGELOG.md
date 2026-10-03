@@ -1,5 +1,67 @@
 # Changelog
 
+## [1.1.0]
+
+### _Features_
+
+- **A video can fade in and out.** `Video.show()` and `Video.hide()` take an optional
+  `VideoFadeOptions` - a `duration` in milliseconds and, if wanted, an `easing` - and the action
+  waits for the fade to finish:
+
+  ```ts
+  const cutscene = new Video({src: "/movies/festival.mp4"});
+
+  scene.action([
+      cutscene.show(),
+      cutscene.play(),
+      // The last frame fades away over 600 ms and the clip leaves the stage.
+      cutscene.hide({duration: 600}),
+      "The festival was over before anyone noticed.",
+  ]);
+  ```
+
+  This is what a cutscene that clears itself away is written as. A clip that has played to its end
+  holds its last frame, and the stage draws videos above every scene, so until something hides it that
+  frame covers the rest of the game - a `jump` included. `play` already waits for the end, so the
+  `hide` written after it runs exactly when the clip finishes, and with a duration it fades out the
+  frame the clip ended on rather than cutting to whatever is underneath.
+
+  A fade in starts once the clip can present a frame, so what fades in is the picture and not an empty
+  rectangle. The easing takes the same values a `Vfx` fade does - a named curve or a cubic-bezier as
+  four numbers - and is linear when omitted.
+
+  - **A skip lands a fade on its end state at once.** It is a transition rather than the clip, so it
+    does so whether or not `allowSkipVideo` lets a skip cut the clip itself short. Fast-forward does
+    the same.
+  - **Stepping back abandons a fade halfway.** The clip shows whatever the line stepped back to says,
+    and the hide that was fading leaves nothing behind: the clip is still on the stage and nothing
+    has been recorded for it.
+  - **A save taken during a fade out reloads the clip showing,** and the hide runs again from there.
+    The clip only leaves the stage, and stops being part of what a save records, once the fade is over.
+  - Without options, or with no positive `duration`, `show()` and `hide()` are instant, exactly as
+    before.
+
+### _Fixes_
+
+- **Stepping back across a `Video.hide()` brings the clip back.** Hiding a video takes it off the
+  stage, and its undo only restored the `display` flag, so the line stepped back to was missing a
+  clip it had been showing. The undo now puts the clip back on the stage as well.
+- **A video follows its `display` flag when the player steps back.** The element read the flag once,
+  when it mounted, so stepping back across a `show()` left the clip on screen on a line where it had
+  not yet been shown. It now shows what the flag says each time the stage renders, unless a fade is
+  in charge of it.
+- **Hiding a video that is not on the stage does nothing.** It threw "Video is being used before it
+  is added to the game" instead, which stopped the story at a second `hide()` of the same clip. A
+  `Vfx` hide has always treated this as nothing to do, with a warning in the log; a video now does
+  the same.
+
+### _Changes_
+
+- The exposed state of a video component (`ExposedState[ExposedStateType.video]`) changed with the
+  fade: `show` and `hide` take the `VideoFadeOptions` and return a promise that settles when the
+  fade ends, and `cancelFade` abandons a fade in flight. Only a host that mounts its own video
+  component against `GameState.mountState` sees this.
+
 ## [1.0.1]
 
 ### _Fixes_

@@ -1,10 +1,10 @@
 import React from "react";
 import {GameState} from "@player/gameState";
-import {Video as GameVideo} from "@core/elements/video";
-import {useEffect, useRef} from "react";
+import {Video as GameVideo, VideoFadeOptions} from "@core/elements/video";
+import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {ExposedStateType} from "@player/type";
 import {RuntimeGameError} from "@core/common/Utils";
-import {useElementVisibility} from "@player/lib/useElementVisibility";
+import {toCssEasing, VisibilityFader} from "@player/lib/visibilityFader";
 
 /**@internal */
 export default function Video(
@@ -14,11 +14,21 @@ export default function Video(
     }
 ) {
     const ref = useRef<HTMLVideoElement>(null);
-    const {show, hide} = useElementVisibility<HTMLVideoElement>(ref);
+    const [fader] = useState(() => new VisibilityFader(() => ref.current, (easing) => {
+        const css = toCssEasing(easing);
+        if (css === null) {
+            gameState.logger.debug("NarraLeaf-React: Video", "Easing has no CSS equivalent, falling back to \"ease\"", easing);
+            return "ease";
+        }
+        return css;
+    }));
 
     useEffect(() => {
         return gameState.events.depends([
             gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+                // A fade is a transition, not the clip: a skip lands it on its end state whether or
+                // not the game lets a skip cut the clip itself short.
+                fader.skip();
                 if (gameState.game.config.allowSkipVideo) {
                     skip();
                     gameState.logger.log("NarraLeaf-React: Video", "Skipped");
@@ -27,13 +37,17 @@ export default function Video(
         ]).cancel;
     }, []);
 
-    useEffect(() => {
-        hide();
-
-        if (video.state.display) {
-            show();
+    // On every render the element shows what `display` says, unless a fade has it. On the first one
+    // that is the clip coming back from a save; after it, it is what puts the clip back the way a
+    // step back left `display` - an undo changes the state and re-renders the stage, and the element
+    // has to follow it rather than keep whatever the line being left had on screen.
+    useLayoutEffect(() => {
+        if (!fader.isFading()) {
+            fader.set(video.state.display);
         }
-    }, []);
+    });
+
+    useEffect(() => () => fader.dispose(), [fader]);
 
     useEffect(() => {
         if (!ref.current) return;
@@ -54,13 +68,17 @@ export default function Video(
             mounted = true;
 
             gameState.mountState<ExposedStateType.video>(video, {
-                show: () => {
+                show: (options?: VideoFadeOptions) => {
                     if (!ref.current) throw invalidRef();
-                    show();
+                    return fader.fadeTo(true, options);
                 },
-                hide: () => {
+                hide: (options?: VideoFadeOptions) => {
                     if (!ref.current) throw invalidRef();
-                    hide();
+                    return fader.fadeTo(false, options);
+                },
+                cancelFade: () => {
+                    fader.cancel();
+                    fader.set(video.state.display);
                 },
                 play: () => {
                     if (!ref.current) throw invalidRef();

@@ -3,32 +3,16 @@ import {GameState} from "@player/gameState";
 import {Vfx as GameVfx, VfxFadeOptions} from "@core/elements/vfx";
 import {ExposedStateType} from "@player/type";
 import type {TransformDefinitions} from "@core/elements/transform/type";
-
-/**
- * Named easings that have an exact CSS timing-function equivalent. Everything else
- * (custom functions, spring-like names) falls back to "ease" with a debug log — a
- * fade is cosmetic and must not depend on a JS animation loop (hidden tabs freeze rAF).
- */
-const NAMED_EASINGS: Record<string, string> = {
-    linear: "linear",
-    easeIn: "cubic-bezier(0.42, 0, 1, 1)",
-    easeOut: "cubic-bezier(0, 0, 0.58, 1)",
-    easeInOut: "cubic-bezier(0.42, 0, 0.58, 1)",
-};
+import {toCssEasing as cssEasingFor} from "@player/lib/visibilityFader";
 
 /**@internal */
 function toCssEasing(gameState: GameState, easing: TransformDefinitions.EasingDefinition | undefined): string {
-    if (easing === undefined) {
-        return "linear";
+    const css = cssEasingFor(easing);
+    if (css === null) {
+        gameState.logger.debug("NarraLeaf-React: Vfx", "Easing has no CSS equivalent, falling back to \"ease\"", easing);
+        return "ease";
     }
-    if (Array.isArray(easing)) {
-        return `cubic-bezier(${easing.join(", ")})`;
-    }
-    if (typeof easing === "string" && NAMED_EASINGS[easing]) {
-        return NAMED_EASINGS[easing];
-    }
-    gameState.logger.debug("NarraLeaf-React: Vfx", "Easing has no CSS equivalent, falling back to \"ease\"", easing);
-    return "ease";
+    return css;
 }
 
 /**@internal */

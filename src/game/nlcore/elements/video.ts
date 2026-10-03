@@ -9,11 +9,29 @@ import {VideoAction} from "@core/action/actions/videoAction";
 import {ContentNode} from "../action/tree/actionTree";
 import {EmptyObject} from "@core/elements/transition/type";
 import {ElementStateRaw} from "@core/elements/story";
+import type {TransformDefinitions} from "@core/elements/transform/type";
 
 
 export type VideoConfig = {
     src: string;
     muted: boolean;
+};
+
+/**
+ * How {@link Video.show} or {@link Video.hide} fades the clip in or out.
+ *
+ * Omitted, or with no positive `duration`, the clip appears or disappears at once - which is what
+ * `show()` and `hide()` have always done.
+ */
+export type VideoFadeOptions = {
+    /** How long the fade takes, in milliseconds. */
+    duration?: number;
+    /**
+     * The curve of the fade: a named easing (`"linear"`, `"easeIn"`, `"easeOut"`, `"easeInOut"`) or a
+     * cubic-bezier as four numbers. Linear when omitted. A named easing with no CSS equivalent falls
+     * back to `"ease"`, as it does for a `Vfx` fade.
+     */
+    easing?: TransformDefinitions.EasingDefinition;
 };
 
 export type VideoState = {
@@ -77,24 +95,47 @@ export class Video extends Actionable<VideoStateRaw> {
     }
 
     /**
-     * Show the video element.
+     * Show the video element, putting it on the stage first if it is not there yet.
+     *
+     * With `options.duration`, the clip fades in over that many milliseconds and the action waits for
+     * the fade to finish; it starts once the clip can present a frame, so what fades in is the picture
+     * and not an empty rectangle. Without it the clip appears at once.
      * @chainable
+     * @example
+     * ```ts
+     * video.show({duration: 500});
+     * ```
      */
-    show(): Proxied<Video, Chained<LogicAction.Actions>> {
+    show(options?: VideoFadeOptions): Proxied<Video, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VideoActionTypes.show,
-            []
+            [options]
         ));
     }
 
     /**
-     * Hide the video element.
+     * Hide the video element and take it off the stage.
+     *
+     * With `options.duration`, the clip fades out over that many milliseconds - holding whatever frame
+     * it is on, which after {@link play} is its last - and leaves the stage once the fade is over; the
+     * action waits for that. Without it the clip disappears at once.
+     *
+     * A clip that is not on the stage has nothing to hide, and the call does nothing.
      * @chainable
+     * @example
+     * ```ts
+     * // A cutscene that clears itself away when it ends
+     * scene.action([
+     *     video.show(),
+     *     video.play(),
+     *     video.hide({duration: 600}),
+     * ]);
+     * ```
      */
-    hide(): Proxied<Video, Chained<LogicAction.Actions>> {
+    hide(options?: VideoFadeOptions): Proxied<Video, Chained<LogicAction.Actions>> {
         return this.chain(this.createAction(
             VideoActionTypes.hide,
-            []
+            [options]
         ));
     }
 

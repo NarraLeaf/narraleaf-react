@@ -16,6 +16,7 @@ import type { Transition } from "@core/elements/transition/transition";
 import type { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
 import type { Layer } from "@core/elements/layer";
 import type { VfxFadeOptions } from "@core/elements/vfx";
+import type { VideoFadeOptions } from "@core/elements/video";
 import type { PuppetCommandOptions } from "@core/elements/displayable/puppet";
 
 export const DisplayableActionTypes = {
@@ -252,7 +253,8 @@ export const VideoActionTypes = {
 export type VideoActionContentType = {
     [K in typeof VideoActionTypes[keyof typeof VideoActionTypes]]:
     K extends "video:action" ? any :
-    K extends "video:preload" | "video:show" | "video:hide" | "video:play" | "video:pause" | "video:stop" | "video:resume" ? [] :
+    K extends "video:show" | "video:hide" ? [VideoFadeOptions?] :
+    K extends "video:preload" | "video:play" | "video:pause" | "video:stop" | "video:resume" ? [] :
     K extends "video:seek" ? [number] :
     any;
 }
