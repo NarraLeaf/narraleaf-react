@@ -151,6 +151,14 @@ export type PlayerStateData = {
              * { [layerName]: [displayableId][] }
              */
             layers: Record<string, string[]>;
+            /**
+             * The ids of the clips this scene put on the stage. Their state is in
+             * {@link PlayerStateData.videos}; this says which scene each one leaves with.
+             *
+             * Written only when the scene has any. Absent in saves written before clips belonged to
+             * scenes, and a clip no scene names is given to the scene the story is running in.
+             */
+            videos?: string[];
         };
     }[],
     audio: AudioManagerDataRaw;
@@ -174,6 +182,14 @@ export type PlayerStateElementSnapshot = {
      * scene that is on the stage and one that is on the stage waiting for a call to return.
      */
     suspended?: boolean;
+    /**
+     * The clips this scene had on the stage, each with its state, in stage order.
+     *
+     * A clip is drawn over the scene rather than inside one of its layers, but it belongs to the
+     * scene that put it there all the same, and leaves with it. Absent in snapshots taken before
+     * clips belonged to scenes; read as none.
+     */
+    videos?: [Video, VideoStateRaw][];
 };
 export type PlayerAction = CalledActionResult;
 
@@ -264,6 +280,16 @@ export class GameState {
      * See {@link VideoWarmQueue}.
      */
     private readonly videoWarmQueue: VideoWarmQueue;
+    /**
+     * Which scene each of the story's clips belongs to: the one running when the clip went on.
+     *
+     * A clip is not on one of the scene's layers - it is a sibling of the scene's root, so that a clip
+     * the preloader warmed can be taken over without being remounted - so nothing about where it sits
+     * says whose it is. And it has to be somebody's, because a scene takes everything it put on the
+     * stage with it when it leaves. Kept beside {@link PlayerState.videos} rather than in it, because
+     * the stage order of clips is not grouped by scene.
+     */
+    private videoOwners: Map<Video, Scene> = new Map();
     private videoMissingReporter: ((resource: PreloadResource) => void) | null = null;
     /** Sources already reported as unwarmed, so one clip in a loop does not report every pass. */
     private readonly reportedUnwarmedVideos: Set<string> = new Set();
@@ -328,8 +354,17 @@ export class GameState {
         return this.flushDep;
     }
 
-    public addVideo(video: Video): this {
+    /**
+     * Put a clip on the stage for the story, as part of `owner`'s stage.
+     *
+     * The owner is the scene running when the clip goes on - the scene a sprite shown on the same
+     * line would join - unless the caller is putting back a clip whose scene it already knows.
+     */
+    public addVideo(video: Video, owner: Scene | null = this.getLastScene()): this {
         this.state.videos.push(video);
+        if (owner) {
+            this.videoOwners.set(video, owner);
+        }
         // Whatever the warm queue was holding it for, the story now holds it for a better reason.
         // The element does not move: it is the same object, so the same DOM node and the same
         // buffer carry on, and the queue is only told to stop counting it.
@@ -344,7 +379,32 @@ export class GameState {
             return this;
         }
         this.state.videos.splice(index, 1);
+        this.videoOwners.delete(video);
         return this;
+    }
+
+    /** The scene a clip the story put on the stage belongs to, or null for one it did not put there. */
+    public getVideoOwner(video: Video): Scene | null {
+        return this.videoOwners.get(video) ?? null;
+    }
+
+    /**
+     * Hand a clip already on the stage to another scene.
+     *
+     * What showing it again from a different scene does - a clip shown from a called scene moves to
+     * that scene, the way a sprite shown there would move off the caller's layers.
+     * @internal
+     */
+    public setVideoOwner(video: Video, owner: Scene): this {
+        if (this.isVideoAdded(video)) {
+            this.videoOwners.set(video, owner);
+        }
+        return this;
+    }
+
+    /** The clips `scene` has on the stage, in stage order. */
+    public getVideosOf(scene: Scene): Video[] {
+        return this.state.videos.filter(video => this.videoOwners.get(video) === scene);
     }
 
     /**
@@ -1358,6 +1418,7 @@ export class GameState {
         this.state.elements = [];
         this.state.srcManagers = [];
         this.state.videos = [];
+        this.videoOwners = new Map();
         this.videoWarmQueue.clear();
         this.reportedUnwarmedVideos.clear();
         this.state.vfx = [];
@@ -1593,6 +1654,7 @@ export class GameState {
     toData(): PlayerStateData {
         return {
             scenes: this.state.elements.map(e => {
+                const videos = this.getVideosOf(e.scene).map(video => video.getId());
                 return {
                     sceneId: e.scene.getId(),
                     ...(e.suspended ? {suspended: true} : {}),
@@ -1600,7 +1662,8 @@ export class GameState {
                         layers: Object.fromEntries(
                             Array.from(e.layers.entries())
                                 .map(([layer, elements]) => [layer.getId(), elements.map(d => d.getId())])
-                        )
+                        ),
+                        ...(videos.length ? {videos} : {}),
                     }
                 };
             }),
@@ -1644,6 +1707,8 @@ export class GameState {
         // The clips the save's audio record brings back itself, at the position and in the
         // transport state it recorded. See the scene loop below for why a scene leaves these alone.
         const restoredSounds = new Set(audio.sounds.map(([soundId]) => soundId));
+        // Which scene each saved clip leaves with, by clip id.
+        const videoOwnerIds = new Map<string, Scene>();
         scenes.forEach(({sceneId, elements, suspended}) => {
             this.logger.debug("Loading scene: " + sceneId);
 
@@ -1651,6 +1716,7 @@ export class GameState {
             if (!scene) {
                 throw new RuntimeGameError("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");
             }
+            (elements.videos ?? []).forEach(videoId => videoOwnerIds.set(videoId, scene));
 
             const ele: PlayerStateElement = {
                 scene,
@@ -1701,6 +1767,19 @@ export class GameState {
             video.fromData(state);
             return video;
         });
+        // A save that names no scene for a clip was written before clips belonged to scenes. The
+        // scene the story is running in is the only owner it can be given: it is the one the clip
+        // would have joined had it been shown on the line the save was taken on.
+        this.videoOwners = new Map();
+        if (this.state.videos.length) {
+            const runningScene = this.getLastScene();
+            this.state.videos.forEach(video => {
+                const owner = videoOwnerIds.get(video.getId()) ?? runningScene;
+                if (owner) {
+                    this.videoOwners.set(video, owner);
+                }
+            });
+        }
         // Saves created before 0.16.0 have no "vfx" key; tolerate its absence.
         //
         // An id the story no longer has is dropped with a warning rather than thrown on, unlike
@@ -1772,6 +1851,7 @@ export class GameState {
                     return [element, element.toData()];
                 })];
             })),
+            videos: this.getVideosOf(element.scene).map(video => [video, video.toData()]),
         };
     }
 
@@ -1797,6 +1877,7 @@ export class GameState {
         }
 
         this.resetLayers(this.state.elements[index].layers);
+        this.releaseVideosOf(scene);
         this.state.elements.splice(index, 1);
 
         this.logger.debug("GameState", "Removing elements", scene.getId());
@@ -1826,6 +1907,56 @@ export class GameState {
                 element.reset();
             });
         });
+    }
+
+    /**
+     * The clip half of leaving a scene: every clip the scene put on the stage leaves with it, and
+     * goes back to its authored state, exactly as the sprites on its layers do in
+     * {@link resetLayers}.
+     *
+     * Without this a clip outlived its scene, and since a clip paints over its scene's sprites, one
+     * that stopped on its last frame covered the whole of the next scene - where nothing could take it
+     * down, because a host that names stage objects per scene cannot even name it.
+     *
+     * Every path that takes a scene off the stage comes through here - a plain jump's exit, a call
+     * returning, a jump giving up the callers parked behind it, stepping back over a scene's entrance
+     * - and each of them snapshots the scene first (see {@link createElementSnapshot}), so the clips
+     * come back with it when the step is undone.
+     */
+    private releaseVideosOf(scene: Scene): void {
+        const videos = this.getVideosOf(scene);
+        if (!videos.length) {
+            return;
+        }
+        videos.forEach(video => {
+            this.removeVideo(video);
+            video.reset();
+        });
+    }
+
+    /**
+     * Put back the clips a scene snapshot says the scene had, each with its state.
+     *
+     * Only ever adds: a clip the scene has now and the snapshot does not mention is left where it is.
+     * Clips are put on and taken off by actions that record their own undo - a show, a hide, a
+     * preload - and those undos run before the snapshot of the line they belong to is restored, so
+     * by the time this runs everything newer than the snapshot has already been taken back by
+     * whatever put it there. What is missing then is what a scene leaving took away, and that is what
+     * this restores.
+     */
+    public restoreVideosOf(scene: Scene, videos: [Video, VideoStateRaw][] | undefined): this {
+        if (!videos?.length) {
+            return this;
+        }
+        videos.forEach(([video, data]) => {
+            video.fromData(data);
+            if (this.isVideoAdded(video)) {
+                this.videoOwners.set(video, scene);
+            } else {
+                this.addVideo(video, scene);
+            }
+        });
+        return this;
     }
 
     private syncNvlDerivedState(): void {

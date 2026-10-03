@@ -19,7 +19,7 @@ function snapshot(el: FadableElement) {
     return {opacity, visibility, pointerEvents};
 }
 
-const SHOWN = {opacity: "1", visibility: "visible", pointerEvents: "auto"};
+const SHOWN = {opacity: "1", visibility: "inherit", pointerEvents: "auto"};
 const HIDDEN = {opacity: "0", visibility: "hidden", pointerEvents: "none"};
 
 describe("VisibilityFader", () => {
@@ -51,7 +51,7 @@ describe("VisibilityFader", () => {
         expect(el.style.transition).toBe("opacity 600ms linear");
         expect(el.style.opacity).toBe("0");
         // Still visible while it fades, and out of the pointer's way.
-        expect(el.style.visibility).toBe("visible");
+        expect(el.style.visibility).toBe("inherit");
         expect(el.style.pointerEvents).toBe("none");
         expect(fader.isFading()).toBe(true);
 
@@ -70,7 +70,7 @@ describe("VisibilityFader", () => {
         fader.set(false);
 
         const fade = fader.fadeTo(true, {duration: 300, easing: "easeOut"});
-        expect(el.style.visibility).toBe("visible");
+        expect(el.style.visibility).toBe("inherit");
         expect(el.style.opacity).toBe("1");
         expect(el.style.transition).toBe("opacity 300ms cubic-bezier(0, 0, 0.58, 1)");
 
@@ -111,7 +111,7 @@ describe("VisibilityFader", () => {
 
         expect(done).toBe(true);
         expect(fader.isFading()).toBe(false);
-        expect(el.style.visibility).toBe("visible");
+        expect(el.style.visibility).toBe("inherit");
         expect(el.style.transition).toBe("");
 
         fader.set(true);

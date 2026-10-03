@@ -70,6 +70,11 @@ type FadeOperation = {
  * Hidden means hidden to the pointer and to the compositor too (`visibility: hidden`), exactly as an
  * instant hide always left the element; during a fade the element is visible and lets the pointer
  * through.
+ *
+ * Shown is `visibility: inherit`, not `visible`: the fader only ever takes the element off screen,
+ * it never puts it on screen over an ancestor that has been hidden. `visible` on a child wins over
+ * `hidden` on its parent, so a clip whose scene was parked behind a call - the scene hidden, the clip
+ * shown - kept painting over the scene that had been called.
  * @internal
  */
 export class VisibilityFader {
@@ -123,7 +128,7 @@ export class VisibilityFader {
             el.style.transition = "";
             el.style.opacity = "0";
         }
-        el.style.visibility = "visible";
+        el.style.visibility = "inherit";
         el.style.pointerEvents = "none";
 
         return new Promise<void>((resolve) => {
@@ -196,6 +201,6 @@ export class VisibilityFader {
         el.style.transition = "";
         el.style.opacity = visible ? "1" : "0";
         el.style.pointerEvents = visible ? "auto" : "none";
-        el.style.visibility = visible ? "visible" : "hidden";
+        el.style.visibility = visible ? "inherit" : "hidden";
     }
 }

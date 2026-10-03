@@ -45,6 +45,10 @@ function createStateLike(exposed: Partial<ExposedVideo> = {}) {
         },
         isVideoAdded: (video: Video) => videosOnStage.includes(video),
         isVideoOnStage: (video: Video) => videosOnStage.includes(video),
+        // No scenes here: which scene a clip belongs to is pinned in videoAction.sceneBoundary.test.ts.
+        getVideoOwner: () => null,
+        setVideoOwner: () => void 0,
+        getLastScene: () => null,
         reportUnwarmedVideo: () => void 0,
         stage: {update: vi.fn()},
         actionHistory: {

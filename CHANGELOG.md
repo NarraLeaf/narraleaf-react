@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.1.1]
+
+### _Fixes_
+
+- **A video leaves the stage with the scene that showed it.** A clip belongs to the scene running
+  when it goes on the stage, and every boundary that scene crosses now does to the clip what it does
+  to the scene's sprites:
+
+  - **A plain `jumpTo`** unloads the scene it leaves, and the clip goes with it, back to its authored
+    state. Before, a clip that had played to its end kept its last frame over the whole of the next
+    scene, and nothing in that scene could take it down. With a transition, the clip leaves on the
+    same frames as the rest of its scene and is covered by the incoming scene the way its sprites are.
+  - **A returnable jump** parks the calling scene, and the caller's clip with it: kept, with its state,
+    but not painted while the called scene runs, and back on screen when the call returns. A clip the
+    called scene showed leaves when the call returns, and so does a parked caller's clip when a plain
+    jump gives the caller up.
+  - **Stepping back across any of these** - the jump, the return, a jump that gave up a call - puts
+    the clip back with its scene, whether the step goes through the live undo or a loaded save.
+  - **A save** records which scene each clip belongs to (`elements.videos` on the scene's record), so
+    a save taken during a call loads with the caller's clip still parked behind the call. A save
+    written before this names no scene for its clips; each is given to the scene the story is running
+    in, which is the one it would have joined.
+  - **A clip shown again from a different scene** - the called scene showing its caller's clip - moves
+    to that scene, as a sprite shown there would.
+  - The story running out, and a new game, are unchanged: the first leaves the stage as it is, the
+    second clears it, clips included.
+
+  Clips are now drawn inside the stage's scene group, each right after its scene, rather than above
+  every scene; on a stage with one scene that paints exactly as before. A clip the preloader is
+  holding sits at the end of the same group, so the story taking it over still does not remount it.
+
+- **`pause()`, `resume()`, `seek()` and `stop()` on a video that is not on the stage do nothing.**
+  They threw "Video is being used before it is added to the game", which stopped the story. A clip
+  played without waiting for it leaves the stage when it ends, at a moment set by how fast the player
+  reads, so a later row that pauses or stops it could land on either side of that. Each now logs a
+  warning and lets the story carry on, as `hide()` has since 1.1.0. On a clip that is on the stage
+  they behave exactly as before.
+
 ## [1.1.0]
 
 ### _Features_

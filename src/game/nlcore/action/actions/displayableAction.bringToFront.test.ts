@@ -59,6 +59,8 @@ function createStage(order: string[] = ["a", "b", "c"]) {
             dialogs: [],
         },
         audioManager: { toData: () => ({ sounds: [], groups: [] }) },
+        // `toData` asks each scene for the clips it owns; this stage has none.
+        getVideosOf: () => [],
         findElementByDisplayable(displayable: LogicAction.DisplayableElements) {
             return GameState.prototype.findElementByDisplayable.call(this as never, displayable);
         },
