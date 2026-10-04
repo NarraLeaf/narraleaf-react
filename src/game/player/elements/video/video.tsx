@@ -5,15 +5,31 @@ import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {ExposedStateType} from "@player/type";
 import {RuntimeGameError} from "@core/common/Utils";
 import {toCssEasing, VisibilityFader} from "@player/lib/visibilityFader";
+import {ParkedPlayback} from "@player/lib/parkedPlayback";
 
 /**@internal */
 export default function Video(
-    {gameState, video}: {
+    {gameState, video, parked = false}: {
         gameState: GameState;
         video: GameVideo;
+        /**
+         * The clip's scene is parked behind a call. The clip stops where it is and starts again from
+         * there when the call returns, as the scene's music does; a play or a resume asked for in the
+         * meantime waits for the return instead of sounding over the scene that was called.
+         */
+        parked?: boolean;
     }
 ) {
     const ref = useRef<HTMLVideoElement>(null);
+    const [parking] = useState(() => new ParkedPlayback(() => ref.current, (err) => {
+        gameState.logger.error("Failed to resume video: " + err);
+    }));
+
+    // A layout effect, so a clip mounted inside a parked scene - a load lands there - is parked
+    // before the exposed state below can be asked to play it.
+    useLayoutEffect(() => {
+        parking.setParked(parked);
+    }, [parked]);
     const [fader] = useState(() => new VisibilityFader(() => ref.current, (easing) => {
         const css = toCssEasing(easing);
         if (css === null) {
@@ -143,6 +159,11 @@ export default function Video(
                                 el.removeEventListener("error", onError);
                             });
 
+                            if (!parking.requestPlay()) {
+                                // The listeners above are armed, so the play still ends when the
+                                // clip does - it just does not start until the call returns.
+                                return;
+                            }
                             el.play().catch((err) => {
                                 gameState.logger.error("Failed to play video: " + err);
                                 settle();
@@ -152,16 +173,21 @@ export default function Video(
                 },
                 pause: () => {
                     if (!ref.current) throw invalidRef();
+                    parking.cancel();
                     ref.current.pause();
                 },
                 resume: () => {
                     if (!ref.current) throw invalidRef();
+                    if (!parking.requestPlay()) {
+                        return Promise.resolve();
+                    }
                     return ref.current.play().catch((err) => {
                         gameState.logger.error("Failed to resume video: " + err);
                     });
                 },
                 stop: () => {
                     if (!ref.current) throw invalidRef();
+                    parking.cancel();
                     ref.current.pause();
                     ref.current.dispatchEvent(new Event("stopped"));
                 },

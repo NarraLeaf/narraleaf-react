@@ -38,6 +38,10 @@ function createStateLike(exposed: Partial<ExposedVfx> = {}) {
             if (index >= 0) vfxOnStage.splice(index, 1);
         },
         isVfxAdded: (vfx: Vfx) => vfxOnStage.includes(vfx),
+        // No scenes here: which scene an overlay belongs to is pinned in vfxAction.sceneBoundary.test.ts.
+        getVfxOwner: () => null,
+        setVfxOwner: () => void 0,
+        getLastScene: () => null,
         stage: {update: vi.fn()},
         actionHistory: {push: vi.fn()},
         logger: {

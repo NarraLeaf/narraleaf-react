@@ -44,14 +44,28 @@ export class VfxAction<T extends Values<typeof VfxActionTypes> = Values<typeof V
         } else if (action.is<VfxAction<"vfx:show">>(VfxAction, "vfx:show")) {
             const [options] = (action as VfxAction<typeof VfxActionTypes.show>).contentNode.getContent();
             const originalVisible = vfx.state.display;
+            const originalOwner = gameState.getVfxOwner(vfx);
             if (!gameState.isVfxAdded(vfx)) {
                 gameState.addVfx(vfx);
                 gameState.stage.update();
+            } else {
+                // Shown again from another scene - one this overlay's scene has called - it joins the
+                // scene showing it, as a sprite or a clip shown there would. Left with the caller it
+                // would be parked with the caller, and the show would put nothing on screen.
+                const running = gameState.getLastScene();
+                if (running && running !== originalOwner) {
+                    gameState.setVfxOwner(vfx, running);
+                    gameState.stage.update();
+                }
             }
             vfx.state.display = true;
 
             gameState.actionHistory.push<[boolean]>(historyProps, (prevVisible) => {
                 vfx.state.display = prevVisible;
+                if (originalOwner && gameState.getVfxOwner(vfx) !== originalOwner) {
+                    gameState.setVfxOwner(vfx, originalOwner);
+                    gameState.stage.update();
+                }
             }, [originalVisible]);
 
             return this.changeStateAsync(gameState, (state) => state.show(options), injection);
@@ -80,20 +94,42 @@ export class VfxAction<T extends Values<typeof VfxActionTypes> = Values<typeof V
                 // video costs no frame time - see `Vfx.hide`.
             }, injection);
         } else if (action.is<VfxAction<"vfx:pause">>(VfxAction, "vfx:pause")) {
+            if (!gameState.isVfxAdded(vfx)) {
+                return this.skipOffStage(gameState, injection, "Pausing");
+            }
             return this.changeState(gameState, (state) => {
                 vfx.state.paused = true;
                 state.pause();
             }, injection);
         } else if (action.is<VfxAction<"vfx:resume">>(VfxAction, "vfx:resume")) {
+            if (!gameState.isVfxAdded(vfx)) {
+                return this.skipOffStage(gameState, injection, "Resuming");
+            }
             return this.changeState(gameState, (state) => {
                 vfx.state.paused = false;
                 state.resume();
             }, injection);
         } else if (action.is<VfxAction<"vfx:setRate">>(VfxAction, "vfx:setRate")) {
+            if (!gameState.isVfxAdded(vfx)) {
+                return this.skipOffStage(gameState, injection, "Setting the rate of");
+            }
             return this.changeState(gameState, (state) => state.setRate(action.contentNode.getContent()[0]), injection);
         }
 
         throw this.unknownTypeError();
+    }
+
+    /**
+     * A pause, a resume or a rate change aimed at an overlay that is no longer on the stage.
+     *
+     * An overlay leaves the stage with the scene that started it, so a handle kept in script and used
+     * after that scene is gone has nothing to talk to. It does nothing and says so - what `hide` on an
+     * overlay that is not shown has always done, and what a clip's transport does - rather than
+     * stopping the story.
+     */
+    private skipOffStage(gameState: GameState, injection: ActionExecutionInjection, doing: string): Awaitable<CalledActionResult> {
+        gameState.logger.weakWarn("NarraLeaf-React: Vfx", doing + " a Vfx that is not on the stage, ignored. (src: " + this.callee.config.src + ")");
+        return Awaitable.resolve(super.executeAction(gameState, injection) as CalledActionResult);
     }
 
     private changeStateBase(

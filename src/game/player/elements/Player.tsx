@@ -3,6 +3,7 @@ import "client-only";
 import { Story } from "@core/elements/story";
 import type { Scene as CoreScene } from "@core/elements/scene";
 import type { Video as GameVideo } from "@core/elements/video";
+import type { Vfx as GameVfx } from "@core/elements/vfx";
 import type { GameLifecycleEventContext } from "@core/game";
 import { CalledActionResult } from "@core/gameTypes";
 import { Awaitable, createMicroTask, EventToken, MultiLock } from "@lib/util/data";
@@ -439,25 +440,6 @@ export default function Player(
                                         <StageSceneList state={state} />
                                     </div>
                                     <StageTransitionOverlayHost state={state} />
-                                    {state.getVfx().map((vfx) => (
-                                        <div
-                                            className={"w-full h-full absolute"}
-                                            key={"vfx-" + vfx.getId()}
-                                            data-element-type={"vfx"}
-                                            // The blend belongs HERE and not on the <video> inside. A
-                                            // positioned element with a numeric z-index is a stacking
-                                            // context, so a `mix-blend-mode` applied within this div
-                                            // blends against this div's own (empty) backdrop and never
-                                            // reaches the stage — `screen` then renders as `normal`,
-                                            // which for a glow-on-black clip is an opaque black
-                                            // rectangle over the whole scene. Applied to the wrapper,
-                                            // the group blends against what is painted beneath it
-                                            // inside the stage's isolated context, which is the scene.
-                                            style={{zIndex: vfx.config.zIndex, mixBlendMode: vfx.config.blendMode}}
-                                        >
-                                            <Vfx gameState={state} vfx={vfx} />
-                                        </div>
-                                    ))}
                                 </StageCameraBoundary>
                                 {state.getSceneElements().map((elements) => (
                                     <SceneDialogs key={"scene-dialogs-" + elements.scene.getId()} state={state} elements={elements} />
@@ -489,8 +471,8 @@ function OnlyPreloaded({ children, show }: Readonly<{
 }
 
 /**
- * The scenes on the stage, each followed by the clips it put there, then the clips the preloader is
- * holding for scenes still to come.
+ * The scenes on the stage, each followed by the clips and then the overlays it put there, then the
+ * clips the preloader is holding for scenes still to come.
  *
  * A clip belongs to the scene that showed it and leaves with it, and while it is on the stage it
  * paints as part of that scene: it sits right after the scene's root and the stage transition
@@ -504,30 +486,46 @@ function OnlyPreloaded({ children, show }: Readonly<{
  * its scene, or from one scene to another - is moved, not remounted, only while every entry is a
  * sibling in the same list. Keyed by the element and not by its position for the same reason again:
  * an index key would hand a mounted <video>, and its buffer, to a different clip.
+ *
+ * An overlay (rain, snow, petals) belongs to the scene that started it in the same way, and is posed
+ * with it the same way, keeping its own z-index. While a scene is parked behind a call its clips and
+ * overlays are paused as well as hidden - a parked scene's sound stops with its music.
  */
 function StageSceneList({ state }: Readonly<{ state: GameState }>) {
     const entries: React.ReactElement[] = [];
     const placed = new Set<GameVideo>();
+    const placedVfx = new Set<GameVfx>();
     state.getSceneElements().forEach((elements) => {
+        const parked = elements.suspended === true;
         entries.push(<StageScene key={"scene-" + elements.scene.getId()} state={state} elements={elements} />);
         state.getVideosOf(elements.scene).forEach((video) => {
             placed.add(video);
-            entries.push(<StageVideo key={"video-" + video.getId()} state={state} video={video} owner={elements.scene} />);
+            entries.push(<StageVideo key={"video-" + video.getId()} state={state} video={video} owner={elements.scene} parked={parked} />);
+        });
+        state.getVfxOf(elements.scene).forEach((vfx) => {
+            placedVfx.add(vfx);
+            entries.push(<StageVfx key={"vfx-" + vfx.getId()} state={state} vfx={vfx} owner={elements.scene} parked={parked} />);
         });
     });
     state.getVideos().forEach((video) => {
         if (!placed.has(video)) {
-            entries.push(<StageVideo key={"video-" + video.getId()} state={state} video={video} owner={null} />);
+            entries.push(<StageVideo key={"video-" + video.getId()} state={state} video={video} owner={null} parked={false} />);
+        }
+    });
+    state.getVfx().forEach((vfx) => {
+        if (!placedVfx.has(vfx)) {
+            entries.push(<StageVfx key={"vfx-" + vfx.getId()} state={state} vfx={vfx} owner={null} parked={false} />);
         }
     });
     return <>{entries}</>;
 }
 
 /** One clip on the stage, posed with the scene it belongs to. */
-function StageVideo({ state, video, owner }: Readonly<{
+function StageVideo({ state, video, owner, parked }: Readonly<{
     state: GameState;
     video: GameVideo;
     owner: CoreScene | null;
+    parked: boolean;
 }>) {
     const ref = useRef<HTMLDivElement | null>(null);
 
@@ -542,7 +540,42 @@ function StageVideo({ state, video, owner }: Readonly<{
 
     return (
         <div className={"w-full h-full absolute"} ref={ref} data-element-type={"video"}>
-            <Video gameState={state} video={video} />
+            <Video gameState={state} video={video} parked={parked} />
+        </div>
+    );
+}
+
+/** One overlay on the stage, posed with the scene it belongs to. */
+function StageVfx({ state, vfx, owner, parked }: Readonly<{
+    state: GameState;
+    vfx: GameVfx;
+    owner: CoreScene | null;
+    parked: boolean;
+}>) {
+    const ref = useRef<HTMLDivElement | null>(null);
+
+    useLayoutEffect(() => {
+        if (!owner || !ref.current) {
+            return;
+        }
+        return state.stageTransition.bindCompanion(owner, ref.current, {keepZIndex: true});
+    }, [owner]);
+
+    return (
+        <div
+            className={"w-full h-full absolute"}
+            ref={ref}
+            data-element-type={"vfx"}
+            // The blend belongs HERE and not on the <video> inside. A positioned element with a
+            // numeric z-index is a stacking context, so a `mix-blend-mode` applied within this div
+            // blends against this div's own (empty) backdrop and never reaches the stage — `screen`
+            // then renders as `normal`, which for a glow-on-black clip is an opaque black rectangle
+            // over the whole scene. Applied to the wrapper, it blends against what is painted beneath
+            // it inside the scene group, which is its scene - and that stays true while a transition
+            // poses the wrapper with an opacity, because the blend is the wrapper's own.
+            style={{zIndex: vfx.config.zIndex, mixBlendMode: vfx.config.blendMode}}
+        >
+            <Vfx gameState={state} vfx={vfx} parked={parked} />
         </div>
     );
 }

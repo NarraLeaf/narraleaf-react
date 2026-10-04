@@ -1,9 +1,10 @@
-import React, {useEffect, useRef} from "react";
+import React, {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {GameState} from "@player/gameState";
 import {Vfx as GameVfx, VfxFadeOptions} from "@core/elements/vfx";
 import {ExposedStateType} from "@player/type";
 import type {TransformDefinitions} from "@core/elements/transform/type";
 import {toCssEasing as cssEasingFor} from "@player/lib/visibilityFader";
+import {ParkedPlayback} from "@player/lib/parkedPlayback";
 
 /**@internal */
 function toCssEasing(gameState: GameState, easing: TransformDefinitions.EasingDefinition | undefined): string {
@@ -17,12 +18,26 @@ function toCssEasing(gameState: GameState, easing: TransformDefinitions.EasingDe
 
 /**@internal */
 export default function Vfx(
-    {gameState, vfx}: {
+    {gameState, vfx, parked = false}: {
         gameState: GameState;
         vfx: GameVfx;
+        /**
+         * The overlay's scene is parked behind a call: the overlay stops moving while it is hidden
+         * with its scene, and moves again when the call returns.
+         */
+        parked?: boolean;
     }
 ) {
     const ref = useRef<HTMLVideoElement>(null);
+    const [parking] = useState(() => new ParkedPlayback(() => ref.current, (err) => {
+        gameState.logger.weakWarn("NarraLeaf-React: Vfx", "Failed to play vfx video: " + err);
+    }));
+
+    // Before the mount effect below, which starts an overlay a load brought back showing: one that
+    // belongs to a parked scene must not start.
+    useLayoutEffect(() => {
+        parking.setParked(parked);
+    }, [parked]);
 
     useEffect(() => {
         const el = ref.current;
@@ -54,6 +69,11 @@ export default function Vfx(
         };
 
         const playSafe = () => {
+            // Every start goes through here - a show, a resume, the tab coming back, a load - and
+            // none of them may start an overlay whose scene is parked; the return starts it.
+            if (!parking.requestPlay()) {
+                return;
+            }
             el.play().catch((err) => {
                 gameState.logger.weakWarn("NarraLeaf-React: Vfx", "Failed to play vfx video: " + err);
             });
@@ -184,6 +204,7 @@ export default function Vfx(
                     }
                 },
                 pause: () => {
+                    parking.cancel();
                     el.pause();
                 },
                 resume: () => {

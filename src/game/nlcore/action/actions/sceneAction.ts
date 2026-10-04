@@ -129,10 +129,11 @@ export class SceneAction<T extends typeof SceneActionTypes[keyof typeof SceneAct
         // it is written imperatively by the stage transition manager and has to agree.
         state.setSceneSuspended(scene, snapshot.element.suspended === true);
 
-        // ...and the clips it had on the stage. A clip is not on one of the scene's layers, so the
-        // rebuilt element does not carry it; but it left the stage with the scene (see
-        // `GameState.releaseVideosOf`), and stepping back to before the scene left brings it back.
+        // ...and the clips and overlays it had on the stage. Neither is on one of the scene's layers,
+        // so the rebuilt element does not carry them; but they left the stage with the scene (see
+        // `GameState.releaseVideosOf`), and stepping back to before the scene left brings them back.
         state.restoreVideosOf(scene, snapshot.element.videos);
+        state.restoreVfxOf(scene, snapshot.element.vfx);
 
         // Restore the local persistent
         scene.local.getNamespace(state.getStorable()).load(snapshot.local);

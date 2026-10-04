@@ -127,4 +127,33 @@ describe("a scene's clip, bound to the scene", () => {
         expect(clip.style.opacity).toBe(fromRoot.style.opacity);
         expect(Number(clip.style.zIndex)).toBeLessThan(Number(toRoot.style.zIndex));
     });
+
+    it("keeps an overlay's own z-index through every pose, and poses the rest of it with its scene", () => {
+        const from = scene("from");
+        const to = scene("to");
+        const parked = new Set<Scene>();
+        const m = manager(parked);
+        const fromRoot = element();
+        const toRoot = element();
+        const rain = element();
+        rain.style.zIndex = "3";
+        m.registerScene(from, fromRoot);
+        m.registerScene(to, toRoot);
+        m.bindCompanion(from, rain, {keepZIndex: true});
+        expect(rain.style.zIndex).toBe("3");
+
+        // Parked with its scene: hidden like the scene, still ordered by its own z-index.
+        parked.add(from);
+        m.syncScenePose(from, true);
+        expect(rain.style.visibility).toBe("hidden");
+        expect(rain.style.zIndex).toBe("3");
+        parked.delete(from);
+        m.syncScenePose(from, false);
+        expect(rain.style.visibility).toBe("visible");
+
+        // A transition's frames reach it too - its opacity follows the outgoing scene - but not its order.
+        m.apply(new Dissolve({duration: 300}), {from, to}, () => void 0);
+        expect(rain.style.opacity).toBe(fromRoot.style.opacity);
+        expect(rain.style.zIndex).toBe("3");
+    });
 });

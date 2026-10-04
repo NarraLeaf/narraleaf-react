@@ -159,6 +159,14 @@ export type PlayerStateData = {
              * scenes, and a clip no scene names is given to the scene the story is running in.
              */
             videos?: string[];
+            /**
+             * The ids of the overlays this scene put on the stage, the same way
+             * {@link videos} names its clips. Their state is in {@link PlayerStateData.vfx}.
+             *
+             * Written only when the scene has any. Absent in saves written before overlays belonged
+             * to scenes, and an overlay no scene names is given to the scene the story is running in.
+             */
+            vfx?: string[];
         };
     }[],
     audio: AudioManagerDataRaw;
@@ -190,6 +198,12 @@ export type PlayerStateElementSnapshot = {
      * clips belonged to scenes; read as none.
      */
     videos?: [Video, VideoStateRaw][];
+    /**
+     * The overlays this scene had on the stage, each with its state, in stage order - for the same
+     * reason as {@link videos}. Absent in snapshots taken before overlays belonged to scenes; read as
+     * none.
+     */
+    vfx?: [Vfx, VfxStateRaw][];
 };
 export type PlayerAction = CalledActionResult;
 
@@ -290,6 +304,12 @@ export class GameState {
      * the stage order of clips is not grouped by scene.
      */
     private videoOwners: Map<Video, Scene> = new Map();
+    /**
+     * Which scene each overlay on the stage belongs to: the one running when it went on. An overlay
+     * is a stage object like any other - rain started in a scene stops when the scene is left - and
+     * it is drawn beside its scene's root for the reason a clip is (see {@link videoOwners}).
+     */
+    private vfxOwners: Map<Vfx, Scene> = new Map();
     private videoMissingReporter: ((resource: PreloadResource) => void) | null = null;
     /** Sources already reported as unwarmed, so one clip in a loop does not report every pass. */
     private readonly reportedUnwarmedVideos: Set<string> = new Set();
@@ -496,7 +516,21 @@ export class GameState {
     }
 
     public addVfx(vfx: Vfx): this {
+        // The overlay joins the stage of the scene running now, as a sprite shown on the same line
+        // would.
+        return this.addVfxFor(vfx, this.getLastScene());
+    }
+
+    /**
+     * {@link addVfx} for an overlay whose scene the caller already knows - one being put back by a
+     * step back, which can land while a different scene is running.
+     * @internal
+     */
+    public addVfxFor(vfx: Vfx, owner: Scene | null): this {
         this.state.vfx.push(vfx);
+        if (owner) {
+            this.vfxOwners.set(vfx, owner);
+        }
         return this;
     }
 
@@ -507,7 +541,36 @@ export class GameState {
             return this;
         }
         this.state.vfx.splice(index, 1);
+        this.vfxOwners.delete(vfx);
         return this;
+    }
+
+    /**
+     * The scene an overlay on the stage belongs to, or null for one with none.
+     * @internal
+     */
+    public getVfxOwner(vfx: Vfx): Scene | null {
+        return this.vfxOwners.get(vfx) ?? null;
+    }
+
+    /**
+     * Hand an overlay already on the stage to another scene - what showing it again from a called
+     * scene does, as {@link setVideoOwner} does for a clip.
+     * @internal
+     */
+    public setVfxOwner(vfx: Vfx, owner: Scene): this {
+        if (this.isVfxAdded(vfx)) {
+            this.vfxOwners.set(vfx, owner);
+        }
+        return this;
+    }
+
+    /**
+     * The overlays `scene` has on the stage, in stage order.
+     * @internal
+     */
+    public getVfxOf(scene: Scene): Vfx[] {
+        return this.state.vfx.filter(vfx => this.vfxOwners.get(vfx) === scene);
     }
 
     public isVfxAdded(vfx: Vfx): boolean {
@@ -1433,6 +1496,7 @@ export class GameState {
         this.videoWarmQueue.clear();
         this.reportedUnwarmedVideos.clear();
         this.state.vfx = [];
+        this.vfxOwners = new Map();
         this.nvlState = {
             active: false,
             visible: false,
@@ -1666,6 +1730,7 @@ export class GameState {
         return {
             scenes: this.state.elements.map(e => {
                 const videos = this.getVideosOf(e.scene).map(video => video.getId());
+                const vfx = this.getVfxOf(e.scene).map(overlay => overlay.getId());
                 return {
                     sceneId: e.scene.getId(),
                     ...(e.suspended ? {suspended: true} : {}),
@@ -1675,6 +1740,7 @@ export class GameState {
                                 .map(([layer, elements]) => [layer.getId(), elements.map(d => d.getId())])
                         ),
                         ...(videos.length ? {videos} : {}),
+                        ...(vfx.length ? {vfx} : {}),
                     }
                 };
             }),
@@ -1720,6 +1786,8 @@ export class GameState {
         const restoredSounds = new Set(audio.sounds.map(([soundId]) => soundId));
         // Which scene each saved clip leaves with, by clip id.
         const videoOwnerIds = new Map<string, Scene>();
+        // ...and each saved overlay, by overlay id.
+        const vfxOwnerIds = new Map<string, Scene>();
         scenes.forEach(({sceneId, elements, suspended}) => {
             this.logger.debug("Loading scene: " + sceneId);
 
@@ -1728,6 +1796,7 @@ export class GameState {
                 throw new RuntimeGameError("Scene not found, id: " + sceneId + "\nNarraLeaf cannot find the element with the id from the saved game");
             }
             (elements.videos ?? []).forEach(videoId => videoOwnerIds.set(videoId, scene));
+            (elements.vfx ?? []).forEach(vfxId => vfxOwnerIds.set(vfxId, scene));
 
             const ele: PlayerStateElement = {
                 scene,
@@ -1808,6 +1877,18 @@ export class GameState {
             vfx.fromData(state);
             return [vfx];
         });
+        // As for clips: an overlay no scene names comes from a save written before overlays belonged
+        // to scenes, and joins the scene the story is running in.
+        this.vfxOwners = new Map();
+        if (this.state.vfx.length) {
+            const runningScene = this.getLastScene();
+            this.state.vfx.forEach(overlay => {
+                const owner = vfxOwnerIds.get(overlay.getId()) ?? runningScene;
+                if (owner) {
+                    this.vfxOwners.set(overlay, owner);
+                }
+            });
+        }
 
         if (data.nvlState) {
             const restoredDialogs = (data.nvlState.dialogs || []).map((dialog) => {
@@ -1863,6 +1944,7 @@ export class GameState {
                 })];
             })),
             videos: this.getVideosOf(element.scene).map(video => [video, video.toData()]),
+            vfx: this.getVfxOf(element.scene).map(overlay => [overlay, overlay.toData()]),
         };
     }
 
@@ -1889,6 +1971,7 @@ export class GameState {
 
         this.resetLayers(this.state.elements[index].layers);
         this.releaseVideosOf(scene);
+        this.releaseVfxOf(scene);
         this.state.elements.splice(index, 1);
 
         this.logger.debug("GameState", "Removing elements", scene.getId());
@@ -1966,6 +2049,41 @@ export class GameState {
                 this.videoOwners.set(video, scene);
             } else {
                 this.addVideoFor(video, scene);
+            }
+        });
+        return this;
+    }
+
+    /**
+     * The overlay half of leaving a scene, the same as {@link releaseVideosOf}: rain the scene started
+     * stops when the scene is left, and the overlay goes back to its authored state.
+     */
+    private releaseVfxOf(scene: Scene): void {
+        const overlays = this.getVfxOf(scene);
+        if (!overlays.length) {
+            return;
+        }
+        overlays.forEach(overlay => {
+            this.removeVfx(overlay);
+            overlay.reset();
+        });
+    }
+
+    /**
+     * Put back the overlays a scene snapshot says the scene had, each with its state - only ever
+     * adding, for the reason {@link restoreVideosOf} gives.
+     * @internal
+     */
+    public restoreVfxOf(scene: Scene, overlays: [Vfx, VfxStateRaw][] | undefined): this {
+        if (!overlays?.length) {
+            return this;
+        }
+        overlays.forEach(([overlay, data]) => {
+            overlay.fromData(data);
+            if (this.isVfxAdded(overlay)) {
+                this.vfxOwners.set(overlay, scene);
+            } else {
+                this.addVfxFor(overlay, scene);
             }
         });
         return this;

@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.2.0]
+
+### _Changes_
+
+- **A `Vfx` overlay belongs to the scene that shows it.** Rain, snow or petals started in a scene
+  are part of that scene's stage, and every scene boundary does to them what it does to the scene's
+  sprites and videos:
+
+  - **A plain `jumpTo`** takes the overlay off the stage with the scene it leaves, back to its
+    authored state. Before, an overlay was the one stage object no scene owned: rain started in the
+    first scene kept falling through every scene after it until something hid it. A scene that wants
+    the rain to go on shows the overlay itself. With a transition, the overlay leaves on the same
+    frames as the rest of its scene and is covered by the incoming scene.
+  - **A returnable jump** parks the calling scene, and its overlays with it: kept, hidden and paused
+    while the called scene runs, moving again when the call returns. An overlay the called scene
+    showed leaves when the call returns, and so does a parked caller's overlay when a plain jump
+    gives the caller up.
+  - **Stepping back across any of these** puts the overlay back with its scene, through the live
+    undo or a loaded save.
+  - **A save** records which scene each overlay belongs to (`elements.vfx` on the scene's record). A
+    save written before this names no scene for its overlays; each is given to the scene the story
+    is running in.
+  - **An overlay shown again from a different scene** - a called scene showing its caller's rain -
+    moves to that scene, as a sprite or a video shown there would.
+  - `hide()` still keeps the overlay on the stage, invisible and paused, so the next `show()` is
+    instant; it leaves with its scene all the same.
+  - The story running out, and a new game, are unchanged.
+
+  Overlays are drawn inside the stage's scene group, right after their scene's videos, rather than
+  above every scene. An overlay's `zIndex` still orders it among the overlays and over its scene's
+  sprites and videos, and its `blendMode` still blends with the scene beneath it.
+
+- **`pause()`, `resume()` and `setPlaybackRate()` on a `Vfx` that is not on the stage do nothing.**
+  They threw "Vfx is being used before it is added to the game", which stopped the story; an overlay
+  kept in script and used after its scene is gone would now find it so. Each logs a warning and lets
+  the story carry on, as `hide()` on an overlay that is not shown always has. On an overlay that is
+  on the stage they behave exactly as before.
+
+### _Fixes_
+
+- **A video in a scene parked behind a call stops while the call runs.** A parked scene's clip was
+  hidden at once, but a clip still playing when the call was made - one played without waiting for
+  it - went on sounding to its end over the scene that had been called, while the scene's music
+  paused as it should. The clip now pauses with its scene and plays on from where it stopped when
+  the call returns, like the scene's music. A play or a resume asked for while the scene is parked
+  waits for the return. Overlays do the same.
+
 ## [1.1.1]
 
 ### _Fixes_
