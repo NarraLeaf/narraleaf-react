@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.2.1]
+
+### _Fixes_
+
+- **A scene the host named names the actions it builds for itself.** A scene builds its root, and the
+  steps that put it, its layers, its background and its displayables on the stage each time it is
+  entered, while the story is constructed - where no host can reach them to give them a static id.
+  They were numbered `a-<n>` by their place in a walk of the whole story, so a line written ahead of
+  them, or the story starting from another scene, gave their numbers to other actions. Several of
+  those steps wait (for the scene's first frame, for the previous music to fade), and a save taken on
+  one resumed on whatever action held its number at load time.
+
+  When the scene has a static id (`DevTools.setElementStaticId`), its root is now `<scene>:root` and
+  each step `<scene>:root:<type>:<subject>` - the subject `self` for the scene's own step, otherwise
+  the static id of the element the step acts on. A scene with no static id is numbered exactly as
+  before, and naming one moves no other action's number: every action still numbered keeps the number
+  it had. A name another action already holds is given up rather than duplicated, so construction
+  cannot start failing over it.
+
+  A story whose scenes are named hashes differently (`Story.hash()` includes action ids), so a save
+  written by 1.2.0 for such a story no longer matches its `meta.storyHash`.
+
 ## [1.2.0]
 
 ### _Changes_

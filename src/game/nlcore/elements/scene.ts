@@ -355,6 +355,13 @@ export class Scene extends Constructable<
     /**@internal */
     private _futureActions_: LogicAction.Actions[] = [];
     /**
+     * The actions {@link constructSceneRoot} built for this scene itself - putting it, its layers
+     * and its background on the stage, and the displayables it initialises on entry - in the order
+     * they run, ahead of the author's own actions. See {@link Scene.nameBuiltActions}.
+     * @internal
+     */
+    private _builtActions_: LogicAction.Actions[] = [];
+    /**
      * Named jump points ({@link Control.label}) declared in this scene, keyed by label name.
      * Built once at construction by {@link constructLabels}; used to resolve {@link Control.jump}.
      * @internal
@@ -745,6 +752,7 @@ export class Scene extends Constructable<
 
         this.sceneRoot?.setContentNode(sceneRoot);
         this._futureActions_ = futureActions;
+        this._builtActions_ = futureActions.slice(0, futureActions.length - userActions.length);
 
         this.constructLabels(story);
 
@@ -925,6 +933,8 @@ export class Scene extends Constructable<
             usedIds.add(staticId);
         });
 
+        const builtNames = Scene.nameBuiltActions(actions, usedIds);
+
         let nextId = 0;
         const nextGeneratedId = () => {
             let id = `a-${nextId++}`;
@@ -937,8 +947,68 @@ export class Scene extends Constructable<
 
         actions.forEach(action => {
             const staticId = action.getStaticId();
-            action.resolveId(staticId || nextGeneratedId());
+            if (staticId) {
+                action.resolveId(staticId);
+                return;
+            }
+            // Generated even when a name is found, so that naming a scene's own actions moves no
+            // other action's number: everything still positional keeps the number it had.
+            const generated = nextGeneratedId();
+            action.resolveId(builtNames.get(action) ?? generated);
         });
+    }
+
+    /**
+     * Names for the actions a scene builds for itself, taken from the scene's static id.
+     *
+     * A host names the actions it writes (an action's static id), but a scene builds some of its own
+     * while the story is constructed: its root, and the steps that put it, its layers, its background
+     * and its displayables on the stage each time it is entered. Nothing outside the engine can reach
+     * those to name them, so they kept positional ids - which move as soon as a line is written ahead
+     * of them, or the story starts somewhere else. Several of them wait (for the scene's first frame,
+     * for the previous music to fade), so a save can be taken on one, and resuming it by number
+     * resumes on whatever action has that number now.
+     *
+     * Only for a scene the host named (an element's static id - `DevTools.setElementStaticId`):
+     * naming the scene is the host saying it restores by name, and a story whose scenes are unnamed
+     * is numbered exactly as before. The root is `<scene>:root`; each step is
+     * `<scene>:root:<type>:<subject>`, the subject being `self` for the scene's own step and otherwise
+     * the static id of the element the step acts on (its position in the list when that element has
+     * none), with `:<n>` added for a second step of the same kind on the same element. A name some
+     * other action already has is given up, and that action stays numbered, so this can never turn a
+     * story that constructs into one that does not.
+     * @internal
+     */
+    static nameBuiltActions(actions: LogicAction.Actions[], usedIds: Set<string>): Map<LogicAction.Actions, string> {
+        const names = new Map<LogicAction.Actions, string>();
+        const take = (action: LogicAction.Actions, name: string) => {
+            if (action.getStaticId() || names.has(action) || usedIds.has(name)) {
+                return;
+            }
+            usedIds.add(name);
+            names.set(action, name);
+        };
+        for (const action of actions) {
+            if (action.type !== SceneActionTypes.action || !Scene.isScene(action.callee)) {
+                continue;
+            }
+            const scene = action.callee as Scene;
+            const sceneId = scene.getStaticId();
+            if (!sceneId || scene.sceneRoot !== action) {
+                continue;
+            }
+            take(action, `${sceneId}:root`);
+            const seen = new Map<string, number>();
+            scene._builtActions_.forEach((built, index) => {
+                const callee = built.callee as LogicAction.GameElement | undefined;
+                const subject = callee === scene ? "self" : (callee?.getStaticId() || `#${index}`);
+                const base = `${sceneId}:root:${built.type}:${subject}`;
+                const count = seen.get(base) ?? 0;
+                seen.set(base, count + 1);
+                take(built, count === 0 ? base : `${base}:${count}`);
+            });
+        }
+        return names;
     }
 
     /**@internal */
