@@ -1,5 +1,98 @@
 # Changelog
 
+## [1.3.0]
+
+### _Features_
+
+- **A service handler decides what being skipped means for it.** A handler the story is waiting on
+  is now asked when the player skips, through `ctx.skip`, and answers in one of three ways:
+
+  ```ts
+  class Minigames extends Service<{countdown: [seconds: number]; fishing: []}, null> {
+      constructor() {
+          super();
+          // Finish now: skipping ends the countdown at once.
+          this.on("countdown", async (ctx, seconds) => {
+              await new Promise<void>(resolve => {
+                  const timer = setTimeout(resolve, seconds * 1000);
+                  ctx.skip.onRequest(() => {
+                      clearTimeout(timer);
+                      resolve();
+                  });
+                  ctx.signal.addEventListener("abort", () => clearTimeout(timer));
+              });
+          });
+          // Refuse: a fast-forward cannot fish for the player, so it stops here.
+          this.on("fishing", async (ctx) => {
+              ctx.skip.refuse("waiting for the fishing minigame");
+              await playFishing(ctx.signal);
+          });
+      }
+      serialize() { return null; }
+      deserialize() {}
+  }
+  ```
+
+  - **Finish now.** `ctx.skip.onRequest(listener)` is called the first time the player skips, and
+    once more the first time it is in the skip mode - `request.forced`, the same distinction a line
+    of dialogue draws between one press of the skip key and holding it. The handler puts whatever it
+    was doing into its final state and returns. `ctx.skip.requested` and `ctx.skip.forced` say the
+    same thing as flags, and `ctx.skip.fastForwarding` whether the game is in
+    `liveGame.fastForward()`, for a handler that can go straight to its final state on entry.
+  - **Ignore it.** A handler that never looks at `ctx.skip` - every handler written so far - behaves
+    exactly as before: the skip mode waits for it, and a fast-forward waits up to its `stepTimeout`
+    and then reports `"stalled"`.
+  - **Refuse.** `ctx.skip.refuse(message?)` returns a function that withdraws the refusal; refusals
+    stack. The skip mode still waits for the handler, and a fast-forward stops at it at once - see
+    below.
+
+  Requests are broadcast, as they are to everything else on the stage: a handler running in a
+  `Control.all` branch, or an async one, is asked whenever the player skips. A click on the stage is
+  not a request. Only an asynchronous handler is ever asked; a synchronous one has finished before
+  the player could ask, and refusing in one logs a warning.
+
+- **`ctx.signal` is aborted when a handler's run is cancelled** - the player stepped back past it, the
+  story jumped away from it, a `Control.any` it ran in was won by another branch, or a save was
+  loaded. It is a standard `AbortSignal`, so it can be handed to `fetch` and anything else that takes
+  one. A cancellation cannot be refused and does not wait for the handler: the game has moved on by
+  the time the signal fires, and a handler still running should check `ctx.signal.aborted` after each
+  `await` before touching the game again. A rejection the cancelled run ends with - the `AbortError`
+  of a `fetch` - is not reported.
+
+- **`liveGame.fastForward()` reports `"refused"`** when it stops at a step that refused to be skipped,
+  and leaves that step running where it is. `refusal` carries the message the step gave, if any; it
+  is for showing to a person and nothing in the engine reads it. Before, the run waited the whole
+  `stepTimeout` on such a step and reported `"stalled"`.
+
+### _Changes_
+
+- **A handler is waited for when it returns a promise, however it was written.** The engine told an
+  asynchronous handler from a synchronous one by how the function was declared, so a plain function
+  returning a promise - `(ctx) => fetch(url)`, or an `async` handler compiled down to a plain function
+  by a build targeting an older language level - was run and not waited for. It is now waited for,
+  like an `async` one. A handler that returns a promise on purpose and wants the story to carry on
+  should start the work without returning it.
+- **`ctx.onAbort` is deprecated** in favour of `ctx.signal`, which fires on the same occasions. It
+  still works, and a listener registered after the run was cancelled now runs at once rather than
+  never.
+
+### _Fixes_
+
+- **A service handler that fails stops the story with an error rather than without one.** The engine
+  never listened for a handler's promise rejecting, so a failing `async` handler left the story waiting
+  on it forever, with nothing but an unhandled rejection in the console to say why. The step now fails
+  and the error is reported, as for any other action that fails while the story waits on it.
+
+### Upgrading
+
+- **`fastForward()`'s `reason` gained `"refused"`**, and the result gained `refusal?: string`. Only a
+  story whose services call `ctx.skip.refuse()` can produce it; an exhaustive `switch` over `reason`
+  needs the extra arm to keep compiling.
+- **`ServiceHandlerCtx` gained `signal` and `skip`.** Code that builds a context by hand - a test
+  calling a handler directly - needs to supply them.
+- **A handler that returns a promise without being declared `async` now holds the story** until the
+  promise settles. See _Changes_.
+
 ## [1.2.1]
 
 ### _Fixes_

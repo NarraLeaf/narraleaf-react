@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LiveGame } from "@core/common/game";
+import { SkipGate } from "@core/action/skipGate";
 
 /**
  * `LiveGame.fastForward` must always settle.
@@ -28,8 +29,11 @@ function withHangGuard<T>(promise: Promise<T>, ms = 2000): Promise<T | "HUNG"> {
  * renderer that was already mounted, `3` models the dialog mounting a couple of frames later, and
  * `null` models a step that cannot be skipped at all. Once it settles the stack drains, so a run
  * that gets past the line reports `"end"`.
+ *
+ * `onEmit` runs on every skip broadcast before the line decides whether it settles, for a step that
+ * answers a request some other way - by refusing it.
  */
-function suspendedGame(settleOnEmit: number | null) {
+function suspendedGame(settleOnEmit: number | null, onEmit?: (emit: number) => void) {
     let emits = 0;
     let settled = false;
     let fastForwarding = false;
@@ -73,9 +77,11 @@ function suspendedGame(settleOnEmit: number | null) {
             fastForwarding = value;
         },
         hasActiveMenu: () => false,
+        logger: { info: () => void 0 },
         events: {
             emit: () => {
                 emits++;
+                onEmit?.(emits);
                 if (settleOnEmit !== null && emits >= settleOnEmit) {
                     settled = true;
                     settleListeners.splice(0).forEach(callback => callback());
@@ -92,6 +98,7 @@ function suspendedGame(settleOnEmit: number | null) {
 
     return {
         lg: lg as LiveGame,
+        awaitable,
         emitCount: () => emits,
         isFastForwarding: () => fastForwarding,
         volumes,
@@ -145,5 +152,54 @@ describe("LiveGame.fastForward — always terminates", () => {
 
         expect(result).toEqual({ reason: "end" });
         expect(game.emitCount()).toBe(1);
+    });
+});
+
+describe("LiveGame.fastForward — a step that refuses to be skipped", () => {
+    it("stops at once with 'refused' and the step's message, without asking it again", async () => {
+        const game = suspendedGame(null);
+        const gate = new SkipGate();
+        gate.refuse("waiting for the minigame");
+        SkipGate.attach(game.awaitable, gate);
+
+        const result = await withHangGuard(
+            game.lg.fastForward({ until: "menu", stepTimeout: 1000 }),
+        );
+
+        expect(result).toEqual({ reason: "refused", refusal: "waiting for the minigame" });
+        // Already refused: a broadcast now would only skip whatever is on the stage beside it.
+        expect(game.emitCount()).toBe(0);
+        expect(game.isFastForwarding()).toBe(false);
+        expect(game.volumes.at(-1)).toBe(1);
+    });
+
+    it("stops when the step refuses in answer to the request", async () => {
+        const gate = new SkipGate();
+        const game = suspendedGame(null, () => {
+            gate.refuse();
+        });
+        SkipGate.attach(game.awaitable, gate);
+
+        const result = await withHangGuard(
+            game.lg.fastForward({ until: { actionId: "zzz" }, stepTimeout: 1000 }),
+        );
+
+        // No message was given, so there is none to report.
+        expect(result).toEqual({ reason: "refused", reachedTarget: false });
+        expect(game.emitCount()).toBe(1);
+    });
+
+    it("asks again once a refusal is released, and reports 'stalled' if nothing more happens", async () => {
+        const gate = new SkipGate();
+        const game = suspendedGame(null);
+        SkipGate.attach(game.awaitable, gate);
+        gate.refuse("loading")();
+
+        const result = await withHangGuard(
+            game.lg.fastForward({ until: "menu", stepTimeout: 80 }),
+        );
+
+        expect(result).toEqual({ reason: "stalled" });
+        expect(game.emitCount()).toBeGreaterThan(0);
     });
 });

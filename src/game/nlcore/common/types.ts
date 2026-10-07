@@ -1,4 +1,4 @@
-import { ServiceHandlerCtx } from "@core/elements/service";
+import { ServiceHandlerCtx, ServiceSkipRequest, ServiceSkipSignal } from "@core/elements/service";
 import { Origins } from "@core/elements/story";
 import { TransformDefinitions } from "@core/elements/transform/type";
 import { IGamePluginRegistry } from "@core/game/plugin/plugin";
@@ -18,7 +18,7 @@ export * from "@core/elements/type";
 export type {
     GameHistory, IGamePluginRegistry,
     LiveGameEventToken, Origins,
-    ServiceHandlerCtx, TransformDefinitions,
+    ServiceHandlerCtx, ServiceSkipRequest, ServiceSkipSignal, TransformDefinitions,
     GameConfig,
     SavedGame,
     NotificationToken,

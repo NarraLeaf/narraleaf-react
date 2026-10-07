@@ -1,6 +1,4 @@
 import { HexColor, LiveGameEventToken, NamedColor } from "@core/types";
-import { ServiceHandlerCtx } from "@lib/game/nlcore/elements/service";
-import { ServiceHandler } from "@lib/game/nlcore/elements/service";
 
 interface ITypeOf {
     DataTypes: typeof DataTypes;
@@ -1568,27 +1566,6 @@ export class Hooks<T extends Record<string, Array<any>>> {
             cleanup.forEach(c => c && c());
         };
     }
-}
-
-type AbortifyFn<T extends any[]> = ServiceHandler<T> & {
-    onAbort: (handler: () => void) => AbortifyFn<T>;
-};
-
-export function abortify<T extends any[]>(fn: ServiceHandler<T>): AbortifyFn<T> {
-    const abortHandlers: (() => void)[] = [];
-    const abortableFn = function (ctx: ServiceHandlerCtx, ...args: T): void | Promise<void> {
-        ctx.onAbort(() => {
-            for (const handler of abortHandlers) {
-                handler();
-            }
-        });
-        return fn(ctx, ...args);
-    };
-    abortableFn.onAbort = (handler: () => void): AbortifyFn<T> => {
-        abortHandlers.push(handler);
-        return abortableFn;
-    };
-    return abortableFn;
 }
 
 export type FirstParam<T> = T extends (first: infer P, ...args: any[]) => any ? P : never;

@@ -23,6 +23,7 @@ import { GameState } from "@player/gameState";
 import { Options } from "html-to-image/lib/types";
 import { ActionExecutionInjection, ExecutedActionResult } from "../action/action";
 import { GameHistory } from "../action/gameHistory";
+import { SkipGate } from "../action/skipGate";
 import { StackModel, StackModelRawData, StackSnapshot } from "../action/stackModel";
 
 export type LiveGameEvent = {
@@ -739,7 +740,8 @@ export class LiveGame {
      * Skipping a line is a *request* to the renderer, not a synchronous state change: it is
      * re-issued until the line settles. A line that never responds (an unskippable in-flight
      * media/transition step) ends the run with `"stalled"` rather than hanging — this method always
-     * settles.
+     * settles. A step that answers by refusing to be skipped (a user service calling
+     * `ctx.skip.refuse()`) ends it at once with `"refused"`, and is left running where it is.
      *
      * Because history accumulates the whole way, {@link getHistory} and
      * {@link restoreToHistory} cover the fast-forwarded span just like normal play.
@@ -762,9 +764,11 @@ export class LiveGame {
      *                              reports `"stalled"`. Defaults to 10000. Raise it if the story
      *                              fast-forwards through long unskippable media.
      * @returns why it stopped: `"action"` (reached `until.actionId`), `"menu"`, `"end"` (the stack
-     *          drained), `"maxSteps"`, or `"stalled"` (a line refused to settle). When an
-     *          `actionId` target was requested, `reachedTarget` is also set (`true` only for reason
-     *          `"action"`).
+     *          drained), `"maxSteps"`, `"stalled"` (a line did not settle within `stepTimeout`), or
+     *          `"refused"` (a line refused to be skipped). When an `actionId` target was requested,
+     *          `reachedTarget` is also set (`true` only for reason `"action"`). With `"refused"`,
+     *          `refusal` carries the message the step gave, if it gave one: it is for showing to a
+     *          person, not for deciding what to do next.
      *
      * Note: only the root execution stack is scanned for the target — an id buried inside an
      * in-flight parallel (`Control.all`/`any`) or async branch is not a stop point.
@@ -773,7 +777,11 @@ export class LiveGame {
         until?: "menu" | "end" | { actionId: string };
         maxSteps?: number;
         stepTimeout?: number;
-    } = {}): Promise<{ reason: "menu" | "end" | "maxSteps" | "action" | "stalled"; reachedTarget?: boolean }> {
+    } = {}): Promise<{
+        reason: "menu" | "end" | "maxSteps" | "action" | "stalled" | "refused";
+        reachedTarget?: boolean;
+        refusal?: string;
+    }> {
         this.assertGameState();
         const gameState = this.gameState;
         const until = options.until ?? "menu";
@@ -813,8 +821,17 @@ export class LiveGame {
                     // Suspended on a say / waitForClick: force-skip it and wait for the step to
                     // settle before the next skip, so the line's history entry and its snapshot
                     // are captured against a stable stack rather than a mid-mutation one.
-                    const settled = await LiveGame.settleSuspendedStep(gameState, awaitable, stepTimeout);
-                    if (!settled) {
+                    const outcome = await LiveGame.settleSuspendedStep(gameState, awaitable, stepTimeout);
+                    if (outcome === "refused") {
+                        const refusal = SkipGate.of(awaitable)?.getRefusal();
+                        gameState.logger.info("fastForward", "Stopped at a step that refused to be skipped", refusal ?? "");
+                        return {
+                            reason: "refused",
+                            ...(refusal !== undefined ? { refusal } : {}),
+                            ...missedTarget,
+                        };
+                    }
+                    if (outcome === "timeout") {
                         return { reason: "stalled", ...missedTarget };
                     }
                 } else {
@@ -842,22 +859,27 @@ export class LiveGame {
      * frame-ish interval makes the skip survive the render it has to outlive, and the deadline
      * guarantees this returns even for a step that genuinely cannot be skipped.
      *
-     * @returns `true` if the step settled, `false` if it outlived `timeout`.
+     * A step that refuses to be skipped (see {@link SkipGate}) is not asked again: the first request
+     * is what gives it the chance to refuse, and once it has, asking more would only skip whatever
+     * else is on the stage beside it.
+     *
+     * @returns `"settled"` if the step settled, `"refused"` if it refused to be skipped, `"timeout"`
+     *          if it outlived `timeout`.
      * @internal
      */
     private static settleSuspendedStep(
         gameState: GameState,
         awaitable: Pick<Awaitable<CalledActionResult>, "onSettled">,
         timeout: number,
-    ): Promise<boolean> {
-        return new Promise<boolean>(resolve => {
+    ): Promise<"settled" | "refused" | "timeout"> {
+        return new Promise<"settled" | "refused" | "timeout">(resolve => {
             let done = false;
             let timer: ReturnType<typeof setTimeout> | null = null;
             // The stand-in awaitables used by the seam tests return nothing from onSettled, so the
             // token is optional all the way down.
             let token: { cancel?: () => void } | void = undefined;
 
-            const finish = (settled: boolean) => {
+            const finish = (outcome: "settled" | "refused" | "timeout") => {
                 if (done) {
                     return;
                 }
@@ -867,12 +889,13 @@ export class LiveGame {
                     timer = null;
                 }
                 token?.cancel?.();
-                resolve(settled);
+                resolve(outcome);
             };
+            const refused = () => SkipGate.of(awaitable)?.isRefused() === true;
 
             // An already-settled awaitable calls back synchronously — hence `token` being declared
             // (and left undefined) before this line rather than after.
-            token = awaitable.onSettled(() => finish(true));
+            token = awaitable.onSettled(() => finish("settled"));
             if (done) {
                 token?.cancel?.();
                 return;
@@ -883,13 +906,22 @@ export class LiveGame {
                 if (done) {
                     return;
                 }
+                if (refused()) {
+                    finish("refused");
+                    return;
+                }
                 gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
                 if (done) {
                     // Settled synchronously: the common case, and it costs no extra frame.
                     return;
                 }
+                if (refused()) {
+                    // Refused in answer to this request.
+                    finish("refused");
+                    return;
+                }
                 if (Date.now() >= deadline) {
-                    finish(false);
+                    finish("timeout");
                     return;
                 }
                 timer = setTimeout(pump, LiveGame.FastForwardSkipInterval);
