@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.4.0]
+
+### _Features_
+
+- **A layer can sit at a distance from the camera.** `parallax` on a layer's config is the share of
+  the camera's movement the layer follows, so a pan or a zoom carries every layer along by a
+  different amount and a flat stage reads as deep:
+
+  ```ts
+  const sky = new Layer("sky", {zIndex: -3, parallax: 0});        // stays put
+  const hills = new Layer("hills", {zIndex: -2, parallax: 0.3});  // far away
+  const branches = new Layer("branches", {zIndex: 5, parallax: 1.4}); // nearer than the stage
+
+  const forest = new Scene("forest", {
+      background: "forest.png",
+      backgroundLayerParallax: 0.6, // the scene's own background layer
+      layers: [sky, hills, branches],
+  });
+
+  forest.action([
+      story.camera.pan({xalign: 0.5, yalign: 0.5, xoffset: 120}, 1200, "easeInOut"),
+      story.camera.zoom(1.3, 800),
+  ]);
+  ```
+
+  - `1` - the default - follows the camera exactly, as every layer always has; `0` stays where it
+    is however the camera moves; values in between read as distance; values above `1` read as nearer
+    than the stage and move and grow more than the camera does.
+  - **Pans and zooms are shared out; a rotation turns every layer together**, and so does a stretch
+    (`scaleX` / `scaleY`).
+  - **The layers move in the camera's own animation**, from the same keyframes, so there is no frame
+    in which one layer has moved and another has not - and a skip finishes them together.
+  - **A layer that arrives with a new scene takes its place at once.** The camera keeps its pose
+    across scenes while a scene's layers are built fresh, so a layer is put where its distance says
+    from the camera's pose at the moment it appears, not at the next camera move. The same holds
+    after loading a save: the camera's pose is in the save and the distance is in the story, so
+    there is nothing new to save.
+  - **A layer's own transform still applies**, inside its share of the camera's movement and in its
+    own frame: a layer can be far away and slowly drifting at the same time.
+  - `backgroundLayerParallax` on a scene's config does the same for the layer the scene builds for
+    its background image, which cannot be handed a config the way a layer in `layers` can.
+  - A layer with no parallax renders exactly the markup it always did, and a camera with no layer at
+    a distance animates exactly the sequence it always did.
+
 ## [1.3.0]
 
 ### _Features_

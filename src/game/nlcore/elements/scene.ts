@@ -71,6 +71,23 @@ export interface ISceneUserConfig {
      * An array of {@link Layer}s
      */
     layers: Layer[];
+    /**
+     * The {@link ILayerUserConfig.parallax} of the scene's own background layer - the layer the
+     * scene's background image is drawn on, which the scene builds itself and so cannot be handed a
+     * config the way a {@link Layer} in `layers` can.
+     *
+     * Defaults to `1`: the background moves with the camera, as it always has. Give it less to put
+     * the background behind the sprites, so a pan slides the sprites across it.
+     *
+     * @example
+     * ```ts
+     * const street = new Scene("street", {
+     *     background: "street.png",
+     *     backgroundLayerParallax: 0.6,
+     * });
+     * ```
+     */
+    backgroundLayerParallax: number;
 }
 
 export type JumpConfig = {
@@ -164,6 +181,7 @@ export class Scene extends Constructable<
         voices: undefined,
         background: "#fff",
         layers: [],
+        backgroundLayerParallax: 1,
     });
     /**@internal */
     private static _defaultSceneConfig: ConfigConstructor<SceneConfig, {
@@ -402,6 +420,7 @@ export class Scene extends Constructable<
             .setName("[[Displayable Layer of " + name + "]]");
 
         const userConfig = Scene.DefaultUserConfig.create(config);
+        defaultBackgroundLayer.setParallax(userConfig.get().backgroundLayerParallax);
         const sceneConfig = Scene.DefaultSceneConfig.create({
             ...userConfig.get(),
             name,

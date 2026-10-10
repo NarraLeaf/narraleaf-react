@@ -28,12 +28,32 @@ export interface ILayerUserConfig extends TransformDefinitions.ImageTransformPro
      * **Note**: the default background layer has a z-index of -1, and the default displayable layer has a z-index of 0.
      */
     zIndex: number;
+    /**
+     * How much of the camera's movement the layer follows, which is how far from the camera it
+     * reads. `1` (the default) moves with the camera exactly as every layer always has; `0` stays
+     * put however the camera moves, like a sky; values between read as distance, and values above
+     * `1` read as nearer than the stage, moving and growing more than the camera does.
+     *
+     * Pans and zooms are shared out this way. A rotation turns every layer together.
+     *
+     * The layer's own transform (`layer.transform(...)`) still applies on top, in the layer's own
+     * frame, so a layer can be both far away and slowly drifting.
+     *
+     * @example
+     * ```ts
+     * const sky = new Layer("sky", { zIndex: -3, parallax: 0 });
+     * const hills = new Layer("hills", { zIndex: -2, parallax: 0.3 });
+     * const branches = new Layer("branches", { zIndex: 5, parallax: 1.4 });
+     * ```
+     */
+    parallax: number;
 }
 
 /**@internal */
 type LayerConfig = {
     name: string;
     zIndex: number;
+    parallax: number;
 };
 /**@internal */
 type LayerState = {
@@ -66,6 +86,7 @@ export class Layer
     static get DefaultUserConfig(): ConfigConstructor<ILayerUserConfig, EmptyObject> {
         return (Layer._defaultUserConfig ??= new ConfigConstructor<ILayerUserConfig, EmptyObject>({
             zIndex: 0,
+            parallax: 1,
             ...TransformState.DefaultTransformState.getDefaultConfig(),
             opacity: 1,
         }));
@@ -78,6 +99,7 @@ export class Layer
     static DefaultConfig = new ConfigConstructor<LayerConfig, EmptyObject>({
         name: "(anonymous)",
         zIndex: 0,
+        parallax: 1,
     });
 
     /**@internal */
@@ -209,6 +231,25 @@ export class Layer
     /**@internal */
     setName(name: string): this {
         this.config.name = name;
+        return this;
+    }
+
+    /**
+     * The share of the camera's movement this layer follows - see {@link ILayerUserConfig.parallax}.
+     *
+     * Read as `1` when the config holds anything but a finite number: a `NaN` here would reach the
+     * layer's CSS transform, where the browser drops the whole declaration and the layer stops
+     * following the camera at all, which is the one thing `1` never does.
+     * @internal
+     */
+    getParallax(): number {
+        const value = this.config.parallax;
+        return typeof value === "number" && Number.isFinite(value) ? value : 1;
+    }
+
+    /**@internal */
+    setParallax(parallax: number): this {
+        this.config.parallax = parallax;
         return this;
     }
 

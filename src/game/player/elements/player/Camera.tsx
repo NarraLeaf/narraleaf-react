@@ -1,11 +1,14 @@
-import React, {useEffect, useRef} from "react";
+import React, {useEffect, useMemo, useRef} from "react";
 import {Camera as GameCamera} from "@core/elements/camera";
 import {shutterBottomStyle, shutterTopStyle, vignetteStyle} from "@core/elements/cameraLens";
+import {parallaxStyle, ParallaxFrame} from "@core/elements/cameraParallax";
+import type {TransformCompanionRef} from "@core/elements/transform/transform";
 import {useDisplayable} from "@player/elements/displayable/Displayable";
 import {GameState} from "@player/gameState";
 import {motion} from "motion/react";
 import {useExposeState} from "@player/lib/useExposeState";
 import {ExposedStateType} from "@player/type";
+import {CameraParallaxBinding, CameraParallaxContext} from "@player/elements/player/cameraParallaxContext";
 
 /**
  * The stage camera.
@@ -27,6 +30,17 @@ export function Camera(
     const vignetteRef = useRef<HTMLDivElement | null>(null);
     const shutterTopRef = useRef<HTMLDivElement | null>(null);
     const shutterBottomRef = useRef<HTMLDivElement | null>(null);
+    // One array for the whole life of the camera, handed to the transform pipeline by reference: a
+    // transform reads it when it starts, so a layer that registers or leaves between two transforms
+    // is in or out of the next one without the camera having to render again.
+    const companionRefs = useRef<TransformCompanionRef[] | null>(null);
+    if (!companionRefs.current) {
+        companionRefs.current = [
+            {ref: vignetteRef, project: vignetteStyle},
+            {ref: shutterTopRef, project: shutterTopStyle},
+            {ref: shutterBottomRef, project: shutterBottomStyle},
+        ];
+    }
 
     const {
         transformRef,
@@ -45,11 +59,7 @@ export function Camera(
         skipTransition: false,
         // The lens plates are driven by the camera's own transform state but live outside its
         // transformed wrapper, so they are companions rather than children — see the JSX below.
-        companionRefs: [
-            {ref: vignetteRef, project: vignetteStyle},
-            {ref: shutterTopRef, project: shutterTopStyle},
-            {ref: shutterBottomRef, project: shutterBottomStyle},
-        ],
+        companionRefs: companionRefs.current,
         transitionsProps: [{
             style: {
                 width: "100%",
@@ -75,6 +85,34 @@ export function Camera(
         updateStyleSync,
     }, [...deps]);
 
+    // Layers that sit at a distance - see `ILayerUserConfig.parallax`. Read on every call rather than
+    // captured, so a story that changes size or origin between two scenes is drawn in the new one.
+    const parallax = useMemo<CameraParallaxBinding>(() => {
+        const frame = (): ParallaxFrame => {
+            const config = state.game.config;
+            const {invertX, invertY} = state.getStory().getInversionConfig();
+            return {width: config.width, height: config.height, invertX, invertY};
+        };
+        return {
+            register(ref, factor) {
+                const companion: TransformCompanionRef = {
+                    ref,
+                    project: props => parallaxStyle(props, factor, frame()),
+                };
+                companionRefs.current!.push(companion);
+                return () => {
+                    const index = companionRefs.current!.indexOf(companion);
+                    if (index >= 0) {
+                        companionRefs.current!.splice(index, 1);
+                    }
+                };
+            },
+            project(factor) {
+                return parallaxStyle(camera.transformState.get(), factor, frame());
+            },
+        };
+    }, [state, camera]);
+
     useEffect(() => {
         state.logger.debug("Camera", "Camera mounted", camera.getId());
 
@@ -88,7 +126,9 @@ export function Camera(
             <motion.div className={"absolute w-full h-full"} ref={transformRef} data-element-type={"camera"}>
                 {transitionRefs.map(([ref, key]) => (
                     <div className={"relative w-full h-full"} ref={ref} key={key}>
-                        {children}
+                        <CameraParallaxContext.Provider value={parallax}>
+                            {children}
+                        </CameraParallaxContext.Provider>
                     </div>
                 ))}
             </motion.div>
