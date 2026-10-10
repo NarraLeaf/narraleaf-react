@@ -18,6 +18,14 @@
   second press in the same gap stops at the same pause, so one click is still one advance. Lines
   without a `Pause`, and a held skip key (`forceSkip`), behave as before.
 
+- **A sound moved with `seek()` while it plays keeps its place when it is paused or saved.** The
+  bundled `@narraleaf/sound` read the play head of a decoded clip wrongly once it had been sought
+  while playing: right after `seek(2.5)` it read about -2.4 seconds, although the clip itself played
+  from 2.5. Pausing such a sound afterwards resumed it from the beginning, and a save taken after the
+  seek recorded the wrong position for it. The engine now depends on `@narraleaf/sound` `^1.0.1`,
+  which reads the play head where the seek put it. Music that loops with no end time is streamed
+  through a media element and was never affected.
+
 ## [1.4.0]
 
 ### _Features_
