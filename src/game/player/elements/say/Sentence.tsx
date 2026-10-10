@@ -465,6 +465,243 @@ function isInteractiveWord(
     return !!renderer && isWordRevealed(word);
 }
 
+/**
+ * What the typewriter of one line needs from the component that draws it.
+ * @internal
+ */
+export type SentenceRollHost = {
+    game: Game;
+    gameState: GameState;
+    dialog: DialogState;
+    setDisplaying: React.Dispatch<React.SetStateAction<PureWord[]>>;
+};
+
+/**
+ * Types one line out: reveals it character by character, waits at its pauses, and answers the
+ * player's presses. Kept outside the component so the typewriter can be driven on its own.
+ * @internal
+ */
+export function rollSentence({ game, gameState, dialog, setDisplaying }: SentenceRollHost): RollingTask {
+    const mainTask = new Awaitable<void>();
+    const timeline = new Timeline(mainTask).setGuard(gameState.guard);
+    const seen = new Set<SplitWord>();
+    // Idempotency guard for text-event tokens (contract 5): a token fires at most once, whether
+    // it is reached by the roll or crossed by a skip. For NVL this is the line's persistent set,
+    // so a re-mount that re-enters the roll (or lands on the instant branch) never re-fires; ADV
+    // falls back to a per-run set.
+    const firedEvents = dialog.config.firedTextEvents ?? new Set<TextEvent>();
+    const interactionHandlers: Set<InteractionHandler> = new Set();
+    const completeListeners: Set<VoidFunction> = new Set();
+    const updater = textUpdater(dialog.config.evaluatedWords);
+    let renderTask: Awaitable | null = null;
+    const sideEffects: VoidFunction[] = [];
+    const queue: SplitWord[] = [];
+    const clearSideEffects = () => {
+        sideEffects.forEach((effect) => effect());
+        sideEffects.length = 0;
+    };
+    const iterate = (): { done: boolean | undefined, value: SplitWord } => {
+        if (queue.length !== 0) {
+            return {
+                done: false,
+                value: queue.shift()!,
+            };
+        }
+        const { done, value } = updater.next();
+        return {
+            done,
+            value,
+        };
+    };
+    const onceInteraction = (listener: InteractionHandler): LiveGameEventToken => {
+        const newListener = (preventDefault: () => void) => {
+            listener(preventDefault);
+            interactionHandlers.delete(newListener);
+        };
+        interactionHandlers.add(newListener);
+        return {
+            cancel: () => {
+                interactionHandlers.delete(newListener);
+            },
+        };
+    };
+    const updateDisplaying = (value: Exclude<SplitWord, Pausing | TextEvent>, instant: boolean = false) => {
+        updateDisplayingWord(setDisplaying, value, instant);
+    };
+
+    const trySkip = (untilEnd: boolean = false) => {
+        // Skip to next pause or end
+        let exited = false;
+        let stoppedAtPause = false;
+        while (!exited) {
+            const { done, value } = iterate();
+            if (done) {
+                exited = true;
+                break;
+            }
+            if (Pause.isPause(value)) {
+                // Found a pause, stop here
+                if (untilEnd) {
+                    continue;
+                }
+                exited = true;
+                stoppedAtPause = true;
+                queue.push(value);
+                break;
+            } else if (TextEvent.isTextEvent(value)) {
+                // A crossed token fires its effect (contract 3: skip lands the final state).
+                fireTextEventOnce(value, firedEvents, gameState);
+            } else if (value === "\n") {
+                // Skip non-pause words
+                setDisplaying((prev) => [...prev, value]);
+            } else if (typeof value === "object" && "text" in value && !seen.has(value)) {
+                seen.add(value);
+                // Landing in a run: every character of the rest of the line is drawn at full
+                // strength, including the ones already part-way through a fade.
+                updateDisplaying(value, true);
+            }
+        }
+
+        if (renderTask && !renderTask.isSettled()) {
+            // The loop is running: stopping it schedules it again, and it carries on from where
+            // this left the line.
+            renderTask.abort();
+        } else if (!stoppedAtPause) {
+            completeListeners.forEach((listener) => listener());
+            mainTask.resolve();
+        }
+        // Stopped at a pause with no loop running: the loop is about to start, or to start again
+        // after the last press, and takes the pause up from the queue - after which a press
+        // answers it. The line is not finished, and ending it here would leave it stopped half way
+        // with nothing to carry it on.
+        //
+        // A second press inside the same gap stops at that same queued pause and so does nothing.
+        // That is what keeps one click one advance: a click on the default dialog box reaches the
+        // line twice in the same task (the box's own handler and the stage's), and the second
+        // arrives exactly here.
+    };
+
+    gameState.schedule(async (handle) => {
+        let exited = false, completed = false;
+        while (!exited) {
+            // If the task is completed, exit the loop and mark the task as completed
+            const { done, value } = iterate();
+            if (done) {
+                exited = completed = true;
+                break;
+            }
+
+            // A text-event fires its effect the instant it is revealed (contract 2), then the
+            // typewriter moves on without rendering anything or waiting.
+            if (TextEvent.isTextEvent(value)) {
+                fireTextEventOnce(value, firedEvents, gameState);
+                continue;
+            }
+
+            // When the gamespeed or autoForward changes, the awaitable will be cancelled
+            // Once the awaitable is cancelled, retry the task to apply the changes
+            const awaitable = new Awaitable<void>();
+            gameState.timelines.attachTimeline(awaitable);
+            awaitable.registerSkipController(new SkipController(() => {
+                clearSideEffects();
+                exited = true;
+                handle.retry();
+            }));
+            awaitable.onSettled(() => {
+                clearSideEffects();
+            });
+
+            renderTask = awaitable;
+
+            // If the value is a pause, wait for it
+            if (Pause.isPause(value)) {
+                const pause = Pause.from(value);
+                const gameSpeed = game.preference.getPreference(Game.Preferences.gameSpeed);
+                if (pause.config.duration) {
+                    // Side Effect Cleanup: state "exited"
+                    const duration = pause.config.duration / gameSpeed;
+                    await sleep(duration);
+                } else {
+                    // Side Effect Cleanup: awaitable skip controller
+                    const autoForward = game.preference.getPreference(Game.Preferences.autoForward);
+                    const match = Awaitable.race<void>([
+                        Awaitable.create((i) => {
+                            const token = onceInteraction((preventDefault) => {
+                                preventDefault();
+                                i.resolve();
+                            });
+                            sideEffects.push(() => token.cancel());
+                        }),
+                        ...(autoForward ? [Awaitable.delay(game.config.autoForwardDefaultPause / gameSpeed)] : []),
+                    ]);
+                    gameState.timelines.attachTimeline(match);
+
+                    await Awaitable.wait(match);
+                }
+            } else {
+                // If the value is a word, add it to the displaying words
+                if (value !== "\n" && seen.has(value)) {
+                    continue;
+                }
+                seen.add(value);
+
+                // Update the last character to the last word
+                updateDisplaying(value);
+
+                // Wait for a delay
+                const { gameSpeed, cps } = game.preference.getPreferences();
+                const baseCps = (typeof value === "object" && "cps" in value && value.cps !== undefined)
+                    ? value.cps
+                    : cps;
+                const delay = 1000 / (baseCps * gameSpeed);
+                await sleep(delay);
+            }
+        }
+
+        // If the task is completed, emit the complete event
+        if (completed) {
+            completeListeners.forEach((listener) => listener());
+            mainTask.resolve();
+        }
+    }, 0);
+
+    const onComplete = (listener: VoidFunction) => {
+        completeListeners.add(listener);
+        return {
+            cancel: () => {
+                completeListeners.delete(listener);
+            },
+        };
+    };
+    const interact = () => {
+        let prevented = false;
+        interactionHandlers.forEach((listener) => listener(() => prevented = true));
+        if (prevented) {
+            return;
+        }
+
+        // If not prevented, try to skip to next pause or end of sentence
+        trySkip();
+    };
+    const update = () => {
+        if (renderTask) {
+            renderTask.abort();
+        }
+    };
+    const forceSkip = () => {
+        trySkip(true);
+    };
+
+    return {
+        getToken: () => mainTask,
+        interact,
+        update,
+        forceSkip,
+        timeline,
+        onComplete,
+    };
+}
+
 function BaseText(
     {
         defaultColor,
@@ -617,211 +854,7 @@ function BaseText(
     });
 
     function roll(): RollingTask {
-        const mainTask = new Awaitable<void>();
-        const timeline = new Timeline(mainTask).setGuard(gameState.guard);
-        const seen = new Set<SplitWord>();
-        // Idempotency guard for text-event tokens (contract 5): a token fires at most once, whether
-        // it is reached by the roll or crossed by a skip. For NVL this is the line's persistent set,
-        // so a re-mount that re-enters the roll (or lands on the instant branch) never re-fires; ADV
-        // falls back to a per-run set.
-        const firedEvents = dialog!.config.firedTextEvents ?? new Set<TextEvent>();
-        const interactionHandlers: Set<InteractionHandler> = new Set();
-        const completeListeners: Set<VoidFunction> = new Set();
-        const updater = textUpdater(dialog!.config.evaluatedWords);
-        let renderTask: Awaitable | null = null;
-        const sideEffects: VoidFunction[] = [];
-        const queue: SplitWord[] = [];
-        const clearSideEffects = () => {
-            sideEffects.forEach((effect) => effect());
-            sideEffects.length = 0;
-        };
-        const iterate = (): { done: boolean | undefined, value: SplitWord } => {
-            if (queue.length !== 0) {
-                return {
-                    done: false,
-                    value: queue.shift()!,
-                };
-            }
-            const { done, value } = updater.next();
-            return {
-                done,
-                value,
-            };
-        };
-        const onceInteraction = (listener: InteractionHandler): LiveGameEventToken => {
-            const newListener = (preventDefault: () => void) => {
-                listener(preventDefault);
-                interactionHandlers.delete(newListener);
-            };
-            interactionHandlers.add(newListener);
-            return {
-                cancel: () => {
-                    interactionHandlers.delete(newListener);
-                },
-            };
-        };
-        const updateDisplaying = (value: Exclude<SplitWord, Pausing | TextEvent>, instant: boolean = false) => {
-            updateDisplayingWord(setDisplaying, value, instant);
-        };
-
-        const trySkip = (untilEnd: boolean = false) => {
-            // Skip to next pause or end
-            let exited = false;
-            while (!exited) {
-                const { done, value } = iterate();
-                if (done) {
-                    exited = true;
-                    break;
-                }
-                if (Pause.isPause(value)) {
-                    // Found a pause, stop here
-                    if (untilEnd) {
-                        continue;
-                    }
-                    exited = true;
-                    queue.push(value);
-                    break;
-                } else if (TextEvent.isTextEvent(value)) {
-                    // A crossed token fires its effect (contract 3: skip lands the final state).
-                    fireTextEventOnce(value, firedEvents, gameState);
-                } else if (value === "\n") {
-                    // Skip non-pause words
-                    setDisplaying((prev) => [...prev, value]);
-                } else if (typeof value === "object" && "text" in value && !seen.has(value)) {
-                    seen.add(value);
-                    // Landing in a run: every character of the rest of the line is drawn at full
-                    // strength, including the ones already part-way through a fade.
-                    updateDisplaying(value, true);
-                }
-            }
-
-            if (renderTask && !renderTask.isSettled()) {
-                renderTask.abort();
-            } else {
-                completeListeners.forEach((listener) => listener());
-                mainTask.resolve();
-            }
-        };
-
-        gameState.schedule(async (handle) => {
-            let exited = false, completed = false;
-            while (!exited) {
-                // If the task is completed, exit the loop and mark the task as completed
-                const { done, value } = iterate();
-                if (done) {
-                    exited = completed = true;
-                    break;
-                }
-
-                // A text-event fires its effect the instant it is revealed (contract 2), then the
-                // typewriter moves on without rendering anything or waiting.
-                if (TextEvent.isTextEvent(value)) {
-                    fireTextEventOnce(value, firedEvents, gameState);
-                    continue;
-                }
-
-                // When the gamespeed or autoForward changes, the awaitable will be cancelled
-                // Once the awaitable is cancelled, retry the task to apply the changes
-                const awaitable = new Awaitable<void>();
-                gameState.timelines.attachTimeline(awaitable);
-                awaitable.registerSkipController(new SkipController(() => {
-                    clearSideEffects();
-                    exited = true;
-                    handle.retry();
-                }));
-                awaitable.onSettled(() => {
-                    clearSideEffects();
-                });
-
-                renderTask = awaitable;
-
-                // If the value is a pause, wait for it
-                if (Pause.isPause(value)) {
-                    const pause = Pause.from(value);
-                    const gameSpeed = game.preference.getPreference(Game.Preferences.gameSpeed);
-                    if (pause.config.duration) {
-                        // Side Effect Cleanup: state "exited"
-                        const duration = pause.config.duration / gameSpeed;
-                        await sleep(duration);
-                    } else {
-                        // Side Effect Cleanup: awaitable skip controller
-                        const autoForward = game.preference.getPreference(Game.Preferences.autoForward);
-                        const match = Awaitable.race<void>([
-                            Awaitable.create((i) => {
-                                const token = onceInteraction((preventDefault) => {
-                                    preventDefault();
-                                    i.resolve();
-                                });
-                                sideEffects.push(() => token.cancel());
-                            }),
-                            ...(autoForward ? [Awaitable.delay(game.config.autoForwardDefaultPause / gameSpeed)] : []),
-                        ]);
-                        gameState.timelines.attachTimeline(match);
-
-                        await Awaitable.wait(match);
-                    }
-                } else {
-                    // If the value is a word, add it to the displaying words
-                    if (value !== "\n" && seen.has(value)) {
-                        continue;
-                    }
-                    seen.add(value);
-
-                    // Update the last character to the last word
-                    updateDisplaying(value);
-
-                    // Wait for a delay
-                    const { gameSpeed, cps } = game.preference.getPreferences();
-                    const baseCps = (typeof value === "object" && "cps" in value && value.cps !== undefined)
-                        ? value.cps
-                        : cps;
-                    const delay = 1000 / (baseCps * gameSpeed);
-                    await sleep(delay);
-                }
-            }
-
-            // If the task is completed, emit the complete event
-            if (completed) {
-                completeListeners.forEach((listener) => listener());
-                mainTask.resolve();
-            }
-        }, 0);
-
-        const onComplete = (listener: VoidFunction) => {
-            completeListeners.add(listener);
-            return {
-                cancel: () => {
-                    completeListeners.delete(listener);
-                },
-            };
-        };
-        const interact = () => {
-            let prevented = false;
-            interactionHandlers.forEach((listener) => listener(() => prevented = true));
-            if (prevented) {
-                return;
-            }
-
-            // If not prevented, try to skip to next pause or end of sentence
-            trySkip();
-        };
-        const update = () => {
-            if (renderTask) {
-                renderTask.abort();
-            }
-        };
-        const forceSkip = () => {
-            trySkip(true);
-        };
-
-        return {
-            getToken: () => mainTask,
-            interact,
-            update,
-            forceSkip,
-            timeline,
-            onComplete,
-        };
+        return rollSentence({ game, gameState, dialog: dialog!, setDisplaying });
     }
 
     const sentence = dialog.config.action.sentence;

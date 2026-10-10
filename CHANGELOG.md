@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.4.1]
+
+### _Fixes_
+
+- **A click on a line that is still typing no longer cuts it off at its `Pause`.** Clicking the default
+  dialog box while the text before a `Pause` was being typed revealed that text and then reported the
+  whole line as finished. The next click moved on to the following line, and the rest of the line was
+  never shown. The line now waits at the pause, and the next click carries it on.
+
+  The cause was a press reaching the line while its typewriter was not running: the typewriter starts
+  one timer after the line appears, and starts again one timer after each press that cuts it short. A
+  click on the default box reaches the line twice in the same task, once through the box's own handler
+  and once through the stage's, so the second half of every such click landed in that gap. Code that
+  advances for the player, such as a `Next` as soon as a line appears or a loop that presses until the
+  text is out, landed there too. A press in the gap now stops at the pause like any other press, and a
+  second press in the same gap stops at the same pause, so one click is still one advance. Lines
+  without a `Pause`, and a held skip key (`forceSkip`), behave as before.
+
 ## [1.4.0]
 
 ### _Features_
