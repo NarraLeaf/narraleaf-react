@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.4.2]
+
+### _Fixes_
+
+- **A `Puppet` is drawn at the stage's scale, like an image.** A puppet's box was laid out at its
+  logical size in CSS pixels whatever size the stage was drawn at, so on a stage shown smaller than
+  the game's `width` and `height` the character came out too large and was cut off at the stage's
+  edges. A 1920 x 1080 game shown 1400 wide drew a stage-size puppet in a 1920 x 1080 box over a
+  1400 x 787.5 stage: 1.37 times too large, the head cut by the top of the stage and the feet by the
+  bottom. The box is now its logical size times the stage scale, the scale an image is drawn at, and
+  it follows the stage when the window is resized.
+
+  What a backend sees does not change. `ctx.size` and `resize()` stay in the game's logical pixels;
+  the element the backend was mounted in keeps that size and is scaled onto the box, so a backend
+  that sizes its canvas from `ctx.size` and one that fills its container both fit, and a stage
+  resize is not a `resize()`.
+
+  A puppet on a stage drawn at the game's own size looks exactly as before. On any other stage it
+  is now the size an image of the same logical size would be.
+
 ## [1.4.1]
 
 ### _Fixes_
