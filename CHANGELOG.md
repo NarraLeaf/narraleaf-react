@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.5.0]
+
+### _Features_
+
+- **A backlog entry records the avatar its line was shown with.** `GameElementHistory`'s `say` entry
+  has a new `avatar` field: the URL of the avatar the dialog showed for the line, resolved when the
+  line is reached, by the same rules `useAvatar` uses - the sentence's own avatar, else the avatar of
+  the portrait the speaker wears on stage, else the character's - or `null` when the line showed
+  none. A backlog screen reads the speaker's face at that line from here. Resolving the avatar again
+  when the backlog is opened answers with the look the speaker has by then, which is not the look she
+  had at the line.
+
+  ```ts
+  for (const entry of liveGame.getHistory()) {
+      if (entry.element.type === "say") {
+          console.log(entry.element.character, entry.element.avatar); // "Alice", "/avatars/smile.png"
+      }
+  }
+  ```
+
+  The field is saved with the backlog, so a loaded game's entries keep their faces. It is absent on
+  entries recorded by an earlier version, including those in older saves. A resolver that throws
+  while the line is recorded leaves the entry with `null`; the line itself is unaffected.
+
 ## [1.4.2]
 
 ### _Fixes_
