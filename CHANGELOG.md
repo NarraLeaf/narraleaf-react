@@ -9,9 +9,11 @@
   `capturePng` draws the stage at the size it is shown in the window times the display's pixel ratio
   - 2800 x 1576 for a 1400-wide stage on a 2x display, 3840 x 2160 for a full-screen game on a 4K one -
   so a caller that only wants a save-slot thumbnail used to decode that PNG, draw it small and encode
-  it again. The full-size drawing and the two encodings were most of what the picture cost: in a
-  1920 x 1080 visual novel on a 2x display, about half a second of the main thread for each save.
-  Drawn at 960 pixels it has a sixteenth of the pixels to rasterise and encode.
+  it again. Drawn straight at 960 pixels as WebP, the picture skips the full-size PNG and the second
+  encoding. Measured in a 1920 x 1080 visual novel on a 2x display, the script time of a save's
+  picture roughly halved and the longest frame it blocks fell by about a fifth: cloning the stage and
+  rasterising the clone, which decodes every image it inlines at full size, does not depend on the
+  size the picture is drawn at, and stays.
 
   ```ts
   const thumbnail = await liveGame.captureImage({
