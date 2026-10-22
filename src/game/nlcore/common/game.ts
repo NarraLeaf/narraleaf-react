@@ -22,6 +22,7 @@ import type {
 import type {StorableChange, StorableRestore} from "../elements/persistent/storable";
 import type {SavedGame} from "@core/gameTypes";
 import type {StackSnapshot, StackFrameSnapshot} from "@core/action/stackModel";
+import type {CaptureImageOptions} from "@core/game/captureImage";
 import { KeyMap } from "../game/keyMap";
 
 export {
@@ -48,6 +49,7 @@ export type {
     AudioBusState,
     SavedGame,
     StackSnapshot,
+    CaptureImageOptions,
     StackFrameSnapshot,
     StorableChange,
     StorableRestore,

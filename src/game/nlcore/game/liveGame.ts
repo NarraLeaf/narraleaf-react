@@ -21,6 +21,7 @@ import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
 import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { Options } from "html-to-image/lib/types";
+import { CaptureImageOptions, captureImagePixelRatio } from "./captureImage";
 import { ActionExecutionInjection, ExecutedActionResult } from "../action/action";
 import { GameHistory } from "../action/gameHistory";
 import { SkipGate } from "../action/skipGate";
@@ -975,6 +976,43 @@ export class LiveGame {
         this.assertGameState();
         this.assertPlayerElement();
         return this.gameState.htmlToImage.toBlob(this.gameState.mainContentNode!, this.getScreenshotOptions());
+    }
+
+    /**
+     * Capture the game screenshot at the size and in the encoding it is wanted, will only include
+     * the player element
+     *
+     * The stage is drawn straight at `maxEdge` and encoded once, where `capturePng` followed by a
+     * resize draws it at the window's full size times the display's pixel ratio, encodes it as a
+     * PNG, decodes it and draws it again. For a thumbnail that is most of the cost of the picture.
+     *
+     * Returns an image data URL
+     *
+     * @example
+     * ```ts
+     * // A save-slot thumbnail: 960 pixels on its longest edge, as WebP
+     * const thumbnail = await liveGame.captureImage({
+     *     maxEdge: 960,
+     *     type: "image/webp",
+     *     quality: 0.85,
+     *     backgroundColor: "#000",
+     * });
+     * ```
+     */
+    async captureImage(options: CaptureImageOptions = {}): Promise<string> {
+        this.assertScreenshot();
+        const node = this.gameState.mainContentNode!;
+        const pixelRatio = captureImagePixelRatio(
+            {width: node.clientWidth, height: node.clientHeight},
+            options.maxEdge,
+            window.devicePixelRatio || 1,
+        );
+        const canvas = await this.gameState.htmlToImage.toCanvas(node, {
+            ...this.getScreenshotOptions(),
+            pixelRatio,
+            ...(options.backgroundColor !== undefined ? {backgroundColor: options.backgroundColor} : {}),
+        });
+        return canvas.toDataURL(options.type ?? "image/png", options.quality ?? this.game.config.screenshotQuality);
     }
 
     /**

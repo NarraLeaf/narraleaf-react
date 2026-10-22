@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.5.1]
+
+### _Features_
+
+- **A screenshot can be taken at the size it is wanted.** `LiveGame.captureImage(options)` draws the
+  stage straight at `maxEdge` pixels on its longest edge and encodes it once, as PNG, JPEG or WebP.
+  `capturePng` draws the stage at the size it is shown in the window times the display's pixel ratio
+  - 2800 x 1576 for a 1400-wide stage on a 2x display, 3840 x 2160 for a full-screen game on a 4K one -
+  so a caller that only wants a save-slot thumbnail used to decode that PNG, draw it small and encode
+  it again. The full-size drawing and the two encodings were most of what the picture cost: in a
+  1920 x 1080 visual novel on a 2x display, about half a second of the main thread for each save.
+  Drawn at 960 pixels it has a sixteenth of the pixels to rasterise and encode.
+
+  ```ts
+  const thumbnail = await liveGame.captureImage({
+      maxEdge: 960,          // longest edge in pixels; never larger than capturePng draws
+      type: "image/webp",    // or "image/png" (default), "image/jpeg"
+      quality: 0.85,         // 0-1 for JPEG and WebP; defaults to screenshotQuality
+      backgroundColor: "#000", // painted under the stage, for encodings without transparency
+  });
+  ```
+
+  A type the browser cannot encode answers with a PNG, as `HTMLCanvasElement.toDataURL` does, so check
+  the data URL's prefix when the encoding matters. Without options the picture is the one `capturePng`
+  gives. The options type is exported as `CaptureImageOptions`. `capturePng`, `captureJpeg`,
+  `captureSvg` and `capturePngBlob` are unchanged.
+
 ## [1.5.0]
 
 ### _Features_
