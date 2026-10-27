@@ -29,6 +29,21 @@
   gives. The options type is exported as `CaptureImageOptions`. `capturePng`, `captureJpeg`,
   `captureSvg` and `capturePngBlob` are unchanged.
 
+- **A word renderer can leave the player's clicks to the line.** `registerWordRenderer` takes a third
+  argument, `{interactive: false}`, for a renderer that only changes how text looks. A word drawn by
+  a registered renderer takes the player's clicks once it is revealed, so that a glossary term can
+  open when clicked; for shaking or waving text that meant the part of the dialogue box the word
+  covered stopped advancing the line. A word whose renderer was registered with `interactive: false`
+  lets the click through, and the line advances as it does on plain text.
+
+  ```ts
+  registerWordRenderer("shake", ShakingText, {interactive: false});
+  new Word("别过来！", {render: "shake", data: {intensity: 3}});
+  ```
+
+  The default is unchanged: without the option, and for a component a word carries directly, the
+  word takes its own clicks. The options type is exported as `WordRendererOptions`.
+
 ## [1.5.0]
 
 ### _Features_

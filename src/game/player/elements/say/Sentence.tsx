@@ -16,7 +16,7 @@ import { DialogState } from "./UIDialog";
 import { useNvlDialogState } from "../nvl/useNvlDialogState";
 import type { NvlDialogEntry } from "@player/gameState";
 import { fireInstantRevealEvents, fireTextEventOnce } from "./textEventEffect";
-import { resolveWordRenderer } from "./wordRenderer";
+import { isInteractiveWordRenderer, resolveWordRenderer } from "./wordRenderer";
 import {
     AUTO_FIT_SCALE_VAR,
     DEFAULT_AUTO_FIT_MIN_FONT_SIZE,
@@ -455,14 +455,15 @@ export function WordBody({ word, vertical, tateChuYoko, done, style, renderer: R
 /**
  * Whether a word has finished revealing and so should take its own clicks rather than let them
  * advance the line. A word still being typed does not: the player clicking mid-word asked for the
- * rest of the line, not for whatever the word does.
+ * rest of the line, not for whatever the word does. Nor does one whose renderer was registered with
+ * `interactive: false`, which only changes how the text looks.
  * @internal
  */
 function isInteractiveWord(
     word: Exclude<PureWord, "\n">,
     renderer: React.ComponentType<WordRenderProps<any>> | null
 ): boolean {
-    return !!renderer && isWordRevealed(word);
+    return !!renderer && isInteractiveWordRenderer(renderer) && isWordRevealed(word);
 }
 
 /**
