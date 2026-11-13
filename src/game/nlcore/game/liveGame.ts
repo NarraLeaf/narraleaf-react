@@ -15,7 +15,7 @@ import { ElementStateRaw, Story } from "@core/elements/story";
 import { Game } from "@core/game";
 import { Sound } from "@core/elements/sound";
 import { SoundToken } from "@narraleaf/sound";
-import type { CalledActionResult, NotificationToken, SavedGame, SerializedGameState } from "@core/gameTypes";
+import type { CalledActionResult, DeserializeOptions, NotificationToken, SavedGame, SerializedGameState } from "@core/gameTypes";
 import { SAVE_FORMAT_VERSION } from "@core/gameTypes";
 import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
 import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
@@ -289,13 +289,42 @@ export class LiveGame {
      * Note: even if you change just a single line of script, the saved game might not be compatible with the new version
      *
      * After calling this method, the current game state will be lost, and the stage will trigger force reset
+     *
+     * The save's `meta.storyHash` is compared with the loaded story. A mismatch is logged as a warning;
+     * with `options.requireMatchingStory` it throws instead, before anything is changed.
      */
-    public deserialize(savedGame: SavedGame) {
+    public deserialize(savedGame: SavedGame, options: DeserializeOptions = {}) {
         // This check is to prevent invalid usage
         if (!savedGame) {
             throw new Error("No saved game provided when trying to deserialize game state");
         }
 
+        this.assertGameState();
+        const story = this.story;
+        if (!story) {
+            throw new Error("No story loaded");
+        }
+
+        const savedHash = savedGame.meta?.storyHash;
+        const currentHash = story.hash();
+        if (savedHash !== currentHash) {
+            const message = savedHash
+                ? `The saved game was written by a different story (saved ${savedHash}, loaded ${currentHash})`
+                : "The saved game does not say which story wrote it";
+            if (options.requireMatchingStory) {
+                throw new Error(`${message}; it was not loaded.`);
+            }
+            this.gameState.logger.warn("LiveGame.deserialize", message);
+        }
+
+        this.restoreSavedGame(savedGame);
+    }
+
+    /**
+     * The restore itself, shared by {@link deserialize} and the history jump, which builds its save
+     * from the one already loaded and so has nothing new to check.
+     */
+    private restoreSavedGame(savedGame: SavedGame) {
         this.assertGameState();
         const gameState = this.gameState;
 
@@ -568,7 +597,7 @@ export class LiveGame {
                 history: history.serializeAll(),
             },
         };
-        this.deserialize(synthetic);
+        this.restoreSavedGame(synthetic);
         this.gameState.gameHistory.setCursor(this.gameState.gameHistory.indexOfToken(token));
 
         // A line arrived at by moving the play head is a line the player has already read, so in NVL

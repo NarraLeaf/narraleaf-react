@@ -44,6 +44,33 @@
   The default is unchanged: without the option, and for a component a word carries directly, the
   word takes its own clicks. The options type is exported as `WordRendererOptions`.
 
+- **`LiveGame.deserialize` checks which story wrote the save.** The save's `meta.storyHash` is compared
+  with the loaded story's hash. A mismatch is logged as a warning, which is the old behaviour plus a
+  line in the log: a game updated after release usually still loads its old saves. Pass
+  `requireMatchingStory` to refuse such a save instead; it throws before any state changes. The options
+  type is exported as `DeserializeOptions`.
+
+  ```ts
+  liveGame.deserialize(savedGame, { requireMatchingStory: true });
+  ```
+
+### _Fixes_
+
+- **A save can no longer point the stage at a local file or a script URL.** A save is a file on the
+  player's disk, and loading one used to apply whatever image source and CSS values it carried. Now an
+  image's saved source, and every `url(...)` inside a saved transform value (`maskImage`, `filter` and
+  the like), has to pass `Utils.isSafeRestoredURL`: relative paths, `http(s):`, `blob:`, `data:image/`
+  and the host's own schemes pass; `javascript:`, `vbscript:`, `file:`, `filesystem:` and non-image
+  `data:` do not. A refused image source leaves the image on what the script gave it; a refused
+  transform value falls back to its default. A transform value with a CSS escape is refused, because an
+  escape can spell `url(` or a scheme where a plain search does not see it.
+
+  ```ts
+  Utils.isSafeRestoredURL("nlgame://asset/42");     // true
+  Utils.isSafeRestoredURL("file:///etc/passwd");    // false
+  Utils.isSafeRestoredCSSValue("url('a.png') 0 0"); // true
+  ```
+
 ## [1.5.0]
 
 ### _Features_

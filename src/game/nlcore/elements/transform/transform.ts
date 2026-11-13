@@ -24,7 +24,7 @@ import {
 } from "./position";
 import { CSSProps } from "@core/elements/transition/type";
 import { ConfigConstructor } from "@lib/util/config";
-import { RuntimeScriptError } from "@core/common/Utils";
+import { RuntimeScriptError, Utils } from "@core/common/Utils";
 
 /**@internal */
 export type TransformStateProps = TransformDefinitions.Types;
@@ -114,8 +114,22 @@ export class TransformState<T extends TransformDefinitions.Types> {
         position: (pos) => PositionUtils.toCoord2D(pos),
     });
 
+    /**
+     * Rebuild a transform state from a saved game.
+     *
+     * Only used on the way back from a save, which is a file anyone can edit, so a string value whose
+     * `url(...)` points somewhere a save may not send the stage (see {@link Utils.isSafeRestoredCSSValue})
+     * is dropped and the property falls back to its default.
+     */
     static deserialize<T extends TransformDefinitions.Types>(data: Record<string, any>): TransformState<T> {
-        return new TransformState<T>(TransformState.TransformStateSerializer.deserialize(data) as Partial<T>);
+        const state = TransformState.TransformStateSerializer.deserialize(data) as Record<string, unknown>;
+        for (const key of Object.keys(state)) {
+            const value = state[key];
+            if (typeof value === "string" && !Utils.isSafeRestoredCSSValue(value)) {
+                delete state[key];
+            }
+        }
+        return new TransformState<T>(state as Partial<T>);
     }
 
     static mergePosition(

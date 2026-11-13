@@ -20,7 +20,7 @@ import type {
     AudioBusState,
 } from "@core/game/audioBus";
 import type {StorableChange, StorableRestore} from "../elements/persistent/storable";
-import type {SavedGame} from "@core/gameTypes";
+import type {DeserializeOptions, SavedGame} from "@core/gameTypes";
 import type {StackSnapshot, StackFrameSnapshot} from "@core/action/stackModel";
 import type {CaptureImageOptions} from "@core/game/captureImage";
 import { KeyMap } from "../game/keyMap";
@@ -48,6 +48,7 @@ export type {
     AudioBusNode,
     AudioBusState,
     SavedGame,
+    DeserializeOptions,
     StackSnapshot,
     CaptureImageOptions,
     StackFrameSnapshot,

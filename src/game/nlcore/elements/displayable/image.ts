@@ -544,7 +544,17 @@ export class Image<
 
     /**@internal */
     fromData(data: ImageDataRaw): this {
+        const authored = this.state.currentSrc;
         this.state = Image.StateSerializer.deserialize(data.state);
+        // A save is a file anyone can edit. A source that points somewhere a save may not send the
+        // stage is not applied; the image keeps what the script gave it.
+        const restored: unknown = this.state.currentSrc;
+        const unsafe = typeof restored === "string"
+            ? !Utils.isSafeRestoredURL(restored)
+            : Utils.isStaticImageData(restored) && !Utils.isSafeRestoredURL(restored.src);
+        if (unsafe) {
+            this.state.currentSrc = authored;
+        }
         this.transformState.resetTo(
             TransformState.deserialize<TransformDefinitions.ImageTransformProps>(data.transformState).get());
         this._deserializeLoop(data.loop);
