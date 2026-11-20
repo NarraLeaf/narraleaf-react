@@ -54,6 +54,27 @@
   liveGame.deserialize(savedGame, { requireMatchingStory: true });
   ```
 
+- **An expression switch inside a line can cross-fade.** `TextEvent.expression` takes a `transition`
+  option, an `ImageTransition` such as `Dissolve`, that draws the swap when the typewriter reaches the
+  token. Without one the swap is instant, as before. A character that changes expression several
+  times in one line no longer jumps from face to face: a short dissolve of 150-250 ms reads as one
+  continuous performance.
+
+  ```ts
+  character.say([
+      "I-it's not like ",
+      TextEvent.expression(alice, ["blush"], { transition: new Dissolve({ duration: 200 }) }),
+      "I did it for you…",
+  ]);
+  ```
+
+  The image's state takes the new appearance the moment the token is revealed, and the transition
+  only draws it, so a save taken during the fade holds the new expression. The transition plays only
+  when the typewriter reaches the token: a skip, or a line revealed all at once, swaps instantly, so
+  skipping a line does not leave a string of fades behind it. A token that fires while the previous
+  token's fade is still running finishes that fade first. Each firing plays its own copy of the
+  transition, so one `TextEvent` can be reused across lines and replays.
+
 ### _Fixes_
 
 - **A save can no longer point the stage at a local file or a script URL.** A save is a file on the

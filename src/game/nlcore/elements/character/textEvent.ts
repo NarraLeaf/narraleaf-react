@@ -1,6 +1,7 @@
 import type { Color, ImageSrc } from "@core/types";
 import type { Image } from "@core/elements/displayable/image";
 import type { Sound } from "@core/elements/sound";
+import type { ImageTransition } from "@core/elements/transition/transitions/image/imageTransition";
 
 /**
  * The appearance a text-event may switch a character/image to when the typewriter reaches it.
@@ -11,12 +12,18 @@ import type { Sound } from "@core/elements/sound";
 export type TextEventAppearance = ImageSrc | Color | string[];
 
 /**
- * A character-expression effect: switch `image` to `appearance` (no transition — the swap is
- * instant, applied directly to the element the moment the typewriter reveals this point).
+ * A character-expression effect: switch `image` to `appearance` the moment the typewriter reveals
+ * this point. The image's state takes the new appearance at once; `transition`, when given, only
+ * changes how the swap is drawn.
  */
 export type TextEventExpression = {
     image: Image;
     appearance: TextEventAppearance;
+    /**
+     * Draws the swap, for example a short `Dissolve`. Without one the swap is instant. It plays only
+     * when the typewriter reaches the token: a skip, or a line revealed all at once, swaps instantly.
+     */
+    transition?: ImageTransition;
 };
 
 /**
@@ -44,12 +51,15 @@ export type TextEventConfig = {
  * typewriter reach each one in turn: the image ends in the appearance the *last* crossed token
  * specifies, and each crossed sound effect plays once. Re-visiting an already-fired token within the
  * same reveal is a no-op — it never double-plays a sound effect nor re-writes the expression — which
- * is what keeps a re-mount of an already-revealed line from replaying its effects.
+ * is what keeps a re-mount of an already-revealed line from replaying its effects. A crossed token's
+ * transition does not play: the swap lands instantly, as the rest of the line does.
  *
  * @example
  * ```ts
  * // switch Alice's portrait to "angry" the moment the typewriter reaches this point
  * character.say(["Don't ", TextEvent.expression(alice, ["angry"]), "test me."]);
+ * // the same switch, cross-faded over 200ms
+ * character.say(["Don't ", TextEvent.expression(alice, ["angry"], { transition: new Dissolve({ duration: 200 }) }), "test me."]);
  * // play a sting, no expression change
  * character.say(["...", TextEvent.sound(sting)]);
  * ```
@@ -65,14 +75,18 @@ export class TextEvent {
      * when the typewriter reveals it, optionally alongside a sound effect.
      * @param image - The image whose appearance is switched.
      * @param appearance - Tag list (e.g. `["happy"]`) or a static `src`/`Color`.
-     * @param options - Optional extras; `sound` plays a sound effect at the same point.
+     * @param options - Optional extras; `sound` plays a sound effect at the same point, and
+     * `transition` draws the swap (instant without one; see {@link TextEventExpression.transition}).
      */
     public static expression(
         image: Image,
         appearance: TextEventAppearance,
-        options: { sound?: Sound } = {}
+        options: { sound?: Sound; transition?: ImageTransition } = {}
     ): TextEvent {
-        return new TextEvent({ expression: { image, appearance }, sound: options.sound });
+        return new TextEvent({
+            expression: { image, appearance, transition: options.transition },
+            sound: options.sound,
+        });
     }
 
     /**

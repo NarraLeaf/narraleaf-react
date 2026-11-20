@@ -593,9 +593,10 @@ export function rollSentence({ game, gameState, dialog, setDisplaying }: Sentenc
             }
 
             // A text-event fires its effect the instant it is revealed (contract 2), then the
-            // typewriter moves on without rendering anything or waiting.
+            // typewriter moves on without rendering anything or waiting. This is the one place a
+            // token's transition plays: the player is watching the line arrive at it.
             if (TextEvent.isTextEvent(value)) {
-                fireTextEventOnce(value, firedEvents, gameState);
+                fireTextEventOnce(value, firedEvents, gameState, { animate: true });
                 continue;
             }
 
