@@ -77,6 +77,17 @@
 
 ### _Fixes_
 
+- **A transition that replaces a running one on the same element plays.** Applying a transition to an
+  image, a text or a layer while another was still running on it finished the old one first, but the
+  old one finishes on the next animation frame, and when it did it cleared the element's transition
+  state and the references to its layers, which by then belonged to the new transition. The new
+  transition threw `Displayable: Trying to assign properties to unmounted element` on its first
+  frame and stayed on its starting pose: an image kept the outgoing picture at full opacity and the
+  incoming one at zero. A finished transition now leaves the element alone once a newer one has taken
+  it over, and a transition that was still waiting for its images to load settles at once when it is
+  replaced. A `char` or `setSrc` transition waits for its own end before the next action runs, so the
+  overlap came from inline expression switches; see the `TextEvent` transition above.
+
 - **A save can no longer point the stage at a local file or a script URL.** A save is a file on the
   player's disk, and loading one used to apply whatever image source and CSS values it carried. Now an
   image's saved source, and every `url(...)` inside a saved transform value (`maskImage`, `filter` and
