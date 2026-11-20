@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, forwardRef} from "react";
+import React, {useEffect, useLayoutEffect, useRef, forwardRef} from "react";
 import {useRatio} from "@player/provider/ratio";
 import {useGame} from "@core/common/player";
 import {useHoldImageSrc} from "@player/lib/useHoldImageSrc";
@@ -84,7 +84,11 @@ const AspectScaleImage = forwardRef<HTMLImageElement, {
         }
     }, []);
 
-    useEffect(() => {
+    // A layout effect, so that a size handed to a new `onSizeChanged` lands in the same frame as
+    // whatever made it new. That is a transition ending: its incoming picture becomes the one that
+    // sizes the image's box in the very commit that puts it at rest, and a box resized one frame
+    // later would show the picture at rest in a box of the outgoing picture's size for that frame.
+    useLayoutEffect(() => {
         updateWidth();
 
         return ratio.onUpdate(updateWidth);

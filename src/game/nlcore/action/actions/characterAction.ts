@@ -9,6 +9,7 @@ import {Word} from "@core/elements/character/word";
 import {TypedAction} from "@core/action/actions";
 import {Sound} from "@core/elements/sound";
 import {Script} from "@core/elements/script";
+import {avatarSourceToUrl, resolveSentenceAvatar} from "@core/elements/character/sentenceAvatar";
 import { Timeline } from "@lib/game/player/Tasks";
 import { ActionExecutionInjection, ExecutedActionResult } from "@core/action/action";
 import { LogicAction } from "@core/action/logicAction";
@@ -223,6 +224,7 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
                     voice: voice ? voice.getSrc() : null,
                     voiceId: sentence.config.voiceId ?? null,
                     character: this.callee.state.name,
+                    avatar: CharacterAction.lineAvatar(gameState, sentence),
                 },
                 isPending: true,
                 // Snapshot the state at this line so the backlog can be restored to it after a
@@ -246,6 +248,21 @@ export class CharacterAction<T extends typeof CharacterActionTypes[keyof typeof 
         }
 
         throw super.unknownTypeError();
+    }
+
+    /**
+     * The avatar this line is shown with, as a URL, for its backlog entry: resolved as the dialog's
+     * `useAvatar` resolves it, against the stage as it stands when the line is reached.
+     *
+     * A resolver that throws costs the entry its picture, never the line.
+     */
+    private static lineAvatar(gameState: GameState, sentence: Sentence): string | null {
+        try {
+            return avatarSourceToUrl(resolveSentenceAvatar(gameState, sentence.config.character, sentence).source);
+        } catch (error) {
+            gameState.logger.warn("CharacterAction", "Could not resolve the avatar for the backlog", error);
+            return null;
+        }
     }
 
     stringify(_story: Story, _seen: Set<LogicAction.Actions>, _strict: boolean): string {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 // Entry import keeps the element init order correct (see imageAction.setAppearance.test.ts).
-import { Image, Sentence, Sound, TextEvent } from "narraleaf-react";
+import { Dissolve, Image, Sentence, Sound, TextEvent } from "narraleaf-react";
 import { dispatchTextEvent, fireInstantRevealEvents, fireTextEventOnce } from "./textEventEffect";
 
 function tagImage() {
@@ -200,5 +200,127 @@ describe("fireInstantRevealEvents — re-mount replay guard (contract 5c + NVL r
         fireInstantRevealEvents(words, new Set<TextEvent>(), state as never); // load starts empty
 
         expect(play).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe("dispatchTextEvent — transition (drawn only when the typewriter reaches the token)", () => {
+    function exposedState(exposed: Record<string, unknown> | undefined) {
+        const update = vi.fn();
+        const state = {
+            stage: { update },
+            getExposedState: () => exposed,
+            audioManager: { play: vi.fn() },
+        };
+        return { state, update };
+    }
+
+    it("hands a copy of the transition the sources from before and after, with the state already new", () => {
+        const img = tagImage();
+        const fade = new Dissolve({ duration: 200 });
+        const applyTransition = vi.fn();
+        const updateStyleSync = vi.fn();
+        const { state } = exposedState({ applyTransition, updateStyleSync, flush: vi.fn() });
+
+        dispatchTextEvent(TextEvent.expression(img, ["happy"], { transition: fade }), state as never, { animate: true });
+
+        expect(img.state.currentSrc).toEqual(["happy", "school"]);
+        expect(applyTransition).toHaveBeenCalledTimes(1);
+        const played = applyTransition.mock.calls[0][0] as Dissolve;
+        expect(played).not.toBe(fade); // the token fires again on a replay; each swap gets its own
+        expect(played._getPrevSrc()).toBe("/assets/normal-school.png");
+        expect(played._getTargetSrc()).toBe("/assets/happy-school.png");
+        expect(fade._getPrevSrc()).toBeUndefined();
+        expect(updateStyleSync).not.toHaveBeenCalled(); // the transition paints, then the settled state
+    });
+
+    it("a static-src image cross-fades between its two urls", () => {
+        const img = new Image({ src: "/assets/a.png" } as never);
+        const applyTransition = vi.fn();
+        const { state } = exposedState({ applyTransition, updateStyleSync: vi.fn(), flush: vi.fn() });
+
+        dispatchTextEvent(TextEvent.expression(img, "/assets/b.png", { transition: new Dissolve({ duration: 200 }) }), state as never, { animate: true });
+
+        const played = applyTransition.mock.calls[0][0] as Dissolve;
+        expect(played._getPrevSrc()).toBe("/assets/a.png");
+        expect(played._getTargetSrc()).toBe("/assets/b.png");
+        expect(img.state.currentSrc).toBe("/assets/b.png");
+    });
+
+    it("a layered image cross-fades between its two layer stacks", () => {
+        const img = new Image({
+            src: {
+                layers: ["/assets/base.png", { youki: "/assets/youki.png", nattou: "/assets/nattou.png" }],
+                defaults: ["youki"],
+            },
+        } as never);
+        const applyTransition = vi.fn();
+        const flush = vi.fn();
+        const { state } = exposedState({ applyTransition, updateStyleSync: vi.fn(), flush });
+
+        dispatchTextEvent(TextEvent.expression(img, ["nattou"], { transition: new Dissolve({ duration: 200 }) }), state as never, { animate: true });
+
+        const played = applyTransition.mock.calls[0][0] as Dissolve;
+        expect(played._getPrevLayers()).toEqual(["/assets/base.png", "/assets/youki.png"]);
+        expect(played._getTargetLayers()).toEqual(["/assets/base.png", "/assets/nattou.png"]);
+        expect(flush).not.toHaveBeenCalled();
+    });
+
+    it("without animate the swap is instant, transition or not", () => {
+        const img = tagImage();
+        const applyTransition = vi.fn();
+        const updateStyleSync = vi.fn();
+        const { state } = exposedState({ applyTransition, updateStyleSync, flush: vi.fn() });
+
+        dispatchTextEvent(TextEvent.expression(img, ["angry"], { transition: new Dissolve({ duration: 200 }) }), state as never);
+
+        expect(applyTransition).not.toHaveBeenCalled();
+        expect(updateStyleSync).toHaveBeenCalledTimes(1);
+        expect(img.state.currentSrc).toEqual(["angry", "school"]);
+    });
+
+    it("animate without a transition is the instant swap it always was", () => {
+        const img = tagImage();
+        const applyTransition = vi.fn();
+        const updateStyleSync = vi.fn();
+        const { state } = exposedState({ applyTransition, updateStyleSync, flush: vi.fn() });
+
+        dispatchTextEvent(TextEvent.expression(img, ["angry"]), state as never, { animate: true });
+
+        expect(applyTransition).not.toHaveBeenCalled();
+        expect(updateStyleSync).toHaveBeenCalledTimes(1);
+    });
+
+    it("an image with nothing on stage still takes the new appearance", () => {
+        const img = tagImage();
+        const { state } = exposedState(undefined);
+
+        dispatchTextEvent(TextEvent.expression(img, ["happy"], { transition: new Dissolve({ duration: 200 }) }), state as never, { animate: true });
+
+        expect(img.state.currentSrc).toEqual(["happy", "school"]);
+    });
+
+    it("a line revealed all at once lands every swap without playing its transition", () => {
+        const img = tagImage();
+        const first = TextEvent.expression(img, ["happy"], { transition: new Dissolve({ duration: 200 }) });
+        const second = TextEvent.expression(img, ["angry"], { transition: new Dissolve({ duration: 200 }) });
+        const words = new Sentence(["a", first, "b", second]).evaluate({} as never);
+        const applyTransition = vi.fn();
+        const { state } = exposedState({ applyTransition, updateStyleSync: vi.fn(), flush: vi.fn() });
+
+        fireInstantRevealEvents(words, new Set<TextEvent>(), state as never);
+
+        expect(applyTransition).not.toHaveBeenCalled();
+        expect(img.state.currentSrc).toEqual(["angry", "school"]);
+    });
+
+    it("fireTextEventOnce passes animate through to the dispatch", () => {
+        const img = tagImage();
+        const applyTransition = vi.fn();
+        const { state } = exposedState({ applyTransition, updateStyleSync: vi.fn(), flush: vi.fn() });
+        const ev = TextEvent.expression(img, ["happy"], { transition: new Dissolve({ duration: 200 }) });
+
+        fireTextEventOnce(ev, new Set<TextEvent>(), state as never, { animate: true });
+
+        expect(applyTransition).toHaveBeenCalledTimes(1);
     });
 });

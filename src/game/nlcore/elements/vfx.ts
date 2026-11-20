@@ -73,8 +73,13 @@ export type VfxStateRaw = {
  * A full-screen looping video overlay for particle and ambience effects
  * (falling petals, light dust, rain, snow, fog, light flares).
  *
- * The effect is a pre-rendered video that plays above the scenes and videos of the
- * stage; camera transforms apply to it like any other stage content.
+ * The effect is a pre-rendered video that plays over the scene that shows it, above that scene's
+ * sprites and videos; camera transforms apply to it like any other stage content.
+ *
+ * Like everything else on the stage, an overlay belongs to the scene that shows it: rain started in
+ * one scene stops when the story jumps to another, waits hidden and paused while its scene has
+ * called another, and comes back when the call returns. A scene that wants the rain to go on shows
+ * it itself.
  */
 export class Vfx extends Actionable<VfxStateRaw> {
     /**@internal */
@@ -166,8 +171,8 @@ export class Vfx extends Actionable<VfxStateRaw> {
      *
      * A paused video decodes nothing, so a hidden overlay costs no frame time — and keeping the
      * element means the next {@link show} has a decoder already holding the clip instead of starting
-     * over. Both halves of the same decision: stop the work, keep the warmth. Only a new game or a
-     * load clears the stage.
+     * over. Both halves of the same decision: stop the work, keep the warmth. The overlay leaves the
+     * stage when its scene does.
      *
      * The action waits for the fade-out to finish. Calling it while the overlay is
      * not shown is a no-op (a weak warning is logged).

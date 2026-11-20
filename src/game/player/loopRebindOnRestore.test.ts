@@ -50,7 +50,7 @@ describe("restoring an element resolves its loop anchor", () => {
     it("rebinds after loading a save", () => {
         const liveGame = read("../nlcore/game/liveGame.ts");
 
-        expect(methodBody(liveGame, "deserialize")).toContain("_rebindLoop(actionMaps)");
+        expect(methodBody(liveGame, "private restoreSavedGame")).toContain("_rebindLoop(actionMaps)");
     });
 
     it("resolves against the story's action map, not the snapshot", () => {

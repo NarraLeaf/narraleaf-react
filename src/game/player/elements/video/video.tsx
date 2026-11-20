@@ -1,24 +1,50 @@
 import React from "react";
 import {GameState} from "@player/gameState";
-import {Video as GameVideo} from "@core/elements/video";
-import {useEffect, useRef} from "react";
+import {Video as GameVideo, VideoFadeOptions} from "@core/elements/video";
+import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {ExposedStateType} from "@player/type";
 import {RuntimeGameError} from "@core/common/Utils";
-import {useElementVisibility} from "@player/lib/useElementVisibility";
+import {toCssEasing, VisibilityFader} from "@player/lib/visibilityFader";
+import {ParkedPlayback} from "@player/lib/parkedPlayback";
 
 /**@internal */
 export default function Video(
-    {gameState, video}: {
+    {gameState, video, parked = false}: {
         gameState: GameState;
         video: GameVideo;
+        /**
+         * The clip's scene is parked behind a call. The clip stops where it is and starts again from
+         * there when the call returns, as the scene's music does; a play or a resume asked for in the
+         * meantime waits for the return instead of sounding over the scene that was called.
+         */
+        parked?: boolean;
     }
 ) {
     const ref = useRef<HTMLVideoElement>(null);
-    const {show, hide} = useElementVisibility<HTMLVideoElement>(ref);
+    const [parking] = useState(() => new ParkedPlayback(() => ref.current, (err) => {
+        gameState.logger.error("Failed to resume video: " + err);
+    }));
+
+    // A layout effect, so a clip mounted inside a parked scene - a load lands there - is parked
+    // before the exposed state below can be asked to play it.
+    useLayoutEffect(() => {
+        parking.setParked(parked);
+    }, [parked]);
+    const [fader] = useState(() => new VisibilityFader(() => ref.current, (easing) => {
+        const css = toCssEasing(easing);
+        if (css === null) {
+            gameState.logger.debug("NarraLeaf-React: Video", "Easing has no CSS equivalent, falling back to \"ease\"", easing);
+            return "ease";
+        }
+        return css;
+    }));
 
     useEffect(() => {
         return gameState.events.depends([
             gameState.events.on(GameState.EventTypes["event:state.player.skip"], () => {
+                // A fade is a transition, not the clip: a skip lands it on its end state whether or
+                // not the game lets a skip cut the clip itself short.
+                fader.skip();
                 if (gameState.game.config.allowSkipVideo) {
                     skip();
                     gameState.logger.log("NarraLeaf-React: Video", "Skipped");
@@ -27,13 +53,17 @@ export default function Video(
         ]).cancel;
     }, []);
 
-    useEffect(() => {
-        hide();
-
-        if (video.state.display) {
-            show();
+    // On every render the element shows what `display` says, unless a fade has it. On the first one
+    // that is the clip coming back from a save; after it, it is what puts the clip back the way a
+    // step back left `display` - an undo changes the state and re-renders the stage, and the element
+    // has to follow it rather than keep whatever the line being left had on screen.
+    useLayoutEffect(() => {
+        if (!fader.isFading()) {
+            fader.set(video.state.display);
         }
-    }, []);
+    });
+
+    useEffect(() => () => fader.dispose(), [fader]);
 
     useEffect(() => {
         if (!ref.current) return;
@@ -54,13 +84,17 @@ export default function Video(
             mounted = true;
 
             gameState.mountState<ExposedStateType.video>(video, {
-                show: () => {
+                show: (options?: VideoFadeOptions) => {
                     if (!ref.current) throw invalidRef();
-                    show();
+                    return fader.fadeTo(true, options);
                 },
-                hide: () => {
+                hide: (options?: VideoFadeOptions) => {
                     if (!ref.current) throw invalidRef();
-                    hide();
+                    return fader.fadeTo(false, options);
+                },
+                cancelFade: () => {
+                    fader.cancel();
+                    fader.set(video.state.display);
                 },
                 play: () => {
                     if (!ref.current) throw invalidRef();
@@ -125,6 +159,11 @@ export default function Video(
                                 el.removeEventListener("error", onError);
                             });
 
+                            if (!parking.requestPlay()) {
+                                // The listeners above are armed, so the play still ends when the
+                                // clip does - it just does not start until the call returns.
+                                return;
+                            }
                             el.play().catch((err) => {
                                 gameState.logger.error("Failed to play video: " + err);
                                 settle();
@@ -134,16 +173,21 @@ export default function Video(
                 },
                 pause: () => {
                     if (!ref.current) throw invalidRef();
+                    parking.cancel();
                     ref.current.pause();
                 },
                 resume: () => {
                     if (!ref.current) throw invalidRef();
+                    if (!parking.requestPlay()) {
+                        return Promise.resolve();
+                    }
                     return ref.current.play().catch((err) => {
                         gameState.logger.error("Failed to resume video: " + err);
                     });
                 },
                 stop: () => {
                     if (!ref.current) throw invalidRef();
+                    parking.cancel();
                     ref.current.pause();
                     ref.current.dispatchEvent(new Event("stopped"));
                 },

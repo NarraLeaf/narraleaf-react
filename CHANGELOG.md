@@ -1,5 +1,531 @@
 # Changelog
 
+## [1.5.1]
+
+### _Features_
+
+- **A screenshot can be taken at the size it is wanted.** `LiveGame.captureImage(options)` draws the
+  stage straight at `maxEdge` pixels on its longest edge and encodes it once, as PNG, JPEG or WebP.
+  `capturePng` draws the stage at the size it is shown in the window times the display's pixel ratio
+  - 2800 x 1576 for a 1400-wide stage on a 2x display, 3840 x 2160 for a full-screen game on a 4K one -
+  so a caller that only wants a save-slot thumbnail used to decode that PNG, draw it small and encode
+  it again. Drawn straight at 960 pixels as WebP, the picture skips the full-size PNG and the second
+  encoding. Measured in a 1920 x 1080 visual novel on a 2x display, the script time of a save's
+  picture roughly halved and the longest frame it blocks fell by about a fifth: cloning the stage and
+  rasterising the clone, which decodes every image it inlines at full size, does not depend on the
+  size the picture is drawn at, and stays.
+
+  ```ts
+  const thumbnail = await liveGame.captureImage({
+      maxEdge: 960,          // longest edge in pixels; never larger than capturePng draws
+      type: "image/webp",    // or "image/png" (default), "image/jpeg"
+      quality: 0.85,         // 0-1 for JPEG and WebP; defaults to screenshotQuality
+      backgroundColor: "#000", // painted under the stage, for encodings without transparency
+  });
+  ```
+
+  A type the browser cannot encode answers with a PNG, as `HTMLCanvasElement.toDataURL` does, so check
+  the data URL's prefix when the encoding matters. Without options the picture is the one `capturePng`
+  gives. The options type is exported as `CaptureImageOptions`. `capturePng`, `captureJpeg`,
+  `captureSvg` and `capturePngBlob` are unchanged.
+
+- **A word renderer can leave the player's clicks to the line.** `registerWordRenderer` takes a third
+  argument, `{interactive: false}`, for a renderer that only changes how text looks. A word drawn by
+  a registered renderer takes the player's clicks once it is revealed, so that a glossary term can
+  open when clicked; for shaking or waving text that meant the part of the dialogue box the word
+  covered stopped advancing the line. A word whose renderer was registered with `interactive: false`
+  lets the click through, and the line advances as it does on plain text.
+
+  ```ts
+  registerWordRenderer("shake", ShakingText, {interactive: false});
+  new Word("别过来！", {render: "shake", data: {intensity: 3}});
+  ```
+
+  The default is unchanged: without the option, and for a component a word carries directly, the
+  word takes its own clicks. The options type is exported as `WordRendererOptions`.
+
+- **`LiveGame.deserialize` checks which story wrote the save.** The save's `meta.storyHash` is compared
+  with the loaded story's hash. A mismatch is logged as a warning, which is the old behaviour plus a
+  line in the log: a game updated after release usually still loads its old saves. Pass
+  `requireMatchingStory` to refuse such a save instead; it throws before any state changes. The options
+  type is exported as `DeserializeOptions`.
+
+  ```ts
+  liveGame.deserialize(savedGame, { requireMatchingStory: true });
+  ```
+
+- **An expression switch inside a line can cross-fade.** `TextEvent.expression` takes a `transition`
+  option, an `ImageTransition` such as `Dissolve`, that draws the swap when the typewriter reaches the
+  token. Without one the swap is instant, as before. A character that changes expression several
+  times in one line no longer jumps from face to face: a short dissolve of 150-250 ms reads as one
+  continuous performance.
+
+  ```ts
+  character.say([
+      "I-it's not like ",
+      TextEvent.expression(alice, ["blush"], { transition: new Dissolve({ duration: 200 }) }),
+      "I did it for you…",
+  ]);
+  ```
+
+  The image's state takes the new appearance the moment the token is revealed, and the transition
+  only draws it, so a save taken during the fade holds the new expression. The transition plays only
+  when the typewriter reaches the token: a skip, or a line revealed all at once, swaps instantly, so
+  skipping a line does not leave a string of fades behind it. A token that fires while the previous
+  token's fade is still running finishes that fade first. Each firing plays its own copy of the
+  transition, so one `TextEvent` can be reused across lines and replays.
+
+### _Fixes_
+
+- **A transition that replaces a running one on the same element plays.** Applying a transition to an
+  image, a text or a layer while another was still running on it finished the old one first, but the
+  old one finishes on the next animation frame, and when it did it cleared the element's transition
+  state and the references to its layers, which by then belonged to the new transition. The new
+  transition threw `Displayable: Trying to assign properties to unmounted element` on its first
+  frame and stayed on its starting pose: an image kept the outgoing picture at full opacity and the
+  incoming one at zero. A finished transition now leaves the element alone once a newer one has taken
+  it over, and a transition that was still waiting for its images to load settles at once when it is
+  replaced. A `char` or `setSrc` transition waits for its own end before the next action runs, so the
+  overlap came from inline expression switches; see the `TextEvent` transition above.
+
+- **A save can no longer point the stage at a local file or a script URL.** A save is a file on the
+  player's disk, and loading one used to apply whatever image source and CSS values it carried. Now an
+  image's saved source, and every `url(...)` inside a saved transform value (`maskImage`, `filter` and
+  the like), has to pass `Utils.isSafeRestoredURL`: relative paths, `http(s):`, `blob:`, `data:image/`
+  and the host's own schemes pass; `javascript:`, `vbscript:`, `file:`, `filesystem:` and non-image
+  `data:` do not. A refused image source leaves the image on what the script gave it; a refused
+  transform value falls back to its default. A transform value with a CSS escape is refused, because an
+  escape can spell `url(` or a scheme where a plain search does not see it.
+
+  ```ts
+  Utils.isSafeRestoredURL("nlgame://asset/42");     // true
+  Utils.isSafeRestoredURL("file:///etc/passwd");    // false
+  Utils.isSafeRestoredCSSValue("url('a.png') 0 0"); // true
+  ```
+
+## [1.5.0]
+
+### _Features_
+
+- **A backlog entry records the avatar its line was shown with.** `GameElementHistory`'s `say` entry
+  has a new `avatar` field: the URL of the avatar the dialog showed for the line, resolved when the
+  line is reached, by the same rules `useAvatar` uses - the sentence's own avatar, else the avatar of
+  the portrait the speaker wears on stage, else the character's - or `null` when the line showed
+  none. A backlog screen reads the speaker's face at that line from here. Resolving the avatar again
+  when the backlog is opened answers with the look the speaker has by then, which is not the look she
+  had at the line.
+
+  ```ts
+  for (const entry of liveGame.getHistory()) {
+      if (entry.element.type === "say") {
+          console.log(entry.element.character, entry.element.avatar); // "Alice", "/avatars/smile.png"
+      }
+  }
+  ```
+
+  The field is saved with the backlog, so a loaded game's entries keep their faces. It is absent on
+  entries recorded by an earlier version, including those in older saves. A resolver that throws
+  while the line is recorded leaves the entry with `null`; the line itself is unaffected.
+
+## [1.4.2]
+
+### _Fixes_
+
+- **A `Puppet` is drawn at the stage's scale, like an image.** A puppet's box was laid out at its
+  logical size in CSS pixels whatever size the stage was drawn at, so on a stage shown smaller than
+  the game's `width` and `height` the character came out too large and was cut off at the stage's
+  edges. A 1920 x 1080 game shown 1400 wide drew a stage-size puppet in a 1920 x 1080 box over a
+  1400 x 787.5 stage: 1.37 times too large, the head cut by the top of the stage and the feet by the
+  bottom. The box is now its logical size times the stage scale, the scale an image is drawn at, and
+  it follows the stage when the window is resized.
+
+  What a backend sees does not change. `ctx.size` and `resize()` stay in the game's logical pixels;
+  the element the backend was mounted in keeps that size and is scaled onto the box, so a backend
+  that sizes its canvas from `ctx.size` and one that fills its container both fit, and a stage
+  resize is not a `resize()`.
+
+  A puppet on a stage drawn at the game's own size looks exactly as before. On any other stage it
+  is now the size an image of the same logical size would be.
+
+## [1.4.1]
+
+### _Fixes_
+
+- **A click on a line that is still typing no longer cuts it off at its `Pause`.** Clicking the default
+  dialog box while the text before a `Pause` was being typed revealed that text and then reported the
+  whole line as finished. The next click moved on to the following line, and the rest of the line was
+  never shown. The line now waits at the pause, and the next click carries it on.
+
+  The cause was a press reaching the line while its typewriter was not running: the typewriter starts
+  one timer after the line appears, and starts again one timer after each press that cuts it short. A
+  click on the default box reaches the line twice in the same task, once through the box's own handler
+  and once through the stage's, so the second half of every such click landed in that gap. Code that
+  advances for the player, such as a `Next` as soon as a line appears or a loop that presses until the
+  text is out, landed there too. A press in the gap now stops at the pause like any other press, and a
+  second press in the same gap stops at the same pause, so one click is still one advance. Lines
+  without a `Pause`, and a held skip key (`forceSkip`), behave as before.
+
+- **A sound moved with `seek()` while it plays keeps its place when it is paused or saved.** The
+  bundled `@narraleaf/sound` read the play head of a decoded clip wrongly once it had been sought
+  while playing: right after `seek(2.5)` it read about -2.4 seconds, although the clip itself played
+  from 2.5. Pausing such a sound afterwards resumed it from the beginning, and a save taken after the
+  seek recorded the wrong position for it. The engine now depends on `@narraleaf/sound` `^1.0.1`,
+  which reads the play head where the seek put it. Music that loops with no end time is streamed
+  through a media element and was never affected.
+
+## [1.4.0]
+
+### _Features_
+
+- **A layer can sit at a distance from the camera.** `parallax` on a layer's config is the share of
+  the camera's movement the layer follows, so a pan or a zoom carries every layer along by a
+  different amount and a flat stage reads as deep:
+
+  ```ts
+  const sky = new Layer("sky", {zIndex: -3, parallax: 0});        // stays put
+  const hills = new Layer("hills", {zIndex: -2, parallax: 0.3});  // far away
+  const branches = new Layer("branches", {zIndex: 5, parallax: 1.4}); // nearer than the stage
+
+  const forest = new Scene("forest", {
+      background: "forest.png",
+      backgroundLayerParallax: 0.6, // the scene's own background layer
+      layers: [sky, hills, branches],
+  });
+
+  forest.action([
+      story.camera.pan({xalign: 0.5, yalign: 0.5, xoffset: 120}, 1200, "easeInOut"),
+      story.camera.zoom(1.3, 800),
+  ]);
+  ```
+
+  - `1` - the default - follows the camera exactly, as every layer always has; `0` stays where it
+    is however the camera moves; values in between read as distance; values above `1` read as nearer
+    than the stage and move and grow more than the camera does.
+  - **Pans and zooms are shared out; a rotation turns every layer together**, and so does a stretch
+    (`scaleX` / `scaleY`).
+  - **The layers move in the camera's own animation**, from the same keyframes, so there is no frame
+    in which one layer has moved and another has not - and a skip finishes them together.
+  - **A layer that arrives with a new scene takes its place at once.** The camera keeps its pose
+    across scenes while a scene's layers are built fresh, so a layer is put where its distance says
+    from the camera's pose at the moment it appears, not at the next camera move. The same holds
+    after loading a save: the camera's pose is in the save and the distance is in the story, so
+    there is nothing new to save.
+  - **A layer's own transform still applies**, inside its share of the camera's movement and in its
+    own frame: a layer can be far away and slowly drifting at the same time.
+  - `backgroundLayerParallax` on a scene's config does the same for the layer the scene builds for
+    its background image, which cannot be handed a config the way a layer in `layers` can.
+  - A layer with no parallax renders exactly the markup it always did, and a camera with no layer at
+    a distance animates exactly the sequence it always did.
+
+## [1.3.0]
+
+### _Features_
+
+- **A service handler decides what being skipped means for it.** A handler the story is waiting on
+  is now asked when the player skips, through `ctx.skip`, and answers in one of three ways:
+
+  ```ts
+  class Minigames extends Service<{countdown: [seconds: number]; fishing: []}, null> {
+      constructor() {
+          super();
+          // Finish now: skipping ends the countdown at once.
+          this.on("countdown", async (ctx, seconds) => {
+              await new Promise<void>(resolve => {
+                  const timer = setTimeout(resolve, seconds * 1000);
+                  ctx.skip.onRequest(() => {
+                      clearTimeout(timer);
+                      resolve();
+                  });
+                  ctx.signal.addEventListener("abort", () => clearTimeout(timer));
+              });
+          });
+          // Refuse: a fast-forward cannot fish for the player, so it stops here.
+          this.on("fishing", async (ctx) => {
+              ctx.skip.refuse("waiting for the fishing minigame");
+              await playFishing(ctx.signal);
+          });
+      }
+      serialize() { return null; }
+      deserialize() {}
+  }
+  ```
+
+  - **Finish now.** `ctx.skip.onRequest(listener)` is called the first time the player skips, and
+    once more the first time it is in the skip mode - `request.forced`, the same distinction a line
+    of dialogue draws between one press of the skip key and holding it. The handler puts whatever it
+    was doing into its final state and returns. `ctx.skip.requested` and `ctx.skip.forced` say the
+    same thing as flags, and `ctx.skip.fastForwarding` whether the game is in
+    `liveGame.fastForward()`, for a handler that can go straight to its final state on entry.
+  - **Ignore it.** A handler that never looks at `ctx.skip` - every handler written so far - behaves
+    exactly as before: the skip mode waits for it, and a fast-forward waits up to its `stepTimeout`
+    and then reports `"stalled"`.
+  - **Refuse.** `ctx.skip.refuse(message?)` returns a function that withdraws the refusal; refusals
+    stack. The skip mode still waits for the handler, and a fast-forward stops at it at once - see
+    below.
+
+  Requests are broadcast, as they are to everything else on the stage: a handler running in a
+  `Control.all` branch, or an async one, is asked whenever the player skips. A click on the stage is
+  not a request. Only an asynchronous handler is ever asked; a synchronous one has finished before
+  the player could ask, and refusing in one logs a warning.
+
+- **`ctx.signal` is aborted when a handler's run is cancelled** - the player stepped back past it, the
+  story jumped away from it, a `Control.any` it ran in was won by another branch, or a save was
+  loaded. It is a standard `AbortSignal`, so it can be handed to `fetch` and anything else that takes
+  one. A cancellation cannot be refused and does not wait for the handler: the game has moved on by
+  the time the signal fires, and a handler still running should check `ctx.signal.aborted` after each
+  `await` before touching the game again. A rejection the cancelled run ends with - the `AbortError`
+  of a `fetch` - is not reported.
+
+- **`liveGame.fastForward()` reports `"refused"`** when it stops at a step that refused to be skipped,
+  and leaves that step running where it is. `refusal` carries the message the step gave, if any; it
+  is for showing to a person and nothing in the engine reads it. Before, the run waited the whole
+  `stepTimeout` on such a step and reported `"stalled"`.
+
+### _Changes_
+
+- **A handler is waited for when it returns a promise, however it was written.** The engine told an
+  asynchronous handler from a synchronous one by how the function was declared, so a plain function
+  returning a promise - `(ctx) => fetch(url)`, or an `async` handler compiled down to a plain function
+  by a build targeting an older language level - was run and not waited for. It is now waited for,
+  like an `async` one. A handler that returns a promise on purpose and wants the story to carry on
+  should start the work without returning it.
+- **`ctx.onAbort` is deprecated** in favour of `ctx.signal`, which fires on the same occasions. It
+  still works, and a listener registered after the run was cancelled now runs at once rather than
+  never.
+
+### _Fixes_
+
+- **A service handler that fails stops the story with an error rather than without one.** The engine
+  never listened for a handler's promise rejecting, so a failing `async` handler left the story waiting
+  on it forever, with nothing but an unhandled rejection in the console to say why. The step now fails
+  and the error is reported, as for any other action that fails while the story waits on it.
+
+### Upgrading
+
+- **`fastForward()`'s `reason` gained `"refused"`**, and the result gained `refusal?: string`. Only a
+  story whose services call `ctx.skip.refuse()` can produce it; an exhaustive `switch` over `reason`
+  needs the extra arm to keep compiling.
+- **`ServiceHandlerCtx` gained `signal` and `skip`.** Code that builds a context by hand - a test
+  calling a handler directly - needs to supply them.
+- **A handler that returns a promise without being declared `async` now holds the story** until the
+  promise settles. See _Changes_.
+
+## [1.2.1]
+
+### _Fixes_
+
+- **A scene the host named names the actions it builds for itself.** A scene builds its root, and the
+  steps that put it, its layers, its background and its displayables on the stage each time it is
+  entered, while the story is constructed - where no host can reach them to give them a static id.
+  They were numbered `a-<n>` by their place in a walk of the whole story, so a line written ahead of
+  them, or the story starting from another scene, gave their numbers to other actions. Several of
+  those steps wait (for the scene's first frame, for the previous music to fade), and a save taken on
+  one resumed on whatever action held its number at load time.
+
+  When the scene has a static id (`DevTools.setElementStaticId`), its root is now `<scene>:root` and
+  each step `<scene>:root:<type>:<subject>` - the subject `self` for the scene's own step, otherwise
+  the static id of the element the step acts on. A scene with no static id is numbered exactly as
+  before, and naming one moves no other action's number: every action still numbered keeps the number
+  it had. A name another action already holds is given up rather than duplicated, so construction
+  cannot start failing over it.
+
+  A story whose scenes are named hashes differently (`Story.hash()` includes action ids), so a save
+  written by 1.2.0 for such a story no longer matches its `meta.storyHash`.
+
+## [1.2.0]
+
+### _Changes_
+
+- **A `Vfx` overlay belongs to the scene that shows it.** Rain, snow or petals started in a scene
+  are part of that scene's stage, and every scene boundary does to them what it does to the scene's
+  sprites and videos:
+
+  - **A plain `jumpTo`** takes the overlay off the stage with the scene it leaves, back to its
+    authored state. Before, an overlay was the one stage object no scene owned: rain started in the
+    first scene kept falling through every scene after it until something hid it. A scene that wants
+    the rain to go on shows the overlay itself. With a transition, the overlay leaves on the same
+    frames as the rest of its scene and is covered by the incoming scene.
+  - **A returnable jump** parks the calling scene, and its overlays with it: kept, hidden and paused
+    while the called scene runs, moving again when the call returns. An overlay the called scene
+    showed leaves when the call returns, and so does a parked caller's overlay when a plain jump
+    gives the caller up.
+  - **Stepping back across any of these** puts the overlay back with its scene, through the live
+    undo or a loaded save.
+  - **A save** records which scene each overlay belongs to (`elements.vfx` on the scene's record). A
+    save written before this names no scene for its overlays; each is given to the scene the story
+    is running in.
+  - **An overlay shown again from a different scene** - a called scene showing its caller's rain -
+    moves to that scene, as a sprite or a video shown there would.
+  - `hide()` still keeps the overlay on the stage, invisible and paused, so the next `show()` is
+    instant; it leaves with its scene all the same.
+  - The story running out, and a new game, are unchanged.
+
+  Overlays are drawn inside the stage's scene group, right after their scene's videos, rather than
+  above every scene. An overlay's `zIndex` still orders it among the overlays and over its scene's
+  sprites and videos, and its `blendMode` still blends with the scene beneath it.
+
+- **`pause()`, `resume()` and `setPlaybackRate()` on a `Vfx` that is not on the stage do nothing.**
+  They threw "Vfx is being used before it is added to the game", which stopped the story; an overlay
+  kept in script and used after its scene is gone would now find it so. Each logs a warning and lets
+  the story carry on, as `hide()` on an overlay that is not shown always has. On an overlay that is
+  on the stage they behave exactly as before.
+
+### _Fixes_
+
+- **A video in a scene parked behind a call stops while the call runs.** A parked scene's clip was
+  hidden at once, but a clip still playing when the call was made - one played without waiting for
+  it - went on sounding to its end over the scene that had been called, while the scene's music
+  paused as it should. The clip now pauses with its scene and plays on from where it stopped when
+  the call returns, like the scene's music. A play or a resume asked for while the scene is parked
+  waits for the return. Overlays do the same.
+
+## [1.1.1]
+
+### _Fixes_
+
+- **A video leaves the stage with the scene that showed it.** A clip belongs to the scene running
+  when it goes on the stage, and every boundary that scene crosses now does to the clip what it does
+  to the scene's sprites:
+
+  - **A plain `jumpTo`** unloads the scene it leaves, and the clip goes with it, back to its authored
+    state. Before, a clip that had played to its end kept its last frame over the whole of the next
+    scene, and nothing in that scene could take it down. With a transition, the clip leaves on the
+    same frames as the rest of its scene and is covered by the incoming scene the way its sprites are.
+  - **A returnable jump** parks the calling scene, and the caller's clip with it: kept, with its state,
+    but not painted while the called scene runs, and back on screen when the call returns. A clip the
+    called scene showed leaves when the call returns, and so does a parked caller's clip when a plain
+    jump gives the caller up.
+  - **Stepping back across any of these** - the jump, the return, a jump that gave up a call - puts
+    the clip back with its scene, whether the step goes through the live undo or a loaded save.
+  - **A save** records which scene each clip belongs to (`elements.videos` on the scene's record), so
+    a save taken during a call loads with the caller's clip still parked behind the call. A save
+    written before this names no scene for its clips; each is given to the scene the story is running
+    in, which is the one it would have joined.
+  - **A clip shown again from a different scene** - the called scene showing its caller's clip - moves
+    to that scene, as a sprite shown there would.
+  - The story running out, and a new game, are unchanged: the first leaves the stage as it is, the
+    second clears it, clips included.
+
+  Clips are now drawn inside the stage's scene group, each right after its scene, rather than above
+  every scene; on a stage with one scene that paints exactly as before. A clip the preloader is
+  holding sits at the end of the same group, so the story taking it over still does not remount it.
+
+- **`pause()`, `resume()`, `seek()` and `stop()` on a video that is not on the stage do nothing.**
+  They threw "Video is being used before it is added to the game", which stopped the story. A clip
+  played without waiting for it leaves the stage when it ends, at a moment set by how fast the player
+  reads, so a later row that pauses or stops it could land on either side of that. Each now logs a
+  warning and lets the story carry on, as `hide()` has since 1.1.0. On a clip that is on the stage
+  they behave exactly as before.
+
+## [1.1.0]
+
+### _Features_
+
+- **A video can fade in and out.** `Video.show()` and `Video.hide()` take an optional
+  `VideoFadeOptions` - a `duration` in milliseconds and, if wanted, an `easing` - and the action
+  waits for the fade to finish:
+
+  ```ts
+  const cutscene = new Video({src: "/movies/festival.mp4"});
+
+  scene.action([
+      cutscene.show(),
+      cutscene.play(),
+      // The last frame fades away over 600 ms and the clip leaves the stage.
+      cutscene.hide({duration: 600}),
+      "The festival was over before anyone noticed.",
+  ]);
+  ```
+
+  This is what a cutscene that clears itself away is written as. A clip that has played to its end
+  holds its last frame, and the stage draws videos above every scene, so until something hides it that
+  frame covers the rest of the game - a `jump` included. `play` already waits for the end, so the
+  `hide` written after it runs exactly when the clip finishes, and with a duration it fades out the
+  frame the clip ended on rather than cutting to whatever is underneath.
+
+  A fade in starts once the clip can present a frame, so what fades in is the picture and not an empty
+  rectangle. The easing takes the same values a `Vfx` fade does - a named curve or a cubic-bezier as
+  four numbers - and is linear when omitted.
+
+  - **A skip lands a fade on its end state at once.** It is a transition rather than the clip, so it
+    does so whether or not `allowSkipVideo` lets a skip cut the clip itself short. Fast-forward does
+    the same.
+  - **Stepping back abandons a fade halfway.** The clip shows whatever the line stepped back to says,
+    and the hide that was fading leaves nothing behind: the clip is still on the stage and nothing
+    has been recorded for it.
+  - **A save taken during a fade out reloads the clip showing,** and the hide runs again from there.
+    The clip only leaves the stage, and stops being part of what a save records, once the fade is over.
+  - Without options, or with no positive `duration`, `show()` and `hide()` are instant, exactly as
+    before.
+
+### _Fixes_
+
+- **Stepping back across a `Video.hide()` brings the clip back.** Hiding a video takes it off the
+  stage, and its undo only restored the `display` flag, so the line stepped back to was missing a
+  clip it had been showing. The undo now puts the clip back on the stage as well.
+- **A video follows its `display` flag when the player steps back.** The element read the flag once,
+  when it mounted, so stepping back across a `show()` left the clip on screen on a line where it had
+  not yet been shown. It now shows what the flag says each time the stage renders, unless a fade is
+  in charge of it.
+- **Hiding a video that is not on the stage does nothing.** It threw "Video is being used before it
+  is added to the game" instead, which stopped the story at a second `hide()` of the same clip. A
+  `Vfx` hide has always treated this as nothing to do, with a warning in the log; a video now does
+  the same.
+
+### _Changes_
+
+- The exposed state of a video component (`ExposedState[ExposedStateType.video]`) changed with the
+  fade: `show` and `hide` take the `VideoFadeOptions` and return a promise that settles when the
+  fade ends, and `cancelFade` abandons a fade in flight. Only a host that mounts its own video
+  component against `GameState.mountState` sees this.
+
+## [1.0.1]
+
+### _Fixes_
+
+- **An image no longer shifts by a fraction of a pixel when a transition ends.** Whenever the stage
+  is scaled by a factor that is not a whole number - which is almost always: any window that is not
+  an exact multiple of the game's size, on any display above 100% - the picture a transition brings
+  in was placed differently from the way it sits once the transition is over. It was centred in the
+  image's box with `top`/`left: 50%` and a `translate(-50%, -50%)`, while the picture at rest sits on
+  the box's corner and the box takes its size. The browser snaps layout positions to the pixel grid
+  and leaves translations where they are, so the two placements fell on opposite sides of a rounding:
+  for the length of the transition the picture was drawn resampled up to a pixel away from where it
+  then came to rest, and on the frame it ended the whole picture stepped and sharpened. It happened on
+  background changes, image swaps and character expression changes with a transition, with every
+  built-in transition. Measured in a 125% window, on the frame a transition ended: a dissolve between
+  two backgrounds of one size changed a tenth of the background's pixels by up to 68/255, and a fade
+  through black moved the picture by 0.6 of a pixel and changed 15% of it by up to 103/255.
+
+  The incoming picture is now drawn on the pixels it will cover at rest. A picture the size of the
+  image's box - two backgrounds of one size, a picture fading into itself, a character's expressions
+  - sits in the box exactly as a picture at rest does, with no placement of its own. A picture of
+  another size or aspect ratio is anchored on the same edges as the image's position (the top and
+  left, or the bottom and right on an inverted axis) and moved by half the size difference with a
+  translate, which is the half the image's own translate takes over once the box has that picture's
+  size; the lengths the browser snaps and the lengths it does not are then the same during the
+  transition and after it. The box also takes the new picture's size in the same frame the
+  transition ends, rather than one frame later. A layered image's stacks are placed the same way.
+  Nothing about an image at rest moved: it is laid out exactly as before.
+
+  One case comes close without being exact: an image that its own transform also scales or rotates
+  (a character drawn at a zoom), changing to a picture of a different pixel size along an inverted
+  axis. The browser drops the fraction of such an image's own position before scaling it, and no
+  placement inside the image can reproduce that, so the picture can come out a shade sharper or
+  softer as the transition ends. It does not move.
+
+- **The picture on screen no longer drops out for a frame as a transition starts.** On the first
+  frame of an image transition the outgoing picture was pointed at a placeholder and straight back at
+  its own source, which was enough for the browser to let go of the decoded picture: the next frame
+  was painted without it, showing whatever was behind the image - black, behind a background. It
+  did not happen on every transition, which made it look like a flicker rather than a fault. Nothing
+  touches the picture on screen when a transition starts now; each side's source comes from the
+  transition alone.
+
+- **The incoming picture of a darkened image is darkened while it comes in.** On an image that is not
+  layered it used to be drawn at full brightness for the length of the transition and dimmed only
+  once the transition was over.
+
 ## [1.0.0]
 
 1.0.0 is 0.47.2 with the fixes below. Nothing a game does behaves differently and nothing was

@@ -15,14 +15,16 @@ import { ElementStateRaw, Story } from "@core/elements/story";
 import { Game } from "@core/game";
 import { Sound } from "@core/elements/sound";
 import { SoundToken } from "@narraleaf/sound";
-import type { CalledActionResult, NotificationToken, SavedGame, SerializedGameState } from "@core/gameTypes";
+import type { CalledActionResult, DeserializeOptions, NotificationToken, SavedGame, SerializedGameState } from "@core/gameTypes";
 import { SAVE_FORMAT_VERSION } from "@core/gameTypes";
 import { LiveGameEventHandler, LiveGameEventToken } from "@core/types";
 import { Awaitable, EventDispatcher, generateId, MultiLock } from "@lib/util/data";
 import { GameState } from "@player/gameState";
 import { Options } from "html-to-image/lib/types";
+import { CaptureImageOptions, captureImagePixelRatio } from "./captureImage";
 import { ActionExecutionInjection, ExecutedActionResult } from "../action/action";
 import { GameHistory } from "../action/gameHistory";
+import { SkipGate } from "../action/skipGate";
 import { StackModel, StackModelRawData, StackSnapshot } from "../action/stackModel";
 
 export type LiveGameEvent = {
@@ -287,13 +289,42 @@ export class LiveGame {
      * Note: even if you change just a single line of script, the saved game might not be compatible with the new version
      *
      * After calling this method, the current game state will be lost, and the stage will trigger force reset
+     *
+     * The save's `meta.storyHash` is compared with the loaded story. A mismatch is logged as a warning;
+     * with `options.requireMatchingStory` it throws instead, before anything is changed.
      */
-    public deserialize(savedGame: SavedGame) {
+    public deserialize(savedGame: SavedGame, options: DeserializeOptions = {}) {
         // This check is to prevent invalid usage
         if (!savedGame) {
             throw new Error("No saved game provided when trying to deserialize game state");
         }
 
+        this.assertGameState();
+        const story = this.story;
+        if (!story) {
+            throw new Error("No story loaded");
+        }
+
+        const savedHash = savedGame.meta?.storyHash;
+        const currentHash = story.hash();
+        if (savedHash !== currentHash) {
+            const message = savedHash
+                ? `The saved game was written by a different story (saved ${savedHash}, loaded ${currentHash})`
+                : "The saved game does not say which story wrote it";
+            if (options.requireMatchingStory) {
+                throw new Error(`${message}; it was not loaded.`);
+            }
+            this.gameState.logger.warn("LiveGame.deserialize", message);
+        }
+
+        this.restoreSavedGame(savedGame);
+    }
+
+    /**
+     * The restore itself, shared by {@link deserialize} and the history jump, which builds its save
+     * from the one already loaded and so has nothing new to check.
+     */
+    private restoreSavedGame(savedGame: SavedGame) {
         this.assertGameState();
         const gameState = this.gameState;
 
@@ -566,7 +597,7 @@ export class LiveGame {
                 history: history.serializeAll(),
             },
         };
-        this.deserialize(synthetic);
+        this.restoreSavedGame(synthetic);
         this.gameState.gameHistory.setCursor(this.gameState.gameHistory.indexOfToken(token));
 
         // A line arrived at by moving the play head is a line the player has already read, so in NVL
@@ -739,7 +770,8 @@ export class LiveGame {
      * Skipping a line is a *request* to the renderer, not a synchronous state change: it is
      * re-issued until the line settles. A line that never responds (an unskippable in-flight
      * media/transition step) ends the run with `"stalled"` rather than hanging — this method always
-     * settles.
+     * settles. A step that answers by refusing to be skipped (a user service calling
+     * `ctx.skip.refuse()`) ends it at once with `"refused"`, and is left running where it is.
      *
      * Because history accumulates the whole way, {@link getHistory} and
      * {@link restoreToHistory} cover the fast-forwarded span just like normal play.
@@ -762,9 +794,11 @@ export class LiveGame {
      *                              reports `"stalled"`. Defaults to 10000. Raise it if the story
      *                              fast-forwards through long unskippable media.
      * @returns why it stopped: `"action"` (reached `until.actionId`), `"menu"`, `"end"` (the stack
-     *          drained), `"maxSteps"`, or `"stalled"` (a line refused to settle). When an
-     *          `actionId` target was requested, `reachedTarget` is also set (`true` only for reason
-     *          `"action"`).
+     *          drained), `"maxSteps"`, `"stalled"` (a line did not settle within `stepTimeout`), or
+     *          `"refused"` (a line refused to be skipped). When an `actionId` target was requested,
+     *          `reachedTarget` is also set (`true` only for reason `"action"`). With `"refused"`,
+     *          `refusal` carries the message the step gave, if it gave one: it is for showing to a
+     *          person, not for deciding what to do next.
      *
      * Note: only the root execution stack is scanned for the target — an id buried inside an
      * in-flight parallel (`Control.all`/`any`) or async branch is not a stop point.
@@ -773,7 +807,11 @@ export class LiveGame {
         until?: "menu" | "end" | { actionId: string };
         maxSteps?: number;
         stepTimeout?: number;
-    } = {}): Promise<{ reason: "menu" | "end" | "maxSteps" | "action" | "stalled"; reachedTarget?: boolean }> {
+    } = {}): Promise<{
+        reason: "menu" | "end" | "maxSteps" | "action" | "stalled" | "refused";
+        reachedTarget?: boolean;
+        refusal?: string;
+    }> {
         this.assertGameState();
         const gameState = this.gameState;
         const until = options.until ?? "menu";
@@ -813,8 +851,17 @@ export class LiveGame {
                     // Suspended on a say / waitForClick: force-skip it and wait for the step to
                     // settle before the next skip, so the line's history entry and its snapshot
                     // are captured against a stable stack rather than a mid-mutation one.
-                    const settled = await LiveGame.settleSuspendedStep(gameState, awaitable, stepTimeout);
-                    if (!settled) {
+                    const outcome = await LiveGame.settleSuspendedStep(gameState, awaitable, stepTimeout);
+                    if (outcome === "refused") {
+                        const refusal = SkipGate.of(awaitable)?.getRefusal();
+                        gameState.logger.info("fastForward", "Stopped at a step that refused to be skipped", refusal ?? "");
+                        return {
+                            reason: "refused",
+                            ...(refusal !== undefined ? { refusal } : {}),
+                            ...missedTarget,
+                        };
+                    }
+                    if (outcome === "timeout") {
                         return { reason: "stalled", ...missedTarget };
                     }
                 } else {
@@ -842,22 +889,27 @@ export class LiveGame {
      * frame-ish interval makes the skip survive the render it has to outlive, and the deadline
      * guarantees this returns even for a step that genuinely cannot be skipped.
      *
-     * @returns `true` if the step settled, `false` if it outlived `timeout`.
+     * A step that refuses to be skipped (see {@link SkipGate}) is not asked again: the first request
+     * is what gives it the chance to refuse, and once it has, asking more would only skip whatever
+     * else is on the stage beside it.
+     *
+     * @returns `"settled"` if the step settled, `"refused"` if it refused to be skipped, `"timeout"`
+     *          if it outlived `timeout`.
      * @internal
      */
     private static settleSuspendedStep(
         gameState: GameState,
         awaitable: Pick<Awaitable<CalledActionResult>, "onSettled">,
         timeout: number,
-    ): Promise<boolean> {
-        return new Promise<boolean>(resolve => {
+    ): Promise<"settled" | "refused" | "timeout"> {
+        return new Promise<"settled" | "refused" | "timeout">(resolve => {
             let done = false;
             let timer: ReturnType<typeof setTimeout> | null = null;
             // The stand-in awaitables used by the seam tests return nothing from onSettled, so the
             // token is optional all the way down.
             let token: { cancel?: () => void } | void = undefined;
 
-            const finish = (settled: boolean) => {
+            const finish = (outcome: "settled" | "refused" | "timeout") => {
                 if (done) {
                     return;
                 }
@@ -867,12 +919,13 @@ export class LiveGame {
                     timer = null;
                 }
                 token?.cancel?.();
-                resolve(settled);
+                resolve(outcome);
             };
+            const refused = () => SkipGate.of(awaitable)?.isRefused() === true;
 
             // An already-settled awaitable calls back synchronously — hence `token` being declared
             // (and left undefined) before this line rather than after.
-            token = awaitable.onSettled(() => finish(true));
+            token = awaitable.onSettled(() => finish("settled"));
             if (done) {
                 token?.cancel?.();
                 return;
@@ -883,13 +936,22 @@ export class LiveGame {
                 if (done) {
                     return;
                 }
+                if (refused()) {
+                    finish("refused");
+                    return;
+                }
                 gameState.events.emit(GameState.EventTypes["event:state.player.skip"], true);
                 if (done) {
                     // Settled synchronously: the common case, and it costs no extra frame.
                     return;
                 }
+                if (refused()) {
+                    // Refused in answer to this request.
+                    finish("refused");
+                    return;
+                }
                 if (Date.now() >= deadline) {
-                    finish(false);
+                    finish("timeout");
                     return;
                 }
                 timer = setTimeout(pump, LiveGame.FastForwardSkipInterval);
@@ -943,6 +1005,43 @@ export class LiveGame {
         this.assertGameState();
         this.assertPlayerElement();
         return this.gameState.htmlToImage.toBlob(this.gameState.mainContentNode!, this.getScreenshotOptions());
+    }
+
+    /**
+     * Capture the game screenshot at the size and in the encoding it is wanted, will only include
+     * the player element
+     *
+     * The stage is drawn straight at `maxEdge` and encoded once, where `capturePng` followed by a
+     * resize draws it at the window's full size times the display's pixel ratio, encodes it as a
+     * PNG, decodes it and draws it again. For a thumbnail that is most of the cost of the picture.
+     *
+     * Returns an image data URL
+     *
+     * @example
+     * ```ts
+     * // A save-slot thumbnail: 960 pixels on its longest edge, as WebP
+     * const thumbnail = await liveGame.captureImage({
+     *     maxEdge: 960,
+     *     type: "image/webp",
+     *     quality: 0.85,
+     *     backgroundColor: "#000",
+     * });
+     * ```
+     */
+    async captureImage(options: CaptureImageOptions = {}): Promise<string> {
+        this.assertScreenshot();
+        const node = this.gameState.mainContentNode!;
+        const pixelRatio = captureImagePixelRatio(
+            {width: node.clientWidth, height: node.clientHeight},
+            options.maxEdge,
+            window.devicePixelRatio || 1,
+        );
+        const canvas = await this.gameState.htmlToImage.toCanvas(node, {
+            ...this.getScreenshotOptions(),
+            pixelRatio,
+            ...(options.backgroundColor !== undefined ? {backgroundColor: options.backgroundColor} : {}),
+        });
+        return canvas.toDataURL(options.type ?? "image/png", options.quality ?? this.game.config.screenshotQuality);
     }
 
     /**

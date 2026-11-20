@@ -86,6 +86,62 @@ export class Utils {
         return src?.src !== undefined && typeof src.src === "string";
     }
 
+    /**
+     * Whether a URL read back from a saved game may be handed to the stage.
+     *
+     * A save is a file on the player's disk, so anything in it may have been written by someone
+     * other than the game. Relative paths and the host's own schemes pass; script and local-file
+     * schemes do not, and a `data:` URL only passes when it is an image.
+     */
+    public static isSafeRestoredURL(url: string): boolean {
+        // Browsers ignore control characters and spaces when they read a scheme, so `java\tscript:`
+        // is still `javascript:` by the time it is used.
+        // eslint-disable-next-line no-control-regex
+        const compact = url.replace(/[\u0000-\u0020]/g, "");
+        const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(compact);
+        if (!match) {
+            return true;
+        }
+        const scheme = match[1].toLowerCase();
+        if (scheme === "data") {
+            return /^data:image\//i.test(compact);
+        }
+        return !Utils.UnsafeRestoredSchemes.has(scheme);
+    }
+
+    /**
+     * Whether a CSS value read back from a saved game is safe to apply.
+     *
+     * Values such as `maskImage` and `filter` may carry `url(...)`; each URL inside has to pass
+     * {@link isSafeRestoredURL}. A value with a CSS escape is refused outright, because an escape
+     * can spell `url(` or a scheme in a way a plain search does not see.
+     */
+    public static isSafeRestoredCSSValue(value: string): boolean {
+        if (value.includes("\\")) {
+            return false;
+        }
+        for (const match of value.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)) {
+            if (!Utils.isSafeRestoredURL(match[2])) {
+                return false;
+            }
+        }
+        if (/image-set\s*\(/i.test(value)) {
+            for (const match of value.matchAll(/(['"])(.*?)\1/g)) {
+                if (!Utils.isSafeRestoredURL(match[2])) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static readonly UnsafeRestoredSchemes: ReadonlySet<string> = new Set([
+        "javascript",
+        "vbscript",
+        "file",
+        "filesystem",
+    ]);
+
     public static isExternalSrc(src: string) {
         return src.startsWith("http://") || src.startsWith("https://");
     }

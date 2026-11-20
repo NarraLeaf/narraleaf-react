@@ -54,7 +54,10 @@ const LOAD_GATE_TIMEOUT = 4000;
 
    These z-indexes only order the scenes against each other. `Player.tsx` renders the scene list
    inside an `isolation: isolate` group for exactly that reason: left in the camera's own stacking
-   context they would also outrank the videos and vfx, which sit at `auto` and `0`. */
+   context they would also compete with everything else drawn there. A scene's clips and overlays
+   are inside the group with it, each right after its root and posed with it (see `bindCompanion`),
+   so the incoming scene covers the outgoing scene's clips and rain exactly as it covers its
+   sprites. */
 /**@internal */
 export const SCENE_BASE_STYLE: CSSProps = {
     zIndex: 0,
@@ -176,6 +179,13 @@ type RunningStageTransition = {
  */
 export class StageTransitionManager {
     private readonly sceneElements: Map<string, HTMLElement> = new Map();
+    /**
+     * Nodes that paint as part of a scene without being inside its root, by scene id - the clips and
+     * overlays a scene put on the stage. Every pose written to a root is written to these too.
+     */
+    private readonly companions: Map<string, Set<HTMLElement>> = new Map();
+    /** Companions that keep their own z-index - see {@link bindCompanion}'s `keepZIndex`. */
+    private readonly ownZIndex: WeakSet<HTMLElement> = new WeakSet();
     private overlayHost: HTMLElement | null = null;
     private running: RunningStageTransition | null = null;
 
@@ -199,9 +209,96 @@ export class StageTransitionManager {
             if (this.gameState.isSceneSuspended(scene)) {
                 Object.assign(element.style, stageRetiredStyle());
             }
+            // A companion bound before its root mounted - a load remounts both - took its pose from
+            // the scene's flag alone; the root is the authority from here on.
+            this.companions.get(scene.getId())?.forEach(companion => this.copyPose(scene, companion));
         } else {
             this.sceneElements.delete(scene.getId());
         }
+    }
+
+    /**
+     * Bind a node that paints as part of `scene` without being inside its root, and return the
+     * unbind.
+     *
+     * A clip is the one such node. It cannot live inside the root - a clip the preloader is holding
+     * has no scene yet, and moving its element into one when the story takes it over would remount it
+     * and throw away the buffer the preloader filled - so it is a sibling of the root instead, right
+     * after it, and is posed with it: every frame of a stage transition, every settle, every
+     * suspension written to the root is written here too. Leaving a scene on a fade fades its clips
+     * with it, and a scene parked behind a call stops painting its clips as well as its sprites.
+     *
+     * The node takes the scene's current pose at once, so a clip shown while its scene is parked, or
+     * mounted again by a load, does not paint for a frame first.
+     *
+     * An overlay (`Vfx`) is bound the same way, with `keepZIndex`: its z-index is the author's, and
+     * orders it among the scene's other overlays and over the scene's clips, so the pose is written
+     * to it without one. It sits right after its scene's root and clips either way, below the scene
+     * coming in on a transition.
+     */
+    public bindCompanion(scene: Scene, element: HTMLElement, options: {keepZIndex?: boolean} = {}): VoidFunction {
+        const id = scene.getId();
+        let set = this.companions.get(id);
+        if (!set) {
+            set = new Set();
+            this.companions.set(id, set);
+        }
+        set.add(element);
+        if (options.keepZIndex) {
+            this.ownZIndex.add(element);
+        } else {
+            this.ownZIndex.delete(element);
+        }
+        this.copyPose(scene, element);
+
+        return () => {
+            const current = this.companions.get(id);
+            if (!current?.delete(element)) {
+                return;
+            }
+            if (!current.size) {
+                this.companions.delete(id);
+            }
+            // Bound to no scene, the node answers to nothing but its own visibility.
+            this.writePose(element, stageSettledStyle());
+        };
+    }
+
+    /** Write a pose to a root or a companion, leaving a companion's own z-index alone. */
+    private writePose(element: HTMLElement, style: CSSProps): void {
+        if (this.ownZIndex.has(element) && "zIndex" in style) {
+            const rest = {...style};
+            delete rest.zIndex;
+            Object.assign(element.style, rest);
+            return;
+        }
+        Object.assign(element.style, style);
+    }
+
+    /** The root of `scene` and every node posed with it. */
+    private paintedBy(sceneId: string): HTMLElement[] {
+        const root = this.sceneElements.get(sceneId);
+        const companions = this.companions.get(sceneId);
+        return [...(root ? [root] : []), ...(companions ? [...companions] : [])];
+    }
+
+    /** Give a companion whatever pose the scene's root is in now. */
+    private copyPose(scene: Scene, element: HTMLElement): void {
+        const root = this.sceneElements.get(scene.getId());
+        if (!root) {
+            this.writePose(element, this.gameState.isSceneSuspended(scene) ? stageRetiredStyle() : stageSettledStyle());
+            return;
+        }
+        const pose = stageSettledStyle() as Record<string, unknown>;
+        const from = root.style as unknown as Record<string, string>;
+        const to = element.style as unknown as Record<string, string>;
+        const keepZIndex = this.ownZIndex.has(element);
+        Object.keys(pose).forEach(key => {
+            if (keepZIndex && key === "zIndex") {
+                return;
+            }
+            to[key] = from[key];
+        });
     }
 
     /**
@@ -219,11 +316,8 @@ export class StageTransitionManager {
         if (this.running && (this.running.roles.from === scene || this.running.roles.to === scene)) {
             return;
         }
-        const element = this.sceneElements.get(scene.getId());
-        if (!element) {
-            return;
-        }
-        Object.assign(element.style, suspended ? stageRetiredStyle() : stageSettledStyle());
+        const pose = suspended ? stageRetiredStyle() : stageSettledStyle();
+        this.paintedBy(scene.getId()).forEach(element => this.writePose(element, pose));
     }
 
     /** Bind the (empty, always-present) node overlay elements are created inside. */
@@ -336,10 +430,11 @@ export class StageTransitionManager {
     ): void {
         running.task.resolve.forEach((solution, index) => {
             const target = running.targets[index];
-            const element = target.kind === "overlay"
-                ? target.element
-                : this.sceneElements.get(target.sceneId) ?? null;
-            if (!element) {
+            // A scene's clips are posed with its root, so they leave (or arrive) with it.
+            const elements = target.kind === "overlay"
+                ? [target.element]
+                : this.paintedBy(target.sceneId);
+            if (!elements.length) {
                 // A scene root can legitimately go away mid-flight — an undo unmounts the
                 // incoming scene while its transition is still settling. Skipping is correct:
                 // there is nothing left to paint, and the run is about to be cancelled anyway.
@@ -352,7 +447,15 @@ export class StageTransitionManager {
                 : target.role === "target" ? INCOMING_SCENE_BASE_STYLE : SCENE_BASE_STYLE;
             const props = deepMerge<ElementProp<HTMLElement>>({style: base}, resolver(...values));
 
-            assignElementProps(element, props, dropImageAttributes);
+            elements.forEach(element => {
+                if (this.ownZIndex.has(element) && props.style && "zIndex" in props.style) {
+                    const style = {...props.style};
+                    delete style.zIndex;
+                    assignElementProps(element, {...props, style}, dropImageAttributes);
+                    return;
+                }
+                assignElementProps(element, props, dropImageAttributes);
+            });
         });
     }
 
@@ -363,10 +466,7 @@ export class StageTransitionManager {
         running.overlays.length = 0;
 
         poses.forEach(([scene, style]) => {
-            const element = this.sceneElements.get(scene.getId());
-            if (element) {
-                Object.assign(element.style, style);
-            }
+            this.paintedBy(scene.getId()).forEach(element => this.writePose(element, style));
         });
 
         if (this.running === running) {

@@ -20,6 +20,8 @@ type LoadDataThis = {
     audioManager: { fromData: (...args: unknown[]) => void };
     state: { videos: unknown[]; vfx: Vfx[]; srcManagers: unknown[]; elements: unknown[] };
     registerSrcManager: (...args: unknown[]) => void;
+    /** The scene an overlay a save names no scene for is given to; this stage has none. */
+    getLastScene: () => null;
     getExposedStateAsync: (...args: unknown[]) => { cancel: () => void };
 };
 
@@ -41,6 +43,7 @@ function createLoadDataThis(): LoadDataThis {
             elements: [],
         },
         registerSrcManager: () => void 0,
+        getLastScene: () => null,
         getExposedStateAsync: () => ({ cancel: () => void 0 }),
     };
 }

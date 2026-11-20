@@ -17,7 +17,11 @@
  * engine stays free of any renderer's code.
  */
 
-/** Logical pixel size of the box a puppet is drawn into. */
+/**
+ * Logical pixel size of the box a puppet is drawn into: the game's own pixels, the units of
+ * `GameConfig.width` / `height`. The engine scales the box onto the stage the way it scales an
+ * image, so a stage drawn smaller or larger than the game's size changes nothing a backend sees.
+ */
 export type PuppetSize = {
     width: number;
     height: number;
@@ -218,7 +222,10 @@ export interface PuppetInstance {
      * `undefined` whenever the story omitted it. Treat a missing payload as valid input.
      */
     command(name: string, payload?: unknown): void | Promise<void>;
-    /** The box changed size. */
+    /**
+     * The box changed its logical size. A stage resize is not one: the engine scales the element the
+     * backend was mounted in onto the stage itself, so the backend keeps drawing at the same size.
+     */
     resize(size: PuppetSize): void;
     /**
      * Optional: describe the model to an editor host. See {@link PuppetDescription}.

@@ -27,6 +27,16 @@ import type { PreloadStrategy } from "./preload/types";
  */
 export const SAVE_FORMAT_VERSION = 3;
 
+/** Options for {@link LiveGame.deserialize}. */
+export interface DeserializeOptions {
+    /**
+     * Refuse a save whose `meta.storyHash` is not the loaded story's hash, by throwing before any
+     * state changes. Off by default: a game updated after release usually still loads its old saves,
+     * and the mismatch is only logged.
+     */
+    requireMatchingStory?: boolean;
+}
+
 export interface SavedGameMetaData {
     /**
      * The timestamp of when the game was created

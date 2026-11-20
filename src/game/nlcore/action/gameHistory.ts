@@ -25,6 +25,16 @@ export type GameElementHistory =
          */
         voiceId?: string | number | null;
         character: string | null;
+        /**
+         * URL of the avatar the dialog showed for this line, resolved when the line was reached -
+         * the sentence's own avatar, else the one for the portrait the speaker wore on stage, else
+         * the character's - or `null` when it showed none.
+         *
+         * A backlog reads the speaker's face at that line from here: the stage has moved on by the
+         * time anyone opens it, so resolving the avatar again then answers with the look the
+         * speaker has now. Absent on entries recorded before this field existed.
+         */
+        avatar?: string | null;
     }
     | {
         type: "menu";

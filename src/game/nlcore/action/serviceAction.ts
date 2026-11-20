@@ -6,6 +6,7 @@ import { GameState } from "@player/gameState";
 import { ActionExecutionInjection } from "./action";
 import { LogicAction } from "@core/action/logicAction";
 import { Story } from "@core/elements/story";
+import { SkipGate } from "./skipGate";
 
 export type ServiceActionContentType = {
     "service:action": [type: string, args: unknown[]]
@@ -18,10 +19,17 @@ export class ServiceAction extends TypedAction<ServiceActionContentType, StringK
             gameState,
         }), type, args);
         if (Awaitable.isAwaitable(res)) {
-            return Awaitable.forward(res, {
+            const forwarded = Awaitable.forward(res, {
                 type: this.type as any,
                 node: this.contentNode?.getChild()
             });
+            // The stack waits on the forwarded awaitable, so that is where a fast-forward will look
+            // for the handler's answer to being skipped.
+            const gate = SkipGate.of(res);
+            if (gate) {
+                SkipGate.attach(forwarded, gate);
+            }
+            return forwarded;
         }
         return super.executeAction(gameState, injection);
     }

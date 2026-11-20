@@ -53,6 +53,7 @@ export type {
     TextWritingMode,
 } from "@player/lib/verticalText";
 export type { DialogOverlay, DialogOverlayRect } from "@player/elements/say/dialogOverlay";
+export type { WordRendererOptions } from "@player/elements/say/wordRenderer";
 export type { NametagProps } from "@player/elements/say/Nametag";
 export type { ItemProps } from "@player/elements/menu/UIMenu/Item";
 export type { ChoiceEvaluated } from "@player/elements/menu/type";

@@ -67,6 +67,18 @@ scene1.action([
 
 有关更多信息，请访问 [NarraLeaf-React 文档](https://www.narraleaf.com/zh/docs/narraleaf-react)。
 
+## 近期的引擎 API
+
+- `LiveGame.captureImage({ maxEdge, type, quality, backgroundColor })` 按所需尺寸绘制截图并只编码一次
+- `LiveGame.deserialize(save, { requireMatchingStory: true })` 在改变状态之前拒绝由另一个故事写出的存档
+- `registerWordRenderer(id, component, { interactive: false })` 让纯视觉的文字效果把点击继续交给台词
+- 回溯记录中的 say 条目携带该行显示过的 `avatar`，读取存档时也会拒绝不安全的图片与 CSS 地址
+- `Layer({ parallax })` 与 `Scene({ backgroundLayerParallax })` 可让图层位于距镜头不同的位置
+- `Video.show()` 与 `Video.hide()` 接受 `{ duration, easing }`，让视频淡入或淡出
+- `GameConfig.preload` 可替换内置预加载策略；`preloadGate` 与图片缓存预算控制默认路径
+- `Sound.play()` 在开始播放后就会完成；故事需要等待音频结束时传入 `{ waitForEnd: true }`
+- `GameState.getImageCache()`、`AudioManager.getCacheStats()` 与 `retainOnly()` 用于读取缓存占用并管理预算
+
 ## 立即开始
 
 ### 安装

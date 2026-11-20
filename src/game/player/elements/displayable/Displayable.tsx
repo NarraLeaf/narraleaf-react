@@ -95,11 +95,12 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     const [keyGen] = useState(() => new KeyGen("displayable.refGroup"));
     const currentKey = useRef<string>(keyGen.next());
     const refs = useRef<DisplayableRefGroup<U>[]>(initRefs());
+    /* The controller of the transition the element is running, set the moment `applyTransition`
+       starts one and cleared when it settles. A ref because the next `applyTransition` can come
+       before React has rendered the last one into `transitionTask`. */
+    const activeControllerRef = useRef<AnimationController<any> | null>(null);
     const game = useGame();
     const gameState = game.getLiveGame().getGameState()!;
-    const evaluatedTransProps = typeof transitionsProps === "function"
-        ? transitionsProps(transitionTask)
-        : transitionsProps;
     const [flush] = useFlush([transformToken, transitionTask, refs]);
 
     useEffect(() => {
@@ -120,6 +121,12 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
 
         const {controller, task} = transitionTask;
         const applyFrame = (values: AnimationDataTypeArray<TransitionAnimationType[]>) => {
+            // Worked out again on every frame: a host's props can depend on things that only become
+            // known once the transition is under way - an image places each group against sizes its
+            // pictures report as they load.
+            const evaluatedTransProps = typeof transitionsProps === "function"
+                ? transitionsProps(transitionTask)
+                : transitionsProps;
             refs.current.forEach(([ref], i) => {
                 const currentResolve = task.resolve[i];
                 const resolver = typeof currentResolve === "function" ? currentResolve : currentResolve.resolver;
@@ -416,8 +423,18 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
     }
 
     function applyTransition(newTransition: TransitionType, resolve: () => void): Timeline {
-        if (transitionTask) {
-            transitionTask.controller.complete();
+        // The transition on the element now, read from the ref rather than from `transitionTask`:
+        // two transitions applied before React re-renders would otherwise find the state still
+        // empty and leave the first one running, never settled.
+        const previous = activeControllerRef.current;
+        if (previous) {
+            previous.complete();
+            // A transition still gated on its elements loading has not started, and `complete()`
+            // only marks it; `start()` then settles it to its end here and now, while it is still
+            // the active one. A running transition ignores `start()` and settles on the next
+            // animation frame instead - by then this one has replaced it, and the guard below
+            // keeps that late settlement from tearing this one down.
+            previous.start();
         }
 
         const task = newTransition.createTask(gameState);
@@ -425,13 +442,21 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         const awaitable = new Awaitable<void>()
             .registerSkipController(new SkipController(controller.cancel));
         const timeline = new Timeline(awaitable);
+        /* Whether a newer transition has taken the element over. The groups, the refs and the
+           `transitionTask` state then belong to the newer one, and resetting them here would leave
+           it painting into refs that no longer point anywhere - its next frame throws and it stays
+           on its first pose. Only the caller's own callbacks still run. */
+        const superseded = () => activeControllerRef.current !== controller;
 
         awaitable.skipController!.onAbort(() => {
             controller.cancel();
         });
         controller.onCanceled(() => {
             timeline.abort();
-            setTransitionTask(null);
+            if (!superseded()) {
+                activeControllerRef.current = null;
+                setTransitionTask(null);
+            }
 
             gameState.logger.debug("Displayable", "Transition cancelled", newTransition);
         });
@@ -439,12 +464,16 @@ export function useDisplayable<TransitionType extends Transition<U>, U extends H
         // the transition is still gated on its elements loading (a skip, or the next transition
         // interrupting this one), and it must settle this task either way.
         controller.onComplete(() => {
-            resetRefs();
-            setTransitionTask(null);
+            if (!superseded()) {
+                activeControllerRef.current = null;
+                resetRefs();
+                setTransitionTask(null);
+            }
             onTransition?.(newTransition);
             resolve();
             awaitable.resolve();
         });
+        activeControllerRef.current = controller;
         gameState.timelines.attachTimeline(timeline);
         setTransitionTask({
             task,

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     getWordRenderer,
+    isInteractiveWordRenderer,
     registerWordRenderer,
     resolveWordRenderer,
     unregisterWordRenderer,
@@ -73,5 +74,18 @@ describe("word renderer registry", () => {
         release();
 
         expect(resolveWordRenderer("glossary")).toBeNull();
+    });
+
+    it("leaves a word's clicks to the line when its renderer is registered as not interactive", () => {
+        // A component carried directly takes its word's clicks, as every custom word did before.
+        expect(isInteractiveWordRenderer(First)).toBe(true);
+
+        registerWordRenderer("glossary", First, {interactive: false});
+        expect(resolveWordRenderer("glossary")).toBe(First);
+        expect(isInteractiveWordRenderer(First)).toBe(false);
+
+        // Registering it again without the option puts it back to the default.
+        registerWordRenderer("glossary", First);
+        expect(isInteractiveWordRenderer(First)).toBe(true);
     });
 });

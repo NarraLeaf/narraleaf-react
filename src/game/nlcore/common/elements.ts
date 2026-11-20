@@ -51,6 +51,7 @@ export {
 };
 
 export type {VfxConfig, VfxBlendMode, VfxFadeOptions} from "@core/elements/vfx";
+export type {VideoFadeOptions} from "@core/elements/video";
 export type {
     IPuppetUserConfig,
     PuppetConfig,

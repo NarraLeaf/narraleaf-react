@@ -1,9 +1,6 @@
 /* eslint-disable react/prop-types */
-import { Image as GameImage } from "@core/elements/displayable/image";
-import { resolveDialogAvatar } from "@core/elements/character/avatar";
-import { Utils } from "@core/common/Utils";
+import { avatarSourceToUrl, resolveSentenceAvatar } from "@core/elements/character/sentenceAvatar";
 import type { Character } from "@core/elements/character";
-import type { ImageSrc } from "@core/types";
 import type { Image } from "@core/elements/displayable/image";
 import clsx from "clsx";
 import React, { useRef } from "react";
@@ -29,23 +26,7 @@ export function useAvatar(): DialogAvatarContext {
         return emptyAvatarContext(character || null, null);
     }
 
-    const portraitConfig = gameState.findCurrentPortraitForCharacter(character);
-    const portrait = portraitConfig?.image || null;
-    const currentSrc = portrait ? GameImage.getSrcURL(portrait) : null;
-    const tags = portrait && GameImage.isTagSrc(portrait)
-        ? [...(portrait.state.currentSrc as string[])]
-        : null;
-    const result = resolveDialogAvatar({
-        character,
-        sentence,
-        portrait,
-        currentSrc,
-        tags,
-        gameState,
-        sentenceAvatar: sentence.config.avatar,
-        portraitAvatar: portraitConfig?.avatar,
-        characterAvatar: character.config.avatar,
-    });
+    const result = resolveSentenceAvatar(gameState, character, sentence);
     const src = avatarSourceToUrl(result.source);
 
     return {
@@ -97,13 +78,6 @@ export function Avatar({
             }}
         />
     );
-}
-
-function avatarSourceToUrl(source: ImageSrc | null): string | null {
-    if (!source) {
-        return null;
-    }
-    return Utils.srcToURL(source);
 }
 
 function emptyAvatarContext(character: Character | null, portrait: Image | null): DialogAvatarContext {

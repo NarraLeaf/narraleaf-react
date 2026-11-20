@@ -67,6 +67,18 @@ scene1.action([
 
 For more information, please visit the [NarraLeaf-React documentation](https://www.narraleaf.com/docs/narraleaf-react).
 
+## Recent engine APIs
+
+- `LiveGame.captureImage({ maxEdge, type, quality, backgroundColor })` draws a screenshot at the wanted size and encodes it once
+- `LiveGame.deserialize(save, { requireMatchingStory: true })` refuses a save written by another story before changing state
+- `registerWordRenderer(id, component, { interactive: false })` lets a purely visual text effect pass the player's clicks through to the line
+- Backlog `say` entries carry the `avatar` shown at that line, while restored saves refuse unsafe image and CSS URLs
+- `Layer({ parallax })` and `Scene({ backgroundLayerParallax })` place layers at different distances from the camera
+- `Video.show()` and `Video.hide()` accept `{ duration, easing }` to fade a clip in or out
+- `GameConfig.preload` replaces the built-in preload strategy, while `preloadGate` and the image cache budgets control the default path
+- `Sound.play()` resolves once playback starts; pass `{ waitForEnd: true }` when the story must wait for the clip
+- `GameState.getImageCache()`, `AudioManager.getCacheStats()` and `retainOnly()` expose cache residency and budgets
+
 ## Get Started
 
 ### Install

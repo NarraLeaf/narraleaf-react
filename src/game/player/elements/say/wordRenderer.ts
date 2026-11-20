@@ -10,6 +10,25 @@ import type React from "react";
  */
 const registry: Map<string, React.ComponentType<WordRenderProps<any>>> = new Map();
 const warnedMissing: Set<string> = new Set();
+/** Components registered with `interactive: false`; see {@link WordRendererOptions.interactive}. */
+const passive: WeakSet<React.ComponentType<WordRenderProps<any>>> = new WeakSet();
+
+/**
+ * Options for {@link registerWordRenderer}.
+ */
+export type WordRendererOptions = {
+    /**
+     * Whether a word drawn by this component takes the player's clicks once it is revealed, instead
+     * of letting them advance the line.
+     *
+     * A renderer that the player interacts with - a glossary term that opens on click - wants the
+     * click for itself, which is the default. A renderer that only changes how the text looks -
+     * shaking or waving characters - does not: with the default, the part of the dialogue box its
+     * word covers would stop advancing the line. Set `false` for those.
+     * @default true
+     */
+    interactive?: boolean;
+};
 
 /**
  * Register a component that words may name by id.
@@ -19,6 +38,7 @@ const warnedMissing: Set<string> = new Set();
  *
  * @param id - The id words refer to, e.g. `"glossary"`.
  * @param component - The component to render those words with.
+ * @param options - Whether the words take the player's clicks; see {@link WordRendererOptions}.
  * @returns A function that unregisters it again.
  * @example
  * ```tsx
@@ -29,9 +49,15 @@ const warnedMissing: Set<string> = new Set();
  */
 export function registerWordRenderer<T = unknown>(
     id: string,
-    component: React.ComponentType<WordRenderProps<T>>
+    component: React.ComponentType<WordRenderProps<T>>,
+    options?: WordRendererOptions
 ): () => void {
     registry.set(id, component as React.ComponentType<WordRenderProps<any>>);
+    if (options?.interactive === false) {
+        passive.add(component as React.ComponentType<WordRenderProps<any>>);
+    } else {
+        passive.delete(component as React.ComponentType<WordRenderProps<any>>);
+    }
     warnedMissing.delete(id);
     return () => {
         if (registry.get(id) === component) {
@@ -86,4 +112,13 @@ export function resolveWordRenderer(
         return null;
     }
     return resolved;
+}
+
+/**
+ * Whether a word drawn by `component` takes the player's clicks once revealed. A component carried
+ * directly by a word, rather than registered, always does.
+ * @internal
+ */
+export function isInteractiveWordRenderer(component: React.ComponentType<WordRenderProps<any>>): boolean {
+    return !passive.has(component);
 }

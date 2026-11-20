@@ -11,6 +11,8 @@ import {usePreloaded} from "@player/provider/preloaded";
 import {Utils} from "@core/common/Utils";
 import {ExposedStateType} from "@player/type";
 import {useFlush} from "@player/lib/flush";
+import {useRatio} from "@player/provider/ratio";
+import {puppetBoxStyles} from "@player/elements/displayable/puppetBox";
 
 /**
  * The engine's half of a puppet: a box, posed by the same machinery every displayable uses, with a
@@ -35,6 +37,11 @@ export default function Puppet({state, puppet}: Readonly<{
     );
     const sizeRef = useRef<PuppetSize>(size);
     sizeRef.current = size;
+    // `size` is in the game's logical pixels and the stage is drawn at `ratio.state.scale` of them.
+    // `useRatio` re-renders this element whenever the stage is resized, and the settled-style heal
+    // in `useDisplayable` writes the new outer size to the groups on the same update.
+    const {ratio} = useRatio();
+    const box = puppetBoxStyles(size, ratio.state.scale);
 
     const {
         transformRef,
@@ -55,8 +62,7 @@ export default function Puppet({state, puppet}: Readonly<{
             {
                 style: {
                     position: "relative",
-                    width: `${size.width}px`,
-                    height: `${size.height}px`,
+                    ...box.outer,
                 },
             },
         ],
@@ -244,7 +250,7 @@ export default function Puppet({state, puppet}: Readonly<{
                     >
                         <div
                             ref={hostRef}
-                            className={"w-full h-full"}
+                            style={box.host}
                             data-puppet-id={puppet.getId()}
                             data-puppet-backend={puppet.config.backend}
                         />
